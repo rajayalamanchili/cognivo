@@ -2,7 +2,7 @@
 
 **Project**: Cognivo
 **Status**: Locked for Milestone 1
-**Last amended**: 2026-08-14
+**Last amended**: 2026-08-15
 
 ## Purpose
 
@@ -95,7 +95,9 @@ obvious.
 
 | Concern | Choice | Rationale |
 |---|---|---|
-| Approach | Explicit statistical model (exact algorithm chosen at `/speckit-plan` time -- Bayesian Knowledge Tracing is the leading candidate) | Constitution Principle I requires determinism and explainability; an LLM "impression" of mastery cannot satisfy either. |
+| Approach | Bayesian Knowledge Tracing (BKT), locked at Milestone 1 `/speckit-plan` time (see `specs/001-domain-agnostic-core/research.md` §1) | Constitution Principle I requires determinism and explainability; an LLM "impression" of mastery cannot satisfy either. |
+| Parameters | Fixed global constants, not per-topic-fitted: `p(L0)=0.3`, `p(T)=0.1`, `p(S)=0.1`, `p(G)=0.25` (multiple-choice) / `0.05` (numeric) | Per-topic EM-fitting needs a volume of real learner response data that must not exist pre-Milestone-7 (Constitution Principle VIII); global constants keep the model fully deterministic without overfitting synthetic seed data. Revisit once Milestone 6's real grading data exists. |
+| Mastery bands | Three bands: "struggling" (< 0.4), "developing" (0.4-0.7), "mastered" (>= 0.7); a topic with no answer yet is "unknown," not a stored value on this scale | Locked via `specs/001-domain-agnostic-core/spec.md` Clarifications (2026-08-15); only struggling/developing topics are eligible for next-topic selection. |
 | Implementation | Python, called as an ADK tool by the Sequencing Agent, reading/writing mastery state from Postgres on every call | Stateless-function-compatible by construction -- no in-memory model state assumed to persist between requests. |
 
 ## Content schema
@@ -110,7 +112,8 @@ obvious.
 | Concern | Choice | Rationale |
 |---|---|---|
 | API framework | FastAPI, deployed as a Vercel Python Function (ASGI) | FastAPI has first-class, officially documented support as a Vercel-deployed backend framework, and pairs cleanly with ADK's Python-first design. |
-| Question/assessment generation | Structured-output calls to an LLM API (provider chosen at `/speckit-plan` time), validated against the content artifact before display (FR-007) | The validation step, not the model choice, is what carries the correctness guarantee. |
+| Question/assessment generation | Structured-output calls to an LLM, called through ADK's `LiteLlm` model wrapper so the provider stays a runtime config value rather than hardcoded; default provider/model is Anthropic Claude (Sonnet), set via env var. Locked at Milestone 1 `/speckit-plan` time (see `specs/001-domain-agnostic-core/research.md` §2). Output validated against the content artifact before display (FR-007). | The validation step, not the model choice, is what carries the correctness guarantee. LiteLLM keeps the provider swappable without a code change; Claude was chosen as the default for consistency with this project's existing Anthropic-centric tooling (`claude-code-action`) and strong structured-output reliability. |
+| Near-duplicate question detection | In-process text similarity (TF-IDF cosine or `difflib.SequenceMatcher`) over the last 5 generated questions per learner+topic -- no vector database or embeddings API (FR-008) | Locked at Milestone 1 `/speckit-plan` time (research.md §3). Deliberately does not pull `pgvector` forward from its Milestone 9 Tutor Agent scope -- a 5-question window doesn't justify that infrastructure yet. |
 
 ## Frontend
 
@@ -130,6 +133,9 @@ obvious.
 
 | Concern | Choice | Rationale |
 |---|---|---|
+| Backend unit/integration tests | `pytest` | De facto standard for FastAPI/Python; integrates cleanly with ADK's Python-first design. Locked at Milestone 1 `/speckit-plan` time (research.md §4). |
+| Frontend component tests | `Vitest` + React Testing Library | Standard modern pairing for Next.js, faster iteration than Jest with no material tradeoff for a fresh project. |
+| Deployment smoke test / E2E | `Playwright`, run against the live Vercel URL | Drives a real browser against the actual deployed app -- the most faithful check of Constitution Principle IX's "deployable and demoable," not just that the API responds. |
 | Determinism check (SC-001) | Automated script re-running identical placement answers and diffing mastery output | Runs in CI against the same database-backed state model used in production, not an in-memory shortcut that wouldn't catch a serverless-state bug. |
 | Extensibility check (SC-004) | Automated script scanning engine source for subject-id-keyed conditionals | Enforces Constitution Principle III mechanically rather than by code review alone. |
 | Question-quality check (SC-003) | Automated validation step run against every generated question before display, plus an offline batch-eval script for regression testing | Distinct from the display-time validation (FR-007) -- this is the automated *test* that the validation logic itself keeps working. |
@@ -137,8 +143,6 @@ obvious.
 
 ## Explicitly not yet decided (do not pre-select)
 
-- The mastery model's exact algorithm (BKT vs. alternative) -- Milestone 1 planning decision.
-- LLM provider for question generation -- Milestone 1 planning decision.
 - The Grading Agent's language and deployment shape -- Milestone 6 decision, once free-text grading's concrete needs are clear.
 - Instructor auth/identity approach -- Milestone 7 decision, tied to the privacy/retention spec required by Constitution Principle VIII.
 - Fine-tuning approach and base model for the misconception classifier -- Milestone 11 decision, made once Milestone 6's accumulated grading data is actually available to inspect.
@@ -146,6 +150,8 @@ obvious.
 - Semantic-caching layer (in-database via Postgres, or a dedicated cache like Redis/Upstash) -- Milestone 13 decision, made once Milestone 9's actual call volume is known well enough to size the cache correctly.
 - Whether Fluid Compute (for longer execution windows) is needed -- revisit if any agent call's typical latency approaches the default execution limit.
 
-**Version**: 1.5.0 -- Amended 2026-08-15 (locked pgvector and native
-Vercel/Next.js streaming for the Tutor Agent milestone; added deferred
-decisions for fine-tuning, prompt versioning, and semantic caching)
+**Version**: 1.6.0 -- Amended 2026-08-15 (Milestone 1 `/speckit-plan`:
+locked BKT parameters and three-band mastery model, LLM provider
+(LiteLLM + Claude Sonnet default) and near-duplicate detection approach
+for question generation, and backend/frontend/E2E testing frameworks;
+see `specs/001-domain-agnostic-core/research.md`)

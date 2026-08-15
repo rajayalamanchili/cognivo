@@ -10,14 +10,37 @@
 structured-only dynamically generated assessments, and single-learner
 mastery model as the foundational engine for Cognivo"
 
+## Clarifications
+
+### Session 2026-08-15
+
+- Q: What mastery-probability value counts as "below threshold" (needs
+  more practice) versus "mastered", for FR-006's topic selection and
+  SC-005's "not high-confidence mastery" test? → A: Three-band model --
+  mastery < 0.4 is "struggling", 0.4-0.7 is "developing", >= 0.7 is
+  "mastered"; only struggling or developing topics are eligible for
+  next-topic selection.
+- Q: How many questions should the initial placement assessment
+  include, and how are they distributed across a subject's entry-level
+  topics? → A: Exactly one placement question per entry-level topic.
+- Q: Which two subjects should the content artifacts cover, to prove
+  the engine is genuinely domain-agnostic (User Story 3 / FR-012 /
+  SC-004)? → A: Algebra I and Biology.
+- Q: How many recent questions (per learner and topic) should the
+  near-duplicate check look back across when generating a new question
+  (FR-008)? → A: Last 5 questions per learner+topic.
+- Q: How many difficulty levels/bands should a content artifact define
+  per topic, for the Assessment-Generation Agent to calibrate against?
+  → A: 3 bands (easy/medium/hard).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Take a placement assessment and get a real starting mastery estimate (Priority: P1)
 
 A solo learner starts a new subject with no prior data. The system asks
-a small number of structured (multiple-choice/numeric) questions and
-produces an initial, per-topic mastery estimate -- not a guess, a value
-computed by an explicit model.
+one structured (multiple-choice/numeric) question per entry-level topic
+and produces an initial, per-topic mastery estimate -- not a guess, a
+value computed by an explicit model.
 
 **Why this priority**: Nothing else in the product means anything without
 a real starting mastery state -- personalized sequencing (User Story 2)
@@ -34,8 +57,9 @@ mastery values.
 
 1. **Given** a subject's content artifact defines a topic graph (topics
    and their prerequisite relationships), **When** a new learner starts
-   placement, **Then** the Diagnostic Agent selects an initial set of
-   questions spanning the graph's entry-level topics, not just one topic.
+   placement, **Then** the Diagnostic Agent selects exactly one
+   placement question per entry-level topic in the graph, not just one
+   topic overall.
 2. **Given** a learner answers all placement questions, **When** the
    Sequencing Agent's mastery model processes the results, **Then** each
    topic touched by placement receives an explicit mastery value (e.g. a
@@ -74,8 +98,9 @@ correctly scoped to the requested topic and difficulty band.
 
 **Acceptance Scenarios**:
 
-1. **Given** a mastery state showing a topic below the mastery threshold,
-   **When** the learner requests a next question, **Then** the
+1. **Given** a mastery state showing a topic in the "struggling" or
+   "developing" band (mastery < 0.7), **When** the learner requests a
+   next question, **Then** the
    Sequencing Agent selects that topic (not a topic already mastered or
    an untouched, non-prerequisite-satisfied topic) and passes it to the
    Assessment-Generation Agent.
@@ -142,8 +167,8 @@ question generation both work correctly for it.
 - What happens when two consecutive generated questions for the same
   topic/difficulty are near-duplicates of each other, even though not
   text-identical? (The generation step must check for and avoid
-  semantic near-duplication within a short recent window, not only exact
-  text matches.)
+  semantic near-duplication within the learner's last 5 questions for
+  that topic, not only exact text matches.)
 - What happens if the Assessment-Generation Agent produces a
   structured question whose options don't actually match its own answer
   key (e.g. the "correct" option isn't among the listed choices)? (Must
@@ -162,8 +187,9 @@ question generation both work correctly for it.
   unreachable topics) before it can be used, failing at artifact-load
   time, not at runtime mid-session.
 - **FR-003**: The Diagnostic Agent MUST select an initial placement
-  question set spanning a subject's entry-level topics for a new
-  learner with no prior mastery data.
+  question set containing exactly one question per entry-level topic
+  (a topic with no prerequisites) for a new learner with no prior
+  mastery data.
 - **FR-004**: The Sequencing Agent's mastery model MUST compute an
   explicit, deterministic per-topic mastery value from a learner's
   answers -- given identical answers, it MUST produce identical mastery
@@ -172,16 +198,18 @@ question generation both work correctly for it.
   represented as "unknown," never defaulted to a zero or full mastery
   value.
 - **FR-006**: The Sequencing Agent MUST select the next topic for
-  assessment based on the current mastery state (favoring topics below
-  threshold with satisfied prerequisites), not randomly or in a fixed
-  order.
+  assessment based on the current mastery state (favoring topics with
+  satisfied prerequisites whose mastery value is below 0.7 -- i.e.
+  "struggling" (< 0.4) or "developing" (0.4-0.7), per the three-band
+  mastery model below), not randomly or in a fixed order. A topic at or
+  above 0.7 mastery ("mastered") is not selected.
 - **FR-007**: The Assessment-Generation Agent MUST generate a structured
   (multiple-choice or numeric) question for a given topic and difficulty,
   along with its own answer key, generated together and validated for
   internal consistency (the marked-correct option must actually be among
   the listed choices) before the question is shown to a learner.
 - **FR-008**: The system MUST avoid generating near-duplicate questions
-  within a short recent window for the same learner and topic.
+  within the last 5 generated questions for the same learner and topic.
 - **FR-009**: Grading of structured answers in this milestone MUST be a
   deterministic comparison against the generated answer key -- no LLM
   judgment call is involved (free-text grading is out of scope, see
@@ -194,9 +222,9 @@ question generation both work correctly for it.
   incorrect (bad answer key), and a flagged question MUST be excluded
   from future selection until reviewed.
 - **FR-012**: The system MUST support at least two independently
-  configured subjects running against the same engine codebase, verified
-  by an automated check for subject-id-keyed conditionals in engine
-  source.
+  configured subjects running against the same engine codebase --
+  Algebra I and Biology for this milestone -- verified by an automated
+  check for subject-id-keyed conditionals in engine source.
 - **FR-013**: All learner mastery state and agent session state MUST be
   persisted to the database on every write, never held only in an
   agent's in-process memory -- required so the system behaves correctly
@@ -212,11 +240,14 @@ question generation both work correctly for it.
 ### Key Entities *(include if feature involves data)*
 
 - **ContentArtifact**: a subject's topic graph (topics, prerequisite
-  edges), skill definitions, and difficulty bands -- the only place
-  subject-specific knowledge lives.
+  edges), skill definitions, and difficulty bands (three per topic:
+  easy/medium/hard) -- the only place subject-specific knowledge lives.
 - **MasteryState**: a learner's per-topic mastery values (including
   explicit "unknown" for untouched topics), plus the update history that
-  produced the current values.
+  produced the current values. Touched topics fall into one of three
+  bands: "struggling" (< 0.4), "developing" (0.4-0.7), or "mastered"
+  (>= 0.7); only struggling/developing topics are eligible for
+  next-topic selection (FR-006).
 - **GeneratedQuestion**: a structured question (multiple-choice or
   numeric), its answer key, the topic/difficulty it was generated for,
   and its validation status (including any learner/instructor flag).
@@ -246,8 +277,9 @@ question generation both work correctly for it.
   conditionals.
 - **SC-005**: For a scripted "degenerate" answer pattern (identical
   option chosen regardless of question content), the resulting mastery
-  estimate does not register as high-confidence mastery on the affected
-  topics -- verified by a specific test, not merely by inspection.
+  estimate on the affected topics stays below 0.7 (does not register as
+  "mastered" per the three-band model in Key Entities) -- verified by a
+  specific test, not merely by inspection.
 - **SC-006**: Every mastery-model update and question-selection decision
   in a full placement-through-first-follow-up-question session is
   present in the audit log with enough detail to reconstruct why each
@@ -295,4 +327,5 @@ question generation both work correctly for it.
   specifically to prove User Story 3's extensibility claim -- not
   deferred to a later "second subject" milestone, because
   content-artifact authoring is a much smaller lift than a full new
-  agent or feature and doesn't justify its own milestone.
+  agent or feature and doesn't justify its own milestone. The two
+  subjects are Algebra I and Biology (see Clarifications).
