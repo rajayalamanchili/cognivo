@@ -3,6 +3,24 @@ node_modules
 __pycache__
 *.pyc
 .venv
+.env
 .env*.local
+!.env.example
 .DS_Store
 .claude/
+
+# Python (backend/)
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Frontend test/build artifacts
+coverage/
+test-results/
+playwright-report/
+blob-report/
+*.tsbuildinfo

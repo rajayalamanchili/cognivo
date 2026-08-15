@@ -29,12 +29,12 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 **Purpose**: Project initialization and basic structure
 
-- [ ] T001 Create backend/ and frontend/ directory skeletons per plan.md Project Structure: `backend/src/{agents/{diagnostic,sequencing,assessment_gen},models,services/{mastery,content_artifact,dedup,audit_log},api,observability}`, `backend/content/`, `backend/scripts/`, `backend/tests/{contract,integration,unit}`; `frontend/src/{components,pages,services}`, `frontend/tests/{unit,e2e}`
-- [ ] T002 Initialize backend Python project in `backend/pyproject.toml` (or requirements.txt) with FastAPI, google-adk, litellm, openinference-instrumentation-google-adk, langfuse, sqlalchemy, alembic, psycopg, pytest (depends on T001)
-- [ ] T003 [P] Initialize frontend Next.js + TypeScript project in `frontend/` with Vitest, React Testing Library, Playwright (depends on T001)
-- [ ] T004 [P] Configure backend linting/formatting (ruff + black) in `backend/pyproject.toml` (depends on T002)
-- [ ] T005 [P] Configure frontend linting/formatting (ESLint + Prettier) in `frontend/.eslintrc`, `frontend/.prettierrc` (depends on T003)
-- [ ] T006 [P] Create `backend/.env.example` documenting `DATABASE_URL`, `ASSESSMENT_GEN_MODEL`, `ANTHROPIC_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` per research.md (depends on T002)
+- [X] T001 Create backend/ and frontend/ directory skeletons per plan.md Project Structure: `backend/src/{agents/{diagnostic,sequencing,assessment_gen},models,services/{mastery,content_artifact,dedup,audit_log},api,observability}`, `backend/content/`, `backend/scripts/`, `backend/tests/{contract,integration,unit}`; `frontend/src/{components,pages,services}`, `frontend/tests/{unit,e2e}`
+- [X] T002 Initialize backend Python project in `backend/pyproject.toml` (or requirements.txt) with FastAPI, google-adk, litellm, openinference-instrumentation-google-adk, langfuse, sqlalchemy, alembic, psycopg, pytest (depends on T001)
+- [X] T003 [P] Initialize frontend Next.js + TypeScript project in `frontend/` with Vitest, React Testing Library, Playwright (depends on T001)
+- [X] T004 [P] Configure backend linting/formatting (ruff + black) in `backend/pyproject.toml` (depends on T002)
+- [X] T005 [P] Configure frontend linting/formatting (ESLint + Prettier) in `frontend/.eslintrc`, `frontend/.prettierrc` (depends on T003)
+- [X] T006 [P] Create `backend/.env.example` documenting `DATABASE_URL`, `ASSESSMENT_GEN_MODEL`, `ANTHROPIC_API_KEY`, `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` per research.md (depends on T002)
 
 ---
 
