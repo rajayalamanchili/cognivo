@@ -88,13 +88,19 @@ generation (FR-007).
   "options": ["string", "..."]
 }
 ```
-`answer_key` is never included. The selected `topic_id` is guaranteed
-`struggling` or `developing` band with satisfied prerequisites (FR-006).
+`answer_key` is never included. The selected `topic_id` is
+`struggling`, `developing`, or `unknown` with every prerequisite topic
+`mastered` (FR-006, data-model.md's Next-topic eligibility rule). Among
+multiple eligible topics, the lowest-`p_mastery` one is chosen first
+(`unknown` ranks ahead of any numeric value), ties broken by the
+content artifact's authored topic order -- fully deterministic. If zero
+topics are eligible, the response falls back to the `mastered` topic
+with the lowest `p_mastery` (review) instead of erroring -- a
+next-question request always returns a `200`, never a "no eligible
+topic" error.
 
 **Errors**: `404` if the learner has no placement data yet for
-`subject_id` (must complete placement first); `409` (rare) if no
-eligible topic exists (all topics `mastered` or prerequisite-blocked) --
-the Independent Test in spec.md US2 assumes an eligible topic exists.
+`subject_id` (must complete placement first).
 
 ---
 
@@ -119,8 +125,10 @@ mastery-model update.
 }
 ```
 Grading is a deterministic comparison against `answer_key` -- no LLM
-judgment call (FR-009). This call also writes the `answer_submitted` and
-`mastery_updated` `AssessmentEvent` rows (FR-010).
+judgment call (FR-009): exact-match for `multiple_choice`, within the
+question's own relative tolerance (e.g. `±0.5%`) for `numeric`. This
+call also writes the `answer_submitted` and `mastery_updated`
+`AssessmentEvent` rows (FR-010).
 
 **Errors**: `404` unknown `question_id`; `409` if already answered.
 

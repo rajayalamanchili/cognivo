@@ -32,6 +32,33 @@ mastery model as the foundational engine for Cognivo"
 - Q: How many difficulty levels/bands should a content artifact define
   per topic, for the Assessment-Generation Agent to calibrate against?
   → A: 3 bands (easy/medium/hard).
+- Q: When a topic has never been touched (mastery = "unknown") but its
+  prerequisites just became satisfied, should the Sequencing Agent be
+  able to select it for the next question? → A: Yes -- an untouched
+  topic with satisfied prerequisites is eligible for next-topic
+  selection alongside "struggling"/"developing" topics; without this,
+  the prerequisite graph could never progress past entry-level topics
+  once placement ends.
+- Q: For a topic's prerequisites to count as "satisfied," does the
+  prerequisite topic need to reach the "mastered" band, or is a lower
+  bar enough? → A: The prerequisite topic must be "mastered" (mastery
+  >= 0.7); a topic dependent on it is not eligible for selection until
+  then.
+- Q: When multiple topics are simultaneously eligible for selection,
+  what rule breaks the tie so topic selection stays deterministic? →
+  A: Lowest mastery first ("unknown" topics sort ahead of any numeric
+  value, since they need evidence most urgently); if still tied, the
+  topic earlier in the content artifact's authored topic order wins.
+- Q: What should happen when a learner requests a next question but
+  zero topics are currently eligible (everything is "mastered" or
+  prerequisite-blocked)? → A: Fall back to re-serving the "mastered"
+  topic with the lowest mastery value (spaced-repetition-style review)
+  rather than returning an error -- the learner always gets a question.
+- Q: For numeric-answer questions, should grading (FR-009) require an
+  exact match, or allow a small tolerance? → A: A small relative
+  tolerance (e.g. ±0.5%), generated per-question alongside the answer
+  key by the Assessment-Generation Agent -- not a single global
+  constant.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -70,8 +97,9 @@ mastery values.
    **When** the mastery model runs again, **Then** the resulting mastery
    values are identical to the first run -- the model is deterministic
    given its inputs (Constitution Principle I).
-4. **Given** a learner's resulting mastery state, **When** an instructor
-   or the learner asks "why was I placed here," **Then** the system can
+4. **Given** a learner's resulting mastery state, **When** the learner
+   asks "why was I placed here" (no instructor role exists in this
+   milestone; see Assumptions), **Then** the system can
    state which answers drove which topic's mastery value -- the
    computation is explainable, not just a stored number (Constitution
    Principle V).
@@ -98,12 +126,12 @@ correctly scoped to the requested topic and difficulty band.
 
 **Acceptance Scenarios**:
 
-1. **Given** a mastery state showing a topic in the "struggling" or
-   "developing" band (mastery < 0.7), **When** the learner requests a
-   next question, **Then** the
-   Sequencing Agent selects that topic (not a topic already mastered or
-   an untouched, non-prerequisite-satisfied topic) and passes it to the
-   Assessment-Generation Agent.
+1. **Given** a mastery state showing a topic that is "struggling",
+   "developing", or "unknown" with satisfied prerequisites, **When**
+   the learner requests a next question, **Then** the Sequencing Agent
+   selects that topic (never an already-"mastered" topic, and never an
+   "unknown" topic whose prerequisites aren't yet satisfied) and passes
+   it to the Assessment-Generation Agent.
 2. **Given** a topic and difficulty level, **When** the
    Assessment-Generation Agent generates a question, **Then** the
    question is structured (multiple-choice or numeric-answer), is
@@ -160,10 +188,11 @@ question generation both work correctly for it.
   must catch this before the subject is usable, not fail at runtime
   mid-placement.)
 - What happens if a learner answers every placement question identically
-  regardless of content (e.g. always picks option A)? (The mastery model
-  must not produce a false-confident mastery estimate from a
-  degenerate answer pattern -- this is a real risk worth a specific
-  test, not just a theoretical concern.)
+  regardless of content (e.g. always picks option A for multiple-choice,
+  or always submits the same value for numeric questions)? (The mastery
+  model must not produce a false-confident mastery estimate from a
+  degenerate answer pattern, for either question type -- this is a real
+  risk worth a specific test, not just a theoretical concern.)
 - What happens when two consecutive generated questions for the same
   topic/difficulty are near-duplicates of each other, even though not
   text-identical? (The generation step must check for and avoid
@@ -174,6 +203,11 @@ question generation both work correctly for it.
   key (e.g. the "correct" option isn't among the listed choices)? (Must
   be caught by validation before the question is ever shown, not
   discovered by a confused learner.)
+- What happens if a learner requests a next question but every topic is
+  either "mastered" or blocked on an unmastered prerequisite (zero
+  topics eligible)? (The Sequencing Agent falls back to re-selecting the
+  "mastered" topic with the lowest mastery value for review -- the
+  learner always receives a question, never an error.)
 
 ## Requirements *(mandatory)*
 
@@ -198,11 +232,22 @@ question generation both work correctly for it.
   represented as "unknown," never defaulted to a zero or full mastery
   value.
 - **FR-006**: The Sequencing Agent MUST select the next topic for
-  assessment based on the current mastery state (favoring topics with
-  satisfied prerequisites whose mastery value is below 0.7 -- i.e.
-  "struggling" (< 0.4) or "developing" (0.4-0.7), per the three-band
-  mastery model below), not randomly or in a fixed order. A topic at or
-  above 0.7 mastery ("mastered") is not selected.
+  assessment, not randomly or in a fixed order, from topics with
+  satisfied prerequisites that are "struggling" (< 0.4), "developing"
+  (>= 0.4 and < 0.7), or "unknown" (never yet touched by any
+  assessment) -- per the three-band mastery model below. A prerequisite
+  topic is "satisfied" only once it is itself "mastered" (>= 0.7); a
+  topic at or above 0.7 mastery ("mastered") is never selected. When
+  more than one topic is eligible, the Sequencing Agent MUST select the
+  one with the lowest mastery value first ("unknown" topics rank ahead
+  of any numeric value); if still tied, it MUST select the topic that
+  appears earliest in the content artifact's authored topic order --
+  this ordering rule MUST be deterministic given the same mastery state
+  and content artifact (Constitution Principle I). If zero topics are
+  eligible (every topic is "mastered" or prerequisite-blocked), the
+  Sequencing Agent MUST fall back to re-selecting the "mastered" topic
+  with the lowest mastery value for review, rather than returning an
+  error -- a next-question request always yields a question.
 - **FR-007**: The Assessment-Generation Agent MUST generate a structured
   (multiple-choice or numeric) question for a given topic and difficulty,
   along with its own answer key, generated together and validated for
@@ -213,7 +258,10 @@ question generation both work correctly for it.
 - **FR-009**: Grading of structured answers in this milestone MUST be a
   deterministic comparison against the generated answer key -- no LLM
   judgment call is involved (free-text grading is out of scope, see
-  Assumptions).
+  Assumptions). Multiple-choice grading is exact-match; numeric-answer
+  grading MUST allow a small relative tolerance (e.g. ±0.5%) that the
+  Assessment-Generation Agent generates per-question alongside that
+  question's answer key, not a single global constant.
 - **FR-010**: Every mastery-model update and every question-selection
   decision MUST be logged with enough context to answer "why was this
   question chosen" and "why did mastery change this way" after the fact
@@ -245,12 +293,17 @@ question generation both work correctly for it.
 - **MasteryState**: a learner's per-topic mastery values (including
   explicit "unknown" for untouched topics), plus the update history that
   produced the current values. Touched topics fall into one of three
-  bands: "struggling" (< 0.4), "developing" (0.4-0.7), or "mastered"
-  (>= 0.7); only struggling/developing topics are eligible for
-  next-topic selection (FR-006).
+  bands, always computed live from the current mastery value (never
+  cached, so a band can change immediately after any answer):
+  "struggling" (< 0.4), "developing" (>= 0.4 and < 0.7), or "mastered"
+  (>= 0.7); struggling, developing, and unknown-with-satisfied-
+  prerequisites topics are all eligible for next-topic selection
+  (FR-006) -- only "mastered" topics are excluded.
 - **GeneratedQuestion**: a structured question (multiple-choice or
-  numeric), its answer key, the topic/difficulty it was generated for,
-  and its validation status (including any learner/instructor flag).
+  numeric), its answer key (for numeric questions, including a
+  per-question relative tolerance, e.g. ±0.5%, per FR-009), the
+  topic/difficulty it was generated for, and its validation status
+  (including any learner/instructor flag).
 - **AssessmentEvent**: a logged record of a question shown, an answer
   given, the resulting grade, and the mastery-model update it triggered
   -- the audit trail behind Constitution Principle V's explainability
@@ -260,9 +313,9 @@ question generation both work correctly for it.
 
 ### Measurable Outcomes
 
-- **SC-001**: Given an identical sequence of placement answers, the
-  resulting per-topic mastery values are byte-for-byte identical across
-  ten repeated runs.
+- **SC-001**: Given an identical sequence of placement answers submitted
+  in the same order, the resulting per-topic mastery values are
+  byte-for-byte identical across ten repeated runs.
 - **SC-002**: Across five consecutive question-generation requests for
   the same topic and difficulty, no two generated questions are
   text-identical, and 100% remain correctly scoped to the requested topic
@@ -275,11 +328,13 @@ question generation both work correctly for it.
   changes to any engine file outside that artifact's own directory,
   verified by an automated check scanning for subject-id-keyed
   conditionals.
-- **SC-005**: For a scripted "degenerate" answer pattern (identical
-  option chosen regardless of question content), the resulting mastery
-  estimate on the affected topics stays below 0.7 (does not register as
-  "mastered" per the three-band model in Key Entities) -- verified by a
-  specific test, not merely by inspection.
+- **SC-005**: For a scripted "degenerate" answer pattern -- an identical
+  option chosen regardless of question content for multiple-choice
+  questions, and an identical value submitted regardless of question
+  content for numeric questions -- the resulting mastery estimate on
+  the affected topics stays below 0.7 (does not register as "mastered"
+  per the three-band model in Key Entities) -- verified by a specific
+  test for each question type, not merely by inspection.
 - **SC-006**: Every mastery-model update and question-selection decision
   in a full placement-through-first-follow-up-question session is
   present in the audit log with enough detail to reconstruct why each

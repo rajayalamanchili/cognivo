@@ -66,17 +66,23 @@ Maps directly to spec.md User Stories 1-2's Acceptance Scenarios.
 
 3. **Request next question**
    `GET /api/learners/{learner_id}/next-question?subject_id=algebra-1`
-   → Confirm the selected `topic_id` is `struggling` or `developing`
-   band with satisfied prerequisites (FR-006).
+   → Confirm the selected `topic_id` is `struggling`, `developing`, or
+   `unknown` with every prerequisite `mastered` (FR-006,
+   data-model.md's Next-topic eligibility rule) -- never a `mastered`
+   topic while any lower-priority topic remains eligible.
    → Repeat 5 times for the same topic (after answering each, to move
    past the "already answered" gate); confirm no two `stem` values are
    text-identical (SC-002) and none are near-duplicates within the last
    5 (FR-008, research.md §3).
+   → Separately, script a session where every topic reaches `mastered`;
+   confirm the next request falls back to the lowest-`p_mastery`
+   `mastered` topic instead of an error response.
 
 4. **Submit an answer**
    `POST /api/questions/{question_id}/answer`
    → Confirm `correct` matches a direct comparison against the
-   generated `answer_key`, not an LLM judgment (FR-009).
+   generated `answer_key` -- exact-match for `multiple_choice`, within
+   the question's own relative tolerance for `numeric` (FR-009).
    → Confirm `posterior_p_mastery` moved in the expected direction from
    `prior_p_mastery`.
 
@@ -97,9 +103,11 @@ Maps directly to spec.md User Stories 1-2's Acceptance Scenarios.
    window → confirm equal counts, no dropped spans.
 
 8. **Degenerate-answer-pattern check** (SC-005)
-   Re-run steps 1-2 with a scripted answer set that picks the same
-   option regardless of question content → confirm no touched topic's
-   resulting `band` is `mastered`.
+   Re-run steps 1-2 twice: once with a scripted answer set that picks
+   the same multiple-choice option regardless of question content, and
+   once with a scripted set that submits the same numeric value
+   regardless of question content → confirm no touched topic's
+   resulting `band` is `mastered` in either run.
 
 9. **Second-subject check** (User Story 3, SC-004)
    Repeat steps 1-4 against `subject_id=biology` → confirm identical
