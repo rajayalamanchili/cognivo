@@ -70,6 +70,10 @@ Maps directly to spec.md User Stories 1-2's Acceptance Scenarios.
    `unknown` with every prerequisite `mastered` (FR-006,
    data-model.md's Next-topic eligibility rule) -- never a `mastered`
    topic while any lower-priority topic remains eligible.
+   → Confirm `difficulty` matches the selected topic's band per
+   data-model.md's Difficulty-selection rule (`easy` for
+   struggling/unknown, `medium` for developing, `hard` only for a
+   `mastered`-fallback topic).
    → Repeat 5 times for the same topic (after answering each, to move
    past the "already answered" gate); confirm no two `stem` values are
    text-identical (SC-002) and none are near-duplicates within the last

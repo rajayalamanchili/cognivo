@@ -21,6 +21,7 @@ Starts a new placement session for the demo learner on a subject.
     {
       "question_id": "uuid",
       "topic_id": "string",
+      "difficulty": "easy",
       "question_type": "multiple_choice | numeric",
       "stem": "string",
       "options": ["string", "..."]
@@ -28,7 +29,9 @@ Starts a new placement session for the demo learner on a subject.
   ]
 }
 ```
-One question per entry-level topic (FR-003) -- `answer_key` is never
+One question per entry-level topic (FR-003), always generated at
+`"easy"` difficulty (every entry-level topic is `unknown` at placement
+time, per FR-006's difficulty mapping) -- `answer_key` is never
 included in this response.
 
 **Errors**: `404` if `subject_id` unknown or not `validated_at` (FR-002).
@@ -97,7 +100,10 @@ content artifact's authored topic order -- fully deterministic. If zero
 topics are eligible, the response falls back to the `mastered` topic
 with the lowest `p_mastery` (review) instead of erroring -- a
 next-question request always returns a `200`, never a "no eligible
-topic" error.
+topic" error. `difficulty` is derived from the selected topic's band --
+`easy` for `struggling`/`unknown`, `medium` for `developing`, `hard`
+for a `mastered` fallback topic (data-model.md's Difficulty-selection
+rule) -- not within-session adaptive difficulty.
 
 **Errors**: `404` if the learner has no placement data yet for
 `subject_id` (must complete placement first).
@@ -140,7 +146,7 @@ Flags a question's answer key as incorrect (FR-011).
 
 **Request**:
 ```json
-{ "flagged_by": "learner_id or instructor_id", "reason": "string" }
+{ "flagged_by": "learner_id", "reason": "string" }
 ```
 
 **Response** `200`:

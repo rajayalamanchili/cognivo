@@ -7,7 +7,7 @@ description: "Task list template for feature implementation"
 
 **Input**: Design documents from `/specs/001-domain-agnostic-core/`
 
-**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api.md, quickstart.md (all present)
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api.md, quickstart.md (all present, spec.md/data-model.md/contracts/api.md/quickstart.md re-synced 2026-08-15 after `/speckit-clarify` and again after `/speckit-analyze` findings C1/F1/A1/E1)
 
 **Tests**: Included. `roadmap.md`'s Milestone 1 Definition of Done makes SC-001, SC-003, SC-004, and SC-005 hard automated gates, not inspection-verified claims -- so the corresponding test tasks below are load-bearing, not optional scaffolding.
 
@@ -46,15 +46,15 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 - [ ] T007 [P] Configure Alembic migrations against Postgres/Neon in `backend/alembic/` (depends on T002)
 - [ ] T008 [P] Create Subject model in `backend/src/models/subject.py` per data-model.md
-- [ ] T009 [P] Create Topic model in `backend/src/models/topic.py` per data-model.md
+- [ ] T009 [P] Create Topic model in `backend/src/models/topic.py` per data-model.md, including `order_index` (the content artifact's authored declaration order -- the deterministic tiebreaker FR-006's next-topic selection uses)
 - [ ] T010 [P] Create PrerequisiteEdge model in `backend/src/models/prerequisite_edge.py` per data-model.md
-- [ ] T011 [P] Create MasteryState model in `backend/src/models/mastery_state.py` per data-model.md (three-band `band` derived from `p_mastery`, not independently authoritative)
-- [ ] T012 [P] Create GeneratedQuestion model in `backend/src/models/generated_question.py` per data-model.md
+- [ ] T011 [P] Create MasteryState model in `backend/src/models/mastery_state.py` per data-model.md (three-band `band` derived live from `p_mastery`, never cached, not independently authoritative)
+- [ ] T012 [P] Create GeneratedQuestion model in `backend/src/models/generated_question.py` per data-model.md (numeric `answer_key` includes a per-question relative tolerance, e.g. `±0.5%`)
 - [ ] T013 [P] Create AssessmentEvent model in `backend/src/models/assessment_event.py` per data-model.md
 - [ ] T014 [P] Create DemoLearnerProfile model in `backend/src/models/demo_learner_profile.py` per data-model.md (`is_demo` non-nullable, explicit at creation -- Constitution Principle VIII)
 - [ ] T015 Generate and apply initial Alembic migration covering all Phase 2 models in `backend/alembic/versions/` (depends on T007-T014)
 - [ ] T016 Implement content-artifact load-time validator (schema + cycle/reachability check, FR-002) in `backend/src/services/content_artifact/validator.py` (depends on T009, T010)
-- [ ] T017 Implement content-artifact loader in `backend/src/services/content_artifact/loader.py`, setting `validated_at` only after T016 passes (depends on T016)
+- [ ] T017 Implement content-artifact loader in `backend/src/services/content_artifact/loader.py`, assigning `Topic.order_index` from declaration order and setting `validated_at` only after T016 passes (depends on T016)
 - [ ] T018 [P] Implement AssessmentEvent audit-log writer service in `backend/src/services/audit_log/writer.py` (depends on T013)
 - [ ] T019 [P] Configure ADK Postgres-backed `DatabaseSessionService` in `backend/src/observability/session.py` (depends on T002)
 - [ ] T020 [P] Configure Langfuse + OpenInference `GoogleADKInstrumentor` instrumentation with explicit span-flush-before-response in `backend/src/observability/tracing.py` per FR-014 (depends on T002)
@@ -76,24 +76,25 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 > Write these tests FIRST, ensure they FAIL before implementation
 
-- [ ] T024 [P] [US1] Integration test: placement determinism (SC-001) -- rerun identical placement answers 10x, assert byte-identical mastery output, in `backend/tests/integration/test_placement_determinism.py`
-- [ ] T025 [P] [US1] Unit test: BKT update function determinism and three-band boundary correctness (0.4/0.7) in `backend/tests/unit/test_mastery_bkt.py`
-- [ ] T026 [P] [US1] Unit test: degenerate answer pattern (same option regardless of content) does not yield a "mastered" band (SC-005) in `backend/tests/unit/test_mastery_degenerate.py`
+- [ ] T024 [P] [US1] Integration test: placement determinism (SC-001) -- rerun identical placement answers, submitted in the same order, 10x, assert byte-identical mastery output, in `backend/tests/integration/test_placement_determinism.py`
+- [ ] T025 [P] [US1] Unit test: BKT update function determinism and three-band boundary correctness (< 0.4 struggling, >= 0.4 and < 0.7 developing, >= 0.7 mastered) in `backend/tests/unit/test_mastery_bkt.py`
+- [ ] T026 [P] [US1] Unit test: degenerate answer pattern -- same multiple-choice option regardless of content, and same numeric value regardless of content -- does not yield a "mastered" band for either question type (SC-005) in `backend/tests/unit/test_mastery_degenerate.py`
 - [ ] T027 [P] [US1] Contract test for `POST /api/subjects/{subject_id}/placement/start` and `POST /api/placement/{id}/submit` per contracts/api.md in `backend/tests/contract/test_placement_api.py`
+- [ ] T028 [P] [US1] Unit test: multiple-choice grading is exact-match; numeric grading accepts answers within the question's own relative tolerance (e.g. `±0.5%`) and rejects answers outside it (FR-009) in `backend/tests/unit/test_grading_tolerance.py`
 
 ### Implementation for User Story 1
 
-- [ ] T028 [P] [US1] Author Algebra I content artifact (topic graph, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/algebra-1/`
-- [ ] T029 [P] [US1] Implement BKT mastery model service (`p(L0)=0.3`, `p(T)=0.1`, `p(S)=0.1`, `p(G)=0.25` MC / `0.05` numeric; three-band derivation) in `backend/src/services/mastery/bkt.py` per research.md §1
-- [ ] T030 [P] [US1] Implement deterministic structured-answer grading (compare response to `answer_key`, FR-009) in `backend/src/services/mastery/grading.py`
-- [ ] T031 [P] [US1] Implement Assessment-Generation Agent (ADK sub-agent, LiteLlm-wrapped, Claude Sonnet default) generating a structured question + answer key + internal-consistency validation (FR-007) in `backend/src/agents/assessment_gen/agent.py`
-- [ ] T032 [US1] Implement Diagnostic Agent (ADK sub-agent) selecting one placement question per entry-level topic via the Assessment-Generation Agent (FR-003) in `backend/src/agents/diagnostic/agent.py` (depends on T031, T028)
-- [ ] T033 [US1] Implement Sequencing Agent's mastery-update tool (applies BKT update per answer, writes MasteryState, FR-004/FR-005) in `backend/src/agents/sequencing/mastery_tool.py` (depends on T029, T030)
-- [ ] T034 [US1] Implement `POST /api/subjects/{subject_id}/placement/start` endpoint in `backend/src/api/routes/placement.py` (depends on T032)
-- [ ] T035 [US1] Implement `POST /api/placement/{placement_session_id}/submit` endpoint, writing `AssessmentEvent` rows per question/update (SC-006) in `backend/src/api/routes/placement.py` (depends on T033, T018, T034)
-- [ ] T036 [P] [US1] Implement `GET /api/learners/{learner_id}/mastery-state` endpoint in `backend/src/api/routes/mastery.py` (depends on T011)
-- [ ] T037 [P] [US1] Implement placement flow pages/components + API client in `frontend/src/pages/placement/` and `frontend/src/services/api.ts` (depends on T034, T035)
-- [ ] T038 [P] [US1] Implement mastery view component in `frontend/src/components/MasteryView.tsx` (depends on T036)
+- [ ] T029 [P] [US1] Author Algebra I content artifact (topic graph in intended authoring/tiebreak order, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/algebra-1/`
+- [ ] T030 [P] [US1] Implement BKT mastery model service (`p(L0)=0.3`, `p(T)=0.1`, `p(S)=0.1`, `p(G)=0.25` MC / `0.05` numeric; three-band derivation) in `backend/src/services/mastery/bkt.py` per research.md §1
+- [ ] T031 [P] [US1] Implement deterministic structured-answer grading in `backend/src/services/mastery/grading.py` (FR-009): exact-match for `multiple_choice`; relative-tolerance comparison against `answer_key`'s per-question tolerance for `numeric`
+- [ ] T032 [P] [US1] Implement Assessment-Generation Agent (ADK sub-agent, LiteLlm-wrapped, Claude Sonnet default) generating a structured question + answer key (numeric questions include a generated relative tolerance) + internal-consistency validation (FR-007) in `backend/src/agents/assessment_gen/agent.py`
+- [ ] T033 [US1] Implement Diagnostic Agent (ADK sub-agent) selecting one placement question per entry-level topic, always requesting `"easy"` difficulty from the Assessment-Generation Agent (FR-003, FR-006's difficulty mapping -- every entry-level topic is `unknown` at placement time) in `backend/src/agents/diagnostic/agent.py` (depends on T032, T029)
+- [ ] T034 [US1] Implement Sequencing Agent's mastery-update tool (applies BKT update per answer, writes MasteryState, FR-004/FR-005) in `backend/src/agents/sequencing/mastery_tool.py` (depends on T030, T031)
+- [ ] T035 [US1] Implement `POST /api/subjects/{subject_id}/placement/start` endpoint in `backend/src/api/routes/placement.py` (depends on T033)
+- [ ] T036 [US1] Implement `POST /api/placement/{placement_session_id}/submit` endpoint, writing `AssessmentEvent` rows per question/update (SC-006) in `backend/src/api/routes/placement.py` (depends on T034, T018, T035)
+- [ ] T037 [P] [US1] Implement `GET /api/learners/{learner_id}/mastery-state` endpoint in `backend/src/api/routes/mastery.py` (depends on T011)
+- [ ] T038 [P] [US1] Implement placement flow pages/components + API client in `frontend/src/pages/placement/` and `frontend/src/services/api.ts` (depends on T035, T036)
+- [ ] T039 [P] [US1] Implement mastery view component in `frontend/src/components/MasteryView.tsx` (depends on T037)
 
 **Checkpoint**: User Story 1 is independently functional and testable -- but see Implementation Strategy: spec.md frames US1+US2 together as Milestone 1's actual demoable slice.
 
@@ -107,20 +108,22 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T039 [P] [US2] Integration test: 5 consecutive next-question requests -- no text-identical/near-duplicate questions, 100% correctly topic-scoped (SC-002) in `backend/tests/integration/test_next_question_variety.py`
-- [ ] T040 [P] [US2] Contract test for `GET /api/learners/{id}/next-question`, `POST /api/questions/{id}/answer`, `POST /api/questions/{id}/flag` per contracts/api.md in `backend/tests/contract/test_question_api.py`
-- [ ] T041 [P] [US2] Unit test: internal-consistency validation rejects a question whose marked-correct option isn't among its listed options (SC-003) in `backend/tests/unit/test_question_validation.py`
+- [ ] T040 [P] [US2] Integration test: 5 consecutive next-question requests -- no text-identical/near-duplicate questions, 100% correctly topic-scoped (SC-002) in `backend/tests/integration/test_next_question_variety.py`
+- [ ] T041 [P] [US2] Contract test for `GET /api/learners/{id}/next-question`, `POST /api/questions/{id}/answer`, `POST /api/questions/{id}/flag` per contracts/api.md in `backend/tests/contract/test_question_api.py` -- including the always-`200` fallback behavior (no `409` "no eligible topic" case)
+- [ ] T042 [P] [US2] Unit test: internal-consistency validation rejects a question whose marked-correct option isn't among its listed options (SC-003) in `backend/tests/unit/test_question_validation.py`
+- [ ] T043 [P] [US2] Integration test: next-topic eligibility, deterministic tie-breaking, and difficulty derivation -- an "unknown" topic becomes eligible only once every one of its prerequisites reaches "mastered"; among multiple eligible topics, the lowest-`p_mastery` one is chosen first (`unknown` ranked ahead of any numeric value), ties broken by ascending `Topic.order_index`; the returned `difficulty` is `easy` for a struggling/unknown selection and `medium` for developing (FR-006) in `backend/tests/integration/test_next_topic_eligibility.py`
+- [ ] T044 [P] [US2] Integration test: zero-eligible-topics fallback -- when every topic is "mastered" or prerequisite-blocked, `next-question` returns the lowest-`p_mastery` "mastered" topic (ties broken by `Topic.order_index`) at `"hard"` difficulty, instead of an error (FR-006) in `backend/tests/integration/test_next_topic_fallback.py`
 
 ### Implementation for User Story 2
 
-- [ ] T042 [P] [US2] Implement near-duplicate detection service (TF-IDF cosine / `difflib` over the learner's last 5 questions per topic, FR-008) in `backend/src/services/dedup/checker.py` per research.md §3
-- [ ] T043 [US2] Extend Sequencing Agent with next-topic selection (struggling/developing eligible, satisfied prerequisites, FR-006) in `backend/src/agents/sequencing/agent.py` (depends on T029, T010)
-- [ ] T044 [US2] Wire Assessment-Generation Agent to accept a difficulty parameter and run the dedup check before returning a question (depends on T031, T042)
-- [ ] T045 [US2] Implement `GET /api/learners/{learner_id}/next-question` endpoint in `backend/src/api/routes/questions.py` (depends on T043, T044)
-- [ ] T046 [P] [US2] Implement `POST /api/questions/{question_id}/answer` endpoint, invoking grading + mastery update + `AssessmentEvent` writes in `backend/src/api/routes/questions.py` (depends on T030, T033, T018)
-- [ ] T047 [US2] Implement `POST /api/questions/{question_id}/flag` endpoint, excluding flagged questions from future selection (FR-011) in `backend/src/api/routes/questions.py` (depends on T045)
-- [ ] T048 [P] [US2] Implement next-question flow pages/components in `frontend/src/pages/practice/` (depends on T045, T046)
-- [ ] T049 [P] [US2] Implement flag-question UI affordance in `frontend/src/components/QuestionCard.tsx` (depends on T047)
+- [ ] T045 [P] [US2] Implement near-duplicate detection service (TF-IDF cosine / `difflib` over the learner's last 5 questions per topic, FR-008) in `backend/src/services/dedup/checker.py` per research.md §3
+- [ ] T046 [US2] Implement Sequencing Agent's next-topic selection in `backend/src/agents/sequencing/agent.py` (FR-006, data-model.md's Next-topic eligibility rule): eligible topics are "struggling", "developing", or "unknown" with every prerequisite "mastered"; select lowest `p_mastery` first (unknown ranked ahead of any numeric value), tie-break by ascending `Topic.order_index` (same tie-break applies among tied "mastered" topics in the fallback below); if zero topics are eligible, fall back to the lowest-`p_mastery` "mastered" topic. Also derive `difficulty` from the selected topic's band per data-model.md's Difficulty-selection rule: `easy` for struggling/unknown, `medium` for developing, `hard` for a mastered-fallback selection (depends on T030, T009, T010)
+- [ ] T047 [US2] Wire Assessment-Generation Agent to accept the `difficulty` value T046 derived and run the dedup check before returning a question (depends on T032, T045, T046)
+- [ ] T048 [US2] Implement `GET /api/learners/{learner_id}/next-question` endpoint, always returning `200` (never a "no eligible topic" error) in `backend/src/api/routes/questions.py` (depends on T046, T047)
+- [ ] T049 [P] [US2] Implement `POST /api/questions/{question_id}/answer` endpoint, invoking grading + mastery update + `AssessmentEvent` writes in `backend/src/api/routes/questions.py` (depends on T031, T034, T018)
+- [ ] T050 [US2] Implement `POST /api/questions/{question_id}/flag` endpoint, excluding flagged questions from future selection (FR-011) in `backend/src/api/routes/questions.py` (depends on T048)
+- [ ] T051 [P] [US2] Implement next-question flow pages/components in `frontend/src/pages/practice/` (depends on T048, T049)
+- [ ] T052 [P] [US2] Implement flag-question UI affordance in `frontend/src/components/QuestionCard.tsx` (depends on T050)
 
 **Checkpoint**: User Stories 1 AND 2 together form Milestone 1's demoable MVP slice (see Implementation Strategy).
 
@@ -134,9 +137,9 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 ### Implementation for User Story 3
 
-- [ ] T050 [P] [US3] Author Biology content artifact (topic graph, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/biology/` (depends on T016)
-- [ ] T051 [P] [US3] Write automated script scanning `backend/src` engine source for subject-id-keyed conditionals (SC-004 hard gate) in `backend/scripts/check_no_subject_conditionals.py`
-- [ ] T052 [US3] Integration test running the full placement + next-question flow against `subject_id=biology` in `backend/tests/integration/test_second_subject.py` (depends on T050)
+- [ ] T053 [P] [US3] Author Biology content artifact (topic graph in intended authoring/tiebreak order, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/biology/` (depends on T016)
+- [ ] T054 [P] [US3] Write automated script scanning `backend/src` engine source for subject-id-keyed conditionals (SC-004 hard gate) in `backend/scripts/check_no_subject_conditionals.py`
+- [ ] T055 [US3] Integration test running the full placement + next-question flow against `subject_id=biology` in `backend/tests/integration/test_second_subject.py` (depends on T053)
 
 **Checkpoint**: All three user stories independently functional; SC-004 extensibility gate enforced.
 
@@ -146,12 +149,13 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 **Purpose**: Improvements and validation that span multiple user stories
 
-- [ ] T053 [P] Implement persistent "DEMO ACCOUNT" UI badge shown on every screen in `frontend/src/components/DemoBadge.tsx` per tech-stack.md's Demo account strategy (Constitution Principle VIII) (depends on T037, T048)
-- [ ] T054 [P] Integration test: full audit-log completeness for a placement-through-first-question session (SC-006) in `backend/tests/integration/test_audit_log_completeness.py`
-- [ ] T055 [P] Integration test: Langfuse trace count equals agent-invocation count, no dropped spans (SC-008) in `backend/tests/integration/test_tracing_completeness.py`
-- [ ] T056 Configure Vercel deployment (combined FastAPI + Next.js Services) in `vercel.json` / project settings per tech-stack.md
-- [ ] T057 Playwright deployment smoke test covering the placement-through-first-question flow against the live Vercel URL (SC-007) in `frontend/tests/e2e/smoke.spec.ts` (depends on T056)
-- [ ] T058 Run quickstart.md validation end to end against the deployed environment and record results (depends on all prior tasks)
+- [ ] T056 [P] Implement persistent "DEMO ACCOUNT" UI badge shown on every screen in `frontend/src/components/DemoBadge.tsx` per tech-stack.md's Demo account strategy (Constitution Principle VIII) (depends on T038, T051)
+- [ ] T057 [P] Integration test: full audit-log completeness for a placement-through-first-question session (SC-006) in `backend/tests/integration/test_audit_log_completeness.py`
+- [ ] T058 [P] Integration test: Langfuse trace count equals agent-invocation count, no dropped spans (SC-008) in `backend/tests/integration/test_tracing_completeness.py`
+- [ ] T059 [P] Implement offline batch-eval script re-validating a sample of previously generated questions for internal-consistency (SC-003 regression testing, distinct from T042's display-time unit test) in `backend/scripts/batch_eval_questions.py` per tech-stack.md's Testing & evaluation table
+- [ ] T060 Configure Vercel deployment (combined FastAPI + Next.js Services) in `vercel.json` / project settings per tech-stack.md
+- [ ] T061 Playwright deployment smoke test covering the placement-through-first-question flow against the live Vercel URL (SC-007) in `frontend/tests/e2e/smoke.spec.ts` (depends on T060)
+- [ ] T062 Run quickstart.md validation end to end against the deployed environment and record results (depends on all prior tasks)
 
 ---
 
@@ -162,9 +166,9 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 - **Setup (Phase 1)**: No dependencies -- start immediately.
 - **Foundational (Phase 2)**: Depends on Setup completion -- BLOCKS all user stories.
 - **User Story 1 (Phase 3)**: Depends on Foundational completion only.
-- **User Story 2 (Phase 4)**: Depends on Foundational completion; reuses US1's BKT service (T029) and Assessment-Generation Agent (T031) but is a distinct, independently testable increment.
+- **User Story 2 (Phase 4)**: Depends on Foundational completion; reuses US1's BKT service (T030), grading (T031), Assessment-Generation Agent (T032), and mastery-update tool (T034) but is a distinct, independently testable increment.
 - **User Story 3 (Phase 5)**: Depends on Foundational completion (specifically T016's validator); independent of US1/US2 implementation beyond needing the same engine to exist.
-- **Polish (Phase 6)**: Depends on the user stories it validates (T053 needs T037+T048; T057 needs T056; T058 needs everything).
+- **Polish (Phase 6)**: Depends on the user stories it validates (T056 needs T038+T051; T059 needs T032/T042's generation+validation to exist; T061 needs T060; T062 needs everything).
 
 ### User Story Dependencies
 
@@ -185,8 +189,9 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 # Tests (after Foundational is complete):
 Task: "Integration test: placement determinism in backend/tests/integration/test_placement_determinism.py"
 Task: "Unit test: BKT update determinism in backend/tests/unit/test_mastery_bkt.py"
-Task: "Unit test: degenerate answer pattern in backend/tests/unit/test_mastery_degenerate.py"
+Task: "Unit test: degenerate answer pattern (MC + numeric) in backend/tests/unit/test_mastery_degenerate.py"
 Task: "Contract test for placement endpoints in backend/tests/contract/test_placement_api.py"
+Task: "Unit test: grading tolerance in backend/tests/unit/test_grading_tolerance.py"
 
 # Independent implementation pieces:
 Task: "Author Algebra I content artifact in backend/content/algebra-1/"
@@ -209,7 +214,9 @@ MVP checkpoint.
 
 1. Complete Phase 1 (Setup) + Phase 2 (Foundational) -- Foundation ready.
 2. Complete Phase 3 (US1) -- placement + initial mastery works standalone.
-3. Complete Phase 4 (US2) -- dynamic next-question works standalone.
+3. Complete Phase 4 (US2) -- dynamic next-question works standalone,
+   including deterministic tie-breaking and the zero-eligible-topics
+   fallback.
 4. **STOP and VALIDATE**: run both stories' Independent Tests together
    (a full placement-through-first-follow-up-question session). This is
    Milestone 1's MVP.

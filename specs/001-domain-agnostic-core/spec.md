@@ -180,9 +180,9 @@ question generation both work correctly for it.
 
 - What happens if a generated question's own answer key is later found to
   be wrong (e.g. a numeric question with a calculation error)? (The
-  question must be flaggable by a learner or instructor, and a flagged
-  question must be excluded from future selection until reviewed --
-  never silently continue being served.)
+  question must be flaggable by a learner, and a flagged question must
+  be excluded from future selection until reviewed -- never silently
+  continue being served.)
 - What happens if the topic graph has a cycle or an unreachable topic (a
   prerequisite that's never satisfiable)? (Content artifact validation
   must catch this before the subject is usable, not fail at runtime
@@ -223,7 +223,8 @@ question generation both work correctly for it.
 - **FR-003**: The Diagnostic Agent MUST select an initial placement
   question set containing exactly one question per entry-level topic
   (a topic with no prerequisites) for a new learner with no prior
-  mastery data.
+  mastery data, generated at "easy" difficulty (every entry-level topic
+  is "unknown" at placement time, per FR-006's difficulty mapping).
 - **FR-004**: The Sequencing Agent's mastery model MUST compute an
   explicit, deterministic per-topic mastery value from a learner's
   answers -- given identical answers, it MUST produce identical mastery
@@ -247,7 +248,16 @@ question generation both work correctly for it.
   eligible (every topic is "mastered" or prerequisite-blocked), the
   Sequencing Agent MUST fall back to re-selecting the "mastered" topic
   with the lowest mastery value for review, rather than returning an
-  error -- a next-question request always yields a question.
+  error -- a next-question request always yields a question. The same
+  tie-breaking rule (lowest mastery value, then earliest authored topic
+  order) applies when multiple "mastered" topics tie during this
+  fallback. The Sequencing Agent MUST also select the difficulty band
+  for the generated question, deterministically derived from the
+  selected topic's current mastery band: "struggling" or "unknown"
+  topics get "easy," "developing" topics get "medium," and a "mastered"
+  topic selected via the zero-eligible fallback gets "hard" (a stretch
+  review question). This is a fixed mapping, not within-session
+  adaptive difficulty -- see Assumptions.
 - **FR-007**: The Assessment-Generation Agent MUST generate a structured
   (multiple-choice or numeric) question for a given topic and difficulty,
   along with its own answer key, generated together and validated for
@@ -266,9 +276,10 @@ question generation both work correctly for it.
   decision MUST be logged with enough context to answer "why was this
   question chosen" and "why did mastery change this way" after the fact
   (Constitution Principle V).
-- **FR-011**: A learner or instructor MUST be able to flag a question as
-  incorrect (bad answer key), and a flagged question MUST be excluded
-  from future selection until reviewed.
+- **FR-011**: A learner MUST be able to flag a question as incorrect
+  (bad answer key), and a flagged question MUST be excluded from future
+  selection until reviewed (no instructor role exists in this
+  milestone; see Assumptions).
 - **FR-012**: The system MUST support at least two independently
   configured subjects running against the same engine codebase --
   Algebra I and Biology for this milestone -- verified by an automated
@@ -303,7 +314,7 @@ question generation both work correctly for it.
   numeric), its answer key (for numeric questions, including a
   per-question relative tolerance, e.g. ±0.5%, per FR-009), the
   topic/difficulty it was generated for, and its validation status
-  (including any learner/instructor flag).
+  (including any learner flag).
 - **AssessmentEvent**: a logged record of a question shown, an answer
   given, the resulting grade, and the mastery-model update it triggered
   -- the audit trail behind Constitution Principle V's explainability
@@ -384,3 +395,8 @@ question generation both work correctly for it.
   content-artifact authoring is a much smaller lift than a full new
   agent or feature and doesn't justify its own milestone. The two
   subjects are Algebra I and Biology (see Clarifications).
+- Difficulty selection in this milestone is a fixed mapping from a
+  topic's current mastery band (FR-006), not within-session adaptive
+  difficulty -- that is Milestone 5's ("Adaptive Difficulty Quiz")
+  scope per `roadmap.md`, which explicitly depends on this milestone's
+  difficulty bands already existing rather than duplicating them here.
