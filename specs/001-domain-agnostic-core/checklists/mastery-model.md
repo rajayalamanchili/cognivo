@@ -10,35 +10,35 @@
 
 ## Requirement Clarity
 
-- [ ] CHK001 Is "satisfied prerequisites" in FR-006 defined in terms of the three-band mastery model (e.g., a prerequisite topic must reach "mastered"), or by some other explicit criterion? [Ambiguity, Spec §FR-006]
-- [ ] CHK002 Is the "developing" band's upper bound (0.4-0.7) explicitly stated as exclusive of 0.7, so it cannot overlap with the "mastered" band's `>= 0.7` definition? [Ambiguity, Spec §Clarifications]
-- [ ] CHK003 Is "enough context" in FR-010 defined with a minimum required field set (e.g., prior/posterior mastery, candidate topics considered), or left open to interpretation? [Clarity, Spec §FR-010]
+- [x] CHK001 Is "satisfied prerequisites" in FR-006 defined in terms of the three-band mastery model (e.g., a prerequisite topic must reach "mastered"), or by some other explicit criterion? [Ambiguity, Spec §FR-006] — Resolved via `/speckit-clarify`: FR-006 now states a prerequisite is "satisfied" only once it is itself "mastered" (>= 0.7).
+- [x] CHK002 Is the "developing" band's upper bound (0.4-0.7) explicitly stated as exclusive of 0.7, so it cannot overlap with the "mastered" band's `>= 0.7` definition? [Ambiguity, Spec §Clarifications] — Resolved: FR-006 and the MasteryState entity now both state "developing" as `>= 0.4 and < 0.7`.
+- [x] CHK003 Is "enough context" in FR-010 defined with a minimum required field set (e.g., prior/posterior mastery, candidate topics considered), or left open to interpretation? [Clarity, Spec §FR-010] — Resolved: FR-010 now names the minimum field set directly (prior/posterior mastery, triggering answer, candidates considered) and cross-references the `AssessmentEvent` entity.
 
 ## Requirement Completeness
 
-- [ ] CHK004 Does FR-006 specify a deterministic tie-breaking rule for when multiple topics are simultaneously eligible (struggling/developing band, satisfied prerequisites)? [Gap, Spec §FR-006]
-- [ ] CHK005 Does the spec define whether numeric-answer grading requires an exact match or an explicit tolerance, given floating-point/rounding-prone answers are plausible for a quantitative subject? [Gap, Spec §FR-009]
-- [ ] CHK006 Does the spec define whether a topic that has never been touched (mastery = "unknown") but whose prerequisites become newly satisfied is ever eligible for next-topic selection, or does eligibility apply only to already-scored topics? [Gap, Spec §FR-006]
+- [x] CHK004 Does FR-006 specify a deterministic tie-breaking rule for when multiple topics are simultaneously eligible (struggling/developing band, satisfied prerequisites)? [Gap, Spec §FR-006] — Resolved: lowest-mastery-first, then earliest authored topic order, stated as MUST in FR-006 (and extended to the fallback case).
+- [x] CHK005 Does the spec define whether numeric-answer grading requires an exact match or an explicit tolerance, given floating-point/rounding-prone answers are plausible for a quantitative subject? [Gap, Spec §FR-009] — Resolved: FR-009 requires a small per-question relative tolerance (e.g. ±0.5%) for numeric grading, exact-match for multiple-choice.
+- [x] CHK006 Does the spec define whether a topic that has never been touched (mastery = "unknown") but whose prerequisites become newly satisfied is ever eligible for next-topic selection, or does eligibility apply only to already-scored topics? [Gap, Spec §FR-006] — Resolved: FR-006 explicitly includes "unknown" topics with satisfied prerequisites as eligible.
 
 ## Requirement Consistency
 
-- [ ] CHK007 Are the mastery-band boundary values (0.4 / 0.7) stated identically everywhere they appear (FR-006, SC-005, the MasteryState entry in Key Entities)? [Consistency]
-- [ ] CHK008 Does the Assumptions section's statement that the mastery-model algorithm is undecided remain consistent with the Clarifications session's specific 0.4/0.7 probability thresholds, which presuppose a continuous `[0,1]`-valued model output? [Conflict, Spec §Assumptions vs §Clarifications]
-- [ ] CHK009 Does User Story 1's Acceptance Scenario 4 (an "instructor" asking why a learner was placed) conflict with the Assumptions section's statement that instructor/classroom features are out of scope for this milestone? [Conflict, Spec §User Story 1 vs §Assumptions]
+- [x] CHK007 Are the mastery-band boundary values (0.4 / 0.7) stated identically everywhere they appear (FR-006, SC-005, the MasteryState entry in Key Entities)? [Consistency] — Verified consistent across all three locations as of this review.
+- [x] CHK008 Does the Assumptions section's statement that the mastery-model algorithm is undecided remain consistent with the Clarifications session's specific 0.4/0.7 probability thresholds, which presuppose a continuous `[0,1]`-valued model output? [Conflict, Spec §Assumptions vs §Clarifications] — Resolved: the Assumptions bullet now requires any chosen algorithm to output a continuous `[0,1]` probability, making the threshold model's presupposition explicit rather than implicit.
+- [x] CHK009 Does User Story 1's Acceptance Scenario 4 (an "instructor" asking why a learner was placed) conflict with the Assumptions section's statement that instructor/classroom features are out of scope for this milestone? [Conflict, Spec §User Story 1 vs §Assumptions] — Resolved: AS4 no longer references an instructor; FR-011, Edge Cases, and the GeneratedQuestion entity were also fixed for the same inconsistency during `/speckit-analyze`.
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK010 Can SC-001's "byte-for-byte identical" determinism claim be objectively verified without the spec also fixing the *order* in which placement answers are submitted? [Measurability, Spec §SC-001]
-- [ ] CHK011 Does SC-005's degenerate-answer-pattern requirement cover numeric-answer questions, or only the multiple-choice example ("always picks option A") given in Edge Cases? [Coverage, Gap, Spec §SC-005]
+- [x] CHK010 Can SC-001's "byte-for-byte identical" determinism claim be objectively verified without the spec also fixing the *order* in which placement answers are submitted? [Measurability, Spec §SC-001] — Resolved: SC-001 now says "submitted in the same order."
+- [x] CHK011 Does SC-005's degenerate-answer-pattern requirement cover numeric-answer questions, or only the multiple-choice example ("always picks option A") given in Edge Cases? [Coverage, Gap, Spec §SC-005] — Resolved: SC-005 and the Edge Cases bullet both now cover MC and numeric degenerate patterns explicitly.
 
 ## Scenario & Edge Case Coverage
 
-- [ ] CHK012 Are requirements defined for what the Sequencing Agent does when zero topics are eligible for selection (all mastered or all prerequisite-blocked), beyond an API-level error response? [Coverage, Gap, Spec §FR-006]
-- [ ] CHK013 Does the spec define expected behavior when a learner's mastery posterior for a topic crosses a band boundary mid-session (e.g., moves from "developing" to "mastered" immediately after the answer that triggered the next selection)? [Edge Case, Gap]
+- [x] CHK012 Are requirements defined for what the Sequencing Agent does when zero topics are eligible for selection (all mastered or all prerequisite-blocked), beyond an API-level error response? [Coverage, Gap, Spec §FR-006] — Resolved: FR-006 defines a mastered-topic-review fallback; a next-question request always yields a question, never an error.
+- [x] CHK013 Does the spec define expected behavior when a learner's mastery posterior for a topic crosses a band boundary mid-session (e.g., moves from "developing" to "mastered" immediately after the answer that triggered the next selection)? [Edge Case, Gap] — Resolved: the MasteryState entity states bands are always computed live from `p_mastery`, never cached, so this requires no special-case handling.
 
 ## Dependencies & Assumptions
 
-- [ ] CHK014 Does the spec state whether a future change to mastery-model parameters requires historical MasteryState values to be recomputed or versioned, or may prior audit-log data reflect a since-changed model? [Assumption, Gap]
+- [x] CHK014 Does the spec state whether a future change to mastery-model parameters requires historical MasteryState values to be recomputed or versioned, or may prior audit-log data reflect a since-changed model? [Assumption, Gap] — Resolved: a new Assumptions bullet states parameters are fixed constants for this milestone (no fitting, no versioning/recompute mechanism needed), revisited at Milestone 6.
 
 ## Notes
 

@@ -275,7 +275,10 @@ question generation both work correctly for it.
 - **FR-010**: Every mastery-model update and every question-selection
   decision MUST be logged with enough context to answer "why was this
   question chosen" and "why did mastery change this way" after the fact
-  (Constitution Principle V).
+  (Constitution Principle V) -- at minimum, the prior and posterior
+  mastery value, the answer that triggered the update, and (for a
+  selection decision) every candidate topic considered and why the
+  chosen one won, per the `AssessmentEvent` entity below.
 - **FR-011**: A learner MUST be able to flag a question as incorrect
   (bad answer key), and a flagged question MUST be excluded from future
   selection until reviewed (no instructor role exists in this
@@ -381,7 +384,19 @@ question generation both work correctly for it.
   Tracing vs. a simpler heuristic) is a `/speckit-plan`-level decision,
   to be recorded in `tech-stack.md` once chosen -- this spec requires
   only that the model be explicit, deterministic, and explainable, not a
-  specific algorithm.
+  specific algorithm. Whichever algorithm is chosen MUST output a
+  continuous mastery probability in `[0,1]` per topic, since the
+  three-band model's 0.4/0.7 thresholds (Clarifications) are only
+  meaningful against that output shape.
+- Mastery-model parameters (whatever the chosen algorithm's parameters
+  are) are fixed constants for this milestone, not fitted or refit from
+  real usage data (Constitution Principle VIII -- no real learner data
+  exists yet to fit them from). Consequently, this milestone needs no
+  parameter-versioning or historical-recompute mechanism; audit-log
+  entries are never invalidated by a parameter change because none
+  occurs. Revisit once Milestone 6's real grading data makes
+  parameter-fitting meaningful (see `tech-stack.md`'s Mastery model
+  section).
 - The Diagnostic, Sequencing, and Assessment-Generation agents are
   implemented as local ADK sub-agents for this milestone, not remote A2A
   services -- per Constitution Principle VI, an A2A boundary must be
