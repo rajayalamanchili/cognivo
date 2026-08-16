@@ -68,14 +68,33 @@ absence check, never a stored zero or default value.
 | `learner_id` | FK -> DemoLearnerProfile | |
 | `topic_id` | FK -> Topic | |
 | `p_mastery` | float `[0,1]` | Current BKT posterior (research.md §1). |
-| `band` | enum | Derived, not independently stored authority: `struggling` (< 0.4), `developing` (>= 0.4 and < 0.7), `mastered` (>= 0.7). Computed from `p_mastery` at read time to avoid drift between the two -- never cached, so a band can change immediately after any answer. |
+| `band` | enum | Derived, not independently stored authority: `struggling` (< 0.4), `developing` (>= 0.4 and < 0.7), `mastered` (>= 0.7 **and** confirmed per the Mastered-confirmation rule below). Computed from `p_mastery` and `consecutive_mastered_observations` at read time to avoid drift -- never cached, so a band can change immediately after any answer. |
 | `updated_at` | timestamp | |
 | `update_count` | integer | Number of BKT updates applied; also the count used against the near-duplicate 5-question lookback window (research.md §3) when paired with GeneratedQuestion history. |
+| `consecutive_mastered_observations` | integer | Number of consecutive most-recent BKT updates whose posterior was already >= 0.7. Feeds the Mastered-confirmation rule below. Resets to 0 on any update whose posterior falls below 0.7. |
 
 State-transition rule: a row is created on the topic's first answered
 question (posterior computed from `p(L0)` and that first observation,
 per research.md §1's BKT update), then updated in place on every
 subsequent answer for that (learner, topic) pair. Never deleted.
+
+**Mastered-confirmation rule** (SC-005, discovered during Milestone 1
+implementation): a posterior `p_mastery >= 0.7` reports as `band =
+mastered` only once `consecutive_mastered_observations >= 2` --
+i.e. the current update AND the immediately preceding update both
+landed at or above 0.7. Below that, a `p_mastery >= 0.7` reads as
+`developing`, not `mastered`. This exists because numeric questions'
+low guess probability (`p(G)=0.05`, research.md §1) makes a single
+correct answer strong enough Bayesian evidence, on its own, to spike
+`p_mastery` from `p(L0)=0.3` past 0.7 in one observation. Without this
+rule, a degenerate content-blind answer pattern (SC-005) could register
+a topic as "mastered" off one lucky guess -- and since a `mastered`
+topic is removed from future selection (FR-006's eligibility rule), that
+false signal would never get the chance to self-correct on a
+subsequent wrong answer. Multiple-choice's higher guess probability
+(`p(G)=0.25`) does not exhibit this single-observation spike, but the
+confirmation rule applies uniformly to both question types for
+consistency and auditability (Constitution Principle V).
 
 **Next-topic eligibility rule** (FR-006, spec.md Clarifications
 2026-08-15): a topic is eligible for selection by the Sequencing Agent

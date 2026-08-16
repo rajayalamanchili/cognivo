@@ -76,25 +76,25 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 > Write these tests FIRST, ensure they FAIL before implementation
 
-- [ ] T024 [P] [US1] Integration test: placement determinism (SC-001) -- rerun identical placement answers, submitted in the same order, 10x, assert byte-identical mastery output, in `backend/tests/integration/test_placement_determinism.py`
-- [ ] T025 [P] [US1] Unit test: BKT update function determinism and three-band boundary correctness (< 0.4 struggling, >= 0.4 and < 0.7 developing, >= 0.7 mastered) in `backend/tests/unit/test_mastery_bkt.py`
-- [ ] T026 [P] [US1] Unit test: degenerate answer pattern -- same multiple-choice option regardless of content, and same numeric value regardless of content -- does not yield a "mastered" band for either question type (SC-005) in `backend/tests/unit/test_mastery_degenerate.py`
-- [ ] T027 [P] [US1] Contract test for `POST /api/subjects/{subject_id}/placement/start` and `POST /api/placement/{id}/submit` per contracts/api.md in `backend/tests/contract/test_placement_api.py`
-- [ ] T028 [P] [US1] Unit test: multiple-choice grading is exact-match; numeric grading accepts answers within the question's own relative tolerance (e.g. `±0.5%`) and rejects answers outside it (FR-009) in `backend/tests/unit/test_grading_tolerance.py`
+- [X] T024 [P] [US1] Integration test: placement determinism (SC-001) -- rerun identical placement answers, submitted in the same order, 10x, assert byte-identical mastery output, in `backend/tests/integration/test_placement_determinism.py`
+- [X] T025 [P] [US1] Unit test: BKT update function determinism and three-band boundary correctness (< 0.4 struggling, >= 0.4 and < 0.7 developing, >= 0.7 mastered) in `backend/tests/unit/test_mastery_bkt.py`
+- [X] T026 [P] [US1] Unit test: degenerate answer pattern -- same multiple-choice option regardless of content, and same numeric value regardless of content -- does not yield a "mastered" band for either question type (SC-005) in `backend/tests/unit/test_mastery_degenerate.py`
+- [X] T027 [P] [US1] Contract test for `POST /api/subjects/{subject_id}/placement/start` and `POST /api/placement/{id}/submit` per contracts/api.md in `backend/tests/contract/test_placement_api.py`
+- [X] T028 [P] [US1] Unit test: multiple-choice grading is exact-match; numeric grading accepts answers within the question's own relative tolerance (e.g. `±0.5%`) and rejects answers outside it (FR-009) in `backend/tests/unit/test_grading_tolerance.py`
 
 ### Implementation for User Story 1
 
-- [ ] T029 [P] [US1] Author Algebra I content artifact (topic graph in intended authoring/tiebreak order, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/algebra-1/`
-- [ ] T030 [P] [US1] Implement BKT mastery model service (`p(L0)=0.3`, `p(T)=0.1`, `p(S)=0.1`, `p(G)=0.25` MC / `0.05` numeric; three-band derivation) in `backend/src/services/mastery/bkt.py` per research.md §1
-- [ ] T031 [P] [US1] Implement deterministic structured-answer grading in `backend/src/services/mastery/grading.py` (FR-009): exact-match for `multiple_choice`; relative-tolerance comparison against `answer_key`'s per-question tolerance for `numeric`
-- [ ] T032 [P] [US1] Implement Assessment-Generation Agent (ADK sub-agent, LiteLlm-wrapped, Claude Sonnet default) generating a structured question + answer key (numeric questions include a generated relative tolerance) + internal-consistency validation (FR-007) in `backend/src/agents/assessment_gen/agent.py`
-- [ ] T033 [US1] Implement Diagnostic Agent (ADK sub-agent) selecting one placement question per entry-level topic, always requesting `"easy"` difficulty from the Assessment-Generation Agent (FR-003, FR-006's difficulty mapping -- every entry-level topic is `unknown` at placement time) in `backend/src/agents/diagnostic/agent.py` (depends on T032, T029)
-- [ ] T034 [US1] Implement Sequencing Agent's mastery-update tool (applies BKT update per answer, writes MasteryState, FR-004/FR-005) in `backend/src/agents/sequencing/mastery_tool.py` (depends on T030, T031)
-- [ ] T035 [US1] Implement `POST /api/subjects/{subject_id}/placement/start` endpoint in `backend/src/api/routes/placement.py` (depends on T033)
-- [ ] T036 [US1] Implement `POST /api/placement/{placement_session_id}/submit` endpoint, writing `AssessmentEvent` rows per question/update (SC-006) in `backend/src/api/routes/placement.py` (depends on T034, T018, T035)
-- [ ] T037 [P] [US1] Implement `GET /api/learners/{learner_id}/mastery-state` endpoint in `backend/src/api/routes/mastery.py` (depends on T011)
-- [ ] T038 [P] [US1] Implement placement flow pages/components + API client in `frontend/src/pages/placement/` and `frontend/src/services/api.ts` (depends on T035, T036)
-- [ ] T039 [P] [US1] Implement mastery view component in `frontend/src/components/MasteryView.tsx` (depends on T037)
+- [X] T029 [P] [US1] Author Algebra I content artifact (topic graph in intended authoring/tiebreak order, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/algebra-1/`
+- [X] T030 [P] [US1] Implement BKT mastery model service (`p(L0)=0.3`, `p(T)=0.1`, `p(S)=0.1`, `p(G)=0.25` MC / `0.05` numeric; three-band derivation) in `backend/src/services/mastery/bkt.py` per research.md §1
+- [X] T031 [P] [US1] Implement deterministic structured-answer grading in `backend/src/services/mastery/grading.py` (FR-009): exact-match for `multiple_choice`; relative-tolerance comparison against `answer_key`'s per-question tolerance for `numeric`
+- [X] T032 [P] [US1] Implement Assessment-Generation Agent (ADK sub-agent, LiteLlm-wrapped, Claude Sonnet default) generating a structured question + answer key (numeric questions include a generated relative tolerance) + internal-consistency validation (FR-007) in `backend/src/agents/assessment_gen/agent.py`
+- [X] T033 [US1] Implement Diagnostic Agent (ADK sub-agent) selecting one placement question per entry-level topic, always requesting `"easy"` difficulty from the Assessment-Generation Agent (FR-003, FR-006's difficulty mapping -- every entry-level topic is `unknown` at placement time) in `backend/src/agents/diagnostic/agent.py` (depends on T032, T029)
+- [X] T034 [US1] Implement Sequencing Agent's mastery-update tool (applies BKT update per answer, writes MasteryState, FR-004/FR-005) in `backend/src/agents/sequencing/mastery_tool.py` (depends on T030, T031)
+- [X] T035 [US1] Implement `POST /api/subjects/{subject_id}/placement/start` endpoint in `backend/src/api/routes/placement.py` (depends on T033)
+- [X] T036 [US1] Implement `POST /api/placement/{placement_session_id}/submit` endpoint, writing `AssessmentEvent` rows per question/update (SC-006) in `backend/src/api/routes/placement.py` (depends on T034, T018, T035)
+- [X] T037 [P] [US1] Implement `GET /api/learners/{learner_id}/mastery-state` endpoint in `backend/src/api/routes/mastery.py` (depends on T011)
+- [X] T038 [P] [US1] Implement placement flow pages/components + API client in `frontend/src/app/placement/` (App Router -- Phase 1 scaffolded `src/app/`, not `src/pages/`; plan.md's Project Structure names both as acceptable) and `frontend/src/services/api.ts` (depends on T035, T036)
+- [X] T039 [P] [US1] Implement mastery view component in `frontend/src/components/MasteryView.tsx` (depends on T037)
 
 **Checkpoint**: User Story 1 is independently functional and testable -- but see Implementation Strategy: spec.md frames US1+US2 together as Milestone 1's actual demoable slice.
 

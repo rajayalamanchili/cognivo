@@ -1,0 +1,115 @@
+# Algebra I content artifact (Milestone 1, User Story 1/2).
+#
+# Topic order below IS the authored order Topic.order_index is assigned
+# from at load time (services/content_artifact/loader.py) -- it's the
+# deterministic tiebreaker the Sequencing Agent's next-topic selection
+# uses (FR-006), so topics are listed in the order a learner would
+# naturally progress through them, prerequisites before dependents.
+subject_id: algebra-1
+display_name: Algebra I
+content_version: "1.0.0"
+topics:
+  - topic_id: integers-and-operations
+    display_name: Integers and Operations
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Add, subtract, multiply, and divide positive and negative
+        integers.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Single-operation problems with small integers, e.g. -3 + 7."
+      medium: "Two-step integer arithmetic mixing operations and signs, e.g. -4 * (2 - 5)."
+      hard: "Multi-step integer arithmetic with nested parentheses and larger magnitudes."
+
+  - topic_id: variables-and-expressions
+    display_name: Variables and Expressions
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Evaluate and simplify algebraic expressions containing one
+        variable, including combining like terms.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Evaluate a one-variable expression like 3x + 2 for a given x."
+      medium: "Simplify an expression by combining like terms across 2-3 terms."
+      hard: "Simplify a multi-term expression requiring the distributive property first."
+
+  - topic_id: order-of-operations
+    display_name: Order of Operations
+    prerequisites: [integers-and-operations]
+    skill_definition:
+      summary: >-
+        Apply the standard order of operations (parentheses, exponents,
+        multiplication/division, addition/subtraction) to evaluate
+        numeric expressions.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "A two-operation expression with no parentheses, e.g. 4 + 3 * 2."
+      medium: "An expression combining parentheses and exponents, e.g. (2 + 3)^2 - 4."
+      hard: "A nested expression mixing all four operation tiers."
+
+  - topic_id: solving-one-step-equations
+    display_name: Solving One-Step Equations
+    prerequisites: [variables-and-expressions]
+    skill_definition:
+      summary: >-
+        Solve linear equations that require exactly one inverse
+        operation to isolate the variable, e.g. x + 5 = 12.
+      preferred_question_types: [numeric]
+    difficulty_calibration:
+      easy: "A one-step equation with positive integer coefficients, e.g. x + 4 = 10."
+      medium: "A one-step equation involving a negative coefficient or fraction."
+      hard: "A one-step equation requiring division by a non-integer coefficient."
+
+  - topic_id: solving-multi-step-equations
+    display_name: Solving Multi-Step Equations
+    prerequisites: [solving-one-step-equations, order-of-operations]
+    skill_definition:
+      summary: >-
+        Solve linear equations requiring two or more steps, including
+        combining like terms and the distributive property.
+      preferred_question_types: [numeric]
+    difficulty_calibration:
+      easy: "A two-step equation, e.g. 2x + 3 = 11."
+      medium: "A multi-step equation with variables on one side requiring distribution first."
+      hard: "A multi-step equation with variables on both sides."
+
+  - topic_id: linear-inequalities
+    display_name: Linear Inequalities
+    prerequisites: [solving-one-step-equations]
+    skill_definition:
+      summary: >-
+        Solve and interpret one-variable linear inequalities, including
+        sign-flip on multiplication/division by a negative number.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "A one-step inequality with a positive coefficient, e.g. x + 3 > 7."
+      medium: "A two-step inequality requiring one inverse operation with a negative coefficient."
+      hard: "A multi-step inequality combining like terms before isolating the variable."
+
+  - topic_id: graphing-linear-equations
+    display_name: Graphing Linear Equations
+    prerequisites: [solving-multi-step-equations]
+    skill_definition:
+      summary: >-
+        Identify slope and y-intercept from a linear equation and
+        determine points that lie on its graph.
+      preferred_question_types: [multiple_choice]
+    difficulty_calibration:
+      easy: "Identify the slope and y-intercept of an equation already in y = mx + b form."
+      medium: "Determine whether a given point lies on the line described by an equation."
+      hard: "Convert an equation from standard form to slope-intercept form, then identify slope."
+
+  - topic_id: systems-of-linear-equations
+    display_name: Systems of Linear Equations
+    prerequisites: [graphing-linear-equations, linear-inequalities]
+    skill_definition:
+      summary: >-
+        Solve a system of two linear equations by substitution or
+        elimination.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "A system where one equation is already solved for a variable."
+      medium: "A system solvable by straightforward elimination with matching coefficients."
+      hard: "A system requiring scaling one or both equations before elimination."

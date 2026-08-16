@@ -33,14 +33,36 @@ class AssessmentEventType(enum.StrEnum):
     QUESTION_FLAGGED = "question_flagged"
 
 
-def mastery_band_for(p_mastery: float) -> MasteryBand:
+# Consecutive post-update observations with p_mastery >= 0.7 required
+# before "mastered" is actually reported (data-model.md's Mastered-
+# confirmation rule). A single numeric-question correct answer is, on
+# its own, strong enough Bayesian evidence (p(G)=0.05) to cross 0.7 from
+# one lucky guess -- without this gate, a degenerate content-blind
+# answer pattern could spike a topic into "mastered" off one coincidence
+# and then never be re-practiced (FR-006 removes mastered topics from
+# selection), permanently locking in a false signal. This directly
+# implements SC-005: two consecutive high-confidence observations are
+# required, not just one.
+MASTERY_CONFIRMATION_THRESHOLD = 2
+
+
+def mastery_band_for(p_mastery: float, consecutive_mastered_observations: int) -> MasteryBand:
     """Derive the three-band mastery classification from a BKT posterior.
 
     Never cache the result -- data-model.md requires `band` be computed
-    at read time from `p_mastery` so the two can never drift apart.
+    at read time from `p_mastery` (plus the persisted confirmation
+    streak below) so the two can never drift apart.
+
+    `consecutive_mastered_observations` is the number of consecutive
+    prior updates (including this one) where the posterior was already
+    >= 0.7 -- see `MASTERY_CONFIRMATION_THRESHOLD`. A posterior >= 0.7
+    that hasn't yet been confirmed reports as "developing", not
+    "mastered".
     """
     if p_mastery < 0.4:
         return MasteryBand.STRUGGLING
     if p_mastery < 0.7:
         return MasteryBand.DEVELOPING
-    return MasteryBand.MASTERED
+    if consecutive_mastered_observations >= MASTERY_CONFIRMATION_THRESHOLD:
+        return MasteryBand.MASTERED
+    return MasteryBand.DEVELOPING

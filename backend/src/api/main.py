@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
+from src.api.routes import demo_learner, mastery, placement
 from src.observability.tracing import configure_tracing
 
 logger = logging.getLogger("cognivo.api")
@@ -53,5 +54,9 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-# Route modules register themselves here as each is implemented
-# (placement.py: T035-T036, questions.py: T048-T050, mastery.py: T037).
+app.include_router(placement.router)
+app.include_router(mastery.router)
+app.include_router(demo_learner.router)
+
+# Remaining route modules register themselves here as each is implemented
+# (questions.py: T048-T050).

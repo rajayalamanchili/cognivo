@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
+from src.models.enums import MasteryBand, mastery_band_for
 
 
 class MasteryState(Base):
@@ -13,8 +14,9 @@ class MasteryState(Base):
 
     No row means "unknown" (FR-005): a query-time absence check, never a
     stored zero/default. `band` is intentionally NOT a column here --
-    data-model.md requires it be derived from `p_mastery` at read time
-    (see models.enums.mastery_band_for) so the two can never drift.
+    data-model.md requires it be derived from `p_mastery` (and
+    `consecutive_mastered_observations` below) at read time (see
+    models.enums.mastery_band_for) so the two can never drift.
     """
 
     __tablename__ = "mastery_states"
@@ -32,3 +34,10 @@ class MasteryState(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
     update_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    consecutive_mastered_observations: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0
+    )
+
+    @property
+    def band(self) -> MasteryBand:
+        return mastery_band_for(self.p_mastery, self.consecutive_mastered_observations)
