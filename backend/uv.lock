@@ -547,6 +547,7 @@ dependencies = [
     { name = "openinference-instrumentation-google-adk" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -570,6 +571,7 @@ requires-dist = [
     { name = "openinference-instrumentation-google-adk", specifier = ">=0.1.20" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "sqlalchemy", specifier = ">=2.0.52" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.3" },
 ]

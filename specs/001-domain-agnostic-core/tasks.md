@@ -44,23 +44,23 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T007 [P] Configure Alembic migrations against Postgres/Neon in `backend/alembic/` (depends on T002)
-- [ ] T008 [P] Create Subject model in `backend/src/models/subject.py` per data-model.md
-- [ ] T009 [P] Create Topic model in `backend/src/models/topic.py` per data-model.md, including `order_index` (the content artifact's authored declaration order -- the deterministic tiebreaker FR-006's next-topic selection uses)
-- [ ] T010 [P] Create PrerequisiteEdge model in `backend/src/models/prerequisite_edge.py` per data-model.md
-- [ ] T011 [P] Create MasteryState model in `backend/src/models/mastery_state.py` per data-model.md (three-band `band` derived live from `p_mastery`, never cached, not independently authoritative)
-- [ ] T012 [P] Create GeneratedQuestion model in `backend/src/models/generated_question.py` per data-model.md (numeric `answer_key` includes a per-question relative tolerance, e.g. `±0.5%`)
-- [ ] T013 [P] Create AssessmentEvent model in `backend/src/models/assessment_event.py` per data-model.md
-- [ ] T014 [P] Create DemoLearnerProfile model in `backend/src/models/demo_learner_profile.py` per data-model.md (`is_demo` non-nullable, explicit at creation -- Constitution Principle VIII)
-- [ ] T015 Generate and apply initial Alembic migration covering all Phase 2 models in `backend/alembic/versions/` (depends on T007-T014)
-- [ ] T016 Implement content-artifact load-time validator (schema + cycle/reachability check, FR-002) in `backend/src/services/content_artifact/validator.py` (depends on T009, T010)
-- [ ] T017 Implement content-artifact loader in `backend/src/services/content_artifact/loader.py`, assigning `Topic.order_index` from declaration order and setting `validated_at` only after T016 passes (depends on T016)
-- [ ] T018 [P] Implement AssessmentEvent audit-log writer service in `backend/src/services/audit_log/writer.py` (depends on T013)
-- [ ] T019 [P] Configure ADK Postgres-backed `DatabaseSessionService` in `backend/src/observability/session.py` (depends on T002)
-- [ ] T020 [P] Configure Langfuse + OpenInference `GoogleADKInstrumentor` instrumentation with explicit span-flush-before-response in `backend/src/observability/tracing.py` per FR-014 (depends on T002)
-- [ ] T021 Create FastAPI app skeleton with routing structure and error-handling middleware in `backend/src/api/main.py` (depends on T002)
-- [ ] T022 [P] Implement `seed_demo_learner.py` script in `backend/scripts/seed_demo_learner.py` (sets `is_demo=true` explicitly) (depends on T014)
-- [ ] T023 [P] Implement `load_content_artifact.py` CLI script in `backend/scripts/load_content_artifact.py` (depends on T017)
+- [X] T007 [P] Configure Alembic migrations against Postgres/Neon in `backend/alembic/` (depends on T002)
+- [X] T008 [P] Create Subject model in `backend/src/models/subject.py` per data-model.md
+- [X] T009 [P] Create Topic model in `backend/src/models/topic.py` per data-model.md, including `order_index` (the content artifact's authored declaration order -- the deterministic tiebreaker FR-006's next-topic selection uses)
+- [X] T010 [P] Create PrerequisiteEdge model in `backend/src/models/prerequisite_edge.py` per data-model.md
+- [X] T011 [P] Create MasteryState model in `backend/src/models/mastery_state.py` per data-model.md (three-band `band` derived live from `p_mastery`, never cached, not independently authoritative)
+- [X] T012 [P] Create GeneratedQuestion model in `backend/src/models/generated_question.py` per data-model.md (numeric `answer_key` includes a per-question relative tolerance, e.g. `±0.5%`)
+- [X] T013 [P] Create AssessmentEvent model in `backend/src/models/assessment_event.py` per data-model.md
+- [X] T014 [P] Create DemoLearnerProfile model in `backend/src/models/demo_learner_profile.py` per data-model.md (`is_demo` non-nullable, explicit at creation -- Constitution Principle VIII)
+- [X] T015 Generate initial Alembic migration covering all Phase 2 models in `backend/alembic/versions/`, verified via `alembic upgrade head --sql` (depends on T007-T014) -- NOTE: `alembic upgrade head` against a real database has NOT been run; no Postgres instance is available in the implementation sandbox. Run it once `DATABASE_URL` points to a provisioned instance (e.g. Neon).
+- [X] T016 Implement content-artifact load-time validator (schema + cycle/reachability check, FR-002) in `backend/src/services/content_artifact/validator.py` (depends on T009, T010)
+- [X] T017 Implement content-artifact loader in `backend/src/services/content_artifact/loader.py`, assigning `Topic.order_index` from declaration order and setting `validated_at` only after T016 passes (depends on T016)
+- [X] T018 [P] Implement AssessmentEvent audit-log writer service in `backend/src/services/audit_log/writer.py` (depends on T013)
+- [X] T019 [P] Configure ADK Postgres-backed `DatabaseSessionService` in `backend/src/observability/session.py` (depends on T002)
+- [X] T020 [P] Configure Langfuse + OpenInference `GoogleADKInstrumentor` instrumentation with explicit span-flush-before-response in `backend/src/observability/tracing.py` per FR-014 (depends on T002)
+- [X] T021 Create FastAPI app skeleton with routing structure and error-handling middleware in `backend/src/api/main.py` (depends on T002)
+- [X] T022 [P] Implement `seed_demo_learner.py` script in `backend/scripts/seed_demo_learner.py` (sets `is_demo=true` explicitly) (depends on T014)
+- [X] T023 [P] Implement `load_content_artifact.py` CLI script in `backend/scripts/load_content_artifact.py` (depends on T017)
 
 **Checkpoint**: Foundation ready -- user story implementation can now begin.
 
