@@ -17,7 +17,10 @@ that happen to mention them explicitly.
 
 ## Milestone 1: Domain-Agnostic Core -- Content Schema, Structured Assessment, Mastery Model
 **Spec**: `specs/001-domain-agnostic-core/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: Complete (2026-08-16). All Definition of Done items below
+are met and verified against a live Vercel deployment, not only local
+development -- see `specs/001-domain-agnostic-core/tasks.md`'s Phase 6
+notes for the verification record.
 
 **Scope**: Subject-agnostic content-artifact schema; Diagnostic Agent
 (placement) and Sequencing Agent (explicit, deterministic mastery model
@@ -519,8 +522,10 @@ Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
 
-**Version**: 3.0.0 -- 2026-08-15, added Milestones 8 (Instructor-
-Assigned Quizzes), 11 (Fine-Tuned Misconception Classifier), 12 (Prompt
-Versioning and Regression Testing), and 13 (Semantic Caching); extended
-Milestone 9 (Tutor Agent) with vector-grounded retrieval and streaming
-responses; renumbered former Milestones 8-9 to 9-10 accordingly
+**Version**: 3.1.0 -- 2026-08-16, Milestone 1 marked complete (deployed
+and verified live on Vercel); 3.0.0 (2026-08-15, added Milestones 8
+(Instructor-Assigned Quizzes), 11 (Fine-Tuned Misconception Classifier),
+12 (Prompt Versioning and Regression Testing), and 13 (Semantic
+Caching); extended Milestone 9 (Tutor Agent) with vector-grounded
+retrieval and streaming responses; renumbered former Milestones 8-9 to
+9-10 accordingly)
