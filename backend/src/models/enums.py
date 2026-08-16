@@ -1,4 +1,17 @@
 import enum
+from collections.abc import Sequence
+
+
+def enum_values(enum_cls: type[enum.Enum]) -> Sequence[str]:
+    """`values_callable` for every `sqlalchemy.Enum(...)` column below.
+
+    Without this, SQLAlchemy binds/creates the Postgres enum type using
+    each member's `.name` (e.g. "EASY") instead of `.value` ("easy") --
+    the Alembic migration's `CREATE TYPE` already uses the lowercase
+    `.value` strings, so leaving this out desyncs runtime inserts from
+    the actual DB enum labels.
+    """
+    return [member.value for member in enum_cls]
 
 
 class DifficultyBand(enum.StrEnum):

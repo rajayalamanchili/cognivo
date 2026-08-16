@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
-from src.models.enums import DifficultyBand, QuestionType, ValidationStatus
+from src.models.enums import DifficultyBand, QuestionType, ValidationStatus, enum_values
 
 
 class GeneratedQuestion(Base):
@@ -31,16 +31,16 @@ class GeneratedQuestion(Base):
     subject_id: Mapped[str] = mapped_column(nullable=False)
     topic_id: Mapped[str] = mapped_column(nullable=False)
     difficulty: Mapped[DifficultyBand] = mapped_column(
-        Enum(DifficultyBand, name="difficulty_band"), nullable=False
+        Enum(DifficultyBand, name="difficulty_band", values_callable=enum_values), nullable=False
     )
     question_type: Mapped[QuestionType] = mapped_column(
-        Enum(QuestionType, name="question_type"), nullable=False
+        Enum(QuestionType, name="question_type", values_callable=enum_values), nullable=False
     )
     stem: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[list | None] = mapped_column(JSON, nullable=True)
     answer_key: Mapped[dict] = mapped_column(JSON, nullable=False)
     validation_status: Mapped[ValidationStatus] = mapped_column(
-        Enum(ValidationStatus, name="validation_status"),
+        Enum(ValidationStatus, name="validation_status", values_callable=enum_values),
         nullable=False,
         default=ValidationStatus.PENDING,
     )
