@@ -126,7 +126,9 @@ obvious.
 
 | Concern | Choice | Rationale |
 |---|---|---|
-| Database | PostgreSQL via a serverless-compatible provider (e.g. Neon, available through Vercel's integration marketplace) | Serverless-friendly connection handling (no long-lived connection pool assumptions) is required to work correctly from ephemeral Vercel Functions; stores mastery state, ADK session state, assessment events, and content-artifact metadata. |
+| Database | PostgreSQL via Neon, provisioned through Vercel's integration marketplace | Serverless-friendly connection handling (no long-lived connection pool assumptions) is required to work correctly from ephemeral Vercel Functions; stores mastery state, ADK session state, assessment events, and content-artifact metadata. Locked over Supabase: this project owns its backend (FastAPI + ADK) rather than building on a client SDK/auto-REST/RLS layer, so Supabase's bundled Auth/Storage/Realtime add no value here, while Neon's branching model (below) directly fits the serverless, git-branch-shaped deployment model Principle IX and the Branching table above already commit to. |
+| Environment provisioning | One Neon project, not three separate ones. Two persistent branches -- `production` (root) and `staging` (branched from `production`) -- map 1:1 onto the Branching table's `main`/`staging` Vercel environments. Local development and per-PR preview deploys use ephemeral, on-demand Neon branches (created via Neon's Vercel-native integration, which auto-creates/destroys a branch per Vercel preview deployment) rather than a third shared persistent branch. | Neon branches are copy-on-write and near-instant/free to create or destroy, so branch-per-environment (and branch-per-preview) gives every environment full data/schema isolation without the drift, cost, and manually-triplicated migration runs three separate Neon projects would require. This reuses the two-branch git model already locked above instead of inventing an uncoordinated third environment axis. |
+| Migrations per environment | `alembic upgrade head` runs against the target branch's own `DATABASE_URL` as an explicit step of that environment's deploy (a Vercel build/deploy hook for `staging`/`main`; a manual or Neon-integration-triggered step for ephemeral preview/dev branches) -- never a shared migration run assumed to cover more than one branch. | Branches share schema history via copy-on-write only at the moment they're created; each diverges immediately once either side migrates. Without an explicit per-branch migration step, a `staging` → `main` promotion PR could silently ship against a `main` schema nobody has actually migrated yet. |
 | Learner data | Synthetic only for Milestone 1 | Per Constitution Principle VIII -- no real learner data until a dedicated privacy/retention spec exists (anticipated around Milestone 7). |
 
 ## Testing & evaluation
@@ -150,8 +152,12 @@ obvious.
 - Semantic-caching layer (in-database via Postgres, or a dedicated cache like Redis/Upstash) -- Milestone 13 decision, made once Milestone 9's actual call volume is known well enough to size the cache correctly.
 - Whether Fluid Compute (for longer execution windows) is needed -- revisit if any agent call's typical latency approaches the default execution limit.
 
-**Version**: 1.6.0 -- Amended 2026-08-15 (Milestone 1 `/speckit-plan`:
+**Version**: 1.7.0 -- Amended 2026-08-15 (Milestone 1 `/speckit-plan`:
 locked BKT parameters and three-band mastery model, LLM provider
 (LiteLLM + Claude Sonnet default) and near-duplicate detection approach
 for question generation, and backend/frontend/E2E testing frameworks;
-see `specs/001-domain-agnostic-core/research.md`)
+see `specs/001-domain-agnostic-core/research.md`); 1.7.0 (Milestone 1
+`/speckit-implement` Phase 6 prep: locked Neon over Supabase, and locked
+the dev/staging/prod provisioning strategy as one Neon project with
+`production`/`staging` persistent branches plus ephemeral per-preview/
+per-developer branches, rather than three separate Neon projects)

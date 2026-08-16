@@ -137,9 +137,9 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 
 ### Implementation for User Story 3
 
-- [ ] T053 [P] [US3] Author Biology content artifact (topic graph in intended authoring/tiebreak order, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/biology/` (depends on T016)
-- [ ] T054 [P] [US3] Write automated script scanning `backend/src` engine source for subject-id-keyed conditionals (SC-004 hard gate) in `backend/scripts/check_no_subject_conditionals.py`
-- [ ] T055 [US3] Integration test running the full placement + next-question flow against `subject_id=biology` in `backend/tests/integration/test_second_subject.py` (depends on T053)
+- [X] T053 [P] [US3] Author Biology content artifact (topic graph in intended authoring/tiebreak order, prerequisite edges, skill definitions, three difficulty bands) in `backend/content/biology/` (depends on T016)
+- [X] T054 [P] [US3] Write automated script scanning `backend/src` engine source for subject-id-keyed conditionals (SC-004 hard gate) in `backend/scripts/check_no_subject_conditionals.py`
+- [X] T055 [US3] Integration test running the full placement + next-question flow against `subject_id=biology` in `backend/tests/integration/test_second_subject.py` (depends on T053)
 
 **Checkpoint**: All three user stories independently functional; SC-004 extensibility gate enforced.
 
@@ -153,9 +153,10 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 - [ ] T057 [P] Integration test: full audit-log completeness for a placement-through-first-question session (SC-006) in `backend/tests/integration/test_audit_log_completeness.py`
 - [ ] T058 [P] Integration test: Langfuse trace count equals agent-invocation count, no dropped spans (SC-008) in `backend/tests/integration/test_tracing_completeness.py`
 - [ ] T059 [P] Implement offline batch-eval script re-validating a sample of previously generated questions for internal-consistency (SC-003 regression testing, distinct from T042's display-time unit test) in `backend/scripts/batch_eval_questions.py` per tech-stack.md's Testing & evaluation table
-- [ ] T060 Configure Vercel deployment (combined FastAPI + Next.js Services) in `vercel.json` / project settings per tech-stack.md
-- [ ] T061 Playwright deployment smoke test covering the placement-through-first-question flow against the live Vercel URL (SC-007) in `frontend/tests/e2e/smoke.spec.ts` (depends on T060)
-- [ ] T062 Run quickstart.md validation end to end against the deployed environment and record results (depends on all prior tasks)
+- [ ] T060 Provision the Neon project's `production` and `staging` branches and wire the Vercel↔Neon integration for ephemeral per-preview/per-developer branches, per tech-stack.md's Data layer "Environment provisioning" row; set each persistent environment's `DATABASE_URL` in the corresponding Vercel project settings
+- [ ] T061 Configure Vercel deployment (combined FastAPI + Next.js Services) in `vercel.json` / project settings per tech-stack.md, including running `alembic upgrade head` against the `production` and `staging` branches as an explicit deploy step per tech-stack.md's "Migrations per environment" row (depends on T060)
+- [ ] T062 Playwright deployment smoke test covering the placement-through-first-question flow against the live Vercel URL (SC-007) in `frontend/tests/e2e/smoke.spec.ts` (depends on T061)
+- [ ] T063 Run quickstart.md validation end to end against the deployed environment and record results (depends on all prior tasks)
 
 ---
 
@@ -168,7 +169,7 @@ Web application per plan.md: `backend/src/`, `backend/tests/`, `backend/content/
 - **User Story 1 (Phase 3)**: Depends on Foundational completion only.
 - **User Story 2 (Phase 4)**: Depends on Foundational completion; reuses US1's BKT service (T030), grading (T031), Assessment-Generation Agent (T032), and mastery-update tool (T034) but is a distinct, independently testable increment.
 - **User Story 3 (Phase 5)**: Depends on Foundational completion (specifically T016's validator); independent of US1/US2 implementation beyond needing the same engine to exist.
-- **Polish (Phase 6)**: Depends on the user stories it validates (T056 needs T038+T051; T059 needs T032/T042's generation+validation to exist; T061 needs T060; T062 needs everything).
+- **Polish (Phase 6)**: Depends on the user stories it validates (T056 needs T038+T051; T059 needs T032/T042's generation+validation to exist; T061 needs T060 -- DB branches must be provisioned before Vercel env vars can point at them; T062 needs T061; T063 needs everything).
 
 ### User Story Dependencies
 

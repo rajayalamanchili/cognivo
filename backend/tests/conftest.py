@@ -62,3 +62,8 @@ def demo_learner(db_session) -> DemoLearnerProfile:
 @pytest.fixture()
 def algebra_subject(db_session):
     return load_content_artifact(db_session, "content/algebra-1/subject.yaml")
+
+
+@pytest.fixture()
+def biology_subject(db_session):
+    return load_content_artifact(db_session, "content/biology/subject.yaml")
