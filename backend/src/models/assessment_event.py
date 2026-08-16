@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
-from src.models.enums import AssessmentEventType
+from src.models.enums import AssessmentEventType, enum_values
 
 
 class AssessmentEvent(Base):
@@ -29,7 +29,8 @@ class AssessmentEvent(Base):
         UUID(as_uuid=True), ForeignKey("demo_learner_profiles.learner_id"), nullable=False
     )
     event_type: Mapped[AssessmentEventType] = mapped_column(
-        Enum(AssessmentEventType, name="assessment_event_type"), nullable=False
+        Enum(AssessmentEventType, name="assessment_event_type", values_callable=enum_values),
+        nullable=False,
     )
     question_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("generated_questions.question_id"), nullable=True
