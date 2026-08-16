@@ -35,19 +35,37 @@ def database_available() -> str:
     return database_url
 
 
-@pytest.fixture()
-def db_session(database_available: str):
+@pytest.fixture(scope="session")
+def _schema_engine(database_available: str):
+    """Creates the schema once per test session, not once per test.
+
+    Recreating enum TYPES on every test (the previous per-test
+    drop_all/create_all) churns their Postgres OIDs constantly; psycopg3's
+    type-adapter cache for those OIDs isn't strictly per-connection, so a
+    later test's fresh OID can invalidate an earlier connection's cached
+    one mid-run ("cache lookup failed for type <oid>"). Creating the
+    schema once avoids the churn; db_session below truncates data
+    between tests instead, which never touches type definitions.
+    """
     engine = create_engine(database_available)
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
-    session_local = sessionmaker(bind=engine)
+    yield engine
+    Base.metadata.drop_all(engine)
+    engine.dispose()
+
+
+@pytest.fixture()
+def db_session(_schema_engine):
+    session_local = sessionmaker(bind=_schema_engine)
     session = session_local()
     try:
         yield session
     finally:
         session.close()
-        Base.metadata.drop_all(engine)
-        engine.dispose()
+        table_names = ", ".join(f'"{table.name}"' for table in Base.metadata.tables.values())
+        with _schema_engine.begin() as connection:
+            connection.execute(text(f"TRUNCATE TABLE {table_names} CASCADE"))
 
 
 @pytest.fixture()
