@@ -93,9 +93,17 @@ export default function PlacementFlow() {
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
         <h1 className="text-2xl font-semibold">Placement Results</h1>
         <MasteryView topics={masteryState} />
-        <Link href={`/mastery?subject=${subjectId}`} className="text-blue-600 underline">
-          View full mastery state
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href={`/practice?subject=${subjectId}`}
+            className="rounded bg-foreground px-5 py-3 text-background"
+          >
+            Start Practicing
+          </Link>
+          <Link href={`/mastery?subject=${subjectId}`} className="text-blue-600 underline">
+            View full mastery state
+          </Link>
+        </div>
       </div>
     );
   }

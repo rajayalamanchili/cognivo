@@ -50,6 +50,28 @@ export interface DemoLearner {
   display_name: string;
 }
 
+export interface NextQuestion {
+  question_id: string;
+  topic_id: string;
+  difficulty: Difficulty;
+  question_type: QuestionType;
+  stem: string;
+  options: string[] | null;
+}
+
+export interface AnswerResult {
+  correct: boolean;
+  topic_id: string;
+  prior_p_mastery: number | null;
+  posterior_p_mastery: number;
+  band: MasteryBand;
+}
+
+export interface FlagResult {
+  question_id: string;
+  validation_status: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -99,4 +121,31 @@ export function getMasteryState(
   return request<MasteryStateResponse>(
     `/api/learners/${learnerId}/mastery-state?subject_id=${encodeURIComponent(subjectId)}`,
   );
+}
+
+export function getNextQuestion(learnerId: string, subjectId: string): Promise<NextQuestion> {
+  return request<NextQuestion>(
+    `/api/learners/${learnerId}/next-question?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+export function answerQuestion(
+  questionId: string,
+  response: string | number,
+): Promise<AnswerResult> {
+  return request<AnswerResult>(`/api/questions/${questionId}/answer`, {
+    method: "POST",
+    body: JSON.stringify({ response }),
+  });
+}
+
+export function flagQuestion(
+  questionId: string,
+  flaggedBy: string,
+  reason: string,
+): Promise<FlagResult> {
+  return request<FlagResult>(`/api/questions/${questionId}/flag`, {
+    method: "POST",
+    body: JSON.stringify({ flagged_by: flaggedBy, reason }),
+  });
 }

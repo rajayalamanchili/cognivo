@@ -12,6 +12,22 @@ from typing import Any
 from src.models.enums import QuestionType
 
 
+def validate_response_shape(question_type: QuestionType, response: Any) -> None:
+    """Raises `ValueError` if `response`'s Python type doesn't match what
+    `question_type` expects: an integer option index for
+    `multiple_choice`, a number for `numeric`. `bool` is rejected
+    outright even though Python's `bool` is an `int` subclass -- a
+    boolean is never a valid option index or numeric answer."""
+    if isinstance(response, bool):
+        raise ValueError("boolean response is not a valid answer")
+    if question_type == QuestionType.MULTIPLE_CHOICE:
+        if not isinstance(response, int):
+            raise ValueError("multiple_choice response must be an integer option index")
+    elif question_type == QuestionType.NUMERIC:
+        if not isinstance(response, (int, float)):
+            raise ValueError("numeric response must be a number")
+
+
 def grade_answer(question: dict[str, Any], *, response: Any) -> bool:
     """`question` needs `question_type` and `answer_key` matching
     GeneratedQuestion's shape: `{"correct_index": int}` for

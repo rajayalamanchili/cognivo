@@ -42,7 +42,10 @@ def difficulty_guidance(topic: Topic, difficulty: DifficultyBand) -> str:
     return calibration.get(difficulty.value, "")
 
 
-def _skill_summary(topic: Topic) -> str:
+def skill_summary(topic: Topic) -> str:
+    """Content-artifact-owned skill summary text for `topic` -- shared
+    with the Sequencing Agent's next-question generation (T047), not
+    diagnostic-specific logic."""
     skill = (topic.skill_definition or {}).get("skill") or {}
     return skill.get("summary", "")
 
@@ -58,7 +61,7 @@ async def generate_placement_questions(
         question_type = preferred_question_type(topic)
         draft = await generate_question(
             topic_display_name=topic.display_name,
-            skill_summary=_skill_summary(topic),
+            skill_summary=skill_summary(topic),
             difficulty=DifficultyBand.EASY,
             difficulty_guidance=difficulty_guidance(topic, DifficultyBand.EASY),
             question_type=question_type,

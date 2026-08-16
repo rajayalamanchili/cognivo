@@ -19,7 +19,7 @@ from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, DifficultyBand, QuestionType, ValidationStatus
+from src.models.enums import AssessmentEventType, DifficultyBand, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
@@ -28,7 +28,7 @@ from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
 from src.services.demo_learner import get_demo_learner
-from src.services.mastery.grading import grade_answer
+from src.services.mastery.grading import grade_answer, validate_response_shape
 
 router = APIRouter()
 
@@ -139,21 +139,10 @@ class PlacementSubmitResponse(BaseModel):
 
 
 def _validate_response_shape(question: GeneratedQuestion, response: Any) -> None:
-    if isinstance(response, bool):
-        raise UnprocessableError(
-            f"question {question.question_id}: boolean response is not a valid answer"
-        )
-    if question.question_type == QuestionType.MULTIPLE_CHOICE:
-        if not isinstance(response, int):
-            raise UnprocessableError(
-                f"question {question.question_id}: multiple_choice response must be an "
-                "integer option index"
-            )
-    elif question.question_type == QuestionType.NUMERIC:
-        if not isinstance(response, (int, float)):
-            raise UnprocessableError(
-                f"question {question.question_id}: numeric response must be a number"
-            )
+    try:
+        validate_response_shape(question.question_type, response)
+    except ValueError as exc:
+        raise UnprocessableError(f"question {question.question_id}: {exc}") from exc
 
 
 def _already_answered(db: Session, question_id: uuid.UUID) -> bool:
