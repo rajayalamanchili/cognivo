@@ -1,0 +1,15 @@
+"""Resolves the Milestone-1 demo learner (spec.md Assumptions: solo-learner
+flow only, exactly one seeded `DemoLearnerProfile`, no auth/session yet --
+so endpoints that don't take a `learner_id` path param resolve it here)."""
+
+from sqlalchemy.orm import Session
+
+from src.api.errors import NotFoundError
+from src.models.demo_learner_profile import DemoLearnerProfile
+
+
+def get_demo_learner(db: Session) -> DemoLearnerProfile:
+    learner = db.query(DemoLearnerProfile).order_by(DemoLearnerProfile.created_at).first()
+    if learner is None:
+        raise NotFoundError("no demo learner profile seeded -- run scripts/seed_demo_learner.py")
+    return learner
