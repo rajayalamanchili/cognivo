@@ -38,7 +38,12 @@ jobs:
 
       - name: Run migrations against the ephemeral branch
         env:
-          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_pooled }}
+          # Direct (unpooled) connection, not db_url_pooled: this suite's
+          # per-test drop_all/create_all churn recreates Postgres enum
+          # types with new OIDs, and PgBouncer's pooled connections can
+          # keep serving a prepared statement bound to a stale OID from
+          # a different test -- "cache lookup failed for type <oid>".
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
         run: |
           # Neon's connection string uses the bare `postgresql://` scheme;
           # the app/alembic expect the psycopg3 driver spec explicitly
@@ -47,7 +52,12 @@ jobs:
 
       - name: Run pytest
         env:
-          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url_pooled }}
+          # Direct (unpooled) connection, not db_url_pooled: this suite's
+          # per-test drop_all/create_all churn recreates Postgres enum
+          # types with new OIDs, and PgBouncer's pooled connections can
+          # keep serving a prepared statement bound to a stale OID from
+          # a different test -- "cache lookup failed for type <oid>".
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
           # Read at question-generation time to construct the LlmAgent even
           # in tests that mock the actual model call -- not secret, same
           # default as backend/.env.example. No ANTHROPIC_API_KEY needed
