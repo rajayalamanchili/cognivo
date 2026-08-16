@@ -1,0 +1,75 @@
+name: Backend Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [staging, main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create ephemeral Neon branch
+        id: neon-branch
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          parent_branch: staging
+          branch_name: ci-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run migrations against the ephemeral branch
+        env:
+          # Direct (unpooled) connection, not db_url_pooled: this suite's
+          # per-test drop_all/create_all churn recreates Postgres enum
+          # types with new OIDs, and PgBouncer's pooled connections can
+          # keep serving a prepared statement bound to a stale OID from
+          # a different test -- "cache lookup failed for type <oid>".
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+        run: |
+          # Neon's connection string uses the bare `postgresql://` scheme;
+          # the app/alembic expect the psycopg3 driver spec explicitly
+          # (backend/.env.example, src/db.py).
+          DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run alembic upgrade head
+
+      - name: Run pytest
+        env:
+          # Direct (unpooled) connection, not db_url_pooled: this suite's
+          # per-test drop_all/create_all churn recreates Postgres enum
+          # types with new OIDs, and PgBouncer's pooled connections can
+          # keep serving a prepared statement bound to a stale OID from
+          # a different test -- "cache lookup failed for type <oid>".
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+          # Read at question-generation time to construct the LlmAgent even
+          # in tests that mock the actual model call -- not secret, same
+          # default as backend/.env.example. No ANTHROPIC_API_KEY needed
+          # since every test exercising this path mocks _run_agent_once.
+          ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-4-5
+        run: |
+          DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run pytest -q
+
+      - name: Delete ephemeral Neon branch
+        if: always()
+        uses: neondatabase/delete-branch-action@v3
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          branch: ci-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}
+          api_key: ${{ secrets.NEON_API_KEY }}

@@ -1,0 +1,116 @@
+# Biology content artifact (Milestone 1, User Story 3 -- SC-004 proof).
+#
+# Exists solely to prove the engine is domain-agnostic: this file is
+# added with zero edits to any file outside backend/content/biology/.
+# Topic order below IS the authored order Topic.order_index is assigned
+# from at load time (services/content_artifact/loader.py), same as
+# algebra-1 -- topics are listed prerequisites before dependents.
+subject_id: biology
+display_name: Biology
+content_version: "1.0.0"
+topics:
+  - topic_id: cell-structure-and-function
+    display_name: Cell Structure and Function
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Identify the major organelles in eukaryotic and prokaryotic
+        cells and describe each organelle's function.
+      preferred_question_types: [multiple_choice]
+    difficulty_calibration:
+      easy: "Identify a single organelle from a one-sentence description of its function."
+      medium: "Compare the functions of two related organelles, e.g. rough vs. smooth ER."
+      hard: "Explain how multiple organelles cooperate in a single cellular process, e.g. protein secretion."
+
+  - topic_id: biomolecules
+    display_name: Biomolecules
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Identify examples and functions of the four major biomolecule
+        classes: carbohydrates, lipids, proteins, and nucleic acids.
+      preferred_question_types: [multiple_choice]
+    difficulty_calibration:
+      easy: "Match a single biomolecule example to its class, e.g. glucose is a carbohydrate."
+      medium: "Identify which biomolecule class performs a stated function, e.g. long-term energy storage."
+      hard: "Distinguish between two structurally similar biomolecules by a subtle functional difference."
+
+  - topic_id: cell-transport
+    display_name: Cell Transport
+    prerequisites: [cell-structure-and-function]
+    skill_definition:
+      summary: >-
+        Predict the direction of osmosis and diffusion across a cell
+        membrane given a concentration gradient, and distinguish passive
+        from active transport.
+      preferred_question_types: [multiple_choice]
+    difficulty_calibration:
+      easy: "Predict the direction of diffusion for a simple two-side concentration gradient."
+      medium: "Classify a described transport process as passive or active and explain why."
+      hard: "Predict cell behavior (shrink/swell/stable) when placed in a solution of stated tonicity."
+
+  - topic_id: cellular-respiration
+    display_name: Cellular Respiration
+    prerequisites: [biomolecules, cell-transport]
+    skill_definition:
+      summary: >-
+        Describe the stages of cellular respiration (glycolysis, Krebs
+        cycle, electron transport chain) and quantify their ATP yield.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "State which stage of cellular respiration occurs in a named cell location."
+      medium: "Compute the net ATP yield from a single named stage, e.g. glycolysis yields 2 net ATP."
+      hard: "Compute the total net ATP yield across all three stages given a stated per-stage yield table."
+
+  - topic_id: mendelian-genetics
+    display_name: Mendelian Genetics
+    prerequisites: [cell-structure-and-function]
+    skill_definition:
+      summary: >-
+        Predict offspring genotype and phenotype ratios from a
+        monohybrid or dihybrid cross using a Punnett square.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Determine the genotype ratio of a monohybrid cross between two heterozygotes, e.g. Aa x Aa."
+      medium: "Determine the phenotype ratio of a monohybrid cross involving incomplete dominance."
+      hard: "Determine a phenotype ratio from a dihybrid cross, e.g. AaBb x AaBb."
+
+  - topic_id: dna-replication-and-protein-synthesis
+    display_name: DNA Replication and Protein Synthesis
+    prerequisites: [biomolecules]
+    skill_definition:
+      summary: >-
+        Describe the steps of DNA replication and how transcription and
+        translation convert a gene sequence into a protein.
+      preferred_question_types: [multiple_choice]
+    difficulty_calibration:
+      easy: "Identify the complementary DNA base pair for a given base, e.g. adenine pairs with thymine."
+      medium: "Transcribe a short DNA sequence into its mRNA complement."
+      hard: "Translate a short mRNA codon sequence into its corresponding amino acid sequence using a codon table."
+
+  - topic_id: photosynthesis
+    display_name: Photosynthesis
+    prerequisites: [cellular-respiration]
+    skill_definition:
+      summary: >-
+        Describe the light-dependent and light-independent (Calvin
+        cycle) reactions of photosynthesis and their inputs/outputs.
+      preferred_question_types: [multiple_choice]
+    difficulty_calibration:
+      easy: "Identify a single input or output of photosynthesis, e.g. it consumes carbon dioxide."
+      medium: "Identify which stage of photosynthesis a described input/output belongs to."
+      hard: "Explain how the products of the light-dependent reactions are used by the Calvin cycle."
+
+  - topic_id: natural-selection-and-evolution
+    display_name: Natural Selection and Evolution
+    prerequisites: [mendelian-genetics, dna-replication-and-protein-synthesis]
+    skill_definition:
+      summary: >-
+        Apply the Hardy-Weinberg equation to a population's allele
+        frequencies and explain how natural selection shifts those
+        frequencies over time.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Given the recessive allele frequency q, compute the recessive phenotype frequency q^2."
+      medium: "Given one allele frequency, compute the heterozygote frequency 2pq."
+      hard: "Given a phenotype frequency, solve for both allele frequencies p and q and verify p + q = 1."
