@@ -54,3 +54,14 @@
   and tasks T032-T034 added for the SC-007 regression suite, an SC-005
   Playwright test, and an FR-012 manual copy-review step (G1, G3, A1).
   All checklist items still pass; no regressions.
+- `/speckit-clarify` (2026-08-17) resolved a convergence-definition
+  ambiguity discovered during `/speckit-implement` Phase 7 (T031/T032):
+  FR-004's "every topic" is now scoped to topics where that learner's
+  ground-truth mastery is `true`, since BKT's transition probability
+  otherwise makes universal (all-topics) convergence practically
+  unreachable for realistic profiles. FR-004, User Story 1's Acceptance
+  Scenario 1, one Edge Case, and the Assumptions' "Target mastery" bullet
+  were updated for consistency. All checklist items still pass; no
+  regressions. This requires a corresponding implementation fix in
+  `backend/src/services/evaluation/` (already-written condition-runner
+  code predates this clarification).

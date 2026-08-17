@@ -35,6 +35,24 @@ deployed report page (Option C), not just a committed artifact."
   A: Linked from main navigation -- any visitor browsing the deployed
   app can find it.
 
+### Session 2026-08-17
+
+- Q: When a synthetic learner has a topic that was never truly mastered
+  (ground-truth `false`), should "questions-to-mastery" require the
+  harness to keep asking about it until BKT's confirmation-streak
+  crosses the mastered threshold anyway (which can happen from pure
+  guessing noise, not real mastery), or should such topics be excluded
+  from what counts as "converged" for that learner? → A: Excluded --
+  FR-004's "every topic" is scoped to topics where that learner's
+  ground-truth mastery is `true` only. Discovered during
+  `/speckit-implement` Phase 7 (T031/T032): BKT's transition
+  probability means any topic eventually drifts toward "mastered" from
+  guessing noise alone, so requiring truly-unmastered topics to also
+  cross the mastered band was making whole-learner convergence
+  practically unreachable (empirically ~0% for `cold-start`, ~5% for
+  `strong-prior` at the spec's default budget), leaving SC-001's
+  random-baseline comparison with no converged data to compare against.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Prove Sequencing Beats Random Ordering (Priority: P1)
@@ -60,8 +78,9 @@ the Sequencing Agent condition using fewer questions on average.
 1. **Given** a synthetic learner population with known per-topic ground-truth
    mastery, **When** the harness runs the Sequencing Agent condition and the
    random-order condition side by side, **Then** the report shows the number
-   of questions each condition needed to bring every topic to the "mastered"
-   band for every simulated learner.
+   of questions each condition needed to bring every truly-masterable topic
+   (ground-truth `true`) to the "mastered" band for every simulated learner
+   (FR-004; Clarifications, session 2026-08-17).
 2. **Given** a completed evaluation run, **When** the aggregate report is
    computed, **Then** the Sequencing Agent condition's mean questions-to-
    mastery is lower than the random-order condition's mean questions-to-
@@ -162,12 +181,14 @@ ordering.
   zero questions-to-mastery for every condition for that learner, and must
   not be excluded from the average (it's a real, valid data point).
 - What happens when a simulated learner does not reach the "mastered" band
-  for every topic within the configured maximum-question budget under a
-  given condition? That learner/condition pair is recorded as
-  "did not converge" and excluded from the mean/median questions-to-mastery
-  figure for that condition, but counted and surfaced in the report as a
-  non-convergence rate -- silently dropping it would misrepresent the
-  comparison.
+  for every topic where their ground truth is `true` (FR-004) within the
+  configured maximum-question budget under a given condition? That
+  learner/condition pair is recorded as "did not converge" and excluded from
+  the mean/median questions-to-mastery figure for that condition, but
+  counted and surfaced in the report as a non-convergence rate -- silently
+  dropping it would misrepresent the comparison. Topics where the learner's
+  ground truth is `false` play no role in this determination (Clarifications,
+  session 2026-08-17).
 - What happens if a topic is never reachable under a condition because its
   prerequisites are never satisfied within the question budget (e.g. the
   random-order condition never happens to visit a prerequisite)? Same
@@ -197,13 +218,20 @@ ordering.
   random topic-order baseline; (c) a fixed canonical topic-order baseline
   derived from the content artifact's authored `order_index`.
 - **FR-004**: For each condition and each synthetic learner, the harness
-  MUST record the number of questions answered until every topic in that
-  subject's topic set reaches the existing "mastered" band -- BKT posterior
-  `p_mastery ≥ 0.7` **and** the existing confirmation-streak requirement
-  (two consecutive post-update observations at or above 0.7, per the
-  three-band model's anti-degenerate-answer-pattern gate already locked in
-  Milestone 1) -- or a configured maximum-question budget is exhausted,
-  whichever comes first.
+  MUST record the number of questions answered until every topic **where
+  that learner's ground-truth mastery is `true`** reaches the existing
+  "mastered" band -- BKT posterior `p_mastery ≥ 0.7` **and** the existing
+  confirmation-streak requirement (two consecutive post-update observations
+  at or above 0.7, per the three-band model's anti-degenerate-answer-pattern
+  gate already locked in Milestone 1) -- or a configured maximum-question
+  budget is exhausted, whichever comes first. Topics where the learner's
+  ground-truth mastery is `false` are excluded from this convergence check
+  entirely: BKT's transition probability means any topic eventually drifts
+  toward "mastered" from guessing noise alone regardless of true mastery, so
+  requiring a genuinely-unmastered topic to also cross the mastered band
+  would measure spurious drift, not real mastery, and would make
+  whole-learner convergence practically unreachable for realistic profiles
+  (Clarifications, session 2026-08-17).
 - **FR-005**: The harness MUST run the full three-condition comparison
   across multiple distinct synthetic learner profiles (varying starting
   ground-truth mastery patterns) and across both Milestone 1 content
@@ -313,7 +341,15 @@ ordering.
   the existing "mastered" band, which requires both `p(mastery) ≥ 0.7`
   *and* the confirmation-streak gate (two consecutive qualifying
   observations) -- not the 0.7 threshold alone (see FR-004; corrected
-  post-`/speckit-analyze`, finding I2).
+  post-`/speckit-analyze`, finding I2). A learner's overall
+  "questions-to-mastery" convergence is scoped to topics where that
+  learner's ground-truth mastery is `true` only -- topics with `false`
+  ground truth are excluded from the convergence check, since BKT's
+  transition probability means any topic eventually drifts toward
+  "mastered" from guessing noise alone, which would otherwise make
+  universal (all-topics) convergence practically unreachable and not a
+  meaningful signal of ordering quality (Clarifications, session
+  2026-08-17).
 - The fixed canonical-order baseline uses each content artifact's existing
   authored `order_index` field; no new ordering needs to be authored for
   this milestone.

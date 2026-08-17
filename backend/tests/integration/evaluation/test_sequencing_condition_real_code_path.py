@@ -31,7 +31,11 @@ def test_sequencing_condition_actually_calls_select_next_topic(db_session, algeb
         .order_by(Topic.order_index)
         .all()
     )
+    # At least one topic must be genuinely masterable -- an all-False
+    # ground truth would short-circuit before ever calling
+    # select_next_topic (FR-004; Clarifications, session 2026-08-17).
     true_mastery = {topic.topic_id: False for topic in topics}
+    true_mastery[topics[0].topic_id] = True
 
     with patch.object(conditions, "select_next_topic", wraps=conditions.select_next_topic) as spy:
         outcome = conditions.run_sequencing_condition(

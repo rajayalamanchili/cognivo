@@ -132,6 +132,21 @@ explicit for `tasks.md`.
 silently test a more lenient bar than the one the real product actually
 uses to decide a topic is done -- undermining SC-001's claim.
 
+**Revision note** (post-`/speckit-implement` Phase 7, `/speckit-clarify`
+session 2026-08-17): A learner's overall convergence check -- "has
+*every* topic reached the mastered band" -- is scoped to topics where
+that learner's ground-truth mastery is `true` only. BKT's transition
+probability (`P_T`) means any topic, including a genuinely-unmastered
+one, eventually drifts into the mastered band from guessing noise alone
+(empirically confirmed: ~20% chance within a 20-question budget, ~100%
+within 400). Requiring `false`-ground-truth topics to also cross the
+mastered band before a learner "converges" was making whole-learner
+convergence practically unreachable for realistic profiles (~0% for
+`cold-start`, ~5% for `strong-prior` at the default budget) --
+`select_next_topic`/random/fixed-order still ask about `false` topics
+exactly as a real, ground-truth-blind condition would; only the
+stopping condition is scoped. See `spec.md`'s FR-004 and Assumptions.
+
 ## 6. Where synthetic learners live, and why
 
 **Discovery**: `MasteryState.learner_id` has a foreign-key constraint to

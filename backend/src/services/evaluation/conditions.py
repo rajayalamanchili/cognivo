@@ -32,6 +32,17 @@ from src.services.mastery.bkt import P_S, MasteryObservation, apply_bkt_update, 
 EVAL_HARNESS_LEARNER_PREFIX = "eval-harness-"
 
 
+def _true_topic_ids(true_mastery: dict[str, bool]) -> frozenset[str]:
+    """Topics this learner can genuinely converge on (FR-004; Clarifications,
+    session 2026-08-17). BKT's transition probability means any topic
+    -- including a genuinely-unmastered one -- eventually drifts toward
+    the mastered band from guessing noise alone, so convergence is
+    scoped to ground-truth-`true` topics only; a `false` topic reaching
+    "mastered" would be spurious drift, not real mastery, and requiring
+    it would make whole-learner convergence practically unreachable."""
+    return frozenset(topic_id for topic_id, is_true in true_mastery.items() if is_true)
+
+
 @dataclass(frozen=True)
 class SimulatedAnswer:
     """One synthetic answer, generated on demand during a condition's
@@ -159,16 +170,24 @@ def run_sequencing_condition(
     a real synthetic learner (`synthetic_learners`), then loops calling
     the real `select_next_topic` + `apply_mastery_update` -- writing one
     real `AssessmentEvent` per decision (FR-014) -- until every topic
-    reaches the mastered band or the budget (`max_questions_per_topic`
-    per topic) is exhausted. The synthetic learner and every row written
-    against it are deleted before this returns, success or failure
-    (research.md §6-§7)."""
+    this learner can genuinely master (`_true_topic_ids`) reaches the
+    mastered band, or the budget (`max_questions_per_topic` per topic)
+    is exhausted. `select_next_topic` has no access to ground truth, so
+    it may still spend some of its budget on `false` topics exactly as
+    a real request would -- only the convergence check is scoped
+    (FR-004; Clarifications, session 2026-08-17). The synthetic learner
+    and every row written against it are deleted before this returns,
+    success or failure (research.md §6-§7)."""
+    true_topic_ids = _true_topic_ids(true_mastery)
+    if not true_topic_ids:
+        return LearnerOutcome(questions_to_mastery=0, converged=True)
+
     budget = max_questions_per_topic * len(topics)
     topics_by_id = {topic.topic_id: topic for topic in topics}
 
     with synthetic_learners(db, count=1) as learners:
         learner = learners[0]
-        mastered_bands: dict[str, MasteryBand] = {}
+        mastered_topic_ids: set[str] = set()
         questions_asked = 0
 
         while questions_asked < budget:
@@ -192,11 +211,11 @@ def run_sequencing_condition(
             questions_asked += 1
 
             if result.posterior_band == MasteryBand.MASTERED:
-                mastered_bands[topic.topic_id] = result.posterior_band
+                mastered_topic_ids.add(topic.topic_id)
             else:
-                mastered_bands.pop(topic.topic_id, None)
+                mastered_topic_ids.discard(topic.topic_id)
 
-            if mastered_bands.keys() == topics_by_id.keys():
+            if true_topic_ids <= mastered_topic_ids:
                 return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
 
     return LearnerOutcome(questions_to_mastery=None, converged=False)
@@ -212,8 +231,14 @@ def run_random_condition(
     """Runs the random-order baseline for one simulated learner entirely
     in-memory (research.md §4, §6): each question, pick a topic uniformly
     at random from the subject's full topic set, independent of any
-    mastery state. No DB writes -- this condition never calls
+    mastery state. Convergence is scoped to topics this learner can
+    genuinely master (`_true_topic_ids`) -- FR-004; Clarifications,
+    session 2026-08-17. No DB writes -- this condition never calls
     `select_next_topic` and has no other reason to touch the database."""
+    true_topic_ids = _true_topic_ids(true_mastery)
+    if not true_topic_ids:
+        return LearnerOutcome(questions_to_mastery=0, converged=True)
+
     budget = max_questions_per_topic * len(topics)
     observations: dict[str, MasteryObservation | None] = {topic.topic_id: None for topic in topics}
 
@@ -228,7 +253,7 @@ def run_random_condition(
         )
         questions_asked += 1
 
-        if all(has_reached_mastered_band(observation) for observation in observations.values()):
+        if all(has_reached_mastered_band(observations[tid]) for tid in true_topic_ids):
             return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
 
     return LearnerOutcome(questions_to_mastery=None, converged=False)
@@ -247,8 +272,14 @@ def run_fixed_order_condition(
     questions about the current topic (fewer if it reaches the mastered
     band first) before advancing. After one full pass, any topics still
     unmastered are re-cycled in the same order, repeating until every
-    topic is mastered or the overall budget (`max_questions_per_topic *
-    len(topics)`) is exhausted. No DB writes."""
+    topic this learner can genuinely master (`_true_topic_ids`) is
+    mastered, or the overall budget (`max_questions_per_topic *
+    len(topics)`) is exhausted (FR-004; Clarifications, session
+    2026-08-17). No DB writes."""
+    true_topic_ids = _true_topic_ids(true_mastery)
+    if not true_topic_ids:
+        return LearnerOutcome(questions_to_mastery=0, converged=True)
+
     ordered_topics = sorted(topics, key=lambda topic: topic.order_index)
     budget = max_questions_per_topic * len(topics)
     observations: dict[str, MasteryObservation | None] = {
@@ -274,9 +305,7 @@ def run_fixed_order_condition(
                 )
                 questions_asked += 1
                 progressed = True
-                if all(
-                    has_reached_mastered_band(observation) for observation in observations.values()
-                ):
+                if all(has_reached_mastered_band(observations[tid]) for tid in true_topic_ids):
                     return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
                 if has_reached_mastered_band(observations[topic.topic_id]):
                     break
