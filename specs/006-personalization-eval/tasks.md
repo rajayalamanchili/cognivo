@@ -123,10 +123,10 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 ### Implementation for User Story 3
 
-- [ ] T025 [US3] Implement `run_fixed_order_condition` (in-memory: cycles topics by ascending `order_index`, repeats the current topic until mastered, then advances; re-cycles remaining unmastered topics after one full pass -- research.md §4) in `backend/src/services/evaluation/conditions.py` (depends on T005)
-- [ ] T026 [US3] Wire the fixed-order condition into orchestration and aggregation so every `breakdowns` entry and `aggregate` include all three conditions in `backend/src/services/evaluation/report.py` and `backend/src/services/evaluation/run_harness.py` (depends on T025, T015)
-- [ ] T027 [P] [US3] Unit test: fixed-order condition mechanics -- visits topics in `order_index` order, re-cycles unmastered topics after one pass -- in `backend/tests/unit/evaluation/test_condition_mechanics.py` (depends on T025)
-- [ ] T028 [US3] Unit test: SC-002 -- the Sequencing Agent condition's pooled aggregate mean is no higher than the fixed-order condition's -- in `backend/tests/unit/evaluation/test_report_shape.py` (depends on T026)
+- [X] T025 [US3] Implement `run_fixed_order_condition` (in-memory: cycles topics by ascending `order_index`, repeats the current topic until mastered, then advances; re-cycles remaining unmastered topics after one full pass -- research.md §4) in `backend/src/services/evaluation/conditions.py` (depends on T005)
+- [X] T026 [US3] Wire the fixed-order condition into orchestration and aggregation so every `breakdowns` entry and `aggregate` include all three conditions in `backend/src/services/evaluation/report.py` and `backend/src/services/evaluation/run_harness.py` (depends on T025, T015)
+- [X] T027 [P] [US3] Unit test: fixed-order condition mechanics -- visits topics in `order_index` order, re-cycles unmastered topics after one pass -- in `backend/tests/unit/evaluation/test_condition_mechanics.py` (depends on T025)
+- [X] T028 [US3] Unit test: SC-002 -- the Sequencing Agent condition's pooled aggregate mean is no higher than the fixed-order condition's -- in `backend/tests/unit/evaluation/test_report_shape.py` (depends on T026)
 
 **Checkpoint**: `quickstart.md` step 3 passes. All three conditions are live in the comparison; all four user stories independently functional.
 

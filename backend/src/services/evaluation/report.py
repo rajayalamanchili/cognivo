@@ -16,7 +16,11 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from src.models.topic import Topic
-from src.services.evaluation.conditions import run_random_condition, run_sequencing_condition
+from src.services.evaluation.conditions import (
+    run_fixed_order_condition,
+    run_random_condition,
+    run_sequencing_condition,
+)
 from src.services.evaluation.profiles import SyntheticLearnerProfile, generate_population
 
 Condition = Literal["sequencing", "random", "fixed_order"]
@@ -174,14 +178,14 @@ def run_condition_results(
     max_questions_per_topic: int,
     seed: int,
 ) -> list[ConditionRunResult]:
-    """Runs the Sequencing Agent and random conditions for `population_size`
-    simulated learners of `profile` against `subject_id`'s topics, and
-    returns every learner's per-condition outcome. Both conditions replay
-    identical ground truth per learner (research.md §3) via one seeded
-    population draw; a second, independent seeded RNG drives the
-    conditions' own simulated-answer draws, consumed in a fixed
-    (learner, condition) order so the whole run stays reproducible given
-    `seed` (FR-007)."""
+    """Runs all three ordering conditions (Sequencing Agent, random,
+    fixed-order) for `population_size` simulated learners of `profile`
+    against `subject_id`'s topics, and returns every learner's
+    per-condition outcome. Every condition replays identical ground
+    truth per learner (research.md §3) via one seeded population draw;
+    a second, independent seeded RNG drives the conditions' own
+    simulated-answer draws, consumed in a fixed (learner, condition)
+    order so the whole run stays reproducible given `seed` (FR-007)."""
     learners = generate_population(profile, topics, population_size=population_size, seed=seed)
     sim_rng = random.Random(seed)
 
@@ -195,33 +199,34 @@ def run_condition_results(
             max_questions_per_topic=max_questions_per_topic,
             rng=sim_rng,
         )
-        results.append(
-            ConditionRunResult(
-                profile=profile.name,
-                subject_id=subject_id,
-                condition="sequencing",
-                learner_index=learner.learner_index,
-                questions_to_mastery=sequencing_outcome.questions_to_mastery,
-                converged=sequencing_outcome.converged,
-            )
-        )
-
         random_outcome = run_random_condition(
             topics,
             true_mastery=learner.true_mastery,
             max_questions_per_topic=max_questions_per_topic,
             rng=sim_rng,
         )
-        results.append(
-            ConditionRunResult(
-                profile=profile.name,
-                subject_id=subject_id,
-                condition="random",
-                learner_index=learner.learner_index,
-                questions_to_mastery=random_outcome.questions_to_mastery,
-                converged=random_outcome.converged,
-            )
+        fixed_order_outcome = run_fixed_order_condition(
+            topics,
+            true_mastery=learner.true_mastery,
+            max_questions_per_topic=max_questions_per_topic,
+            rng=sim_rng,
         )
+
+        for condition, outcome in (
+            ("sequencing", sequencing_outcome),
+            ("random", random_outcome),
+            ("fixed_order", fixed_order_outcome),
+        ):
+            results.append(
+                ConditionRunResult(
+                    profile=profile.name,
+                    subject_id=subject_id,
+                    condition=condition,
+                    learner_index=learner.learner_index,
+                    questions_to_mastery=outcome.questions_to_mastery,
+                    converged=outcome.converged,
+                )
+            )
 
     return results
 

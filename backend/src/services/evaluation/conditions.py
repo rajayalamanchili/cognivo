@@ -232,3 +232,57 @@ def run_random_condition(
             return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
 
     return LearnerOutcome(questions_to_mastery=None, converged=False)
+
+
+def run_fixed_order_condition(
+    topics: list[Topic],
+    *,
+    true_mastery: dict[str, bool],
+    max_questions_per_topic: int,
+    rng: random.Random,
+) -> LearnerOutcome:
+    """Runs the fixed canonical-order baseline for one simulated learner
+    entirely in-memory (research.md §4, §6): topics are visited in
+    ascending `order_index`, asking up to `max_questions_per_topic`
+    questions about the current topic (fewer if it reaches the mastered
+    band first) before advancing. After one full pass, any topics still
+    unmastered are re-cycled in the same order, repeating until every
+    topic is mastered or the overall budget (`max_questions_per_topic *
+    len(topics)`) is exhausted. No DB writes."""
+    ordered_topics = sorted(topics, key=lambda topic: topic.order_index)
+    budget = max_questions_per_topic * len(topics)
+    observations: dict[str, MasteryObservation | None] = {
+        topic.topic_id: None for topic in ordered_topics
+    }
+
+    questions_asked = 0
+    while questions_asked < budget:
+        progressed = False
+        for topic in ordered_topics:
+            if has_reached_mastered_band(observations[topic.topic_id]):
+                continue
+            for _ in range(max_questions_per_topic):
+                if questions_asked >= budget:
+                    break
+                answer = draw_simulated_answer(
+                    topic, truly_mastered=true_mastery[topic.topic_id], rng=rng
+                )
+                observations[topic.topic_id] = apply_bkt_update(
+                    observations[topic.topic_id],
+                    correct=answer.correct,
+                    question_type=answer.question_type,
+                )
+                questions_asked += 1
+                progressed = True
+                if all(
+                    has_reached_mastered_band(observation) for observation in observations.values()
+                ):
+                    return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
+                if has_reached_mastered_band(observations[topic.topic_id]):
+                    break
+            if questions_asked >= budget:
+                break
+        if not progressed:
+            break
+
+    return LearnerOutcome(questions_to_mastery=None, converged=False)

@@ -113,3 +113,23 @@ def test_full_matrix_report_has_eight_breakdowns_and_sequencing_wins_each():
     assert aggregate["sequencing"].mean < aggregate["random"].mean
     assert aggregate["sequencing"].n == 8 * 5
     assert aggregate["random"].n == 8 * 5
+
+
+def test_sequencing_pooled_aggregate_mean_no_higher_than_fixed_order():
+    # SC-002: the Sequencing Agent condition's pooled aggregate mean is
+    # no higher than the fixed-order baseline's -- "no higher than"
+    # allows equality, not just strict improvement.
+    all_results: list[ConditionRunResult] = []
+    for profile in PROFILES:
+        for subject_id in SUBJECTS:
+            all_results += [
+                _result("sequencing", i, 10 + i, profile=profile, subject_id=subject_id)
+                for i in range(5)
+            ]
+            all_results += [
+                _result("fixed_order", i, 25 + i, profile=profile, subject_id=subject_id)
+                for i in range(5)
+            ]
+
+    aggregate = aggregate_stats(all_results)
+    assert aggregate["sequencing"].mean <= aggregate["fixed_order"].mean
