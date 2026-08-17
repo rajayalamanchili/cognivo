@@ -33,16 +33,16 @@ research.md §8) at request time; never triggers a harness run.
       "profile": "cold-start",
       "subject_id": "algebra-1",
       "conditions": {
-        "sequencing": { "mean": 41.2, "median": 39.5, "non_converged_count": 0, "n": 30 },
-        "random": { "mean": 68.7, "median": 65.0, "non_converged_count": 2, "n": 30 },
-        "fixed_order": { "mean": 52.3, "median": 50.0, "non_converged_count": 0, "n": 30 }
+        "sequencing": { "mean": 41.2, "median": 39.5, "non_converged_count": 0, "non_converged_rate": 0.0, "n": 30 },
+        "random": { "mean": 68.7, "median": 65.0, "non_converged_count": 2, "non_converged_rate": 0.067, "n": 30 },
+        "fixed_order": { "mean": 52.3, "median": 50.0, "non_converged_count": 0, "non_converged_rate": 0.0, "n": 30 }
       }
     }
   ],
   "aggregate": {
-    "sequencing": { "mean": 40.1, "median": 38.0, "non_converged_count": 0, "n": 240 },
-    "random": { "mean": 66.4, "median": 63.0, "non_converged_count": 9, "n": 240 },
-    "fixed_order": { "mean": 51.0, "median": 49.0, "non_converged_count": 1, "n": 240 }
+    "sequencing": { "mean": 40.1, "median": 38.0, "non_converged_count": 0, "non_converged_rate": 0.0, "n": 240 },
+    "random": { "mean": 66.4, "median": 63.0, "non_converged_count": 9, "non_converged_rate": 0.0375, "n": 240 },
+    "fixed_order": { "mean": 51.0, "median": 49.0, "non_converged_count": 1, "non_converged_rate": 0.0042, "n": 240 }
   }
 }
 ```

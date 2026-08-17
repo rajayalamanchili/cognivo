@@ -52,12 +52,17 @@ Maps directly to spec.md User Stories 1-4's Acceptance Scenarios.
    `src.agents.sequencing.agent.select_next_topic` directly (an import,
    not a re-derivation of its eligibility/tie-break logic).
 
-6. **No real-data / cleanup check** (FR-009, SC-006)
-   Before and after running step 2, query
-   `SELECT count(*) FROM demo_learner_profiles WHERE is_demo = false` →
-   confirm it's unchanged (0 in a fresh dev DB) and that no
-   `eval-harness-*` rows remain in `demo_learner_profiles` after the run
-   completes (cleanup, research.md §6).
+6. **No real-data / cleanup check** (FR-009, FR-014, SC-006)
+   Before and after running step 2:
+   - Query `SELECT count(*) FROM demo_learner_profiles WHERE is_demo = false`
+     (and the equivalent for any pre-existing real `assessment_events` rows)
+     → confirm both are unchanged (real data untouched).
+   - Confirm no `eval-harness-*` rows remain in `demo_learner_profiles`,
+     `mastery_states`, or `assessment_events` after the run completes
+     (synthetic-data cleanup, research.md §6-§7).
+   - During the run, confirm `assessment_events` rows of type
+     `next_topic_selected` are being written for the `sequencing`
+     condition's decisions (FR-014) -- absent for `random`/`fixed_order`.
 
 7. **Publish and view the report page** (User Story 4)
    Commit `backend/evaluation/reports/latest.json` (as an engineer would
@@ -86,3 +91,9 @@ Maps directly to spec.md User Stories 1-4's Acceptance Scenarios.
 10. **Subject-agnosticism check** (Constitution Principle III)
     `python backend/scripts/check_no_subject_conditionals.py` → confirm
     it still passes after the harness code is added (research.md §11).
+
+11. **Regression check** (SC-007)
+    Run the full backend test suite (`pytest` from `backend/`), including
+    Milestone 1's and Milestone 2's existing test directories → confirm
+    all still pass; this feature's changes must not regress prior
+    milestones.

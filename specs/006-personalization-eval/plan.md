@@ -28,10 +28,10 @@ it in plain language as part of the live demo (Clarifications).
 No LLM/ADK calls in the harness loop (research.md §1), so no new
 Langfuse/ADK wiring either.
 
-**Storage**: PostgreSQL (Neon, existing) -- reuses `DemoLearnerProfile`
-and `MasteryState` tables as-is for the Sequencing Agent condition only
-(research.md §6); no new tables or migrations. The published Comparison
-Report is a committed JSON file
+**Storage**: PostgreSQL (Neon, existing) -- reuses `DemoLearnerProfile`,
+`MasteryState`, and `AssessmentEvent` tables as-is for the Sequencing
+Agent condition only (research.md §6-§7); no new tables or migrations.
+The published Comparison Report is a committed JSON file
 (`backend/evaluation/reports/latest.json`), not a database row
 (research.md §8).
 
@@ -73,15 +73,14 @@ learner-runs per Evaluation Run, budget-capped at 20 questions/topic
 | II. Generated content graded against a rubric | N/A -- the harness generates no real assessment content; simulated correctness uses the already-locked BKT emission parameters, not new grading logic. |
 | III. One engine, many subjects | PASS -- harness code is subject-agnostic (`subject_id` parameter only); covered by the existing `check_no_subject_conditionals.py` scan (research.md §11). |
 | IV. Agent boundaries reflect real responsibility | PASS -- no new agent or agent boundary introduced; the harness is a caller of the existing Sequencing Agent's tool function, like a test. |
-| V. Every decision logged and explainable | **Scoped deviation, justified** -- the harness does not write per-selection `AssessmentEvent` audit rows (research.md §7); see Complexity Tracking below. The Comparison Report itself is self-describing (FR-013) and Sequencing Agent condition MasteryState changes ARE the same real DB writes production makes. |
+| V. Every decision logged and explainable | PASS -- the Sequencing Agent condition writes real `AssessmentEvent` rows (reusing `NEXT_TOPIC_SELECTED`) for every decision, exactly as production does, cleaned up at run end (research.md §7, revised post-`/speckit-analyze`). Random/fixed-order conditions write none, but they touch no DB row at all and aren't real agent decisions, so there is nothing for this principle to apply to. The Comparison Report is also self-describing (FR-013/FR-014). |
 | VI. A2A justified by concrete need | N/A -- no A2A involved. |
 | VII. Spec before code | PASS -- this plan follows an approved, clarified `spec.md`. |
 | VIII. No real learner data | PASS -- synthetic-only, `is_demo=True` learners (research.md §6), cleaned up after each run; SC-006 gives this an automated check. |
 | IX. Deployable and demoable | PASS -- the report page ships as part of this milestone's live deployment (Clarifications: Option C), reachable without auth from main navigation. |
 | X. Staged release discipline | PASS -- standard branch/PR workflow, no exception needed. |
 
-No unjustified violations. One scoped, justified deviation recorded in
-Complexity Tracking.
+No violations; no Complexity Tracking entries needed.
 
 **Post-Phase-1 re-check**: Table above already reflects Phase 0/1
 findings (research.md, data-model.md) -- no new violation surfaced by
@@ -89,6 +88,15 @@ the detailed design (e.g. the FK-driven decision to persist only the
 Sequencing Agent condition's synthetic learners, research.md §6, doesn't
 touch real learner data or introduce a new agent boundary). Gate remains
 PASS.
+
+**Revision note** (post-`/speckit-analyze`): An earlier version of this
+plan proposed skipping `AssessmentEvent` audit-log writes for the
+Sequencing Agent condition, justified via a Principle-V scope narrowing
+that `/speckit-analyze` correctly flagged as an unauthorized
+reinterpretation of a MUST clause (finding C1). Resolved by full
+compliance instead (research.md §7) -- the Complexity Tracking table
+that previously justified the deviation is removed below, since there is
+no longer a violation to justify.
 
 ## Project Structure
 
@@ -134,14 +142,17 @@ backend/
             └── test_sequencing_condition_real_code_path.py  # FR-008/SC-004: asserts select_next_topic is called, not reimplemented
 
 frontend/
-└── src/
-    ├── app/
-    │   ├── layout.tsx                    # add minimal main-nav (research.md §9)
-    │   └── personalization-eval/
-    │       ├── page.tsx
-    │       └── personalization-eval-report.tsx
-    └── services/
-        └── api.ts                        # add getEvaluationReport()
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx                    # add minimal main-nav (research.md §9)
+│   │   └── personalization-eval/
+│   │       ├── page.tsx
+│   │       └── personalization-eval-report.tsx
+│   └── services/
+│       └── api.ts                        # add getEvaluationReport()
+└── tests/
+    └── e2e/
+        └── personalization-eval-report.spec.ts  # Playwright, SC-005
 ```
 
 **Structure Decision**: Extends the existing `backend/src/services/*` +
@@ -153,6 +164,4 @@ published artifact itself, which is data, not code.
 
 ## Complexity Tracking
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|---|---|---|
-| Harness does not write `AssessmentEvent` audit rows for its synthetic selections (a departure from every other feature's pattern of auditing every Sequencing Agent decision) | Principle V's audit trail exists to answer a real learner/instructor's "why was I shown this" -- there is no such consumer for a synthetic evaluation run, and ~720 learner-runs x up to 160 questions each would write on the order of 10^5 synthetic rows into a table meant to hold real pedagogical history | Writing the full audit trail anyway was rejected: it adds real implementation cost (every condition would need audit-log wiring, not just the Sequencing Agent condition) and works directly against Principle VIII's synthetic-data hygiene (bloating a real table with synthetic rows) for zero real benefit, since nothing ever queries "why was this synthetic learner shown this topic." |
+*No entries -- Constitution Check has no unresolved violations (see Revision note above).*

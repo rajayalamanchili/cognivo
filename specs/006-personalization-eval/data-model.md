@@ -23,6 +23,15 @@ synthetic learners, written via the same `apply_bkt_update` function
 production uses. Deleted at the end of the harness run, alongside the
 `DemoLearnerProfile` rows they reference.
 
+### AssessmentEvent (existing table)
+
+One `NEXT_TOPIC_SELECTED` row per Sequencing Agent condition decision,
+written the same way `questions.py`'s real route does (FR-014;
+research.md §7, revised post-`/speckit-analyze`). Deleted at the end of
+the harness run alongside the `DemoLearnerProfile`/`MasteryState` rows.
+Random and fixed-order conditions write none -- they hold no
+`demo_learner_id` to attach a row to (§ `SimulatedLearner` below).
+
 ## In-memory only (not persisted)
 
 ### SyntheticLearnerProfile
@@ -49,8 +58,10 @@ conditions.
 
 ### SimulatedAnswer
 
-One synthetic answer, generated on demand during a condition's run loop
--- never persisted as an `AssessmentEvent` (research.md §7).
+One synthetic answer, generated on demand during a condition's run loop.
+For the Sequencing Agent condition, each answer's resulting topic
+selection is also persisted as a real `AssessmentEvent` row (above);
+random/fixed-order conditions' answers stay in-memory only.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -92,16 +103,16 @@ requirement via its own embedded metadata -- no separate log table.
       "profile": "cold-start",
       "subject_id": "algebra-1",
       "conditions": {
-        "sequencing": { "mean": 41.2, "median": 39.5, "non_converged_count": 0, "n": 30 },
-        "random": { "mean": 68.7, "median": 65.0, "non_converged_count": 2, "n": 30 },
-        "fixed_order": { "mean": 52.3, "median": 50.0, "non_converged_count": 0, "n": 30 }
+        "sequencing": { "mean": 41.2, "median": 39.5, "non_converged_count": 0, "non_converged_rate": 0.0, "n": 30 },
+        "random": { "mean": 68.7, "median": 65.0, "non_converged_count": 2, "non_converged_rate": 0.067, "n": 30 },
+        "fixed_order": { "mean": 52.3, "median": 50.0, "non_converged_count": 0, "non_converged_rate": 0.0, "n": 30 }
       }
     }
   ],
   "aggregate": {
-    "sequencing": { "mean": 40.1, "median": 38.0, "non_converged_count": 0, "n": 240 },
-    "random": { "mean": 66.4, "median": 63.0, "non_converged_count": 9, "n": 240 },
-    "fixed_order": { "mean": 51.0, "median": 49.0, "non_converged_count": 1, "n": 240 }
+    "sequencing": { "mean": 40.1, "median": 38.0, "non_converged_count": 0, "non_converged_rate": 0.0, "n": 240 },
+    "random": { "mean": 66.4, "median": 63.0, "non_converged_count": 9, "non_converged_rate": 0.0375, "n": 240 },
+    "fixed_order": { "mean": 51.0, "median": 49.0, "non_converged_count": 1, "non_converged_rate": 0.0042, "n": 240 }
   }
 }
 ```
@@ -109,4 +120,7 @@ requirement via its own embedded metadata -- no separate log table.
 `breakdowns` has one entry per (profile, subject) pair (8 entries: 4
 profiles x 2 subjects); `aggregate` pools across all of them. Figures
 above are illustrative placeholders for the schema shape, not real
-results.
+results. `non_converged_rate` (`non_converged_count / n`) is computed and
+stored explicitly, not left for a report consumer to derive -- satisfies
+FR-006's "count/rate" wording literally (added post-`/speckit-analyze`,
+finding U1).

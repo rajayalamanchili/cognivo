@@ -11,6 +11,8 @@ description: "Task list for Real Personalization Signal -- Sequencing Evaluation
 
 **Tests**: Included. This repo's established convention (Milestones 1-2) treats every Success Criterion as an automated hard gate, not something verified by inspection -- this feature's SC-001/SC-003/SC-004/SC-006 follow the same pattern.
 
+**Note**: T004, T006, T010, T030-T034 were added or amended after an initial `/speckit-analyze` pass surfaced one CRITICAL (audit-log scope) and several coverage/wording findings; see `plan.md`'s Revision note and `research.md` §7 for the constitution-compliance fix, and `spec.md`'s FR-004/FR-014/SC-006 for the corresponding requirement changes.
+
 **Organization**: Tasks are grouped by user story (spec.md priorities) to enable independent implementation and testing of each story.
 
 ## Format: `[ID] [P?] [Story] Description`
@@ -43,9 +45,9 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
 - [ ] T003 [P] Implement the four `SyntheticLearnerProfile` definitions (`cold-start`, `strong-prior`, `uneven`, `prerequisite-bottleneck`) and seeded per-learner, per-topic boolean ground-truth generation in `backend/src/services/evaluation/profiles.py` (research.md §3, §10; data-model.md's `SyntheticLearnerProfile`/`SimulatedLearner`)
-- [ ] T004 [P] Implement `ConditionRunResult` and `ComparisonReport` dataclasses plus JSON (de)serialization matching `contracts/api.md`'s response schema in `backend/src/services/evaluation/report.py` (data-model.md)
+- [ ] T004 [P] Implement `ConditionRunResult` and `ComparisonReport` dataclasses plus JSON (de)serialization matching `contracts/api.md`'s response schema -- including the computed `non_converged_rate` (`non_converged_count / n`) field per condition/profile/subject/aggregate (FR-006; data-model.md, corrected post-`/speckit-analyze` finding U1) -- in `backend/src/services/evaluation/report.py`
 - [ ] T005 Implement the shared simulated-answer draw (Bernoulli via `P_S`/`guess_probability` from `src.services.mastery.bkt`, question type from `preferred_question_type`) and mastered-band convergence check (wrapping `mastery_band_for`, not a re-derivation of the 0.7 cutoff) in `backend/src/services/evaluation/conditions.py` (research.md §3, §5; depends on T003)
-- [ ] T006 Implement synthetic-learner DB lifecycle helpers -- create `is_demo=True` `DemoLearnerProfile` rows (`eval-harness-` prefixed) and empty `MasteryState` for the Sequencing Agent condition; delete all created rows at the end of a run -- in `backend/src/services/evaluation/conditions.py` (research.md §6; depends on T005, same file)
+- [ ] T006 Implement synthetic-learner DB lifecycle helpers -- create `is_demo=True` `DemoLearnerProfile` rows (`eval-harness-` prefixed) and empty `MasteryState` for the Sequencing Agent condition; write one `AssessmentEvent` row (type `next_topic_selected`) per Sequencing Agent condition decision, same as `questions.py`'s real route (FR-014; research.md §7, revised post-`/speckit-analyze` finding C1); delete all created rows (`DemoLearnerProfile`, `MasteryState`, and these `AssessmentEvent` rows) at the end of a run, success or failure -- in `backend/src/services/evaluation/conditions.py` (research.md §6-§7; depends on T005, same file)
 
 **Checkpoint**: Foundation ready -- user story implementation can now begin.
 
@@ -67,7 +69,7 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement `run_sequencing_condition` (DB-backed: seeds a synthetic learner via T006's helpers, loops calling real `select_next_topic` + `apply_bkt_update` until converged or budget exhausted) in `backend/src/services/evaluation/conditions.py` (depends on T006)
+- [ ] T010 [US1] Implement `run_sequencing_condition` (DB-backed: seeds a synthetic learner via T006's helpers, loops calling real `select_next_topic` + `apply_bkt_update`, writing one `AssessmentEvent` per decision via T006's helper, until converged or budget exhausted) in `backend/src/services/evaluation/conditions.py` (depends on T006)
 - [ ] T011 [US1] Implement `run_random_condition` (in-memory: uniform-random topic choice each question, no DB writes, per research.md §4) in `backend/src/services/evaluation/conditions.py` (depends on T005)
 - [ ] T012 [US1] Implement single-subject/single-profile run orchestration and mean/median/non-convergence aggregation over the Sequencing Agent and random conditions in `backend/src/services/evaluation/report.py` (depends on T004, T010, T011)
 - [ ] T013 [P] [US1] Implement the CLI entry point (`--subject`, `--profile`, `--seed`, `--max-questions-per-topic` flags) that runs T012's orchestration and writes `backend/evaluation/reports/latest.json` in `backend/src/services/evaluation/run_harness.py` (depends on T012)
@@ -135,10 +137,13 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 **Purpose**: Edge cases and end-to-end verification spanning every story.
 
 - [ ] T029 [P] Edge-case test: a deliberately tiny `--max-questions-per-topic` budget produces a non-zero `non_converged_count`, and mean/median are computed only over converged learners (not skewed by silently dropping non-convergers from the count) in `backend/tests/unit/evaluation/test_condition_mechanics.py`
-- [ ] T030 [P] Integration test: no `eval-harness-*` `DemoLearnerProfile` rows remain in the database after a full harness run completes, success or failure (SC-006) in `backend/tests/integration/evaluation/test_synthetic_data_cleanup.py`
-- [ ] T031 Run `quickstart.md` validation end to end (all 10 steps) against a local dev environment and record results
+- [ ] T030 [P] Integration test (SC-006, corrected post-`/speckit-analyze` finding G2): (a) real (`is_demo=False`) `demo_learner_profiles` row count and any pre-existing real `assessment_events` rows are unchanged before vs. after a full harness run; (b) no `eval-harness-*` rows remain in `demo_learner_profiles`, `mastery_states`, or `assessment_events` after the run completes, success or failure -- in `backend/tests/integration/evaluation/test_synthetic_data_cleanup.py`
+- [ ] T031 Run `quickstart.md` validation end to end (all 11 steps) against a local dev environment and record results
+- [ ] T032 Run the full backend `pytest` suite, including Milestone 1's and Milestone 2's existing test directories, and confirm no regressions (SC-007; added post-`/speckit-analyze` finding G1)
+- [ ] T033 [P] Playwright test: the report page renders the headline Sequencing-vs-random result within one screen with no additional navigation required (SC-005; added post-`/speckit-analyze` finding G3), matching this project's existing E2E precedent (`tech-stack.md`'s Testing & evaluation table), in `frontend/tests/e2e/personalization-eval-report.spec.ts`
+- [ ] T034 [P] Manual copy-review checklist item: confirm the report page's headline statement (FR-012) is understandable to a non-technical reader with no Spec Kit/BKT jargon -- record the review in `specs/006-personalization-eval/quickstart.md`'s step 7 notes (added post-`/speckit-analyze` finding A1)
 
-**Checkpoint**: All success criteria (SC-001 through SC-007) verified; ready for `/speckit-analyze` and `/speckit-implement`.
+**Checkpoint**: All success criteria (SC-001 through SC-007) verified; ready for `/speckit-implement`.
 
 ---
 
@@ -177,6 +182,7 @@ Per spec.md, only User Story 1 is a true prerequisite for the others (it establi
 - Within US4: T019/T021/T022 in parallel (different files; T021 depends on T019 landing first for the contract to test against, but can be drafted in parallel and run once T019 lands).
 - Within US3: T027 in parallel with T026/T028 (different file).
 - Phase 4 (US2) and Phase 5 (US4) can be worked by two contributors in parallel once Phase 3 (US1) is done, since US4 only needs the report schema, not US2's matrix extension.
+- Within Polish: T029/T030/T033/T034 (four different files) in parallel; T032 (full regression suite) runs last since it's the final gate and cheapest to reason about in isolation.
 
 ---
 

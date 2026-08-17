@@ -44,3 +44,13 @@
   SC-001, manual/on-demand (not CI-automated) report publication, and
   main-navigation linking for the report page. See spec.md's
   Clarifications section. All checklist items still pass; no regressions.
+- `/speckit-analyze` (2026-08-16) found one CRITICAL (Principle V audit-
+  log scope narrowing) and seven lower-severity findings across
+  spec.md/plan.md/research.md/data-model.md/contracts/quickstart/tasks.
+  All eight were remediated: FR-004/Assumptions corrected to include the
+  confirmation-streak gate (finding I2), FR-014 and SC-006 added/extended
+  for full Principle V compliance (finding C1), a `non_converged_rate`
+  field added to the report schema (U1), the Status header updated (D1),
+  and tasks T032-T034 added for the SC-007 regression suite, an SC-005
+  Playwright test, and an FR-012 manual copy-review step (G1, G3, A1).
+  All checklist items still pass; no regressions.

@@ -150,12 +150,13 @@ rows updated via the same `apply_bkt_update` function production uses.
 other requirement to touch the database -- only the Sequencing Agent
 condition needs real persisted rows to exercise the real code path.
 
-All rows the harness creates are deleted at the end of a run (success or
-failure), so repeated manual runs (per Clarifications' manual-publish
-decision) don't accumulate cruft in whatever database the harness is
-pointed at. The harness is intended to be run against a local/dev
-database, not `staging`/production -- it is a manually-invoked script, not
-part of any deploy pipeline.
+All rows the harness creates (including the `AssessmentEvent` rows from
+§7 below) are deleted at the end of a run (success or failure), so
+repeated manual runs (per Clarifications' manual-publish decision) don't
+accumulate cruft in whatever database the harness is pointed at. The
+harness is intended to be run against a local/dev database, not
+`staging`/production -- it is a manually-invoked script, not part of any
+deploy pipeline.
 
 **Rationale**: Reusing the exact same `apply_bkt_update`/`MasteryState`
 machinery production uses (rather than a parallel in-memory-only mastery
@@ -166,17 +167,39 @@ was never required for them.
 
 ## 7. Audit-log (AssessmentEvent) scope
 
-**Decision**: The harness does **not** write `AssessmentEvent` rows (the
-pedagogical audit log) for its synthetic selections/answers.
+**Revised decision** (post-`/speckit-analyze`, finding C1): The harness
+**does** write real `AssessmentEvent` rows (reusing the existing
+`NEXT_TOPIC_SELECTED` type, same payload shape `questions.py` already
+writes) for the **Sequencing Agent condition's** decisions only. Random
+and fixed-order conditions still write none, because they never touch
+the database at all (§6) -- they have no `learner_id` row to attach an
+`AssessmentEvent` to, and they aren't real agent decisions in Principle
+I's sense (they're deliberately non-personalized baselines), so there is
+nothing for Principle V's "why was this decision made" question to be
+asked *of* in the first place.
 
-**Rationale**: Constitution Principle V's audit trail exists so a real
-learner or instructor can ask "why was I shown this" and get a traceable
-answer. A synthetic evaluation run has no such consumer, and writing
-thousands of synthetic audit rows per run would pollute a table meant to
-answer real pedagogical questions, in tension with Principle VIII's
-synthetic-data hygiene. This is a scoped, justified deviation from the
-audit-log pattern other features follow -- recorded in `plan.md`'s
-Complexity Tracking for visibility, not silently assumed.
+This corrects an earlier version of this decision that proposed skipping
+`AssessmentEvent` writes entirely for the Sequencing Agent condition too,
+justified by narrowing Principle V's "every sequencing decision... MUST
+be logged" to only real (non-synthetic) learners. `/speckit-analyze`
+flagged that as an unauthorized reinterpretation of a MUST clause rather
+than a legitimate deviation -- the constitution's own process requires
+either full compliance or an explicit, separate constitution amendment,
+not a plausible-sounding scope narrowing embedded in a plan's Complexity
+Tracking table.
+
+**Rationale**: The Sequencing Agent condition already writes real
+`MasteryState`/`DemoLearnerProfile` rows to the same database production
+uses (§6) -- adding `AssessmentEvent` rows for that one condition is
+additive to a DB surface already in use, not a new one, and is bounded to
+1 of 3 conditions (up to ~38,400 rows for a full Evaluation Run at this
+milestone's population/budget sizing, not the ~10^5 the original,
+rejected all-conditions estimate assumed). All of it is deleted at run
+end alongside the `MasteryState`/`DemoLearnerProfile` rows (§6), so there
+is no permanent audit-log bloat from synthetic data, keeping this
+consistent with Principle VIII's synthetic-data hygiene while still
+satisfying Principle V's literal requirement for the one condition that
+actually exercises a real personalization decision.
 
 ## 8. Report publication mechanism
 

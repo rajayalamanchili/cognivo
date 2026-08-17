@@ -4,7 +4,8 @@
 
 **Created**: 2026-08-16
 
-**Status**: Draft
+**Status**: Planned -- `/speckit-clarify`, `/speckit-plan`, `/speckit-tasks`,
+and `/speckit-analyze` complete; pending `/speckit-implement`
 
 **Input**: User description: "Milestone 3: Real Personalization Signal -- an
 evaluation harness that simulates synthetic learner populations (with known,
@@ -197,9 +198,12 @@ ordering.
   derived from the content artifact's authored `order_index`.
 - **FR-004**: For each condition and each synthetic learner, the harness
   MUST record the number of questions answered until every topic in that
-  subject's topic set reaches the existing "mastered" band (mastery ≥ 0.7,
-  per the three-band model already locked in Milestone 1), or a configured
-  maximum-question budget is exhausted, whichever comes first.
+  subject's topic set reaches the existing "mastered" band -- BKT posterior
+  `p_mastery ≥ 0.7` **and** the existing confirmation-streak requirement
+  (two consecutive post-update observations at or above 0.7, per the
+  three-band model's anti-degenerate-answer-pattern gate already locked in
+  Milestone 1) -- or a configured maximum-question budget is exhausted,
+  whichever comes first.
 - **FR-005**: The harness MUST run the full three-condition comparison
   across multiple distinct synthetic learner profiles (varying starting
   ground-truth mastery patterns) and across both Milestone 1 content
@@ -239,6 +243,16 @@ ordering.
   enough context (run timestamp, seed, profiles/subjects covered) to answer
   "which run produced the numbers currently shown on the report page"
   (Constitution Principle V).
+- **FR-014**: Every Sequencing Agent condition decision (every simulated
+  learner's topic selection) MUST be recorded in the same pedagogical
+  audit log real learner decisions use, exactly as a real request would
+  (Constitution Principle V) -- the harness's synthetic learners are real
+  rows in that log's own data model (FR-009's `is_demo=True` requirement),
+  not an exempted code path. These rows MUST be deleted at the end of the
+  harness run alongside the synthetic learner rows themselves, so no
+  synthetic data persists after the run completes. Random and fixed-order
+  conditions are exempt from this requirement because they never invoke
+  the Sequencing Agent or touch any learner row at all (FR-003b/c).
 
 ### Key Entities
 
@@ -247,8 +261,11 @@ ordering.
   ground-truth per-topic mastery values for a batch of simulated learners.
 - **Simulated Assessment Event**: A synthetic answer the harness generates
   for one simulated learner, topic, and question, produced from that
-  learner's ground-truth mastery via the locked emission model -- feeds into
-  the same assessment-event mechanism the real Sequencing Agent tool reads.
+  learner's ground-truth mastery via the locked emission model. For the
+  Sequencing Agent condition, this is recorded as a real `AssessmentEvent`
+  row (FR-014), the same audit mechanism a real request uses; for the
+  random and fixed-order conditions it stays in-memory only (FR-003b/c
+  never touch a learner row at all).
 - **Evaluation Run**: One full execution of the harness across all
   profiles, subjects, and conditions, under a fixed seed, producing a single
   Comparison Report.
@@ -281,16 +298,22 @@ ordering.
   screen (no additional navigation), see the headline Sequencing-Agent-
   vs-random-baseline result stated in plain language.
 - **SC-006**: Zero real learner data is read or written by any harness
-  component, verified by an automated check that harness code paths never
-  touch real-learner-scoped storage.
+  component, verified by two automated checks: (a) pre-existing real
+  (non-`is_demo`) learner rows are provably unchanged by a harness run,
+  and (b) zero synthetic rows -- including `DemoLearnerProfile`,
+  `MasteryState`, and the `AssessmentEvent` rows FR-014 requires -- remain
+  in the database after a run completes.
 - **SC-007**: Milestones 1 and 2's full acceptance-scenario suites still
   pass after this milestone's changes (regression check, per roadmap).
 
 ## Assumptions
 
 - "Target mastery" reuses the three-band mastery model already locked in
-  Milestone 1: a topic counts as reaching target mastery once its BKT
-  posterior `p(mastery) ≥ 0.7` (the existing "mastered" band).
+  Milestone 1: a topic counts as reaching target mastery once it reaches
+  the existing "mastered" band, which requires both `p(mastery) ≥ 0.7`
+  *and* the confirmation-streak gate (two consecutive qualifying
+  observations) -- not the 0.7 threshold alone (see FR-004; corrected
+  post-`/speckit-analyze`, finding I2).
 - The fixed canonical-order baseline uses each content artifact's existing
   authored `order_index` field; no new ordering needs to be authored for
   this milestone.
