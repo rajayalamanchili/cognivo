@@ -126,9 +126,9 @@ Extends the existing `backend/` monorepo from Milestone 1: `backend/src/{agents,
 
 **Purpose**: Regression safety and deployment of this feature's schema change
 
-- [ ] T025 [P] Regression check: run Milestone 1's full acceptance-scenario test suite (`backend/tests/`, excluding this feature's new tests) and confirm it still passes unmodified (roadmap.md Milestone 2 Definition of Done)
-- [ ] T026 Run `alembic upgrade head` against the `staging` and `production` Neon branches to apply this feature's migration (depends on T006), per `tech-stack.md`'s "Migrations per environment" row
-- [ ] T027 Run `quickstart.md` validation end to end against the deployed environment and record results (depends on all prior tasks)
+- [X] T025 [P] Regression check: run Milestone 1's full acceptance-scenario test suite (`backend/tests/`, excluding this feature's new tests) and confirm it still passes unmodified (roadmap.md Milestone 2 Definition of Done) -- NOTE: 56/56 passing on a clean run; observed intermittent `psycopg.errors.InternalError: cache lookup failed for type <oid>` on `test_placement_api.py` across some runs in this session, confirmed via direct `pg_type`/`pg_enum` query to be transient connection-pooler/enum-OID-cache flakiness (already documented in `conftest.py`'s own docstring), not a code regression -- oscillated pass/fail on fully unmodified M1 code across repeated identical runs.
+- [X] T026 Run `alembic upgrade head` against the `staging` and `production` Neon branches to apply this feature's migration (depends on T006), per `tech-stack.md`'s "Migrations per environment" row -- NOTE: `staging` migrated and verified (`533736af33d7`, all 8 `assessment_event_type` labels present, `topic_id` nullable) 2026-08-17. `production` deliberately deferred to the user, to run alongside the `staging` → `main` promotion PR.
+- [ ] T027 Run `quickstart.md` validation end to end against the deployed environment and record results (depends on all prior tasks) -- DEFERRED: no live Vercel URL available in this session; user will run this themselves
 
 ---
 
