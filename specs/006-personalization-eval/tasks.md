@@ -87,10 +87,10 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Extend the CLI/orchestration to run the full profile x subject matrix when no `--subject`/`--profile` filter is given, populating `ComparisonReport.breakdowns` (one entry per profile x subject) and `aggregate` in `backend/src/services/evaluation/run_harness.py` (depends on T013)
-- [ ] T016 [US2] Extend `backend/tests/unit/evaluation/test_report_shape.py`: full-matrix report contains all 8 profile x subject breakdown entries, and the Sequencing Agent condition beats random in each individually, not only in the pooled aggregate (depends on T015)
-- [ ] T017 [P] [US2] Integration test: an identical `--seed` produces a byte-identical report (aside from `run_timestamp`) across two full-matrix runs (SC-003) in `backend/tests/integration/evaluation/test_reproducibility.py` (depends on T015)
-- [ ] T018 [P] [US2] Verify `python backend/scripts/check_no_subject_conditionals.py` still passes with the new `backend/src/services/evaluation/` code in place (Constitution Principle III; research.md §11) -- add as an assertion in `backend/tests/integration/evaluation/test_reproducibility.py` or a dedicated `backend/tests/integration/evaluation/test_no_subject_conditionals.py` (depends on T015)
+- [X] T015 [US2] Extend the CLI/orchestration to run the full profile x subject matrix when no `--subject`/`--profile` filter is given, populating `ComparisonReport.breakdowns` (one entry per profile x subject) and `aggregate` in `backend/src/services/evaluation/run_harness.py` (depends on T013)
+- [X] T016 [US2] Extend `backend/tests/unit/evaluation/test_report_shape.py`: full-matrix report contains all 8 profile x subject breakdown entries, and the Sequencing Agent condition beats random in each individually, not only in the pooled aggregate (depends on T015)
+- [X] T017 [P] [US2] Integration test: an identical `--seed` produces a byte-identical report (aside from `run_timestamp`) across two full-matrix runs (SC-003) in `backend/tests/integration/evaluation/test_reproducibility.py` (depends on T015)
+- [X] T018 [P] [US2] Verify `python backend/scripts/check_no_subject_conditionals.py` still passes with the new `backend/src/services/evaluation/` code in place (Constitution Principle III; research.md §11) -- add as an assertion in `backend/tests/integration/evaluation/test_reproducibility.py` or a dedicated `backend/tests/integration/evaluation/test_no_subject_conditionals.py` (depends on T015)
 
 **Checkpoint**: `quickstart.md` steps 2 and 4 pass. User Stories 1 and 2 both work independently.
 

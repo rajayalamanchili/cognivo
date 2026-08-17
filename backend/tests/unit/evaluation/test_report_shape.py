@@ -3,15 +3,28 @@ and the Sequencing Agent condition beats random at small scale (SC-001;
 validates T012 -- report.py's aggregation, via scripted `ConditionRunResult`
 lists rather than a live harness run)."""
 
-from src.services.evaluation.report import ComparisonReport, ConditionRunResult, build_breakdown
+from src.services.evaluation.report import (
+    ComparisonReport,
+    ConditionRunResult,
+    aggregate_stats,
+    build_breakdown,
+)
+
+PROFILES = ("cold-start", "strong-prior", "uneven", "prerequisite-bottleneck")
+SUBJECTS = ("algebra-1", "biology")
 
 
 def _result(
-    condition: str, learner_index: int, questions_to_mastery: int | None
+    condition: str,
+    learner_index: int,
+    questions_to_mastery: int | None,
+    *,
+    profile: str = "cold-start",
+    subject_id: str = "algebra-1",
 ) -> ConditionRunResult:
     return ConditionRunResult(
-        profile="cold-start",
-        subject_id="algebra-1",
+        profile=profile,
+        subject_id=subject_id,
         condition=condition,
         learner_index=learner_index,
         questions_to_mastery=questions_to_mastery,
@@ -68,3 +81,35 @@ def test_comparison_report_round_trips_through_json_with_a_real_breakdown():
     )
     round_tripped = ComparisonReport.from_json(report.to_json())
     assert round_tripped == report
+
+
+def test_full_matrix_report_has_eight_breakdowns_and_sequencing_wins_each():
+    # SC-001: not only must the pooled aggregate favor sequencing, every
+    # individual profile x subject breakdown must too -- a report where
+    # only the pooled figure looks good would not actually prove the
+    # result isn't cherry-picked.
+    breakdowns = []
+    all_results: list[ConditionRunResult] = []
+    for profile in PROFILES:
+        for subject_id in SUBJECTS:
+            results = [
+                _result("sequencing", i, 10 + i, profile=profile, subject_id=subject_id)
+                for i in range(5)
+            ] + [
+                _result("random", i, 40 + i, profile=profile, subject_id=subject_id)
+                for i in range(5)
+            ]
+            all_results.extend(results)
+            breakdowns.append(build_breakdown(profile, subject_id, results))
+
+    assert len(breakdowns) == 8
+    assert {(b.profile, b.subject_id) for b in breakdowns} == {
+        (profile, subject_id) for profile in PROFILES for subject_id in SUBJECTS
+    }
+    for breakdown in breakdowns:
+        assert breakdown.conditions["sequencing"].mean < breakdown.conditions["random"].mean
+
+    aggregate = aggregate_stats(all_results)
+    assert aggregate["sequencing"].mean < aggregate["random"].mean
+    assert aggregate["sequencing"].n == 8 * 5
+    assert aggregate["random"].n == 8 * 5

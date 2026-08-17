@@ -226,19 +226,25 @@ def run_condition_results(
     return results
 
 
+def aggregate_stats(results: list[ConditionRunResult]) -> dict[Condition, ConditionStats]:
+    """Groups a flat list of per-learner, per-condition results by
+    `condition` and computes each condition's `ConditionStats`. Shared by
+    `build_breakdown` (one profile/subject) and full-matrix orchestration
+    pooling every breakdown's raw results into the report's `aggregate`."""
+    by_condition: dict[Condition, list[ConditionRunResult]] = {}
+    for result in results:
+        by_condition.setdefault(result.condition, []).append(result)
+    return {
+        condition: ConditionStats.from_results(condition_results)
+        for condition, condition_results in by_condition.items()
+    }
+
+
 def build_breakdown(
     profile: str, subject_id: str, results: list[ConditionRunResult]
 ) -> ProfileSubjectBreakdown:
     """Aggregates a flat list of per-learner, per-condition results (as
     produced by `run_condition_results`) into one `breakdowns` entry."""
-    by_condition: dict[Condition, list[ConditionRunResult]] = {}
-    for result in results:
-        by_condition.setdefault(result.condition, []).append(result)
     return ProfileSubjectBreakdown(
-        profile=profile,
-        subject_id=subject_id,
-        conditions={
-            condition: ConditionStats.from_results(condition_results)
-            for condition, condition_results in by_condition.items()
-        },
+        profile=profile, subject_id=subject_id, conditions=aggregate_stats(results)
     )
