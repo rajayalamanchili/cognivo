@@ -22,13 +22,18 @@ def record_event(
     learner_id: uuid.UUID,
     event_type: AssessmentEventType,
     subject_id: str,
-    topic_id: str,
+    topic_id: str | None,
     payload: dict,
     question_id: uuid.UUID | None = None,
 ) -> AssessmentEvent:
     """Append one AssessmentEvent row. Does not commit -- callers control
     the transaction boundary so this can be written atomically alongside
-    the mastery/question state change it documents."""
+    the mastery/question state change it documents.
+
+    `topic_id` is nullable for spec 002's `recommendation_report_generated`
+    event, which summarizes a whole report rather than a single topic
+    -- every other event type still always passes a real `topic_id`.
+    """
     event = AssessmentEvent(
         learner_id=learner_id,
         event_type=event_type,
