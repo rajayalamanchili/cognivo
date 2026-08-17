@@ -31,8 +31,8 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 **Purpose**: Project scaffolding for the new evaluation harness code.
 
-- [ ] T001 Create `backend/src/services/evaluation/__init__.py`, `backend/tests/unit/evaluation/__init__.py`, and `backend/tests/integration/evaluation/__init__.py` (empty packages, per plan.md's Project Structure)
-- [ ] T002 [P] Add `backend/evaluation/README.md` documenting the manual run-and-publish workflow (`python -m src.services.evaluation.run_harness`, then commit `backend/evaluation/reports/latest.json` -- Clarifications: manual/on-demand, no CI automation) and `backend/evaluation/reports/.gitkeep` so the directory exists in the repo before any report is published
+- [X] T001 Create `backend/src/services/evaluation/__init__.py`, `backend/tests/unit/evaluation/__init__.py`, and `backend/tests/integration/evaluation/__init__.py` (empty packages, per plan.md's Project Structure)
+- [X] T002 [P] Add `backend/evaluation/README.md` documenting the manual run-and-publish workflow (`python -m src.services.evaluation.run_harness`, then commit `backend/evaluation/reports/latest.json` -- Clarifications: manual/on-demand, no CI automation) and `backend/evaluation/reports/.gitkeep` so the directory exists in the repo before any report is published
 
 **Checkpoint**: Directory structure exists; no code yet.
 
@@ -44,10 +44,10 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T003 [P] Implement the four `SyntheticLearnerProfile` definitions (`cold-start`, `strong-prior`, `uneven`, `prerequisite-bottleneck`) and seeded per-learner, per-topic boolean ground-truth generation in `backend/src/services/evaluation/profiles.py` (research.md §3, §10; data-model.md's `SyntheticLearnerProfile`/`SimulatedLearner`)
-- [ ] T004 [P] Implement `ConditionRunResult` and `ComparisonReport` dataclasses plus JSON (de)serialization matching `contracts/api.md`'s response schema -- including the computed `non_converged_rate` (`non_converged_count / n`) field per condition/profile/subject/aggregate (FR-006; data-model.md, corrected post-`/speckit-analyze` finding U1) -- in `backend/src/services/evaluation/report.py`
-- [ ] T005 Implement the shared simulated-answer draw (Bernoulli via `P_S`/`guess_probability` from `src.services.mastery.bkt`, question type from `preferred_question_type`) and mastered-band convergence check (wrapping `mastery_band_for`, not a re-derivation of the 0.7 cutoff) in `backend/src/services/evaluation/conditions.py` (research.md §3, §5; depends on T003)
-- [ ] T006 Implement synthetic-learner DB lifecycle helpers -- create `is_demo=True` `DemoLearnerProfile` rows (`eval-harness-` prefixed) and empty `MasteryState` for the Sequencing Agent condition; write one `AssessmentEvent` row (type `next_topic_selected`) per Sequencing Agent condition decision, same as `questions.py`'s real route (FR-014; research.md §7, revised post-`/speckit-analyze` finding C1); delete all created rows (`DemoLearnerProfile`, `MasteryState`, and these `AssessmentEvent` rows) at the end of a run, success or failure -- in `backend/src/services/evaluation/conditions.py` (research.md §6-§7; depends on T005, same file)
+- [X] T003 [P] Implement the four `SyntheticLearnerProfile` definitions (`cold-start`, `strong-prior`, `uneven`, `prerequisite-bottleneck`) and seeded per-learner, per-topic boolean ground-truth generation in `backend/src/services/evaluation/profiles.py` (research.md §3, §10; data-model.md's `SyntheticLearnerProfile`/`SimulatedLearner`)
+- [X] T004 [P] Implement `ConditionRunResult` and `ComparisonReport` dataclasses plus JSON (de)serialization matching `contracts/api.md`'s response schema -- including the computed `non_converged_rate` (`non_converged_count / n`) field per condition/profile/subject/aggregate (FR-006; data-model.md, corrected post-`/speckit-analyze` finding U1) -- in `backend/src/services/evaluation/report.py`
+- [X] T005 Implement the shared simulated-answer draw (Bernoulli via `P_S`/`guess_probability` from `src.services.mastery.bkt`, question type from `preferred_question_type`) and mastered-band convergence check (wrapping `mastery_band_for`, not a re-derivation of the 0.7 cutoff) in `backend/src/services/evaluation/conditions.py` (research.md §3, §5; depends on T003)
+- [X] T006 Implement synthetic-learner DB lifecycle helpers -- create `is_demo=True` `DemoLearnerProfile` rows (`eval-harness-` prefixed) and empty `MasteryState` for the Sequencing Agent condition; write one `AssessmentEvent` row (type `next_topic_selected`) per Sequencing Agent condition decision, same as `questions.py`'s real route (FR-014; research.md §7, revised post-`/speckit-analyze` finding C1); delete all created rows (`DemoLearnerProfile`, `MasteryState`, and these `AssessmentEvent` rows) at the end of a run, success or failure -- in `backend/src/services/evaluation/conditions.py` (research.md §6-§7; depends on T005, same file)
 
 **Checkpoint**: Foundation ready -- user story implementation can now begin.
 
