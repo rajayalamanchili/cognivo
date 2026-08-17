@@ -82,8 +82,11 @@ never fail just because a learner is new).
 
 **Side effects**: Writes one `recommendation_report_generated` event,
 one `weak_area_flagged` event per entry in `weak_areas`, and one
-`next_step_suggested` event per entry's `next_step` (FR-008). Wrapped in
-`traced_request()` for the Langfuse span (FR-008's tracing
-requirement), matching every other agent-invoking route.
+`next_step_suggested` event per entry's `next_step` (FR-008). Not
+wrapped in `traced_request()` -- this endpoint makes no LLM/ADK
+invocation (research.md §1), so there is nothing for
+`GoogleADKInstrumentor` to instrument; matches the existing `GET
+/mastery-state` precedent (also untraced). FR-008's audit-log
+requirement is unconditional and unaffected.
 
 ---

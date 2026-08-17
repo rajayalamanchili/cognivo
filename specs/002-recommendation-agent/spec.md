@@ -288,9 +288,19 @@ as a bug.
   is ever surfaced per flagged topic, never a branching set.
 - **FR-008**: Every weak-area flag and next-step suggestion MUST be
   logged in the audit log with enough detail to reconstruct why it was
-  produced (Constitution Principle V), and MUST emit a trace to the
-  observability backend per the tracing requirement established for
-  every agent invocation.
+  produced (Constitution Principle V) -- this applies unconditionally,
+  every request. The observability-backend tracing half of Constitution
+  Principle V applies whenever an LLM/ADK model call occurs during
+  report generation; per FR-011, this agent's weak-area/next-step
+  computation is fully deterministic with no such call, so a typical
+  request produces no trace span -- explainability here is carried
+  entirely by the audit log, not by tracing. (Discovered during
+  implementation: `tech-stack.md`'s locked tracing mechanism --
+  `GoogleADKInstrumentor` auto-instrumenting ADK `Runner`/`BaseAgent`
+  invocations -- has nothing to instrument when no such invocation
+  occurs, matching the existing precedent of `GET /api/learners/
+  {learner_id}/mastery-state`, a pure DB-read endpoint that likewise
+  emits no trace.)
 - **FR-009**: The Recommendation Agent's test suite MUST be independent
   of the Sequencing Agent's -- distinct fixtures and assertions,
   verifying distinct correctness criteria, operationalizing Constitution

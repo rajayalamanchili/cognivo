@@ -84,7 +84,7 @@ Extends the existing `backend/` monorepo from Milestone 1: `backend/src/{agents,
 
 - [X] T016 [US2] Implement prerequisite-chain recursion (`suggest_next_step`) in `backend/src/services/recommendation/next_step.py` per data-model.md and research.md §5 (depends on T006)
 - [X] T017 [US2] Implement Recommendation Agent orchestration (`build_weak_area_report`) composing `weak_area.py` (US1) and `next_step.py` (US2) into the full `WeakAreaReport` in `backend/src/agents/recommendation/agent.py` (depends on T012, T016)
-- [X] T018 [US2] Implement `GET /api/learners/{learner_id}/recommendations` endpoint -- `404` subject gate, calls the Recommendation Agent, returns `in_progress_topic_ids` alongside `weak_areas`/`not_yet_assessed_topic_ids`/`insufficient_data_topic_ids` per contracts/api.md, writes `recommendation_report_generated`/`weak_area_flagged`/`next_step_suggested` `AssessmentEvent` rows, wrapped in `traced_request()` in `backend/src/api/routes/recommendation.py` (depends on T017)
+- [X] T018 [US2] Implement `GET /api/learners/{learner_id}/recommendations` endpoint -- `404` subject gate, calls the Recommendation Agent, returns `in_progress_topic_ids` alongside `weak_areas`/`not_yet_assessed_topic_ids`/`insufficient_data_topic_ids` per contracts/api.md, writes `recommendation_report_generated`/`weak_area_flagged`/`next_step_suggested` `AssessmentEvent` rows in `backend/src/api/routes/recommendation.py` (depends on T017) -- NOT wrapped in `traced_request()`: no LLM/ADK invocation occurs (research.md §1), so there is nothing to trace (discovered during Phase 5; see spec.md FR-008 amendment)
 - [X] T019 [P] [US2] Mount the recommendation router in `backend/src/api/main.py` (depends on T018)
 
 **Checkpoint**: User Stories 1 AND 2 together deliver the full, live `/recommendations` endpoint -- Milestone 2's actual demoable slice (mirrors Milestone 1's US1+US2 pattern).
@@ -99,8 +99,8 @@ Extends the existing `backend/` monorepo from Milestone 1: `backend/src/{agents,
 
 ### Tests for User Story 3
 
-- [ ] T020 [US3] Integration test: audit-log completeness -- one `recommendation_report_generated` row, one `weak_area_flagged` row per flagged topic, one `next_step_suggested` row per suggestion, each with enough payload detail to reconstruct the decision (FR-008) in `backend/tests/integration/recommendation/test_audit_log_completeness.py` (depends on T018)
-- [ ] T021 [P] [US3] Integration test: a Langfuse trace is recorded for a `/recommendations` request, matching Milestone 1's SC-008 tracing-completeness pattern in `backend/tests/integration/recommendation/test_tracing_completeness.py` (depends on T018)
+- [X] T020 [US3] Integration test: audit-log completeness -- one `recommendation_report_generated` row, one `weak_area_flagged` row per flagged topic, one `next_step_suggested` row per suggestion, each with enough payload detail to reconstruct the decision (FR-008) in `backend/tests/integration/recommendation/test_audit_log_completeness.py` (depends on T018)
+- [X] T021 [P] [US3] Integration test: a `/recommendations` request emits zero Langfuse spans (no LLM/ADK invocation occurs, per research.md §1 and spec.md FR-008's amendment), confirming explainability here is fully carried by the audit log rather than silently assuming a trace exists that never gets created -- documents the deliberate divergence from Milestone 1's SC-008 pattern rather than reproducing it in `backend/tests/integration/recommendation/test_tracing_completeness.py` (depends on T018)
 
 **Checkpoint**: All flags/suggestions are independently traceable via the audit log and Langfuse.
 
@@ -114,9 +114,9 @@ Extends the existing `backend/` monorepo from Milestone 1: `backend/src/{agents,
 
 ### Tests for User Story 4
 
-- [ ] T022 [US4] Implement automated check script failing if any module under `backend/tests/integration/recommendation/` is imported by any module under `backend/tests/integration/test_next_topic_*.py` (or vice versa), or if a scripted-scenario helper name collides between the two, in `backend/scripts/check_no_shared_recommendation_sequencing_fixtures.py` per research.md §6 (depends on T007)
-- [ ] T023 [P] [US4] Unit test wiring the check script into the regular pytest suite (mirroring `backend/tests/unit/test_no_subject_conditionals.py`'s wiring of `check_no_subject_conditionals.py`) in `backend/tests/unit/test_no_shared_recommendation_fixtures.py` (depends on T022)
-- [ ] T024 [P] [US4] Integration test: same scripted mastery-state fixture fed to both Sequencing's `select_next_topic` and Recommendation's report generation -- confirm they're permitted to name different topics as most urgent, each with independently traceable reasoning (FR-010) in `backend/tests/integration/recommendation/test_sequencing_divergence.py` (depends on T007, T018)
+- [X] T022 [US4] Implement automated check script failing if any module under `backend/tests/integration/recommendation/` is imported by any module under `backend/tests/integration/test_next_topic_*.py` (or vice versa), or if a scripted-scenario helper name collides between the two, in `backend/scripts/check_no_shared_recommendation_sequencing_fixtures.py` per research.md §6 (depends on T007)
+- [X] T023 [P] [US4] Unit test wiring the check script into the regular pytest suite (mirroring `backend/tests/unit/test_no_subject_conditionals.py`'s wiring of `check_no_subject_conditionals.py`) in `backend/tests/unit/test_no_shared_recommendation_fixtures.py` (depends on T022)
+- [X] T024 [P] [US4] Integration test: same scripted mastery-state fixture fed to both Sequencing's `select_next_topic` and Recommendation's report generation -- confirm they're permitted to name different topics as most urgent, each with independently traceable reasoning (FR-010) in `backend/tests/integration/recommendation/test_sequencing_divergence.py` (depends on T007, T018)
 
 **Checkpoint**: All four user stories independently functional; SC-005 agent-boundary gate mechanically enforced.
 

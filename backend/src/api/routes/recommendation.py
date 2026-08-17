@@ -4,6 +4,12 @@
 -- "insufficient data" and "broad review needed" are reported *in* the
 response body (FR-004, FR-005), never as an error status, matching
 spec.md's Edge Cases ("must not overreact," "must not crash").
+
+Not wrapped in `traced_request()`: `build_weak_area_report` makes no
+LLM/ADK invocation (research.md §1), so there is nothing for
+`GoogleADKInstrumentor` to instrument -- matches the existing
+`GET /mastery-state` precedent (also untraced). FR-008's audit-log
+requirement below is unconditional and unaffected (spec.md FR-008).
 """
 
 import uuid
@@ -17,7 +23,6 @@ from src.api.errors import NotFoundError
 from src.db import get_db
 from src.models.enums import AssessmentEventType
 from src.models.subject import Subject
-from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
 
 router = APIRouter()
@@ -73,8 +78,7 @@ def get_recommendations(
 ) -> RecommendationsResponse:
     _get_validated_subject(db, subject_id)
 
-    with traced_request():
-        report = build_weak_area_report(db, learner_id=learner_id, subject_id=subject_id)
+    report = build_weak_area_report(db, learner_id=learner_id, subject_id=subject_id)
 
     record_event(
         db,
