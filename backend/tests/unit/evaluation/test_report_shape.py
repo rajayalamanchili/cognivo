@@ -133,3 +133,18 @@ def test_sequencing_pooled_aggregate_mean_no_higher_than_fixed_order():
 
     aggregate = aggregate_stats(all_results)
     assert aggregate["sequencing"].mean <= aggregate["fixed_order"].mean
+
+
+def test_all_non_converged_condition_has_none_mean_and_median_not_fabricated_zero():
+    # PR review finding: mean/median must be None when zero learners
+    # converged -- a fabricated 0.0 would render on the report page as
+    # "reached full mastery in 0.0 questions," a spurious great-looking
+    # result from zero real data (FR-011).
+    results = [_result("random", i, None) for i in range(5)]
+    stats = build_breakdown("cold-start", "algebra-1", results).conditions["random"]
+
+    assert stats.mean is None
+    assert stats.median is None
+    assert stats.non_converged_count == 5
+    assert stats.non_converged_rate == 1.0
+    assert stats.n == 5

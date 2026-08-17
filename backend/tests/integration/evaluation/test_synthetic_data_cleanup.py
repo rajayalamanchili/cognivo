@@ -9,6 +9,11 @@ run. (b) No `eval-harness-*` rows remain in `demo_learner_profiles`,
 `mastery_states`, or `assessment_events` afterward -- verified by total
 table-count restoration, since `MasteryState`/`AssessmentEvent` carry no
 name field of their own to filter by prefix directly.
+
+Uses a small `population_size` override (not research.md §10's full 30)
+-- cleanup correctness doesn't depend on population size, and the
+Sequencing Agent condition's real-DB round-trips make a full-scale run
+prohibitively slow in CI/high-latency environments.
 """
 
 from src.models.assessment_event import AssessmentEvent
@@ -45,6 +50,7 @@ def test_real_data_untouched_and_synthetic_rows_cleaned_up(
     run_harness.main(
         ["--subject", algebra_subject.subject_id, "--profile", "cold-start", "--seed", "1"],
         report_path=tmp_path / "latest.json",
+        population_size=1,
     )
 
     db_session.expire_all()

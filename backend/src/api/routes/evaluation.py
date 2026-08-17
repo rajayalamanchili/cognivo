@@ -18,8 +18,12 @@ router = APIRouter()
 
 
 class ConditionStatsOut(BaseModel):
-    mean: float
-    median: float
+    # None (omitted from the wire response by response_model_exclude_none
+    # below) when zero learners converged -- never a fabricated 0.0 that
+    # would render as a spurious "reached full mastery in 0.0 questions"
+    # headline (FR-011; caught in PR review).
+    mean: float | None = None
+    median: float | None = None
     non_converged_count: int
     non_converged_rate: float
     n: int

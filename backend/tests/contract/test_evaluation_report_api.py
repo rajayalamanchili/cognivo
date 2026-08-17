@@ -114,3 +114,44 @@ def test_report_path_missing_never_fabricates_figures(client, tmp_path):
     assert body["published"] is False
     assert body.get("breakdowns") is None
     assert body.get("aggregate") is None
+
+
+def test_all_non_converged_condition_omits_mean_median_not_fabricated_zero(client, tmp_path):
+    # PR review finding: the wire response must never carry a fabricated
+    # mean=0.0/median=0.0 for a condition where nobody converged -- that
+    # would render on the report page as a spurious "reached full
+    # mastery in 0.0 questions" result (FR-011).
+    results = [
+        ConditionRunResult(
+            profile="cold-start",
+            subject_id="algebra-1",
+            condition="random",
+            learner_index=i,
+            questions_to_mastery=None,
+            converged=False,
+        )
+        for i in range(3)
+    ]
+    breakdown = build_breakdown("cold-start", "algebra-1", results)
+    report = ComparisonReport(
+        run_timestamp="2026-08-16T00:00:00Z",
+        seed=1,
+        profiles=["cold-start"],
+        subjects=["algebra-1"],
+        population_size_per_profile=3,
+        max_questions_per_topic_budget=20,
+        breakdowns=[breakdown],
+        aggregate=dict(breakdown.conditions),
+    )
+    report_path = tmp_path / "latest.json"
+    report_path.write_text(report.to_json())
+
+    with patch("src.api.routes.evaluation.REPORT_PATH", report_path):
+        response = client.get("/api/evaluation/report")
+
+    body = response.json()
+    stats = body["breakdowns"][0]["conditions"]["random"]
+    assert "mean" not in stats
+    assert "median" not in stats
+    assert stats["non_converged_count"] == 3
+    assert stats["non_converged_rate"] == 1.0

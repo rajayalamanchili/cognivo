@@ -44,10 +44,16 @@ class ConditionStats:
     overall aggregate. `non_converged_rate` (`non_converged_count / n`)
     is computed and stored explicitly, not left for a report consumer to
     derive -- satisfies FR-006's "count/rate" wording literally (added
-    post-`/speckit-analyze`, finding U1)."""
+    post-`/speckit-analyze`, finding U1).
 
-    mean: float
-    median: float
+    `mean`/`median` are `None` when zero learners converged -- there is
+    no real figure to report, and defaulting to `0.0` would render as a
+    fabricated "reached full mastery in 0.0 questions" headline on the
+    live report page (FR-011's "never fabricated" requirement; caught in
+    PR review)."""
+
+    mean: float | None
+    median: float | None
     non_converged_count: int
     non_converged_rate: float
     n: int
@@ -57,13 +63,13 @@ class ConditionStats:
         """Mean/median are computed only over converged learners --
         non-convergers contribute to `non_converged_count`/`rate`, never
         silently dropped from `n` or allowed to skew the central figures
-        (T029's edge case)."""
+        (T029's edge case). `None` (not `0.0`) when nobody converged."""
         n = len(results)
         converged_values = [result.questions_to_mastery for result in results if result.converged]
         non_converged_count = n - len(converged_values)
         return cls(
-            mean=statistics.mean(converged_values) if converged_values else 0.0,
-            median=statistics.median(converged_values) if converged_values else 0.0,
+            mean=statistics.mean(converged_values) if converged_values else None,
+            median=statistics.median(converged_values) if converged_values else None,
             non_converged_count=non_converged_count,
             non_converged_rate=(non_converged_count / n) if n else 0.0,
             n=n,

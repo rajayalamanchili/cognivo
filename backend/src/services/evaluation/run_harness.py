@@ -69,7 +69,17 @@ def _validated_subject_ids(db) -> list[str]:
     ]
 
 
-def main(argv: list[str] | None = None, *, report_path: Path = REPORT_PATH) -> ComparisonReport:
+def main(
+    argv: list[str] | None = None,
+    *,
+    report_path: Path = REPORT_PATH,
+    population_size: int = DEFAULT_POPULATION_SIZE,
+) -> ComparisonReport:
+    """`population_size` is a test-only override (not a CLI flag, per
+    T013's fixed flag list) -- each simulated learner is one Sequencing
+    Agent condition DB round-trip chain, so integration tests that don't
+    need statistical realism can run a fast, small-scale pass instead of
+    research.md §10's full population of 30."""
     args = _parse_args(argv)
 
     session_local = get_sessionmaker()
@@ -97,7 +107,7 @@ def main(argv: list[str] | None = None, *, report_path: Path = REPORT_PATH) -> C
                     profile=profile,
                     subject_id=subject_id,
                     topics=topics,
-                    population_size=DEFAULT_POPULATION_SIZE,
+                    population_size=population_size,
                     max_questions_per_topic=args.max_questions_per_topic,
                     seed=args.seed,
                 )
@@ -111,7 +121,7 @@ def main(argv: list[str] | None = None, *, report_path: Path = REPORT_PATH) -> C
         seed=args.seed,
         profiles=[profile.name for profile in profiles],
         subjects=subject_ids,
-        population_size_per_profile=DEFAULT_POPULATION_SIZE,
+        population_size_per_profile=population_size,
         max_questions_per_topic_budget=args.max_questions_per_topic,
         breakdowns=breakdowns,
         aggregate=aggregate_stats(all_results),
@@ -120,18 +130,21 @@ def main(argv: list[str] | None = None, *, report_path: Path = REPORT_PATH) -> C
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(report.to_json() + "\n")
 
+    def _fmt(value: float | None) -> str:
+        return f"{value:.1f}" if value is not None else "n/a"
+
     print(f"Wrote {report_path}")
     for breakdown in breakdowns:
         print(f"  [{breakdown.profile} / {breakdown.subject_id}]")
         for condition, stats in breakdown.conditions.items():
             print(
-                f"    {condition}: mean={stats.mean:.1f} median={stats.median:.1f} "
+                f"    {condition}: mean={_fmt(stats.mean)} median={_fmt(stats.median)} "
                 f"non_converged={stats.non_converged_count}/{stats.n}"
             )
     print("  [aggregate]")
     for condition, stats in report.aggregate.items():
         print(
-            f"    {condition}: mean={stats.mean:.1f} median={stats.median:.1f} "
+            f"    {condition}: mean={_fmt(stats.mean)} median={_fmt(stats.median)} "
             f"non_converged={stats.non_converged_count}/{stats.n}"
         )
 

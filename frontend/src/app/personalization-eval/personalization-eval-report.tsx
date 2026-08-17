@@ -67,26 +67,34 @@ export default function PersonalizationEvalReport() {
   const random = aggregate.random;
   const conditionNames = Object.keys(aggregate);
 
+  // mean is only present once at least one learner converged for that
+  // condition -- undefined (never a fabricated 0.0) means there's no
+  // real figure to headline with (FR-011).
+  const hasComparableData = sequencing?.mean !== undefined && random?.mean !== undefined;
+
   const reductionPercent =
-    sequencing && random && random.mean > 0
-      ? Math.round(((random.mean - sequencing.mean) / random.mean) * 100)
+    hasComparableData && random!.mean! > 0
+      ? Math.round(((random!.mean! - sequencing!.mean!) / random!.mean!) * 100)
       : null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold">Personalization Evidence</h1>
 
-      {sequencing && random ? (
+      {hasComparableData ? (
         <p className="text-lg">
           On average, our AI-personalized question order reached full mastery in{" "}
-          <strong>{sequencing.mean.toFixed(1)} questions</strong> &mdash; a random question order
-          needed <strong>{random.mean.toFixed(1)} questions</strong>
+          <strong>{sequencing!.mean!.toFixed(1)} questions</strong> &mdash; a random question order
+          needed <strong>{random!.mean!.toFixed(1)} questions</strong>
           {reductionPercent !== null && reductionPercent > 0
             ? ` (${reductionPercent}% fewer questions).`
             : "."}
         </p>
       ) : (
-        <p>Not enough data to compare the sequencing and random conditions yet.</p>
+        <p>
+          Not enough learners converged in this run to compare the sequencing and random conditions
+          yet.
+        </p>
       )}
 
       <p className="text-sm text-gray-600">
@@ -114,8 +122,10 @@ export default function PersonalizationEvalReport() {
             return (
               <tr key={condition}>
                 <td className="pr-4">{humanize(condition)}</td>
-                <td className="pr-4">{stats.mean.toFixed(1)}</td>
-                <td className="pr-4">{stats.median.toFixed(1)}</td>
+                <td className="pr-4">{stats.mean !== undefined ? stats.mean.toFixed(1) : "n/a"}</td>
+                <td className="pr-4">
+                  {stats.median !== undefined ? stats.median.toFixed(1) : "n/a"}
+                </td>
                 <td>
                   {stats.non_converged_count}/{stats.n} (
                   {(stats.non_converged_rate * 100).toFixed(0)}%)

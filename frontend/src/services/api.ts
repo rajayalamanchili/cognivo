@@ -151,8 +151,10 @@ export function flagQuestion(
 }
 
 export interface ConditionStats {
-  mean: number;
-  median: number;
+  // Omitted from the wire response (not `null`) when zero learners
+  // converged for this condition -- never a fabricated 0.0.
+  mean?: number;
+  median?: number;
   non_converged_count: number;
   non_converged_rate: number;
   n: number;
