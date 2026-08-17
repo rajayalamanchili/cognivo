@@ -249,7 +249,12 @@ as a bug.
   assessed" (FR-003), never silently omitted from the report.
 - **FR-004**: A topic with fewer than 3 recorded assessment events (but
   at least 1) MUST be reported as "insufficient data for this topic"
-  rather than confidently flagged weak, developing, or mastered. When
+  rather than confidently flagged weak, developing, or mastered. A
+  topic's assessment-event count for this rule is the same count
+  Milestone 1's mastery model already tracks per (learner, topic) --
+  the number of mastery updates recorded for it (`specs/001-domain-
+  agnostic-core/data-model.md`'s `MasteryState.update_count`) -- not a
+  second, independently-computed count. When
   every assessed topic in the learner's mastery state falls below this
   per-topic minimum, the agent MUST explicitly state that there isn't
   enough data yet for a confident report, rather than producing a

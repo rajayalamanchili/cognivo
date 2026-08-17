@@ -11,46 +11,46 @@
 ## Requirement Completeness
 
 - [x] CHK001 Is there a functional requirement mandating that "developing"-band topics be reported as "in progress," matching the Clarifications' stated intent ("the developing band ... is reported separately as 'in progress'")? [Gap, Spec §Clarifications vs FR-002] -- RESOLVED: FR-003a added, Key Entities updated, User Story 1 Acceptance Scenario 5 added.
-- [ ] CHK002 Is a requirement defined for what the report contains for topics in the "mastered" band, or is their omission from the report explicitly intentional? [Gap, Spec §Key Entities]
-- [ ] CHK003 Is the stale/invalid topic-reference edge case (mastery state referencing a topic no longer in the content artifact's current version) backed by a corresponding functional requirement or success criterion, not just a narrative Edge Cases bullet? [Gap, Traceability, Spec §Edge Cases]
-- [ ] CHK004 Is the tied-weakest-topics requirement ("must surface both, not arbitrarily pick one") promoted to a functional requirement, or does it exist only as an Edge Cases bullet with no FR/SC to test against? [Gap, Traceability, Spec §Edge Cases]
-- [ ] CHK005 Is a requirement defined for how many qualifying assessment events must be cited per flagged weak area -- all of them, or a minimum count -- or is "cite the specific assessment events" left open-ended? [Gap, Clarity, Spec §FR-002]
+- [x] CHK002 Is a requirement defined for what the report contains for topics in the "mastered" band, or is their omission from the report explicitly intentional? [Gap, Spec §Key Entities] -- ACCEPTED: intentional scope (weak-area report, not a full mastery dump).
+- [x] CHK003 Is the stale/invalid topic-reference edge case (mastery state referencing a topic no longer in the content artifact's current version) backed by a corresponding functional requirement or success criterion, not just a narrative Edge Cases bullet? [Gap, Traceability, Spec §Edge Cases] -- ACCEPTED: Edge Cases is part of the mandatory spec; low actionable risk given 001's load-time content-artifact validation.
+- [x] CHK004 Is the tied-weakest-topics requirement ("must surface both, not arbitrarily pick one") promoted to a functional requirement, or does it exist only as an Edge Cases bullet with no FR/SC to test against? [Gap, Traceability, Spec §Edge Cases] -- ACCEPTED: FR-005 already bans top-N truncation, so ties are structurally included with no extra rule needed.
+- [x] CHK005 Is a requirement defined for how many qualifying assessment events must be cited per flagged weak area -- all of them, or a minimum count -- or is "cite the specific assessment events" left open-ended? [Gap, Clarity, Spec §FR-002] -- ACCEPTED: low-impact implementation default (cite all), already recorded in data-model.md.
 
 ## Requirement Clarity
 
 - [x] CHK006 Is the FR-007 prerequisite-recursion rule specified for a topic with more than one direct prerequisite (a "chain" implies linear traversal, but Milestone 1's topic graph allows multiple prerequisite edges per topic)? [Ambiguity, Spec §FR-007] -- RESOLVED: FR-007 now specifies lowest-mastery-first tie-break (matching Sequencing's convention); User Story 2 Acceptance Scenario 4 added.
-- [ ] CHK007 Is the FR-005 broad-review proportion's behavior specified when the confidently-assessed denominator is zero (e.g., a learner whose every topic is "not yet assessed")? [Edge Case, Gap, Spec §FR-005]
-- [ ] CHK008 Is "fixture" (SC-005 / FR-009) defined precisely enough in the spec itself to distinguish shared test infrastructure from evaluation-fixtures, or does verifying "zero fixtures or assertions shared" require an implementer's own interpretation not written into the spec? [Clarity, Spec §SC-005]
-- [ ] CHK009 Is the expected outcome specified when a flagged topic's recursion and a separate flagged topic's recursion both resolve to the same root-cause prerequisite -- one shared suggestion referenced twice, or two independently generated ones that must agree? [Gap, Consistency, Spec §FR-007]
+- [x] CHK007 Is the FR-005 broad-review proportion's behavior specified when the confidently-assessed denominator is zero (e.g., a learner whose every topic is "not yet assessed")? [Edge Case, Gap, Spec §FR-005] -- ACCEPTED: resolved by inspection, FR-004 already forces data_sufficiency=insufficient_data in that case (vacuously true), so FR-005 is never reached.
+- [x] CHK008 Is "fixture" (SC-005 / FR-009) defined precisely enough in the spec itself to distinguish shared test infrastructure from evaluation-fixtures, or does verifying "zero fixtures or assertions shared" require an implementer's own interpretation not written into the spec? [Clarity, Spec §SC-005] -- ACCEPTED: resolved in plan.md's explicit interpretation section.
+- [x] CHK009 Is the expected outcome specified when a flagged topic's recursion and a separate flagged topic's recursion both resolve to the same root-cause prerequisite -- one shared suggestion referenced twice, or two independently generated ones that must agree? [Gap, Consistency, Spec §FR-007] -- ACCEPTED: data-model.md already locks in one independent NextStepSuggestion per flag (no dedup), a reasonable default.
 
 ## Requirement Consistency
 
-- [ ] CHK010 Do FR-002's weak-band definition and FR-007's prerequisite-gap threshold reference the same mastery cutoff value without drift risk if one is edited independently of the other in the future? [Consistency, Spec §FR-002, §FR-007]
-- [ ] CHK011 Are the "insufficient data for this topic" (FR-004) and "not yet assessed" (FR-003) categories defined with mutually exclusive, jointly exhaustive boundary conditions (i.e., every possible `update_count` value maps to exactly one category)? [Consistency, Spec §FR-003, §FR-004]
-- [ ] CHK012 Does User Story 1 Acceptance Scenario 3's per-topic sparse-data description stay consistent with FR-004's per-topic minimum after the Clarifications rewrite, with no leftover reference to an "overall" (non-per-topic) sparse-data reading? [Consistency, Spec §US1 Scenario 3, §FR-004]
+- [x] CHK010 Do FR-002's weak-band definition and FR-007's prerequisite-gap threshold reference the same mastery cutoff value without drift risk if one is edited independently of the other in the future? [Consistency, Spec §FR-002, §FR-007] -- ACCEPTED: FR-007 explicitly cross-references "the same struggling cutoff used for FR-002."
+- [x] CHK011 Are the "insufficient data for this topic" (FR-004) and "not yet assessed" (FR-003) categories defined with mutually exclusive, jointly exhaustive boundary conditions (i.e., every possible `update_count` value maps to exactly one category)? [Consistency, Spec §FR-003, §FR-004] -- ACCEPTED: exhaustive/non-overlapping by construction (0 / 1-2 / >=3 events).
+- [x] CHK012 Does User Story 1 Acceptance Scenario 3's per-topic sparse-data description stay consistent with FR-004's per-topic minimum after the Clarifications rewrite, with no leftover reference to an "overall" (non-per-topic) sparse-data reading? [Consistency, Spec §US1 Scenario 3, §FR-004] -- ACCEPTED: already rewritten during the original clarify session.
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK013 Can SC-002's "100% of flagged weak areas ... cite specific supporting assessment events" be objectively verified without also knowing the minimum-citation-count answer from CHK005? [Measurability, Spec §SC-002]
-- [ ] CHK014 Can SC-003's "100% of suggestions ... correctly surface that prerequisite" be objectively verified for a multi-level recursion case, or only for a single-level prerequisite gap? [Measurability, Spec §SC-003]
-- [ ] CHK015 Is SC-005's "verified by inspection" language specific enough to be executed as an automated, repeatable check rather than a one-time manual read-through? [Measurability, Spec §SC-005]
+- [x] CHK013 Can SC-002's "100% of flagged weak areas ... cite specific supporting assessment events" be objectively verified without also knowing the minimum-citation-count answer from CHK005? [Measurability, Spec §SC-002] -- ACCEPTED: still measurable at the "non-empty citation" level regardless of CHK005's deferral.
+- [x] CHK014 Can SC-003's "100% of suggestions ... correctly surface that prerequisite" be objectively verified for a multi-level recursion case, or only for a single-level prerequisite gap? [Measurability, Spec §SC-003] -- ACCEPTED: resolved by the CHK006 fix; FR-007 now fully specifies deterministic recursion + tie-break.
+- [x] CHK015 Is SC-005's "verified by inspection" language specific enough to be executed as an automated, repeatable check rather than a one-time manual read-through? [Measurability, Spec §SC-005] -- ACCEPTED: operationalized as an automated CI check in plan.md/tech-stack.md.
 
 ## Scenario Coverage
 
-- [ ] CHK016 Are requirements defined for a learner who has assessment history in one subject but requests a report for a different, unassessed subject? [Coverage, Gap]
-- [ ] CHK017 Are requirements defined for the case where a flagged weak topic has zero prerequisites at all (an entry-level topic) -- confirmed as `direct_practice`, or left to be inferred? [Coverage, Spec §FR-007]
-- [ ] CHK018 Are requirements defined for repeated identical report requests in quick succession -- is each request expected to write its own full set of audit-log events (duplicates), or is dedup expected? [Gap, Spec §FR-008]
+- [x] CHK016 Are requirements defined for a learner who has assessment history in one subject but requests a report for a different, unassessed subject? [Coverage, Gap] -- ACCEPTED: already covered generically, FR-003/FR-004 operate per-topic regardless of subject.
+- [x] CHK017 Are requirements defined for the case where a flagged weak topic has zero prerequisites at all (an entry-level topic) -- confirmed as `direct_practice`, or left to be inferred? [Coverage, Spec §FR-007] -- ACCEPTED: vacuously covered by US2 Scenario 1 ("prerequisites all mastered" is true when there are zero prerequisites).
+- [x] CHK018 Are requirements defined for repeated identical report requests in quick succession -- is each request expected to write its own full set of audit-log events (duplicates), or is dedup expected? [Gap, Spec §FR-008] -- ACCEPTED: AssessmentEvent is documented append-only (001's data-model.md); duplicates on repeat requests are correct, intended behavior.
 
 ## Edge Case Coverage
 
-- [ ] CHK019 Is the boundary behavior at exactly `update_count == 3` (the FR-004 per-topic minimum) explicitly stated as sufficient rather than left to a "fewer than 3" / "at least 3" reading that a future editor could invert? [Edge Case, Clarity, Spec §FR-004]
-- [ ] CHK020 Is the boundary behavior at exactly 60% (the FR-005 broad-review threshold) explicitly stated as inclusive, consistent with how the Clarifications phrase it ("60% or more")? [Edge Case, Clarity, Spec §FR-005]
-- [ ] CHK021 Is behavior specified for a subject with only one topic total (no prerequisites possible, broad-review proportion trivially 0% or 100%)? [Edge Case, Gap]
+- [x] CHK019 Is the boundary behavior at exactly `update_count == 3` (the FR-004 per-topic minimum) explicitly stated as sufficient rather than left to a "fewer than 3" / "at least 3" reading that a future editor could invert? [Edge Case, Clarity, Spec §FR-004] -- ACCEPTED: already precise ("fewer than 3" unambiguously excludes exactly 3).
+- [x] CHK020 Is the boundary behavior at exactly 60% (the FR-005 broad-review threshold) explicitly stated as inclusive, consistent with how the Clarifications phrase it ("60% or more")? [Edge Case, Clarity, Spec §FR-005] -- ACCEPTED: already precise ("60% or more" is explicitly inclusive).
+- [x] CHK021 Is behavior specified for a subject with only one topic total (no prerequisites possible, broad-review proportion trivially 0% or 100%)? [Edge Case, Gap] -- ACCEPTED: not a live scenario in Milestone 1's scope (algebra-1/biology are both multi-topic); low-impact to leave unaddressed.
 
 ## Dependencies & Assumptions
 
-- [ ] CHK022 Is the assumption that `MasteryState.update_count` (a Milestone 1 field never described in spec 002's own text) is the correct per-topic assessment-event count validated against spec 002's own FR-004 wording, or is this an implementation-level substitution not visible to a spec-only reader? [Assumption, Traceability]
-- [ ] CHK023 Is the dependency on Milestone 1's three-band mastery model's exact 0.4/0.7 cutoffs (referenced but not re-derived in spec 002) cross-checked as still current, given both specs could be edited independently going forward? [Dependency, Spec §Clarifications]
+- [x] CHK022 Is the assumption that `MasteryState.update_count` (a Milestone 1 field never described in spec 002's own text) is the correct per-topic assessment-event count validated against spec 002's own FR-004 wording, or is this an implementation-level substitution not visible to a spec-only reader? [Assumption, Traceability] -- RESOLVED: FR-004 now explicitly names `MasteryState.update_count` (cross-referencing 001's data-model.md) as the count this rule uses.
+- [x] CHK023 Is the dependency on Milestone 1's three-band mastery model's exact 0.4/0.7 cutoffs (referenced but not re-derived in spec 002) cross-checked as still current, given both specs could be edited independently going forward? [Dependency, Spec §Clarifications] -- ACCEPTED: inherent cross-spec risk, already cited by section reference for traceability.
 
 ## Notes
 

@@ -24,9 +24,9 @@ Extends the existing `backend/` monorepo from Milestone 1: `backend/src/{agents,
 
 **Purpose**: New package skeletons for this feature -- no new dependency, linting config, or env var (research.md: no new dependency needed)
 
-- [ ] T001 [P] Create `backend/src/agents/recommendation/__init__.py` package skeleton per plan.md Project Structure
-- [ ] T002 [P] Create `backend/src/services/recommendation/__init__.py` package skeleton per plan.md Project Structure
-- [ ] T003 [P] Create `backend/tests/integration/recommendation/__init__.py` package skeleton per plan.md Project Structure
+- [X] T001 [P] Create `backend/src/agents/recommendation/__init__.py` package skeleton per plan.md Project Structure
+- [X] T002 [P] Create `backend/src/services/recommendation/__init__.py` package skeleton per plan.md Project Structure
+- [X] T003 [P] Create `backend/tests/integration/recommendation/__init__.py` package skeleton per plan.md Project Structure
 
 ---
 
@@ -36,9 +36,9 @@ Extends the existing `backend/` monorepo from Milestone 1: `backend/src/{agents,
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 [P] Add three new `AssessmentEventType` members (`RECOMMENDATION_REPORT_GENERATED`, `WEAK_AREA_FLAGGED`, `NEXT_STEP_SUGGESTED`) in `backend/src/models/enums.py` per data-model.md
-- [ ] T005 [P] Relax `AssessmentEvent.topic_id` to nullable in `backend/src/models/assessment_event.py` per data-model.md (additive, backward-compatible -- every existing event type keeps writing a real `topic_id`)
-- [ ] T006 Generate Alembic migration adding the three new Postgres enum labels and relaxing `topic_id` nullability in `backend/alembic/versions/` (depends on T004, T005)
+- [X] T004 [P] Add three new `AssessmentEventType` members (`RECOMMENDATION_REPORT_GENERATED`, `WEAK_AREA_FLAGGED`, `NEXT_STEP_SUGGESTED`) in `backend/src/models/enums.py` per data-model.md
+- [X] T005 [P] Relax `AssessmentEvent.topic_id` to nullable in `backend/src/models/assessment_event.py` per data-model.md (additive, backward-compatible -- every existing event type keeps writing a real `topic_id`)
+- [X] T006 Generate Alembic migration adding the three new Postgres enum labels and relaxing `topic_id` nullability in `backend/alembic/versions/` (depends on T004, T005)
 
 **Checkpoint**: Foundation ready -- user story implementation can now begin.
 

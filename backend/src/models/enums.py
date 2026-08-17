@@ -44,6 +44,9 @@ class AssessmentEventType(enum.StrEnum):
     MASTERY_UPDATED = "mastery_updated"
     NEXT_TOPIC_SELECTED = "next_topic_selected"
     QUESTION_FLAGGED = "question_flagged"
+    RECOMMENDATION_REPORT_GENERATED = "recommendation_report_generated"
+    WEAK_AREA_FLAGGED = "weak_area_flagged"
+    NEXT_STEP_SUGGESTED = "next_step_suggested"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required
