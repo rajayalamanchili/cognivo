@@ -104,12 +104,12 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 ### Implementation for User Story 4
 
-- [ ] T019 [P] [US4] Implement `GET /api/evaluation/report` -- reads `backend/evaluation/reports/latest.json`, returns its contents or `{"published": false}` if absent, matching `contracts/api.md` -- in `backend/src/api/routes/evaluation.py` (depends on T004 for the report's JSON shape)
-- [ ] T020 [US4] Register the new router (`app.include_router(evaluation.router)`) in `backend/src/api/main.py` (depends on T019)
-- [ ] T021 [P] [US4] Contract test for `GET /api/evaluation/report`, covering both the published and not-yet-published response shapes, in `backend/tests/contract/test_evaluation_report_api.py` (depends on T019)
-- [ ] T022 [P] [US4] Add `getEvaluationReport()` (typed per `contracts/api.md`) to `frontend/src/services/api.ts`
-- [ ] T023 [US4] Build the report page (`frontend/src/app/personalization-eval/page.tsx` + `personalization-eval-report.tsx`) rendering the headline Sequencing-vs-random result in plain language within one screen (SC-005), and a clear "no evaluation has run yet" state when `published: false` (depends on T022, T020; read `node_modules/next/dist/docs/` first per `frontend/AGENTS.md`)
-- [ ] T024 [US4] Add minimal main navigation to `frontend/src/app/layout.tsx` linking to the new report page alongside the existing placement/practice/mastery pages (research.md §9; Clarifications: main-nav-linked, not direct-URL-only)
+- [X] T019 [P] [US4] Implement `GET /api/evaluation/report` -- reads `backend/evaluation/reports/latest.json`, returns its contents or `{"published": false}` if absent, matching `contracts/api.md` -- in `backend/src/api/routes/evaluation.py` (depends on T004 for the report's JSON shape)
+- [X] T020 [US4] Register the new router (`app.include_router(evaluation.router)`) in `backend/src/api/main.py` (depends on T019)
+- [X] T021 [P] [US4] Contract test for `GET /api/evaluation/report`, covering both the published and not-yet-published response shapes, in `backend/tests/contract/test_evaluation_report_api.py` (depends on T019)
+- [X] T022 [P] [US4] Add `getEvaluationReport()` (typed per `contracts/api.md`) to `frontend/src/services/api.ts`
+- [X] T023 [US4] Build the report page (`frontend/src/app/personalization-eval/page.tsx` + `personalization-eval-report.tsx`) rendering the headline Sequencing-vs-random result in plain language within one screen (SC-005), and a clear "no evaluation has run yet" state when `published: false` (depends on T022, T020; read `node_modules/next/dist/docs/` first per `frontend/AGENTS.md`)
+- [X] T024 [US4] Add minimal main navigation to `frontend/src/app/layout.tsx` linking to the new report page alongside the existing placement/practice/mastery pages (research.md §9; Clarifications: main-nav-linked, not direct-URL-only)
 
 **Checkpoint**: `quickstart.md` steps 7-8 pass. The live deployment shows this milestone's evidence per Constitution Principle IX.
 
