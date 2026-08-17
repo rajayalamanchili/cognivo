@@ -211,10 +211,14 @@ ordering.
 - **FR-007**: Synthetic learner population generation MUST be deterministic
   given a fixed seed, so a report is reproducible run-to-run (Constitution
   Principle I).
-- **FR-008**: Every invocation of the production Sequencing Agent inside a
-  harness run MUST still emit a Langfuse trace exactly as it would for a
-  real request (Constitution Principle V) -- the harness is a caller of the
-  real agent, not a bypass of it.
+- **FR-008**: The harness MUST call the Sequencing Agent's real
+  `select_next_topic` function for the Sequencing Agent condition's
+  decisions, not a reimplementation or approximation of its logic --
+  consistent with the existing precedent (the Recommendation Agent's
+  report builder, `GET /mastery-state`) that pure, LLM-free tool
+  functions are not individually Langfuse-traced; topic selection alone
+  has never been traced independently of full question generation, so
+  the harness introduces no new tracing gap.
 - **FR-009**: The harness MUST use only synthetic learner data; it MUST NOT
   read, write, or depend on any real learner's assessment history or
   mastery state (Constitution Principle VIII).
@@ -268,9 +272,11 @@ ordering.
   aggregate across all profiles and subjects tested.
 - **SC-003**: An identical evaluation run (same seed, same profile/subject
   configuration) produces an identical Comparison Report on repeated runs.
-- **SC-004**: 100% of Sequencing Agent invocations made by the harness
-  appear as Langfuse traces, verified by comparing trace count to
-  invocation count for a given run.
+- **SC-004**: 100% of the Sequencing Agent condition's topic-selection
+  decisions are produced by calling the production `select_next_topic`
+  function directly (verified by a code-level check, e.g. that the
+  harness imports and calls it rather than duplicating its logic), never
+  a reimplementation.
 - **SC-005**: A visitor can load the live report page and, within one
   screen (no additional navigation), see the headline Sequencing-Agent-
   vs-random-baseline result stated in plain language.
