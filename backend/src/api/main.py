@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
-from src.api.routes import demo_learner, mastery, placement, questions
+from src.api.routes import demo_learner, mastery, placement, questions, recommendation
 from src.observability.tracing import configure_tracing
 
 logger = logging.getLogger("cognivo.api")
@@ -58,3 +58,4 @@ app.include_router(placement.router)
 app.include_router(mastery.router)
 app.include_router(demo_learner.router)
 app.include_router(questions.router)
+app.include_router(recommendation.router)
