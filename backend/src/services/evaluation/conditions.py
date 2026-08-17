@@ -17,14 +17,15 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from src.agents.diagnostic.agent import preferred_question_type
-from src.agents.sequencing.agent import NextTopicSelection
+from src.agents.sequencing.agent import NextTopicSelection, select_next_topic
+from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.models.assessment_event import AssessmentEvent
 from src.models.demo_learner_profile import DemoLearnerProfile
 from src.models.enums import AssessmentEventType, MasteryBand, QuestionType
 from src.models.mastery_state import MasteryState
 from src.models.topic import Topic
 from src.services.audit_log.writer import record_event
-from src.services.mastery.bkt import P_S, MasteryObservation, guess_probability
+from src.services.mastery.bkt import P_S, MasteryObservation, apply_bkt_update, guess_probability
 
 # Constitution Principle VIII: every synthetic learner this harness
 # creates is identifiable by this prefix, in addition to `is_demo=True`.
@@ -132,3 +133,102 @@ def record_topic_selection_event(
             "is_fallback": selection.is_fallback,
         },
     )
+
+
+@dataclass(frozen=True)
+class LearnerOutcome:
+    """One simulated learner's result under one ordering condition --
+    the count of questions answered until every topic in the subject
+    reached the mastered band, or `None` if the budget ran out first
+    (FR-004)."""
+
+    questions_to_mastery: int | None
+    converged: bool
+
+
+def run_sequencing_condition(
+    db: Session,
+    *,
+    subject_id: str,
+    topics: list[Topic],
+    true_mastery: dict[str, bool],
+    max_questions_per_topic: int,
+    rng: random.Random,
+) -> LearnerOutcome:
+    """Runs the Sequencing Agent condition for one simulated learner: seeds
+    a real synthetic learner (`synthetic_learners`), then loops calling
+    the real `select_next_topic` + `apply_mastery_update` -- writing one
+    real `AssessmentEvent` per decision (FR-014) -- until every topic
+    reaches the mastered band or the budget (`max_questions_per_topic`
+    per topic) is exhausted. The synthetic learner and every row written
+    against it are deleted before this returns, success or failure
+    (research.md §6-§7)."""
+    budget = max_questions_per_topic * len(topics)
+    topics_by_id = {topic.topic_id: topic for topic in topics}
+
+    with synthetic_learners(db, count=1) as learners:
+        learner = learners[0]
+        mastered_bands: dict[str, MasteryBand] = {}
+        questions_asked = 0
+
+        while questions_asked < budget:
+            selection = select_next_topic(db, learner_id=learner.learner_id, subject_id=subject_id)
+            record_topic_selection_event(
+                db, learner_id=learner.learner_id, subject_id=subject_id, selection=selection
+            )
+            topic = topics_by_id[selection.topic_id]
+            answer = draw_simulated_answer(
+                topic, truly_mastered=true_mastery[topic.topic_id], rng=rng
+            )
+            result = apply_mastery_update(
+                db,
+                learner_id=learner.learner_id,
+                subject_id=subject_id,
+                topic_id=topic.topic_id,
+                correct=answer.correct,
+                question_type=answer.question_type,
+            )
+            db.commit()
+            questions_asked += 1
+
+            if result.posterior_band == MasteryBand.MASTERED:
+                mastered_bands[topic.topic_id] = result.posterior_band
+            else:
+                mastered_bands.pop(topic.topic_id, None)
+
+            if mastered_bands.keys() == topics_by_id.keys():
+                return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
+
+    return LearnerOutcome(questions_to_mastery=None, converged=False)
+
+
+def run_random_condition(
+    topics: list[Topic],
+    *,
+    true_mastery: dict[str, bool],
+    max_questions_per_topic: int,
+    rng: random.Random,
+) -> LearnerOutcome:
+    """Runs the random-order baseline for one simulated learner entirely
+    in-memory (research.md §4, §6): each question, pick a topic uniformly
+    at random from the subject's full topic set, independent of any
+    mastery state. No DB writes -- this condition never calls
+    `select_next_topic` and has no other reason to touch the database."""
+    budget = max_questions_per_topic * len(topics)
+    observations: dict[str, MasteryObservation | None] = {topic.topic_id: None for topic in topics}
+
+    questions_asked = 0
+    while questions_asked < budget:
+        topic = rng.choice(topics)
+        answer = draw_simulated_answer(topic, truly_mastered=true_mastery[topic.topic_id], rng=rng)
+        observations[topic.topic_id] = apply_bkt_update(
+            observations[topic.topic_id],
+            correct=answer.correct,
+            question_type=answer.question_type,
+        )
+        questions_asked += 1
+
+        if all(has_reached_mastered_band(observation) for observation in observations.values()):
+            return LearnerOutcome(questions_to_mastery=questions_asked, converged=True)
+
+    return LearnerOutcome(questions_to_mastery=None, converged=False)

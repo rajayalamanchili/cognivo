@@ -8,9 +8,16 @@ the same shape.
 """
 
 import json
+import random
 import statistics
 from dataclasses import dataclass
 from typing import Literal
+
+from sqlalchemy.orm import Session
+
+from src.models.topic import Topic
+from src.services.evaluation.conditions import run_random_condition, run_sequencing_condition
+from src.services.evaluation.profiles import SyntheticLearnerProfile, generate_population
 
 Condition = Literal["sequencing", "random", "fixed_order"]
 
@@ -155,3 +162,83 @@ class ComparisonReport:
     @classmethod
     def from_json(cls, raw: str) -> "ComparisonReport":
         return cls.from_dict(json.loads(raw))
+
+
+def run_condition_results(
+    db: Session,
+    *,
+    profile: SyntheticLearnerProfile,
+    subject_id: str,
+    topics: list[Topic],
+    population_size: int,
+    max_questions_per_topic: int,
+    seed: int,
+) -> list[ConditionRunResult]:
+    """Runs the Sequencing Agent and random conditions for `population_size`
+    simulated learners of `profile` against `subject_id`'s topics, and
+    returns every learner's per-condition outcome. Both conditions replay
+    identical ground truth per learner (research.md §3) via one seeded
+    population draw; a second, independent seeded RNG drives the
+    conditions' own simulated-answer draws, consumed in a fixed
+    (learner, condition) order so the whole run stays reproducible given
+    `seed` (FR-007)."""
+    learners = generate_population(profile, topics, population_size=population_size, seed=seed)
+    sim_rng = random.Random(seed)
+
+    results: list[ConditionRunResult] = []
+    for learner in learners:
+        sequencing_outcome = run_sequencing_condition(
+            db,
+            subject_id=subject_id,
+            topics=topics,
+            true_mastery=learner.true_mastery,
+            max_questions_per_topic=max_questions_per_topic,
+            rng=sim_rng,
+        )
+        results.append(
+            ConditionRunResult(
+                profile=profile.name,
+                subject_id=subject_id,
+                condition="sequencing",
+                learner_index=learner.learner_index,
+                questions_to_mastery=sequencing_outcome.questions_to_mastery,
+                converged=sequencing_outcome.converged,
+            )
+        )
+
+        random_outcome = run_random_condition(
+            topics,
+            true_mastery=learner.true_mastery,
+            max_questions_per_topic=max_questions_per_topic,
+            rng=sim_rng,
+        )
+        results.append(
+            ConditionRunResult(
+                profile=profile.name,
+                subject_id=subject_id,
+                condition="random",
+                learner_index=learner.learner_index,
+                questions_to_mastery=random_outcome.questions_to_mastery,
+                converged=random_outcome.converged,
+            )
+        )
+
+    return results
+
+
+def build_breakdown(
+    profile: str, subject_id: str, results: list[ConditionRunResult]
+) -> ProfileSubjectBreakdown:
+    """Aggregates a flat list of per-learner, per-condition results (as
+    produced by `run_condition_results`) into one `breakdowns` entry."""
+    by_condition: dict[Condition, list[ConditionRunResult]] = {}
+    for result in results:
+        by_condition.setdefault(result.condition, []).append(result)
+    return ProfileSubjectBreakdown(
+        profile=profile,
+        subject_id=subject_id,
+        conditions={
+            condition: ConditionStats.from_results(condition_results)
+            for condition, condition_results in by_condition.items()
+        },
+    )

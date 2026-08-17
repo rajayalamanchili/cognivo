@@ -63,17 +63,17 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 
 > Write these first; they fail until the corresponding implementation task lands.
 
-- [ ] T007 [P] [US1] Unit test: ground-truth generation is deterministic given a fixed seed (same seed -> identical per-learner true-mastery map) in `backend/tests/unit/evaluation/test_ground_truth_determinism.py` (validates T003)
-- [ ] T008 [P] [US1] Unit test: simulated-answer draw uses the correct Bernoulli rate for truly-mastered vs. not, and the convergence check requires the real confirmation-streak-gated mastered band, not a bare `p_mastery >= 0.7` check, in `backend/tests/unit/evaluation/test_condition_mechanics.py` (validates T005)
-- [ ] T009 [P] [US1] Integration test: the Sequencing Agent condition's topic choice comes from calling `src.agents.sequencing.agent.select_next_topic` directly (assert via import/call inspection, not output-only comparison) in `backend/tests/integration/evaluation/test_sequencing_condition_real_code_path.py` (FR-008/SC-004; validates T010, written first and expected to fail until then)
+- [X] T007 [P] [US1] Unit test: ground-truth generation is deterministic given a fixed seed (same seed -> identical per-learner true-mastery map) in `backend/tests/unit/evaluation/test_ground_truth_determinism.py` (validates T003)
+- [X] T008 [P] [US1] Unit test: simulated-answer draw uses the correct Bernoulli rate for truly-mastered vs. not, and the convergence check requires the real confirmation-streak-gated mastered band, not a bare `p_mastery >= 0.7` check, in `backend/tests/unit/evaluation/test_condition_mechanics.py` (validates T005)
+- [X] T009 [P] [US1] Integration test: the Sequencing Agent condition's topic choice comes from calling `src.agents.sequencing.agent.select_next_topic` directly (assert via import/call inspection, not output-only comparison) in `backend/tests/integration/evaluation/test_sequencing_condition_real_code_path.py` (FR-008/SC-004; validates T010, written first and expected to fail until then)
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement `run_sequencing_condition` (DB-backed: seeds a synthetic learner via T006's helpers, loops calling real `select_next_topic` + `apply_bkt_update`, writing one `AssessmentEvent` per decision via T006's helper, until converged or budget exhausted) in `backend/src/services/evaluation/conditions.py` (depends on T006)
-- [ ] T011 [US1] Implement `run_random_condition` (in-memory: uniform-random topic choice each question, no DB writes, per research.md §4) in `backend/src/services/evaluation/conditions.py` (depends on T005)
-- [ ] T012 [US1] Implement single-subject/single-profile run orchestration and mean/median/non-convergence aggregation over the Sequencing Agent and random conditions in `backend/src/services/evaluation/report.py` (depends on T004, T010, T011)
-- [ ] T013 [P] [US1] Implement the CLI entry point (`--subject`, `--profile`, `--seed`, `--max-questions-per-topic` flags) that runs T012's orchestration and writes `backend/evaluation/reports/latest.json` in `backend/src/services/evaluation/run_harness.py` (depends on T012)
-- [ ] T014 [P] [US1] Unit test: for a scripted small run, aggregation reports correct mean/median/non-convergence and the Sequencing Agent condition's mean is lower than random's (SC-001 at small scale) in `backend/tests/unit/evaluation/test_report_shape.py` (depends on T012)
+- [X] T010 [US1] Implement `run_sequencing_condition` (DB-backed: seeds a synthetic learner via T006's helpers, loops calling real `select_next_topic` + `apply_bkt_update`, writing one `AssessmentEvent` per decision via T006's helper, until converged or budget exhausted) in `backend/src/services/evaluation/conditions.py` (depends on T006)
+- [X] T011 [US1] Implement `run_random_condition` (in-memory: uniform-random topic choice each question, no DB writes, per research.md §4) in `backend/src/services/evaluation/conditions.py` (depends on T005)
+- [X] T012 [US1] Implement single-subject/single-profile run orchestration and mean/median/non-convergence aggregation over the Sequencing Agent and random conditions in `backend/src/services/evaluation/report.py` (depends on T004, T010, T011)
+- [X] T013 [P] [US1] Implement the CLI entry point (`--subject`, `--profile`, `--seed`, `--max-questions-per-topic` flags) that runs T012's orchestration and writes `backend/evaluation/reports/latest.json` in `backend/src/services/evaluation/run_harness.py` (depends on T012)
+- [X] T014 [P] [US1] Unit test: for a scripted small run, aggregation reports correct mean/median/non-convergence and the Sequencing Agent condition's mean is lower than random's (SC-001 at small scale) in `backend/tests/unit/evaluation/test_report_shape.py` (depends on T012)
 
 **Checkpoint**: `quickstart.md` step 1 passes. User Story 1 is fully functional and independently demonstrable -- this is the MVP.
 
