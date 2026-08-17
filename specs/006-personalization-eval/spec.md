@@ -14,6 +14,26 @@ This is the milestone that makes 'personalizes based on what you know' a
 measured claim instead of an assumed one. Report is surfaced on a live
 deployed report page (Option C), not just a committed artifact."
 
+## Clarifications
+
+### Session 2026-08-16
+
+- Q: Should the pass/fail hard gate (SC-001) be based on a single
+  fixed-seed evaluation run, or must the Sequencing Agent's advantage
+  hold across multiple independent random seeds before it counts as
+  proven? → A: Single fixed seed, with population size per profile
+  large enough that per-answer emission noise doesn't by itself flip
+  the result -- not multi-seed repetition.
+- Q: Should the harness re-run and republish a fresh Comparison Report
+  automatically in CI, or is it manually triggered with an engineer
+  choosing when to commit/publish its output? → A: Manual/on-demand --
+  no CI job re-runs the harness automatically; an engineer runs it and
+  publishes the result when they choose to.
+- Q: Should the live report page be linked from the app's main
+  navigation, or only reachable by someone who knows its direct URL? →
+  A: Linked from main navigation -- any visitor browsing the deployed
+  app can find it.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Prove Sequencing Beats Random Ordering (Priority: P1)
@@ -200,7 +220,8 @@ ordering.
   mastery state (Constitution Principle VIII).
 - **FR-010**: The system MUST publish the most recent evaluation run's
   comparison report to a live report page in the deployed application,
-  reachable without authentication, per the chosen scope of making this
+  reachable without authentication and linked from the application's main
+  navigation (not direct-URL-only), per the chosen scope of making this
   milestone's evidence part of the live demo.
 - **FR-011**: The report page MUST render the actual latest run's figures
   (never hardcoded, illustrative, or placeholder numbers) and MUST clearly
@@ -239,8 +260,9 @@ ordering.
 - **SC-001**: Across every synthetic learner profile and both subjects
   tested, the Sequencing Agent condition's mean questions-to-mastery is
   lower than the random-order baseline's mean questions-to-mastery, both in
-  the per-profile/per-subject breakdowns and in the pooled aggregate. (Hard
-  gate, per roadmap.)
+  the per-profile/per-subject breakdowns and in the pooled aggregate,
+  evaluated from a single fixed-seed Evaluation Run (not repeated across
+  multiple seeds -- see Clarifications). (Hard gate, per roadmap.)
 - **SC-002**: The Sequencing Agent condition's mean questions-to-mastery is
   no higher than the fixed canonical-order baseline's, in the pooled
   aggregate across all profiles and subjects tested.
@@ -270,16 +292,22 @@ ordering.
   full subject pool for this milestone; no new subject content is required.
 - The exact number of synthetic learner profiles, population size per
   profile, and the maximum-question budget per learner are implementation
-  parameters finalized in `plan.md`, constrained only by FR-005's "multiple
-  profiles, both subjects, not cherry-picked" requirement.
+  parameters finalized in `plan.md`, constrained by FR-005's "multiple
+  profiles, both subjects, not cherry-picked" requirement and by the
+  Clarifications' single-seed methodology: population size per profile
+  must be large enough that per-answer slip/guess noise doesn't by itself
+  determine SC-001's result.
 - The live report page is a read-only, unauthenticated page reachable from
   the deployed application (consistent with Milestone 1's demo-first,
   no-login-required posture); it does not require instructor/learner
   accounts to exist, since those don't exist yet at this point in the
   roadmap.
 - The report page sources its data from the most recently published
-  Evaluation Run's Comparison Report; how that publication happens
-  (e.g. committed data file read at build/request time vs. a small stored
+  Evaluation Run's Comparison Report. Publishing is manual and on-demand
+  (see Clarifications): an engineer runs the harness and commits/publishes
+  its output when they choose to -- there is no CI job that re-runs the
+  harness automatically on merge. The exact publication mechanism (e.g.
+  committed data file read at build/request time vs. a small stored
   record) is a `plan.md`-level implementation decision, not fixed here.
 - This milestone does not require real-time re-running of the evaluation
   harness in response to a page load -- the harness is expected to run as

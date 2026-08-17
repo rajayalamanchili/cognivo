@@ -39,3 +39,8 @@
   because they are already-locked product decisions from Milestone 1
   (`tech-stack.md`, `specs/001-domain-agnostic-core/`), not new
   implementation choices introduced by this spec.
+- `/speckit-clarify` (2026-08-16) resolved three methodology/scope
+  ambiguities: single-seed (not multi-seed) evaluation methodology for
+  SC-001, manual/on-demand (not CI-automated) report publication, and
+  main-navigation linking for the report page. See spec.md's
+  Clarifications section. All checklist items still pass; no regressions.
