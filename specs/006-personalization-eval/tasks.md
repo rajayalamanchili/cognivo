@@ -141,7 +141,7 @@ Web app per `plan.md`: `backend/src/`, `backend/tests/`, `frontend/src/`.
 - [ ] T031 Run `quickstart.md` validation end to end (all 11 steps) against a local dev environment and record results
 - [ ] T032 Run the full backend `pytest` suite, including Milestone 1's and Milestone 2's existing test directories, and confirm no regressions (SC-007; added post-`/speckit-analyze` finding G1)
 - [ ] T033 [P] Playwright test: the report page renders the headline Sequencing-vs-random result within one screen with no additional navigation required (SC-005; added post-`/speckit-analyze` finding G3), matching this project's existing E2E precedent (`tech-stack.md`'s Testing & evaluation table), in `frontend/tests/e2e/personalization-eval-report.spec.ts`
-- [ ] T034 [P] Manual copy-review checklist item: confirm the report page's headline statement (FR-012) is understandable to a non-technical reader with no Spec Kit/BKT jargon -- record the review in `specs/006-personalization-eval/quickstart.md`'s step 7 notes (added post-`/speckit-analyze` finding A1)
+- [X] T034 [P] Manual copy-review checklist item: confirm the report page's headline statement (FR-012) is understandable to a non-technical reader with no Spec Kit/BKT jargon -- record the review in `specs/006-personalization-eval/quickstart.md`'s step 7 notes (added post-`/speckit-analyze` finding A1)
 
 **Checkpoint**: All success criteria (SC-001 through SC-007) verified; ready for `/speckit-implement`.
 

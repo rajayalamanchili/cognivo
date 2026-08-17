@@ -74,6 +74,21 @@ Maps directly to spec.md User Stories 1-4's Acceptance Scenarios.
      Sequencing-vs-random result in plain language within one screen
      (SC-005), and requires no login.
 
+   **Copy-review notes (T034, FR-012)**: Reviewed the headline sentence
+   ("On average, our AI-personalized question order reached full
+   mastery in *N* questions — a random question order needed *M*
+   questions (*P*% fewer questions)") against a non-technical-reader
+   bar: no BKT, Spec Kit, "condition," "confirmation streak," or
+   `p_mastery` terminology appears in it. One gap found and fixed: the
+   supporting "Covering N learner profiles... across M subjects..."
+   line and the breakdown table were rendering raw internal identifiers
+   (`cold-start`, `prerequisite-bottleneck`, `fixed_order`) verbatim --
+   readable to an engineer, not to a lay reader. Added a `humanize()`
+   display-only formatter in `personalization-eval-report.tsx` (splits
+   on `-`/`_`, title-cases each word) so these render as "Cold Start,"
+   "Prerequisite Bottleneck," "Fixed Order," etc., without changing the
+   underlying report data model.
+
 8. **Unpublished-state check** (User Story 4 Acceptance Scenario 2)
    Temporarily rename/remove `latest.json` → confirm
    `GET /api/evaluation/report` returns `{"published": false}` and the

@@ -5,6 +5,16 @@ import { getEvaluationReport, type EvaluationReport } from "@/services/api";
 
 type Phase = "loading" | "loaded" | "error";
 
+// Report data uses kebab-case/snake_case identifiers (e.g. "cold-start",
+// "fixed_order") internally -- humanize them for a non-technical reader
+// (FR-012; copy-reviewed per quickstart.md step 7 notes).
+function humanize(slug: string): string {
+  return slug
+    .split(/[-_]/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export default function PersonalizationEvalReport() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [report, setReport] = useState<EvaluationReport | null>(null);
@@ -82,9 +92,11 @@ export default function PersonalizationEvalReport() {
       <p className="text-sm text-gray-600">
         Covering {report.profiles?.length ?? 0} learner profile
         {report.profiles?.length === 1 ? "" : "s"}
-        {report.profiles?.length ? ` (${report.profiles.join(", ")})` : ""} across{" "}
-        {report.subjects?.length ?? 0} subject{report.subjects?.length === 1 ? "" : "s"}
-        {report.subjects?.length ? ` (${report.subjects.join(", ")})` : ""}.
+        {report.profiles?.length
+          ? ` (${report.profiles.map(humanize).join(", ")})`
+          : ""} across {report.subjects?.length ?? 0} subject
+        {report.subjects?.length === 1 ? "" : "s"}
+        {report.subjects?.length ? ` (${report.subjects.map(humanize).join(", ")})` : ""}.
       </p>
 
       <table className="w-full text-sm">
@@ -101,7 +113,7 @@ export default function PersonalizationEvalReport() {
             const stats = aggregate[condition];
             return (
               <tr key={condition}>
-                <td className="pr-4 capitalize">{condition.replace("_", " ")}</td>
+                <td className="pr-4">{humanize(condition)}</td>
                 <td className="pr-4">{stats.mean.toFixed(1)}</td>
                 <td className="pr-4">{stats.median.toFixed(1)}</td>
                 <td>

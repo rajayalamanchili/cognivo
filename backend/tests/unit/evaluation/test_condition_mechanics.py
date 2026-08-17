@@ -13,7 +13,9 @@ from src.services.evaluation.conditions import (
     draw_simulated_answer,
     has_reached_mastered_band,
     run_fixed_order_condition,
+    run_random_condition,
 )
+from src.services.evaluation.report import ConditionRunResult, ConditionStats
 from src.services.mastery.bkt import MasteryObservation
 
 
@@ -126,3 +128,51 @@ def test_fixed_order_visits_topics_in_order_index_order_and_recycles_unmastered(
     assert outcome.converged is True
     assert outcome.questions_to_mastery == 8
     assert visited_order == ["t0", "t0", "t1", "t1", "t1", "t2", "t2", "t1"]
+
+
+def test_tiny_budget_produces_non_converged_learners_excluded_from_mean_median():
+    # T029 edge case: a deliberately tiny --max-questions-per-topic
+    # budget produces a non-zero non_converged_count, and mean/median
+    # must be computed only over converged learners -- not skewed by
+    # silently dropping non-convergers from the count.
+    topics = [_topic(topic_id=f"t{i}", order_index=i) for i in range(4)]
+    true_mastery = {topic.topic_id: True for topic in topics}
+
+    converged_outcome = run_random_condition(
+        topics, true_mastery=true_mastery, max_questions_per_topic=200, rng=random.Random(1)
+    )
+    non_converged_outcome = run_random_condition(
+        topics, true_mastery=true_mastery, max_questions_per_topic=1, rng=random.Random(2)
+    )
+
+    assert converged_outcome.converged is True
+    assert non_converged_outcome.converged is False
+    assert non_converged_outcome.questions_to_mastery is None
+
+    results = [
+        ConditionRunResult(
+            profile="cold-start",
+            subject_id="fake-subject",
+            condition="random",
+            learner_index=0,
+            questions_to_mastery=converged_outcome.questions_to_mastery,
+            converged=converged_outcome.converged,
+        ),
+        ConditionRunResult(
+            profile="cold-start",
+            subject_id="fake-subject",
+            condition="random",
+            learner_index=1,
+            questions_to_mastery=non_converged_outcome.questions_to_mastery,
+            converged=non_converged_outcome.converged,
+        ),
+    ]
+    stats = ConditionStats.from_results(results)
+
+    assert stats.n == 2
+    assert stats.non_converged_count == 1
+    assert stats.non_converged_rate == 0.5
+    # The non-converger is counted in n/non_converged_count but excluded
+    # from mean/median, which reflect only the converged learner.
+    assert stats.mean == converged_outcome.questions_to_mastery
+    assert stats.median == converged_outcome.questions_to_mastery
