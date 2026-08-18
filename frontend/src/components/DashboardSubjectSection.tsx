@@ -7,10 +7,23 @@
 // path slots' own fetches in later phases.
 
 import { useEffect, useState } from "react";
-import { getMasteryState, type MasteryTopicEntry } from "@/services/api";
+import {
+  getMasteryState,
+  getRecommendations,
+  type MasteryTopicEntry,
+  type RecommendationsResponse,
+} from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import WeakAreaSection from "@/components/WeakAreaSection";
 
 type SectionPhase = "loading" | "loaded" | "error";
+
+// Shared failure-state presentation (FR-010): every sub-section's
+// "couldn't load" state uses this same pattern rather than an
+// independently-styled variant, and none auto-retries within a page load.
+function CouldntLoad({ what }: { what: string }) {
+  return <p className="text-red-600">Couldn&rsquo;t load {what}.</p>;
+}
 
 export interface DashboardSubjectSectionProps {
   subjectId: string;
@@ -25,7 +38,9 @@ export default function DashboardSubjectSection({
 }: DashboardSubjectSectionProps) {
   const [masteryPhase, setMasteryPhase] = useState<SectionPhase>("loading");
   const [masteryTopics, setMasteryTopics] = useState<MasteryTopicEntry[]>([]);
-  const [masteryError, setMasteryError] = useState<string | null>(null);
+
+  const [weakAreaPhase, setWeakAreaPhase] = useState<SectionPhase>("loading");
+  const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,10 +51,28 @@ export default function DashboardSubjectSection({
         setMasteryTopics(result.topics);
         setMasteryPhase("loaded");
       })
-      .catch((error: unknown) => {
+      .catch(() => {
         if (cancelled) return;
-        setMasteryError(error instanceof Error ? error.message : String(error));
         setMasteryPhase("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [learnerId, subjectId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    // Independent of the mastery fetch above: a failure here must not
+    // affect the mastery view (FR-007), and vice versa.
+    getRecommendations(learnerId, subjectId)
+      .then((result) => {
+        if (cancelled) return;
+        setRecommendations(result);
+        setWeakAreaPhase("loaded");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setWeakAreaPhase("error");
       });
     return () => {
       cancelled = true;
@@ -54,12 +87,16 @@ export default function DashboardSubjectSection({
       <h2 className="text-xl font-semibold">{displayName}</h2>
       <div data-testid="dashboard-mastery-slot">
         {masteryPhase === "loading" && <p>Loading mastery state&hellip;</p>}
-        {masteryPhase === "error" && (
-          <p className="text-red-600">Couldn&rsquo;t load mastery state: {masteryError}</p>
-        )}
+        {masteryPhase === "error" && <CouldntLoad what="mastery state" />}
         {masteryPhase === "loaded" && <MasteryView topics={masteryTopics} />}
       </div>
-      <div data-testid="dashboard-weak-area-slot" />
+      <div data-testid="dashboard-weak-area-slot">
+        {weakAreaPhase === "loading" && <p>Loading weak areas&hellip;</p>}
+        {weakAreaPhase === "error" && <CouldntLoad what="weak-area report" />}
+        {weakAreaPhase === "loaded" && recommendations && (
+          <WeakAreaSection recommendations={recommendations} />
+        )}
+      </div>
       <div data-testid="dashboard-path-slot" />
     </section>
   );

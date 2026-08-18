@@ -1,4 +1,5 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
+import { ensurePlacementCompleted, getDemoLearnerId, getMasteryState } from "./helpers";
 
 // Playwright E2E: answers a question via the API for algebra-1, reloads
 // /dashboard, and confirms the displayed mastery value matches the
@@ -7,13 +8,6 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 // section still renders its own "just getting started" state
 // correctly alongside the updated one (US1 Acceptance Scenario 3, the
 // mixed-subject case). T010.
-
-interface MasteryTopicEntry {
-  topic_id: string;
-  status: "unknown" | "scored";
-  p_mastery: number | null;
-  band: "struggling" | "developing" | "mastered" | null;
-}
 
 function formatTopicId(topicId: string): string {
   return topicId
@@ -28,42 +22,11 @@ const BAND_LABEL: Record<string, string> = {
   mastered: "Mastered",
 };
 
-async function getMasteryState(
-  request: APIRequestContext,
-  learnerId: string,
-  subjectId: string,
-): Promise<MasteryTopicEntry[]> {
-  const response = await request.get(
-    `/api/learners/${learnerId}/mastery-state?subject_id=${subjectId}`,
-  );
-  expect(response.ok(), await response.text()).toBeTruthy();
-  return (await response.json()).topics;
-}
-
-async function ensurePlacementCompleted(
-  request: APIRequestContext,
-  subjectId: string,
-): Promise<void> {
-  const start = await request.post(`/api/subjects/${subjectId}/placement/start`);
-  expect(start.ok(), await start.text()).toBeTruthy();
-  const { placement_session_id, questions } = await start.json();
-  const answers = questions.map((q: { question_id: string }) => ({
-    question_id: q.question_id,
-    response: 1,
-  }));
-  const submit = await request.post(`/api/placement/${placement_session_id}/submit`, {
-    data: { answers },
-  });
-  expect(submit.ok(), await submit.text()).toBeTruthy();
-}
-
 test("dashboard mastery value matches a fresh answer exactly, alongside an untouched subject", async ({
   page,
   request,
 }) => {
-  const demoLearner = await request.get("/api/demo-learner");
-  expect(demoLearner.ok()).toBeTruthy();
-  const { learner_id: learnerId } = await demoLearner.json();
+  const learnerId = await getDemoLearnerId(request);
 
   const algebraSubjectId = "algebra-1";
   const untouchedSubjectId = "biology";

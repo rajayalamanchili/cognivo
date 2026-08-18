@@ -75,18 +75,18 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 ### Tests for User Story 2
 
-- [ ] T011 [P] [US2] Frontend unit test: `WeakAreaSection` renders `weak_areas`/`next_step` and `data_sufficiency`/`broad_review_needed` framing verbatim, never paraphrased (FR-002) in `frontend/tests/unit/weak-area-section.test.tsx`
-- [ ] T012 [P] [US2] Frontend unit test: a failed/rejected recommendations fetch renders a distinct "couldn't load" state in the weak-area section while the mastery view (US1) still renders correctly (FR-007) in `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T009)
+- [X] T011 [P] [US2] Frontend unit test: `WeakAreaSection` renders `weak_areas`/`next_step` and `data_sufficiency`/`broad_review_needed` framing verbatim, never paraphrased (FR-002) in `frontend/tests/unit/weak-area-section.test.tsx`
+- [X] T012 [P] [US2] Frontend unit test: a failed/rejected recommendations fetch renders a distinct "couldn't load" state in the weak-area section while the mastery view (US1) still renders correctly (FR-007) in `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T009)
 
 ### Implementation for User Story 2
 
-- [ ] T013 [P] [US2] Add `getRecommendations()` client function and `RecommendationsResponse`/`WeakAreaFlag`/`NextStepSuggestion`/`EvidenceCitation` types to `frontend/src/services/api.ts` per `specs/002-recommendation-agent/contracts/api.md` (first frontend consumer of this existing endpoint)
-- [ ] T014 [US2] Implement `WeakAreaSection.tsx` component rendering the response verbatim per FR-002 (depends on T013, T011)
-- [ ] T015 [US2] Wire a per-subject recommendations fetch (existing `getRecommendations`, no backend change) into `DashboardSubjectSection` with its own independent loading/loaded/error phase, rendering `WeakAreaSection` on success and a "couldn't load" state on failure without affecting the mastery-view phase (FR-007) (depends on T009, T014, T012)
+- [X] T013 [P] [US2] Add `getRecommendations()` client function and `RecommendationsResponse`/`WeakAreaFlag`/`NextStepSuggestion`/`EvidenceCitation` types to `frontend/src/services/api.ts` per `specs/002-recommendation-agent/contracts/api.md` (first frontend consumer of this existing endpoint)
+- [X] T014 [US2] Implement `WeakAreaSection.tsx` component rendering the response verbatim per FR-002 (depends on T013, T011)
+- [X] T015 [US2] Wire a per-subject recommendations fetch (existing `getRecommendations`, no backend change) into `DashboardSubjectSection` with its own independent loading/loaded/error phase, rendering `WeakAreaSection` on success and a "couldn't load" state on failure without affecting the mastery-view phase (FR-007) (depends on T009, T014, T012)
 
 ### Additional Verification for User Story 2
 
-- [ ] T016 [US2] Playwright E2E test: call `GET /api/learners/{learner_id}/recommendations?subject_id=X` directly and compare its `weak_areas`/`next_step`/`data_sufficiency`/`broad_review_needed` content against that subject's rendered weak-area section on `/dashboard` for the same learner -- confirm an exact match, per quickstart.md step 4 (SC-003 -- **hard gate** per roadmap.md) in `frontend/tests/e2e/dashboard-weak-area-match.spec.ts` (depends on T015)
+- [X] T016 [US2] Playwright E2E test: call `GET /api/learners/{learner_id}/recommendations?subject_id=X` directly and compare its `weak_areas`/`next_step`/`data_sufficiency`/`broad_review_needed` content against that subject's rendered weak-area section on `/dashboard` for the same learner -- confirm an exact match, per quickstart.md step 4 (SC-003 -- **hard gate** per roadmap.md) in `frontend/tests/e2e/dashboard-weak-area-match.spec.ts` (depends on T015)
 
 **Checkpoint**: User Stories 1 and 2 together deliver the dashboard's two P1 slices -- mastery + weak-area sections, each independently resilient, with SC-003's dashboard-matches-direct-call gate mechanically verified.
 

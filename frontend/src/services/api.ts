@@ -59,6 +59,43 @@ export interface SubjectsResponse {
   subjects: SubjectSummary[];
 }
 
+export type DataSufficiency = "confident" | "insufficient_data";
+
+export interface EvidenceCitation {
+  event_id: string;
+  question_id: string;
+  question_stem: string;
+  answer_correct: boolean;
+  prior_p_mastery: number | null;
+  posterior_p_mastery: number;
+  created_at: string;
+}
+
+export interface NextStepSuggestion {
+  recommended_topic_id: string;
+  recommended_display_name: string;
+  reason: string;
+  prerequisite_chain: string[];
+}
+
+export interface WeakAreaFlag {
+  topic_id: string;
+  display_name: string;
+  p_mastery: number;
+  evidence: EvidenceCitation[];
+  next_step: NextStepSuggestion;
+}
+
+export interface RecommendationsResponse {
+  subject_id: string;
+  data_sufficiency: DataSufficiency;
+  broad_review_needed: boolean;
+  weak_areas: WeakAreaFlag[];
+  in_progress_topic_ids: string[];
+  not_yet_assessed_topic_ids: string[];
+  insufficient_data_topic_ids: string[];
+}
+
 export interface NextQuestion {
   question_id: string;
   topic_id: string;
@@ -133,6 +170,15 @@ export function getMasteryState(
 ): Promise<MasteryStateResponse> {
   return request<MasteryStateResponse>(
     `/api/learners/${learnerId}/mastery-state?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+export function getRecommendations(
+  learnerId: string,
+  subjectId: string,
+): Promise<RecommendationsResponse> {
+  return request<RecommendationsResponse>(
+    `/api/learners/${learnerId}/recommendations?subject_id=${encodeURIComponent(subjectId)}`,
   );
 }
 
