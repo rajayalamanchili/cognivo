@@ -4,7 +4,11 @@
 
 **Created**: 2026-08-14
 
-**Status**: Draft -- pending `/speckit-clarify`
+**Status**: Implemented and merged (PR #10) -- `/speckit-clarify`,
+`/speckit-plan`, `/speckit-tasks`, and `/speckit-implement` all complete;
+`tasks.md` T027 (live-deployment quickstart validation) is the sole item
+deferred to a maintainer, not a code gap. (This header was left stale
+after merge; corrected 2026-08-18.)
 
 **Input**: User description: "A Recommendation Agent that analyzes a
 learner's mastery state and assessment history to flag weak areas with
