@@ -4,11 +4,61 @@
 
 **Created**: 2026-08-14
 
-**Status**: Draft -- pending `/speckit-clarify`
+**Status**: Implemented and merged (PR #10) -- `/speckit-clarify`,
+`/speckit-plan`, `/speckit-tasks`, and `/speckit-implement` all complete;
+`tasks.md` T027 (live-deployment quickstart validation) is the sole item
+deferred to a maintainer, not a code gap. (This header was left stale
+after merge; corrected 2026-08-18.)
 
 **Input**: User description: "A Recommendation Agent that analyzes a
 learner's mastery state and assessment history to flag weak areas with
 cited evidence and suggest concrete, prerequisite-aware next steps"
+
+## Clarifications
+
+### Session 2026-08-16
+
+- Q: Should "weak area" reuse Milestone 1's existing three-band mastery
+  model, and if so, which band(s) count as "weak"? → A: Reuse 001's
+  three-band model; "weak" means the "struggling" band only (mastery <
+  0.4). The "developing" band (0.4-0.7) is reported separately as
+  "in progress," not flagged as weak. The same 0.4 cutoff is used for
+  FR-007's prerequisite-gap check.
+- Q: What's the minimum amount of assessment data required before a
+  topic can be confidently flagged as weak? → A: Per-topic minimum of 3
+  assessment events. A topic with fewer than 3 recorded events (but at
+  least 1) is reported as "insufficient data for this topic" rather than
+  confidently flagged weak, developing, or mastered -- distinct from
+  FR-003's "not yet assessed" (zero events).
+- Q: What rule decides when the report switches from a "top weak areas"
+  list to a "broad review needed" message (FR-005)? → A: Proportion-
+  based threshold -- when 60% or more of confidently-assessed topics
+  (those with >= 3 recorded events, per the prior clarification) fall in
+  the struggling band, the report uses "broad review needed across most
+  topics" framing instead of enumerating each struggling topic
+  individually. Topics with "not yet assessed" or "insufficient data"
+  status are excluded from this proportion's denominator.
+- Q: Should the set of flagged weak topics be computed deterministically,
+  or can an LLM participate in deciding which topics count as weak? →
+  A: Fully deterministic flagging. Weak-topic selection (FR-002),
+  per-topic data-sufficiency status (FR-004), the broad-review threshold
+  (FR-005), and prerequisite-gap detection (FR-007) are all computed by
+  deterministic code from the mastery model's output -- never an LLM's
+  judgment call. An LLM, if used, is restricted to generating
+  natural-language prose that describes already-computed structured
+  results; it never decides which topics are flagged or which
+  prerequisite is named. This mirrors Constitution Principle I's bar for
+  the Sequencing Agent.
+- Q: When a flagged topic's prerequisite is itself unmastered, and that
+  prerequisite also has an unmastered prerequisite, does the suggestion
+  recurse to the deepest unmastered root or stop one level up? → A:
+  Recurse to the root cause -- walk the prerequisite chain until reaching
+  a topic whose own prerequisites are all mastered (or that has no
+  prerequisites), and surface that topic as the suggestion. If the chain
+  reaches a topic with no recorded assessment data before reaching an
+  unmastered-but-assessed one, recursion stops there and that topic is
+  surfaced as "not yet assessed" (per the Edge Cases entry on
+  unassessed prerequisites), not assumed mastered or unmastered.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -40,15 +90,22 @@ to the specific assessment events that justify the flag.
    report is generated, **Then** that topic is explicitly reported as
    "not yet assessed," never silently omitted or falsely implied to be
    fine.
-3. **Given** a learner has answered too few questions overall for any
-   confident assessment, **When** a report is requested, **Then** the
-   agent explicitly states there isn't enough data yet, rather than
-   producing a confident-sounding report from thin evidence.
-4. **Given** every topic in a learner's mastery state is roughly equally
-   weak (a learner just starting out), **When** a report is generated,
-   **Then** the agent represents this honestly (e.g. "broad review
-   needed across most topics") rather than arbitrarily narrowing to a
-   misleadingly small subset to fit a fixed-length "top weak areas" list.
+3. **Given** every topic in a learner's assessment history has fewer
+   than 3 recorded assessment events (FR-004's per-topic minimum),
+   **When** a report is requested, **Then** the agent explicitly states
+   there isn't enough data yet, rather than producing a confident-
+   sounding report from thin evidence.
+4. **Given** 60% or more of a learner's confidently-assessed topics fall
+   in the struggling band (a learner just starting out), **When** a
+   report is generated, **Then** the agent represents this honestly
+   (e.g. "broad review needed across most topics") rather than
+   arbitrarily narrowing to a misleadingly small subset to fit a
+   fixed-length "top weak areas" list.
+5. **Given** a topic in the "developing" band (mastery 0.4-0.7, at
+   least 3 recorded events), **When** a report is generated, **Then**
+   that topic is explicitly listed as "in progress" -- distinct from a
+   flagged weak area and from "not yet assessed" -- never silently
+   omitted from the report.
 
 ---
 
@@ -84,6 +141,12 @@ topic more."
    it references a real topic that exists in the subject's content
    artifact -- never a fabricated or freeform topic name not present in
    the actual content graph.
+4. **Given** a flagged weak topic with more than one direct prerequisite
+   and more than one of them is unmastered, **When** a suggestion is
+   generated, **Then** it names exactly one root-cause prerequisite --
+   the one with the lowest mastery value, ties broken by the content
+   artifact's authored topic order -- never surfacing more than one
+   prerequisite as the suggestion.
 
 ---
 
@@ -160,10 +223,10 @@ as a bug.
   -- explicitly "not yet assessed" -- not silently assumed mastered or
   unmastered.)
 - What happens if a learner requests a report immediately after a single
-  wrong answer? (Must not overreact to one data point -- the "too little
-  data" and "broad review needed" honesty requirements from User Story 1
-  apply here too; a single wrong answer alone should not produce a
-  confidently-worded weak-area flag.)
+  wrong answer? (Must not overreact to one data point -- per FR-004, a
+  topic needs at least 3 recorded assessment events before it can be
+  confidently flagged weak; a single wrong answer produces "insufficient
+  data for this topic," never a confident weak-area flag.)
 - What happens if two topics are tied for "weakest"? (The report must
   surface both, not arbitrarily pick one via an undocumented tie-break
   rule.)
@@ -177,28 +240,71 @@ as a bug.
   report on request.
 - **FR-002**: Every flagged weak area MUST cite the specific assessment
   events and mastery-value trajectory that justify it -- a topic name
-  and a bare number alone does not satisfy this requirement.
+  and a bare number alone does not satisfy this requirement. A topic is
+  "weak" when its mastery value is in the "struggling" band (< 0.4) per
+  Milestone 1's three-band mastery model (Clarifications); the
+  "developing" band is not flagged as weak (see FR-003a).
 - **FR-003**: Topics with no recorded assessment data MUST be explicitly
   reported as "not yet assessed," never omitted or implied to be fine.
-- **FR-004**: When overall assessment history is too sparse for a
-  confident report, the agent MUST explicitly state this rather than
-  producing a confidently-worded report from insufficient evidence.
-- **FR-005**: When most or all topics are roughly equally weak, the
-  report MUST represent this honestly (e.g. "broad review needed") 
-  rather than arbitrarily narrowing to a fixed-size "top N" list that
-  misrepresents the learner's actual state.
+- **FR-003a**: Topics in the "developing" band (mastery 0.4-0.7, per
+  FR-002's three-band model, with at least 3 recorded events per
+  FR-004) MUST be explicitly reported as "in progress" -- a third
+  category distinct from a flagged weak area (FR-002) and from "not yet
+  assessed" (FR-003), never silently omitted from the report.
+- **FR-004**: A topic with fewer than 3 recorded assessment events (but
+  at least 1) MUST be reported as "insufficient data for this topic"
+  rather than confidently flagged weak, developing, or mastered. A
+  topic's assessment-event count for this rule is the same count
+  Milestone 1's mastery model already tracks per (learner, topic) --
+  the number of mastery updates recorded for it (`specs/001-domain-
+  agnostic-core/data-model.md`'s `MasteryState.update_count`) -- not a
+  second, independently-computed count. When
+  every assessed topic in the learner's mastery state falls below this
+  per-topic minimum, the agent MUST explicitly state that there isn't
+  enough data yet for a confident report, rather than producing a
+  confidently-worded report from insufficient evidence.
+- **FR-005**: When 60% or more of confidently-assessed topics (those
+  with at least 3 recorded events) fall in the struggling band, the
+  report MUST use "broad review needed across most topics" framing
+  instead of enumerating each struggling topic individually as a
+  fixed-size "top N" list that misrepresents the learner's actual state.
+  Topics with "not yet assessed" or "insufficient data" status are
+  excluded from this proportion's denominator.
 - **FR-006**: Each flagged weak area MUST come with at least one
   concrete next-step suggestion that references a real topic in the
   subject's content artifact.
 - **FR-007**: A next-step suggestion for a topic whose prerequisite is
-  itself below mastery threshold MUST recommend addressing that
-  prerequisite first, named explicitly -- never suggesting direct
-  practice on a topic whose foundation is unmastered.
+  itself below mastery threshold (mastery < 0.4, the same "struggling"
+  cutoff used for FR-002) MUST recommend addressing that prerequisite
+  first, named explicitly -- never suggesting direct practice on a topic
+  whose foundation is unmastered. When that prerequisite itself has an
+  unmastered prerequisite, the suggestion MUST recurse up the chain and
+  name the deepest unmastered prerequisite (the root cause), stopping
+  early only if it reaches a topic with no recorded assessment data, in
+  which case that topic is surfaced as "not yet assessed" instead. When
+  a topic reached during this recursion (the originally-flagged topic
+  or any prerequisite along the way) has more than one direct
+  prerequisite and more than one of them is unmastered, recursion MUST
+  follow only the one with the lowest mastery value, ties broken by the
+  content artifact's authored topic order -- the same deterministic
+  tie-break the Sequencing Agent already uses for topic selection (per
+  Milestone 1's data-model.md) -- so exactly one root-cause prerequisite
+  is ever surfaced per flagged topic, never a branching set.
 - **FR-008**: Every weak-area flag and next-step suggestion MUST be
   logged in the audit log with enough detail to reconstruct why it was
-  produced (Constitution Principle V), and MUST emit a trace to the
-  observability backend per the tracing requirement established for
-  every agent invocation.
+  produced (Constitution Principle V) -- this applies unconditionally,
+  every request. The observability-backend tracing half of Constitution
+  Principle V applies whenever an LLM/ADK model call occurs during
+  report generation; per FR-011, this agent's weak-area/next-step
+  computation is fully deterministic with no such call, so a typical
+  request produces no trace span -- explainability here is carried
+  entirely by the audit log, not by tracing. (Discovered during
+  implementation: `tech-stack.md`'s locked tracing mechanism --
+  `GoogleADKInstrumentor` auto-instrumenting ADK `Runner`/`BaseAgent`
+  invocations -- has nothing to instrument when no such invocation
+  occurs, matching the existing precedent of `GET /api/learners/
+  {learner_id}/mastery-state`, a pure DB-read endpoint that likewise
+  emits no trace.)
 - **FR-009**: The Recommendation Agent's test suite MUST be independent
   of the Sequencing Agent's -- distinct fixtures and assertions,
   verifying distinct correctness criteria, operationalizing Constitution
@@ -209,12 +315,21 @@ as a bug.
   different topics for the same mastery state) MUST NOT be treated as a
   defect to reconcile -- each agent's own reasoning must be independently
   explainable, but the two are not required to agree.
+- **FR-011**: Weak-topic selection (FR-002), per-topic data-sufficiency
+  status (FR-004), the broad-review threshold (FR-005), and
+  prerequisite-gap detection (FR-007) MUST be computed by deterministic
+  code operating on the mastery model's output -- never decided by an
+  LLM's freeform judgment. Any LLM use in this agent MUST be restricted
+  to generating natural-language prose describing already-computed
+  structured results; it MUST NOT influence which topics are flagged or
+  which prerequisite is named.
 
 ### Key Entities *(include if feature involves data)*
 
 - **WeakAreaReport**: a learner's full report at a point in time --
-  flagged weak topics (each with cited evidence), "not yet assessed"
-  topics, and an overall confidence/data-sufficiency statement.
+  flagged weak topics (each with cited evidence), "in progress"
+  (developing-band) topics, "not yet assessed" topics, "insufficient
+  data" topics, and an overall confidence/data-sufficiency statement.
 - **NextStepSuggestion**: a concrete, content-artifact-grounded
   suggestion tied to a specific flagged weak area, including any
   prerequisite-gap reasoning that produced it.
@@ -235,9 +350,10 @@ as a bug.
   that prerequisite rather than the original weak topic directly --
   verified by an automated check against the content artifact's
   prerequisite graph.
-- **SC-004**: Given a "too little data" fixture, the agent explicitly
-  states insufficient data rather than producing a confident-sounding
-  report -- verified by a specific test.
+- **SC-004**: Given a "too little data" fixture where every topic has
+  fewer than 3 recorded assessment events, the agent explicitly states
+  insufficient data rather than producing a confident-sounding report --
+  verified by a specific test.
 - **SC-005**: The Recommendation Agent's and Sequencing Agent's test
   suites share zero fixtures or assertions, verified by inspection --
   operationalizing the "distinct evaluation criteria" requirement

@@ -149,3 +149,35 @@ export function flagQuestion(
     body: JSON.stringify({ flagged_by: flaggedBy, reason }),
   });
 }
+
+export interface ConditionStats {
+  // Omitted from the wire response (not `null`) when zero learners
+  // converged for this condition -- never a fabricated 0.0.
+  mean?: number;
+  median?: number;
+  non_converged_count: number;
+  non_converged_rate: number;
+  n: number;
+}
+
+export interface EvaluationBreakdown {
+  profile: string;
+  subject_id: string;
+  conditions: Record<string, ConditionStats>;
+}
+
+export interface EvaluationReport {
+  published: boolean;
+  run_timestamp?: string;
+  seed?: number;
+  profiles?: string[];
+  subjects?: string[];
+  population_size_per_profile?: number;
+  max_questions_per_topic_budget?: number;
+  breakdowns?: EvaluationBreakdown[];
+  aggregate?: Record<string, ConditionStats>;
+}
+
+export function getEvaluationReport(): Promise<EvaluationReport> {
+  return request<EvaluationReport>("/api/evaluation/report");
+}

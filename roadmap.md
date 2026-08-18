@@ -63,7 +63,12 @@ the Tutor Agent, dashboards, quizzes.
 
 ## Milestone 2: Recommendation Agent -- Weak-Area Flagging and Next Steps
 **Spec**: `specs/002-recommendation-agent/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: Implemented and merged (PR #10) -- 26/27 tasks complete;
+the sole remaining item (`tasks.md` T027, live-deployment quickstart
+validation) is explicitly deferred to a maintainer running it against a
+real Vercel URL, not a code gap. (This status line, and `spec.md`'s own
+header, were left stale after merge -- corrected here alongside the
+Milestone 3 promotion that surfaced the discrepancy.)
 
 **Scope**: A Recommendation Agent that analyzes a learner's mastery
 state and assessment-event history to flag weak areas (each with cited
@@ -99,8 +104,24 @@ duplicating its logic); external-resource recommendation.
 ---
 
 ## Milestone 3: Real Personalization Signal -- Does Sequencing Actually Help?
-**Spec**: not yet written -- do not begin until Milestone 2 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/006-personalization-eval/spec.md`
+**Status**: Implemented (harness + report page); real population-scale
+validation of the DoD's core claim (below) still outstanding -- see PR
+#11 and that spec's `tasks.md` T031/T032.
+
+**Sequencing note**: M3's original PR review flagged an apparent
+sequencing violation ("do not begin until Milestone 2 DoD is met"),
+based on this file's Milestone 2 entry, which at the time still read
+"Spec drafted, pending `/speckit-clarify` and `/speckit-plan`." That
+status line was stale, not current: Milestone 2 (PR #10) had already
+been fully implemented and merged into `staging` before Milestone 3's
+branch was created -- `spec.md`'s own status header just hadn't been
+updated after that merge either (both corrected 2026-08-18, during the
+`staging` -> `main` promotion that surfaced the discrepancy). So there
+was no actual sequencing violation; the concern was an artifact of two
+stale status lines, not a real out-of-order implementation. Left here
+as a reminder to update a milestone's roadmap/spec status line in the
+same PR that completes it, not after.
 
 **Scope**: An evaluation harness that simulates synthetic learner
 populations (with known, simulated true mastery) and measures whether
@@ -109,13 +130,17 @@ random or fixed-order baseline. This is the milestone that makes
 "personalizes based on what you know" a measured claim instead of an
 assumed one.
 
-**Definition of done** (draft, to be formalized in its own `spec.md`):
+**Definition of done**:
 - The simulated-learner evaluation harness shows the Sequencing Agent's
   ordering reaching target mastery in fewer questions than a random
   baseline, across multiple synthetic learner profiles (not cherry-picked
-  ones).
+  ones), at `specs/006-personalization-eval/research.md` §10's full
+  population scale (30 learners x 4 profiles x 2 subjects) -- **not yet
+  demonstrated**; only small-scale (n=1-3) live spot checks and scripted
+  unit fixtures exist so far (`tasks.md` T031/T032).
 - Milestones 1 and 2's full acceptance-scenario suites still pass
-  (regression check).
+  (regression check) -- both were already merged before Milestone 3
+  began (see Sequencing note above).
 
 ---
 

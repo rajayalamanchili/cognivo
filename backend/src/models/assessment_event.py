@@ -15,6 +15,11 @@ class AssessmentEvent(Base):
     Distinct from, and in addition to, the Langfuse trace emitted per
     FR-014: this answers the pedagogical "why," Langfuse answers the
     technical "what happened inside the model call."
+
+    `topic_id` is nullable to support spec 002's
+    `recommendation_report_generated` event, which summarizes a whole
+    report rather than a single topic -- every other event type still
+    always sets a real `topic_id` (spec 002 data-model.md).
     """
 
     __tablename__ = "assessment_events"
@@ -36,7 +41,7 @@ class AssessmentEvent(Base):
         UUID(as_uuid=True), ForeignKey("generated_questions.question_id"), nullable=True
     )
     subject_id: Mapped[str] = mapped_column(nullable=False)
-    topic_id: Mapped[str] = mapped_column(nullable=False)
+    topic_id: Mapped[str | None] = mapped_column(nullable=True)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

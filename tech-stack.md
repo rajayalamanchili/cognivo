@@ -2,7 +2,7 @@
 
 **Project**: Cognivo
 **Status**: Locked for Milestone 1
-**Last amended**: 2026-08-15
+**Last amended**: 2026-08-16
 
 ## Purpose
 
@@ -140,6 +140,7 @@ obvious.
 | Deployment smoke test / E2E | `Playwright`, run against the live Vercel URL | Drives a real browser against the actual deployed app -- the most faithful check of Constitution Principle IX's "deployable and demoable," not just that the API responds. |
 | Determinism check (SC-001) | Automated script re-running identical placement answers and diffing mastery output | Runs in CI against the same database-backed state model used in production, not an in-memory shortcut that wouldn't catch a serverless-state bug. |
 | Extensibility check (SC-004) | Automated script scanning engine source for subject-id-keyed conditionals | Enforces Constitution Principle III mechanically rather than by code review alone. |
+| Agent-test-independence check (spec 002's SC-005) | Automated script (`backend/scripts/check_no_shared_recommendation_sequencing_fixtures.py`) failing CI if the Recommendation Agent's and Sequencing Agent's test modules import each other's scripted-scenario fixtures | Same rationale as the SC-004 row above -- SC-005 exists to prove Constitution Principle IV's agent-boundary requirement is real, not decorative, so its "verified by inspection" language is operationalized as an actual CI check rather than left to manual review. Locked at spec 002's `/speckit-plan` time (see `specs/002-recommendation-agent/research.md` §6). |
 | Question-quality check (SC-003) | Automated validation step run against every generated question before display, plus an offline batch-eval script for regression testing | Distinct from the display-time validation (FR-007) -- this is the automated *test* that the validation logic itself keeps working. |
 | Deployment smoke test | An automated check that the live Vercel deployment's placement-through-first-question flow works end to end, run after every deploy | Directly verifies Constitution Principle IX -- "deployable" is claimed only once this passes, not merely once `vercel deploy` exits successfully. |
 
@@ -160,4 +161,9 @@ see `specs/001-domain-agnostic-core/research.md`); 1.7.0 (Milestone 1
 `/speckit-implement` Phase 6 prep: locked Neon over Supabase, and locked
 the dev/staging/prod provisioning strategy as one Neon project with
 `production`/`staging` persistent branches plus ephemeral per-preview/
-per-developer branches, rather than three separate Neon projects)
+per-developer branches, rather than three separate Neon projects); 1.8.0
+-- Amended 2026-08-16 (Milestone 2 `/speckit-plan`: locked an automated
+CI check as the enforcement mechanism for spec 002's SC-005
+agent-test-independence requirement, matching the existing SC-004
+extensibility-check precedent; see
+`specs/002-recommendation-agent/research.md` §6)
