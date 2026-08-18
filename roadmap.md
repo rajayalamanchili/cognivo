@@ -146,9 +146,11 @@ assumed one.
 
 ## Milestone 4: Learner Dashboard
 **Spec**: `specs/004-learner-dashboard/spec.md`
-**Status**: Planned -- `/speckit-clarify`, `/speckit-plan`, `/speckit-tasks`,
-and `/speckit-analyze` complete (31 tasks across 4 user stories, no
-unresolved findings); pending `/speckit-implement`.
+**Status**: Complete (2026-08-18). All 31 tasks across 4 user stories
+implemented and merged to `staging` (PR #14), then promoted to `main`
+(PR #15). `specs/004-learner-dashboard/tasks.md`'s Phase 7 records
+`quickstart.md`'s 10 validation scenarios run end to end against a
+freshly migrated and seeded dev database, not only local development.
 
 **Scope**: A learner-facing dashboard surfacing per-topic mastery, the
 Recommendation Agent's freshly-generated weak-area report and next-step
