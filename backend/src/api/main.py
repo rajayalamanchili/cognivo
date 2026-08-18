@@ -20,6 +20,7 @@ from src.api.routes import (
     placement,
     questions,
     recommendation,
+    sequencing_preview,
     subjects,
 )
 from src.observability.tracing import configure_tracing
@@ -69,3 +70,4 @@ app.include_router(questions.router)
 app.include_router(recommendation.router)
 app.include_router(evaluation.router)
 app.include_router(subjects.router)
+app.include_router(sequencing_preview.router)

@@ -96,6 +96,20 @@ export interface RecommendationsResponse {
   insufficient_data_topic_ids: string[];
 }
 
+export interface TopicPreviewEntry {
+  topic_id: string;
+  display_name: string;
+  band: MasteryBand | "unknown";
+  p_mastery: number | null;
+}
+
+export interface TopicPriorityPreview {
+  subject_id: string;
+  next_topic: TopicPreviewEntry;
+  upcoming_topics: TopicPreviewEntry[];
+  is_fallback: boolean;
+}
+
 export interface NextQuestion {
   question_id: string;
   topic_id: string;
@@ -179,6 +193,15 @@ export function getRecommendations(
 ): Promise<RecommendationsResponse> {
   return request<RecommendationsResponse>(
     `/api/learners/${learnerId}/recommendations?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+export function getTopicPriorityPreview(
+  learnerId: string,
+  subjectId: string,
+): Promise<TopicPriorityPreview> {
+  return request<TopicPriorityPreview>(
+    `/api/learners/${learnerId}/topic-priority-preview?subject_id=${encodeURIComponent(subjectId)}`,
   );
 }
 

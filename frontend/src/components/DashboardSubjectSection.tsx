@@ -10,11 +10,14 @@ import { useEffect, useState } from "react";
 import {
   getMasteryState,
   getRecommendations,
+  getTopicPriorityPreview,
   type MasteryTopicEntry,
   type RecommendationsResponse,
+  type TopicPriorityPreview,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
 import WeakAreaSection from "@/components/WeakAreaSection";
+import PathVisualization from "@/components/PathVisualization";
 
 type SectionPhase = "loading" | "loaded" | "error";
 
@@ -41,6 +44,9 @@ export default function DashboardSubjectSection({
 
   const [weakAreaPhase, setWeakAreaPhase] = useState<SectionPhase>("loading");
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
+
+  const [pathPhase, setPathPhase] = useState<SectionPhase>("loading");
+  const [pathPreview, setPathPreview] = useState<TopicPriorityPreview | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +85,25 @@ export default function DashboardSubjectSection({
     };
   }, [learnerId, subjectId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    // Independent of the mastery/weak-area fetches above: a failure
+    // here must not affect either of them (FR-008).
+    getTopicPriorityPreview(learnerId, subjectId)
+      .then((result) => {
+        if (cancelled) return;
+        setPathPreview(result);
+        setPathPhase("loaded");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPathPhase("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [learnerId, subjectId]);
+
   return (
     <section
       data-testid={`dashboard-subject-section-${subjectId}`}
@@ -97,7 +122,16 @@ export default function DashboardSubjectSection({
           <WeakAreaSection recommendations={recommendations} />
         )}
       </div>
-      <div data-testid="dashboard-path-slot" />
+      <div data-testid="dashboard-path-slot">
+        {pathPhase === "loading" && <p>Loading path&hellip;</p>}
+        {pathPhase === "error" && <CouldntLoad what="path visualization" />}
+        {pathPhase === "loaded" && pathPreview && (
+          <PathVisualization
+            assessedTopics={masteryTopics.filter((topic) => topic.status === "scored")}
+            preview={pathPreview}
+          />
+        )}
+      </div>
     </section>
   );
 }
