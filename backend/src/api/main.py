@@ -19,6 +19,7 @@ from src.api.routes import (
     mastery,
     placement,
     questions,
+    quiz,
     recommendation,
     sequencing_preview,
     subjects,
@@ -71,3 +72,4 @@ app.include_router(recommendation.router)
 app.include_router(evaluation.router)
 app.include_router(subjects.router)
 app.include_router(sequencing_preview.router)
+app.include_router(quiz.router)

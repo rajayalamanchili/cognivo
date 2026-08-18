@@ -54,3 +54,6 @@ class GeneratedQuestion(Base):
     shown_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    quiz_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("quiz_sessions.quiz_session_id"), nullable=True
+    )

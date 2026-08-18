@@ -132,6 +132,43 @@ export interface FlagResult {
   validation_status: string;
 }
 
+export type QuizStatus = "in_progress" | "completed" | "ended_early";
+
+export interface StartQuizResponse {
+  quiz_session_id: string;
+  status: QuizStatus;
+  question: NextQuestion | null;
+}
+
+export interface QuizNextQuestionResponse {
+  status: QuizStatus;
+  question: NextQuestion | null;
+}
+
+export interface QuizScore {
+  correct: number;
+  total: number;
+}
+
+export interface QuizSummaryEntry {
+  topic_id: string;
+  difficulty: Difficulty;
+  correct: number;
+  total: number;
+}
+
+export interface QuizSummaryResponse {
+  quiz_session_id: string;
+  subject_id: string;
+  topic_ids: string[];
+  question_count: number;
+  status: QuizStatus;
+  started_at: string;
+  completed_at: string | null;
+  score: QuizScore;
+  summary: QuizSummaryEntry[];
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -219,6 +256,21 @@ export function answerQuestion(
     method: "POST",
     body: JSON.stringify({ response }),
   });
+}
+
+export function startQuiz(topicIds: string[], questionCount: number): Promise<StartQuizResponse> {
+  return request<StartQuizResponse>("/api/quizzes", {
+    method: "POST",
+    body: JSON.stringify({ topic_ids: topicIds, question_count: questionCount }),
+  });
+}
+
+export function getQuizNextQuestion(quizSessionId: string): Promise<QuizNextQuestionResponse> {
+  return request<QuizNextQuestionResponse>(`/api/quizzes/${quizSessionId}/next-question`);
+}
+
+export function getQuizSummary(quizSessionId: string): Promise<QuizSummaryResponse> {
+  return request<QuizSummaryResponse>(`/api/quizzes/${quizSessionId}`);
 }
 
 export function flagQuestion(

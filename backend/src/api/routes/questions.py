@@ -28,6 +28,7 @@ from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
 from src.services.mastery.grading import grade_answer, validate_response_shape
+from src.services.quiz.session import record_quiz_answer
 
 router = APIRouter()
 
@@ -193,6 +194,15 @@ def answer_question(
             "bkt_params_used": result.bkt_params_used,
         },
     )
+
+    # Quiz-aware branch (spec 005, research.md §4): every question is
+    # graded and mastery-updated via the exact same, unmodified logic
+    # above regardless of whether it's quiz-linked -- this only adds
+    # quiz-specific bookkeeping (FR-009's logging, FR-005's completion
+    # detection) on top, never a second grading/mastery-update path.
+    if question.quiz_session_id is not None:
+        record_quiz_answer(db, question=question, correct=correct)
+
     db.commit()
 
     return AnswerOut(
