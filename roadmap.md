@@ -99,8 +99,26 @@ duplicating its logic); external-resource recommendation.
 ---
 
 ## Milestone 3: Real Personalization Signal -- Does Sequencing Actually Help?
-**Spec**: not yet written -- do not begin until Milestone 2 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/006-personalization-eval/spec.md`
+**Status**: Implemented (harness + report page); real population-scale
+validation of the DoD's core claim (below) still outstanding -- see PR
+#11 and that spec's `tasks.md` T031/T032.
+
+**Sequencing note**: This milestone was originally scoped to wait for
+Milestone 2's DoD ("do not begin until Milestone 2 DoD is met"), on the
+general principle that later milestones build on earlier ones in order.
+In practice M3 proceeded in parallel with M2 (M2 is still spec-drafted,
+no code yet) -- confirmed benign on inspection: M3's implementation
+touches only Milestone 1's Sequencing Agent, BKT machinery, and data
+model (`select_next_topic`, `apply_bkt_update`/`apply_mastery_update`,
+`DemoLearnerProfile`/`MasteryState`/`AssessmentEvent`/`Topic`/`Subject`);
+it never reads, calls, or depends on the Recommendation Agent M2 is
+building. This note documents that as a deliberate, reviewed exception
+to the general sequencing rule, not a silent reordering -- flagged by
+`/speckit-implement`'s automated PR review, decided by the maintainer.
+Future milestones should still default to waiting on their stated
+predecessor's DoD; only diverge with the same explicit justify-and-note
+treatment given here.
 
 **Scope**: An evaluation harness that simulates synthetic learner
 populations (with known, simulated true mastery) and measures whether
@@ -109,13 +127,18 @@ random or fixed-order baseline. This is the milestone that makes
 "personalizes based on what you know" a measured claim instead of an
 assumed one.
 
-**Definition of done** (draft, to be formalized in its own `spec.md`):
+**Definition of done**:
 - The simulated-learner evaluation harness shows the Sequencing Agent's
   ordering reaching target mastery in fewer questions than a random
   baseline, across multiple synthetic learner profiles (not cherry-picked
-  ones).
-- Milestones 1 and 2's full acceptance-scenario suites still pass
-  (regression check).
+  ones), at `specs/006-personalization-eval/research.md` §10's full
+  population scale (30 learners x 4 profiles x 2 subjects) -- **not yet
+  demonstrated**; only small-scale (n=1-3) live spot checks and scripted
+  unit fixtures exist so far (`tasks.md` T031/T032).
+- Milestone 1's full acceptance-scenario suite still passes (regression
+  check). Milestone 2's suite joins this gate once M2 lands -- M3
+  shipped before M2 per the Sequencing note above, so there is no M2
+  suite yet to regress.
 
 ---
 
