@@ -1,4 +1,5 @@
 import type { MasteryBand, MasteryStateEntry } from "@/services/api";
+import { formatTopicId } from "@/lib/format-topic-id";
 
 // Presentational only -- takes already-fetched mastery entries so it can
 // be reused both right after placement submission and on a standalone
@@ -16,13 +17,6 @@ const BAND_CLASSES: Record<MasteryBand, string> = {
   developing: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
   mastered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
 };
-
-function formatTopicId(topicId: string): string {
-  return topicId
-    .split("-")
-    .map((word) => word[0]?.toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 export interface MasteryViewProps {
   topics: MasteryStateEntry[];

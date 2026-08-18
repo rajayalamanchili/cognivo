@@ -66,12 +66,66 @@ def _sort_key(p_mastery: float | None, order_index: int) -> tuple[float, int]:
     return (-1.0 if p_mastery is None else p_mastery, order_index)
 
 
-def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> NextTopicSelection:
-    """Selects the next topic per data-model.md's Next-topic eligibility
-    and Difficulty-selection rules. Always returns a selection -- if zero
-    topics are eligible, falls back to the lowest-`p_mastery` `mastered`
-    topic rather than raising (contracts/api.md: next-question is always
-    a `200`)."""
+def rank_eligible_topics(
+    topic_ids_in_order: list[str],
+    *,
+    band_by_topic: dict[str, str],
+    p_mastery_by_topic: dict[str, float | None],
+    prereqs_by_topic: dict[str, list[str]],
+) -> tuple[list[str], bool]:
+    """Pure eligibility/ranking rule (data-model.md's Next-topic
+    eligibility rule), directly unit-testable with no DB -- mirrors
+    `weak_area.py`'s/`next_step.py`'s own pure-rule-plus-DB-querying-
+    wrapper split. Shared by `select_next_topic` (which uses only the
+    top-ranked topic) and `preview_topic_priority` (which also exposes
+    the next few), so FR-003's "not a separately invented ordering"
+    guarantee for the dashboard's upcoming-topics list holds by
+    construction rather than by convention.
+
+    Returns topic ids ranked lowest-`p_mastery`-first (`unknown` ranked
+    ahead of any numeric value), ties broken by `topic_ids_in_order`'s
+    original order (`Topic.order_index`), plus whether the ranking fell
+    back to the mastered-topics-or-all-topics pool because zero topics
+    were strictly eligible (every topic mastered, or none has its
+    prerequisites satisfied)."""
+    order_index_by_topic = {topic_id: index for index, topic_id in enumerate(topic_ids_in_order)}
+
+    def prereqs_satisfied(topic_id: str) -> bool:
+        return all(
+            band_by_topic[prereq_id] == "mastered" for prereq_id in prereqs_by_topic[topic_id]
+        )
+
+    eligible = [
+        t
+        for t in topic_ids_in_order
+        if band_by_topic[t] in _ELIGIBLE_BANDS and prereqs_satisfied(t)
+    ]
+
+    if eligible:
+        pool, is_fallback = eligible, False
+    else:
+        mastered = [t for t in topic_ids_in_order if band_by_topic[t] == "mastered"]
+        pool, is_fallback = (mastered or topic_ids_in_order), True
+
+    ranked = sorted(pool, key=lambda t: _sort_key(p_mastery_by_topic[t], order_index_by_topic[t]))
+    return ranked, is_fallback
+
+
+@dataclass(frozen=True)
+class _TopicRankingContext:
+    topic_ids_in_order: list[str]
+    band_by_topic: dict[str, str]
+    p_mastery_by_topic: dict[str, float | None]
+    prereqs_by_topic: dict[str, list[str]]
+    display_name_by_topic: dict[str, str]
+
+
+def _load_topic_ranking_context(
+    db: Session, *, learner_id: uuid.UUID, subject_id: str
+) -> _TopicRankingContext:
+    """DB-querying orchestration shared by `select_next_topic` and
+    `preview_topic_priority` -- builds the plain lookup maps
+    `rank_eligible_topics` needs."""
     topics = (
         db.query(Topic).filter(Topic.subject_id == subject_id).order_by(Topic.order_index).all()
     )
@@ -95,39 +149,92 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
     for edge in edges:
         prereqs_by_topic.setdefault(edge.from_topic_id, []).append(edge.to_topic_id)
 
-    def prereqs_satisfied(topic_id: str) -> bool:
-        return all(band_of(prereq_id) == "mastered" for prereq_id in prereqs_by_topic[topic_id])
+    return _TopicRankingContext(
+        topic_ids_in_order=[t.topic_id for t in topics],
+        band_by_topic={t.topic_id: band_of(t.topic_id) for t in topics},
+        p_mastery_by_topic={t.topic_id: p_mastery_of(t.topic_id) for t in topics},
+        prereqs_by_topic=prereqs_by_topic,
+        display_name_by_topic={t.topic_id: t.display_name for t in topics},
+    )
+
+
+def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> NextTopicSelection:
+    """Selects the next topic per data-model.md's Next-topic eligibility
+    and Difficulty-selection rules. Always returns a selection -- if zero
+    topics are eligible, falls back to the lowest-`p_mastery` `mastered`
+    topic rather than raising (contracts/api.md: next-question is always
+    a `200`)."""
+    ctx = _load_topic_ranking_context(db, learner_id=learner_id, subject_id=subject_id)
 
     candidates = [
-        TopicCandidate(
-            topic_id=t.topic_id, band=band_of(t.topic_id), p_mastery=p_mastery_of(t.topic_id)
-        )
-        for t in topics
+        TopicCandidate(topic_id=t, band=ctx.band_by_topic[t], p_mastery=ctx.p_mastery_by_topic[t])
+        for t in ctx.topic_ids_in_order
     ]
 
-    eligible = [
-        t
-        for t in topics
-        if band_of(t.topic_id) in _ELIGIBLE_BANDS and prereqs_satisfied(t.topic_id)
-    ]
-
-    if eligible:
-        chosen = min(eligible, key=lambda t: _sort_key(p_mastery_of(t.topic_id), t.order_index))
-        is_fallback = False
-    else:
-        mastered = [t for t in topics if band_of(t.topic_id) == "mastered"]
-        pool = mastered or topics
-        chosen = min(pool, key=lambda t: _sort_key(p_mastery_of(t.topic_id), t.order_index))
-        is_fallback = True
-
-    chosen_band = band_of(chosen.topic_id)
+    ranked, is_fallback = rank_eligible_topics(
+        ctx.topic_ids_in_order,
+        band_by_topic=ctx.band_by_topic,
+        p_mastery_by_topic=ctx.p_mastery_by_topic,
+        prereqs_by_topic=ctx.prereqs_by_topic,
+    )
+    chosen_id = ranked[0]
+    chosen_band = ctx.band_by_topic[chosen_id]
     return NextTopicSelection(
-        topic_id=chosen.topic_id,
+        topic_id=chosen_id,
         band=chosen_band,
-        p_mastery=p_mastery_of(chosen.topic_id),
+        p_mastery=ctx.p_mastery_by_topic[chosen_id],
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
         candidates_considered=candidates,
+    )
+
+
+@dataclass(frozen=True)
+class TopicPreviewEntry:
+    topic_id: str
+    display_name: str
+    band: str
+    p_mastery: float | None
+
+
+@dataclass(frozen=True)
+class TopicPriorityPreview:
+    subject_id: str
+    next_topic: TopicPreviewEntry
+    upcoming_topics: list[TopicPreviewEntry]
+    is_fallback: bool
+
+
+def preview_topic_priority(
+    db: Session, *, learner_id: uuid.UUID, subject_id: str, upcoming_count: int = 3
+) -> TopicPriorityPreview:
+    """Read-only preview of the same ranking `select_next_topic` uses to
+    pick the real next topic (research.md §1) -- exposes the next
+    `upcoming_count` ranked entries too, without generating a question
+    or committing a selection. Callers must not write an `AssessmentEvent`
+    row or wrap this in `traced_request()` (research.md §3): this is an
+    illustrative dashboard preview, not a real pedagogical decision."""
+    ctx = _load_topic_ranking_context(db, learner_id=learner_id, subject_id=subject_id)
+    ranked, is_fallback = rank_eligible_topics(
+        ctx.topic_ids_in_order,
+        band_by_topic=ctx.band_by_topic,
+        p_mastery_by_topic=ctx.p_mastery_by_topic,
+        prereqs_by_topic=ctx.prereqs_by_topic,
+    )
+
+    def to_entry(topic_id: str) -> TopicPreviewEntry:
+        return TopicPreviewEntry(
+            topic_id=topic_id,
+            display_name=ctx.display_name_by_topic[topic_id],
+            band=ctx.band_by_topic[topic_id],
+            p_mastery=ctx.p_mastery_by_topic[topic_id],
+        )
+
+    return TopicPriorityPreview(
+        subject_id=subject_id,
+        next_topic=to_entry(ranked[0]),
+        upcoming_topics=[to_entry(t) for t in ranked[1 : 1 + upcoming_count]],
+        is_fallback=is_fallback,
     )
 
 
