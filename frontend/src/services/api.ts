@@ -50,6 +50,15 @@ export interface DemoLearner {
   display_name: string;
 }
 
+export interface SubjectSummary {
+  subject_id: string;
+  display_name: string;
+}
+
+export interface SubjectsResponse {
+  subjects: SubjectSummary[];
+}
+
 export interface NextQuestion {
   question_id: string;
   topic_id: string;
@@ -112,6 +121,10 @@ export function submitPlacement(
     method: "POST",
     body: JSON.stringify({ answers }),
   });
+}
+
+export function getSubjects(): Promise<SubjectsResponse> {
+  return request<SubjectsResponse>("/api/subjects");
 }
 
 export function getMasteryState(

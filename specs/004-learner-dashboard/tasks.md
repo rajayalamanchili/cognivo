@@ -24,7 +24,7 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 **Purpose**: Confirm this feature needs no new dependency before any code is written
 
-- [ ] T001 [P] Confirm no new dependency is required in `backend/pyproject.toml` or `frontend/package.json` (research.md -- reuses the already-locked FastAPI/SQLAlchemy/Pydantic and Next.js/React/Tailwind stacks; no `uv add` / `npm install` needed)
+- [X] T001 [P] Confirm no new dependency is required in `backend/pyproject.toml` or `frontend/package.json` (research.md -- reuses the already-locked FastAPI/SQLAlchemy/Pydantic and Next.js/React/Tailwind stacks; no `uv add` / `npm install` needed)
 
 ---
 
@@ -34,12 +34,12 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Implement `SubjectSummary` Pydantic model and `GET /api/subjects` endpoint (validated subjects only, ordered by `subject_id`) in `backend/src/api/routes/subjects.py` per contracts/api.md and research.md §4
-- [ ] T003 Mount the subjects router (`app.include_router(subjects.router)`) in `backend/src/api/main.py` (depends on T002)
-- [ ] T004 [P] Integration test for `GET /api/subjects` -- both seeded subjects returned ordered by `subject_id`, only `validated_at IS NOT NULL` subjects included, no `AssessmentEvent`/trace side effects -- in `backend/tests/integration/test_subjects_list.py` (depends on T002, T003)
-- [ ] T005 [P] Add `getSubjects()` client function and `SubjectSummary` type to `frontend/src/services/api.ts` per contracts/api.md
-- [ ] T006 [P] Create `frontend/src/components/DashboardSubjectSection.tsx` skeleton -- accepts `subjectId`/`displayName` props, renders a heading and three empty child slots (mastery, weak-area, path) that later stories populate independently
-- [ ] T007 Scaffold `frontend/src/app/dashboard/page.tsx` + `frontend/src/app/dashboard/dashboard-flow.tsx`: resolve the demo learner, fetch the subject list via `getSubjects()`, and render one `DashboardSubjectSection` per subject (mirrors `mastery-flow.tsx`'s top-level loading/loaded/error phase, scoped only to "did we get the subject list at all" -- each section's own data is fetched independently starting in Phase 3) (depends on T005, T006)
+- [X] T002 [P] Implement `SubjectSummary` Pydantic model and `GET /api/subjects` endpoint (validated subjects only, ordered by `subject_id`) in `backend/src/api/routes/subjects.py` per contracts/api.md and research.md §4
+- [X] T003 Mount the subjects router (`app.include_router(subjects.router)`) in `backend/src/api/main.py` (depends on T002)
+- [X] T004 [P] Integration test for `GET /api/subjects` -- both seeded subjects returned ordered by `subject_id`, only `validated_at IS NOT NULL` subjects included, no `AssessmentEvent`/trace side effects -- in `backend/tests/integration/test_subjects_list.py` (depends on T002, T003)
+- [X] T005 [P] Add `getSubjects()` client function and `SubjectSummary` type to `frontend/src/services/api.ts` per contracts/api.md
+- [X] T006 [P] Create `frontend/src/components/DashboardSubjectSection.tsx` skeleton -- accepts `subjectId`/`displayName` props, renders a heading and three empty child slots (mastery, weak-area, path) that later stories populate independently
+- [X] T007 Scaffold `frontend/src/app/dashboard/page.tsx` + `frontend/src/app/dashboard/dashboard-flow.tsx`: resolve the demo learner, fetch the subject list via `getSubjects()`, and render one `DashboardSubjectSection` per subject (mirrors `mastery-flow.tsx`'s top-level loading/loaded/error phase, scoped only to "did we get the subject list at all" -- each section's own data is fetched independently starting in Phase 3) (depends on T005, T006)
 
 **Checkpoint**: Foundation ready -- `/dashboard` loads and renders one empty section per platform subject; user story implementation can now begin.
 
