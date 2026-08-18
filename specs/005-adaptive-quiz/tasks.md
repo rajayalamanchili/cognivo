@@ -56,31 +56,31 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/src/{models,ser
 
 ### Tests for User Story 1
 
-- [ ] T011 [P] [US1] Integration test `POST /api/quizzes` -- first question always at `easy` difficulty for `topic_ids[0]`, `422` on empty/duplicate `topic_ids` or `question_count` outside 1-50 (FR-001), `404` on unknown/unvalidated/cross-subject `topic_ids` (contracts/api.md) in `backend/tests/integration/test_quiz_start.py`
-- [ ] T012 [P] [US1] Integration test `GET /api/quizzes/{id}/next-question` -- difficulty escalates/de-escalates per the streak rule end to end against a real DB, `409` once the quiz is `completed`/`ended_early` (contracts/api.md) in `backend/tests/integration/test_quiz_next_question.py`
-- [ ] T013 [P] [US1] Integration test: the dedup-exhaustion → `ended_early` transition itself (FR-008) -- constrain/mock the near-duplicate check so retries exhaust for a topic (mirroring how Milestone 1's tests mock `_run_agent_once`), then confirm no new `GeneratedQuestion` row is created, `QuizSession.status` becomes `ended_early` with `completed_at` set, and `GET /api/quizzes/{id}` still returns a score/summary in the same shape FR-005 describes for a normal completion (analysis finding C1, 2026-08-18) in `backend/tests/integration/test_quiz_ended_early.py`
-- [ ] T014 [P] [US1] Integration test `POST /api/questions/{id}/answer` extended for quiz questions -- `quiz_difficulty_adjusted` event logged per question (FR-009), `QuizSession.status` flips to `completed` when answered-count reaches `question_count` (research.md §4) in `backend/tests/integration/test_quiz_completion.py`
-- [ ] T015 [P] [US1] Integration test `GET /api/quizzes/{id}` -- score/summary shape grouped by (topic, difficulty), correct even while `in_progress` (partial tally, contracts/api.md) in `backend/tests/integration/test_quiz_summary.py`
-- [ ] T016 [P] [US1] Frontend unit test: `QuizSummary` renders score and the per-topic/difficulty breakdown in `frontend/tests/unit/quiz-summary.test.tsx`
-- [ ] T017 [P] [US1] Frontend unit test: the quiz flow renders distinct states for answering, `completed`, and `ended_early` in `frontend/tests/unit/quiz-flow.test.tsx`
+- [X] T011 [P] [US1] Integration test `POST /api/quizzes` -- first question always at `easy` difficulty for `topic_ids[0]`, `422` on empty/duplicate `topic_ids` or `question_count` outside 1-50 (FR-001), `404` on unknown/unvalidated/cross-subject `topic_ids` (contracts/api.md) in `backend/tests/integration/test_quiz_start.py`
+- [X] T012 [P] [US1] Integration test `GET /api/quizzes/{id}/next-question` -- difficulty escalates/de-escalates per the streak rule end to end against a real DB, `409` once the quiz is `completed`/`ended_early` (contracts/api.md) in `backend/tests/integration/test_quiz_next_question.py`
+- [X] T013 [P] [US1] Integration test: the dedup-exhaustion → `ended_early` transition itself (FR-008) -- constrain/mock the near-duplicate check so retries exhaust for a topic (mirroring how Milestone 1's tests mock `_run_agent_once`), then confirm no new `GeneratedQuestion` row is created, `QuizSession.status` becomes `ended_early` with `completed_at` set, and `GET /api/quizzes/{id}` still returns a score/summary in the same shape FR-005 describes for a normal completion (analysis finding C1, 2026-08-18) in `backend/tests/integration/test_quiz_ended_early.py`
+- [X] T014 [P] [US1] Integration test `POST /api/questions/{id}/answer` extended for quiz questions -- `quiz_difficulty_adjusted` event logged per question (FR-009), `QuizSession.status` flips to `completed` when answered-count reaches `question_count` (research.md §4) in `backend/tests/integration/test_quiz_completion.py`
+- [X] T015 [P] [US1] Integration test `GET /api/quizzes/{id}` -- score/summary shape grouped by (topic, difficulty), correct even while `in_progress` (partial tally, contracts/api.md) in `backend/tests/integration/test_quiz_summary.py`
+- [X] T016 [P] [US1] Frontend unit test: `QuizSummary` renders score and the per-topic/difficulty breakdown in `frontend/tests/unit/quiz-summary.test.tsx`
+- [X] T017 [P] [US1] Frontend unit test: the quiz flow renders distinct states for answering, `completed`, and `ended_early` in `frontend/tests/unit/quiz-flow.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement `services/quiz/session.py`'s `start_quiz()` and `generate_quiz_question()` -- round-robin via `next_quiz_topic()`, difficulty via `current_difficulty_for_topic()`, dedup via the existing `recent_stems_for_topic()` widened to `question_count` (research.md §3), raising on retry exhaustion (depends on T009, T010, T012, T013)
-- [ ] T019 [US1] Implement `backend/src/api/routes/quiz.py`'s `POST /api/quizzes` and `GET /api/quizzes/{id}/next-question`, catching retry-exhaustion to set `ended_early` (depends on T018, T011, T012, T013)
-- [ ] T020 [US1] Extend `backend/src/api/routes/questions.py`'s `answer_question` with the quiz-aware branch: log `quiz_difficulty_adjusted`, flip `QuizSession.status` to `completed` (research.md §4) (depends on T014)
-- [ ] T021 [US1] Implement `compute_quiz_summary()` in `services/quiz/session.py` and `GET /api/quizzes/{id}` in `quiz.py` (depends on T015, T019)
-- [ ] T022 [US1] Mount the quiz router (`app.include_router(quiz.router)`) in `backend/src/api/main.py` (depends on T019, T021)
-- [ ] T023 [P] [US1] Add `startQuiz()`, `getQuizNextQuestion()`, `getQuizSummary()` client functions and types to `frontend/src/services/api.ts` per contracts/api.md (`answerQuestion()` is reused unchanged)
-- [ ] T024 [US1] Implement `QuizSummary.tsx` component (depends on T023, T016)
-- [ ] T025 [US1] Scaffold `frontend/src/app/quiz/page.tsx` + `quiz-flow.tsx`: start form (topic(s) + question count) → answering phase (reuses `QuestionCard`/`answerQuestion` unchanged) → completed/ended-early phase (renders `QuizSummary`) (depends on T023, T024, T017)
+- [X] T018 [US1] Implement `services/quiz/session.py`'s `start_quiz()` and `generate_quiz_question()` -- round-robin via `next_quiz_topic()`, difficulty via `current_difficulty_for_topic()`, dedup via the existing `recent_stems_for_topic()` widened to `question_count` (research.md §3), raising on retry exhaustion (depends on T009, T010, T012, T013)
+- [X] T019 [US1] Implement `backend/src/api/routes/quiz.py`'s `POST /api/quizzes` and `GET /api/quizzes/{id}/next-question`, catching retry-exhaustion to set `ended_early` (depends on T018, T011, T012, T013)
+- [X] T020 [US1] Extend `backend/src/api/routes/questions.py`'s `answer_question` with the quiz-aware branch: log `quiz_difficulty_adjusted`, flip `QuizSession.status` to `completed` (research.md §4) (depends on T014)
+- [X] T021 [US1] Implement `compute_quiz_summary()` in `services/quiz/session.py` and `GET /api/quizzes/{id}` in `quiz.py` (depends on T015, T019)
+- [X] T022 [US1] Mount the quiz router (`app.include_router(quiz.router)`) in `backend/src/api/main.py` (depends on T019, T021)
+- [X] T023 [P] [US1] Add `startQuiz()`, `getQuizNextQuestion()`, `getQuizSummary()` client functions and types to `frontend/src/services/api.ts` per contracts/api.md (`answerQuestion()` is reused unchanged)
+- [X] T024 [US1] Implement `QuizSummary.tsx` component (depends on T023, T016)
+- [X] T025 [US1] Scaffold `frontend/src/app/quiz/page.tsx` + `quiz-flow.tsx`: start form (topic(s) + question count) → answering phase (reuses `QuestionCard`/`answerQuestion` unchanged) → completed/ended-early phase (renders `QuizSummary`) (depends on T023, T024, T017)
 
 ### Additional Verification for User Story 1
 
-- [ ] T026 [US1] Determinism check (SC-001): replay an identical scripted answer sequence against a fresh quiz ten times, confirm identical difficulty progression and final score every run, in `backend/tests/integration/test_quiz_determinism.py` (depends on T018-T022)
-- [ ] T027 [US1] Zero near-duplicates check (SC-004): run a single-topic quiz with `question_count` greater than Milestone 1's 5-question default lookback, confirm no two questions in the session are near-duplicates, in `backend/tests/integration/test_quiz_no_duplicates.py` (depends on T018-T022)
-- [ ] T028 [US1] Multi-topic round-robin ordering check (Edge Cases): a 2-topic, 4-question quiz's questions alternate topics in selection order, in `backend/tests/integration/test_quiz_multi_topic_ordering.py` (depends on T018-T022)
-- [ ] T029 [US1] Playwright E2E test: start a quiz via the UI, answer several questions, reach completion, confirm the score/summary render, in `frontend/tests/e2e/quiz-session.spec.ts` (depends on T025)
+- [X] T026 [US1] Determinism check (SC-001): replay an identical scripted answer sequence against a fresh quiz ten times, confirm identical difficulty progression and final score every run, in `backend/tests/integration/test_quiz_determinism.py` (depends on T018-T022)
+- [X] T027 [US1] Zero near-duplicates check (SC-004): run a single-topic quiz with `question_count` greater than Milestone 1's 5-question default lookback, confirm no two questions in the session are near-duplicates, in `backend/tests/integration/test_quiz_no_duplicates.py` (depends on T018-T022)
+- [X] T028 [US1] Multi-topic round-robin ordering check (Edge Cases): a 2-topic, 4-question quiz's questions alternate topics in selection order, in `backend/tests/integration/test_quiz_multi_topic_ordering.py` (depends on T018-T022)
+- [X] T029 [US1] Playwright E2E test: start a quiz via the UI, answer several questions, reach completion, confirm the score/summary render, in `frontend/tests/e2e/quiz-session.spec.ts` (depends on T025)
 
 **Checkpoint**: User Story 1 is independently functional and demoable -- a full adaptive quiz session works end to end, with determinism, zero-near-duplicate, and `ended_early` guarantees all mechanically verified.
 

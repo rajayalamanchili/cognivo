@@ -65,13 +65,23 @@ def next_difficulty(band: DifficultyBand, streak: int, *, correct: bool) -> Diff
     )
 
 
-def current_difficulty_for_topic(history: Sequence[bool]) -> DifficultyBand:
-    """The topic's current in-quiz difficulty band, replayed from its
-    ordered (correct/incorrect) answer history starting at `easy` with
-    a zero streak (FR-002's "first question is always easy")."""
+def replay_topic_state(history: Sequence[bool]) -> tuple[DifficultyBand, int]:
+    """The (band, streak) state after replaying a topic's ordered
+    (correct/incorrect) in-quiz answer history from the start (`easy`,
+    streak 0) -- the full state `next_difficulty` needs as input to
+    compute the *next* step, e.g. to log the decision a not-yet-recorded
+    answer would produce."""
     band = DifficultyBand.EASY
     streak = 0
     for correct in history:
         step = next_difficulty(band, streak, correct=correct)
         band, streak = step.band, step.streak
+    return band, streak
+
+
+def current_difficulty_for_topic(history: Sequence[bool]) -> DifficultyBand:
+    """The topic's current in-quiz difficulty band, replayed from its
+    ordered (correct/incorrect) answer history starting at `easy` with
+    a zero streak (FR-002's "first question is always easy")."""
+    band, _streak = replay_topic_state(history)
     return band
