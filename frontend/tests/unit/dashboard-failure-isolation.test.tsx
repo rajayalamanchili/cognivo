@@ -3,6 +3,10 @@
 // mastery view (US1) still renders correctly (FR-007). T012. Extended
 // (T025) with the equivalent case for a failed topic-priority-preview
 // fetch, isolated to the path-visualization portion only (FR-008).
+// Further extended (T031) to confirm FR-007's and FR-008's failure
+// states share one presentation pattern rather than two independently-
+// styled variants, and that neither auto-retries within a page load
+// (FR-010).
 
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -94,5 +98,53 @@ describe("DashboardSubjectSection failure isolation", () => {
       expect(screen.getByTestId("dashboard-path-slot")).toHaveTextContent(/couldn.t load/i),
     );
     expect(screen.queryByTestId("path-visualization")).not.toBeInTheDocument();
+  });
+
+  it("renders FR-007's and FR-008's failure states via the same shared presentation pattern (FR-010)", async () => {
+    vi.mocked(api.getMasteryState).mockResolvedValue(scoredMasteryState);
+    vi.mocked(api.getRecommendations).mockRejectedValue(new Error("boom"));
+    vi.mocked(api.getTopicPriorityPreview).mockRejectedValue(new Error("boom"));
+
+    render(
+      <DashboardSubjectSection subjectId="algebra-1" displayName="Algebra I" learnerId="learner-1" />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-weak-area-slot")).toHaveTextContent(/couldn.t load/i),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-path-slot")).toHaveTextContent(/couldn.t load/i),
+    );
+
+    const weakAreaFailure = screen
+      .getByTestId("dashboard-weak-area-slot")
+      .querySelector("p")!;
+    const pathFailure = screen.getByTestId("dashboard-path-slot").querySelector("p")!;
+
+    // Not two independently-styled "couldn't load" variants -- the
+    // same element shape and styling, just a different subject.
+    expect(weakAreaFailure.tagName).toBe(pathFailure.tagName);
+    expect(weakAreaFailure.className).toBe(pathFailure.className);
+  });
+
+  it("does not auto-retry a failed fetch within a single page load (FR-010)", async () => {
+    vi.mocked(api.getMasteryState).mockResolvedValue(scoredMasteryState);
+    vi.mocked(api.getRecommendations).mockRejectedValue(new Error("boom"));
+    vi.mocked(api.getTopicPriorityPreview).mockResolvedValue(topicPriorityPreview);
+
+    render(
+      <DashboardSubjectSection subjectId="algebra-1" displayName="Algebra I" learnerId="learner-1" />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-weak-area-slot")).toHaveTextContent(/couldn.t load/i),
+    );
+    expect(api.getRecommendations).toHaveBeenCalledTimes(1);
+
+    // No in-page manual or automatic retry mechanism -- the only way to
+    // get a fresh attempt is a full reload (FR-002/FR-006), which a
+    // still-mounted component never triggers on its own.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(api.getRecommendations).toHaveBeenCalledTimes(1);
   });
 });

@@ -125,8 +125,8 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 ### Tests for User Story 4
 
-- [ ] T026 [US4] Backend integration test: for a learner with zero `MasteryState` rows, exercise `mastery-state`, `recommendations`, and `topic-priority-preview` against **both** platform subjects (`algebra-1`, `biology`) -- confirm every topic reports "not yet assessed"/`unknown`, `data_sufficiency = "insufficient_data"`, and `next_topic` is an entry-level topic for each subject, with zero engine-code branching between the two (SC-002, SC-005 -- mirrors `backend/tests/integration/test_second_subject.py`'s pattern) in `backend/tests/integration/test_dashboard_two_subjects.py` (depends on T003, T020)
-- [ ] T027 [P] [US4] Playwright E2E test: load `/dashboard` for a brand-new learner and confirm one section per platform subject renders, each showing every topic "not yet assessed," the Recommendation Agent's own "insufficient data" framing, and a path visualization anchored on entry-level topics with the illustrative disclosure visible -- a coherent page, no error (SC-002) in `frontend/tests/e2e/dashboard-new-learner.spec.ts` (depends on T009, T015, T024, T026)
+- [X] T026 [US4] Backend integration test: for a learner with zero `MasteryState` rows, exercise `mastery-state`, `recommendations`, and `topic-priority-preview` against **both** platform subjects (`algebra-1`, `biology`) -- confirm every topic reports "not yet assessed"/`unknown`, `data_sufficiency = "insufficient_data"`, and `next_topic` is an entry-level topic for each subject, with zero engine-code branching between the two (SC-002, SC-005 -- mirrors `backend/tests/integration/test_second_subject.py`'s pattern) in `backend/tests/integration/test_dashboard_two_subjects.py` (depends on T003, T020)
+- [X] T027 [P] [US4] Playwright E2E test: load `/dashboard` for a brand-new learner and confirm one section per platform subject renders, each showing every topic "not yet assessed," the Recommendation Agent's own "insufficient data" framing, and a path visualization anchored on entry-level topics with the illustrative disclosure visible -- a coherent page, no error (SC-002) in `frontend/tests/e2e/dashboard-new-learner.spec.ts` (depends on T009, T015, T024, T026)
 
 **Checkpoint**: All four user stories independently functional; the empty-state gate (SC-002) is mechanically verified.
 
@@ -136,10 +136,10 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 **Purpose**: Regression safety and the extensibility gate this milestone shares with every prior one
 
-- [ ] T028 [P] Regression check: run Milestones 1-3's full test suites (`backend/tests/`, excluding this feature's new tests; relevant `frontend/tests/`) and confirm they still pass unmodified (roadmap.md Milestone 4 Definition of Done: "Milestones 1-3's full suites still pass")
-- [ ] T029 [P] Run `backend/scripts/check_no_subject_conditionals.py` (unchanged from Milestone 1) over this feature's new/changed files (`subjects.py`, `sequencing_preview.py`, `agents/sequencing/agent.py`) -- confirm SC-005's automated Principle III scan still passes with zero subject-id-keyed conditionals introduced
-- [ ] T030 Run `quickstart.md`'s 10 validation scenarios end to end against the deployed environment and record results (depends on all prior tasks)
-- [ ] T031 [P] Frontend unit test: FR-007's and FR-008's failure states render via the same shared failure-state presentation pattern (not two independently-styled "couldn't load" variants), and neither auto-retries within a single page load (FR-010), extending `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T015, T025)
+- [X] T028 [P] Regression check: run Milestones 1-3's full test suites (`backend/tests/`, excluding this feature's new tests; relevant `frontend/tests/`) and confirm they still pass unmodified (roadmap.md Milestone 4 Definition of Done: "Milestones 1-3's full suites still pass")
+- [X] T029 [P] Run `backend/scripts/check_no_subject_conditionals.py` (unchanged from Milestone 1) over this feature's new/changed files (`subjects.py`, `sequencing_preview.py`, `agents/sequencing/agent.py`) -- confirm SC-005's automated Principle III scan still passes with zero subject-id-keyed conditionals introduced
+- [X] T030 Run `quickstart.md`'s 10 validation scenarios end to end against the deployed environment and record results (depends on all prior tasks) -- run against a local backend+frontend pair wired to the dev Postgres from `backend/.env` (freshly migrated + seeded, not a staging/prod deployment): all 10 scenarios pass -- see chat log for the per-scenario results
+- [X] T031 [P] Frontend unit test: FR-007's and FR-008's failure states render via the same shared failure-state presentation pattern (not two independently-styled "couldn't load" variants), and neither auto-retries within a single page load (FR-010), extending `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T015, T025)
 
 ---
 
