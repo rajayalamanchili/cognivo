@@ -72,11 +72,25 @@ def start_quiz(
     return quiz
 
 
-def _topic_answer_history(db: Session, *, quiz_session_id: uuid.UUID, topic_id: str) -> list[bool]:
+def _topic_answer_history(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    topic_id: str,
+    exclude_question_id: uuid.UUID | None = None,
+) -> list[bool]:
     """This quiz's ordered (correct/incorrect) history for `topic_id`,
     generation order -- only questions already answered, since an
-    unanswered question hasn't produced a difficulty decision yet."""
-    rows = (
+    unanswered question hasn't produced a difficulty decision yet.
+
+    `exclude_question_id` matters when a question's own
+    `ANSWER_SUBMITTED` event has already been flushed (visible to this
+    same DB session) by the time this is called for that same question
+    -- without excluding it explicitly, it would double-count as its
+    own "prior" history. Passing `None` (the default, used when
+    generating a brand-new question) is correct: there is no current
+    question yet to exclude."""
+    query = (
         db.query(GeneratedQuestion, AssessmentEvent)
         .join(
             AssessmentEvent,
@@ -87,9 +101,10 @@ def _topic_answer_history(db: Session, *, quiz_session_id: uuid.UUID, topic_id: 
             GeneratedQuestion.quiz_session_id == quiz_session_id,
             GeneratedQuestion.topic_id == topic_id,
         )
-        .order_by(GeneratedQuestion.generated_at)
-        .all()
     )
+    if exclude_question_id is not None:
+        query = query.filter(GeneratedQuestion.question_id != exclude_question_id)
+    rows = query.order_by(GeneratedQuestion.generated_at).all()
     return [event.payload["correct"] for _question, event in rows]
 
 
@@ -160,16 +175,21 @@ async def generate_quiz_question(
 
 def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: bool) -> None:
     """Called from the quiz-aware branch of `answer_question` (research.md
-    §4), regardless of ordering relative to the shared `ANSWER_SUBMITTED`
-    event: logs the `quiz_difficulty_adjusted` decision (FR-009) using
-    this topic's *prior* history only (deliberately excludes this
-    just-submitted answer's own event, whether or not it has been
-    written yet), and flips `QuizSession.status` to `completed` once
-    this quiz's answered-question count reaches `question_count`."""
+    §4), *after* the shared `ANSWER_SUBMITTED` event for this same
+    question has already been flushed to this DB session -- both queries
+    below explicitly exclude `question.question_id` so that already-
+    flushed event is never double-counted as its own "prior" history.
+    Logs the `quiz_difficulty_adjusted` decision (FR-009) using this
+    topic's prior history only, and flips `QuizSession.status` to
+    `completed` once this quiz's answered-question count reaches
+    `question_count`."""
     quiz = db.get(QuizSession, question.quiz_session_id)
 
     prior_history = _topic_answer_history(
-        db, quiz_session_id=quiz.quiz_session_id, topic_id=question.topic_id
+        db,
+        quiz_session_id=quiz.quiz_session_id,
+        topic_id=question.topic_id,
+        exclude_question_id=question.question_id,
     )
     pre_band, pre_streak = replay_topic_state(prior_history)
     step = next_difficulty(pre_band, pre_streak, correct=correct)
@@ -197,6 +217,7 @@ def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: boo
         .filter(
             GeneratedQuestion.quiz_session_id == quiz.quiz_session_id,
             AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
+            GeneratedQuestion.question_id != question.question_id,
         )
         .count()
     )

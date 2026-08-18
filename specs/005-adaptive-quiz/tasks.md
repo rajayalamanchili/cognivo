@@ -94,8 +94,8 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/src/{models,ser
 
 ### Tests for User Story 2
 
-- [ ] T030 [US2] Integration test (SC-002): complete a multi-question quiz, confirm every quiz-answered question appears in `AssessmentEvent` history (`ANSWER_SUBMITTED`, `MASTERY_UPDATED`) and `MasteryState` reflects it via the same read path `GET /mastery-state` already uses, in `backend/tests/integration/test_quiz_mastery_effect.py` (depends on Phase 3 complete)
-- [ ] T031 [US2] Integration test (SC-005, FR-006): start a quiz, answer some but not all of its questions, then stop -- confirm `MasteryState` already reflects the answered questions and `QuizSession.status` is still `in_progress` (no distinct "abandoned" status, spec.md Key Entities), in `backend/tests/integration/test_quiz_abandoned.py` (depends on Phase 3 complete)
+- [X] T030 [US2] Integration test (SC-002): complete a multi-question quiz, confirm every quiz-answered question appears in `AssessmentEvent` history (`ANSWER_SUBMITTED`, `MASTERY_UPDATED`) and `MasteryState` reflects it via the same read path `GET /mastery-state` already uses, in `backend/tests/integration/test_quiz_mastery_effect.py` (depends on Phase 3 complete)
+- [X] T031 [US2] Integration test (SC-005, FR-006): start a quiz, answer some but not all of its questions, then stop -- confirm `MasteryState` already reflects the answered questions and `QuizSession.status` is still `in_progress` (no distinct "abandoned" status, spec.md Key Entities), in `backend/tests/integration/test_quiz_abandoned.py` (depends on Phase 3 complete)
 
 **Checkpoint**: User Stories 1 and 2 together deliver a fully honest quiz -- adaptive difficulty plus mechanically-verified mastery-state parity.
 
@@ -109,7 +109,7 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/src/{models,ser
 
 ### Tests for User Story 3
 
-- [ ] T032 [US3] Integration test (SC-003): a scripted all-correct run reaches and holds at `hard`; a scripted all-incorrect run reaches and holds at `easy`; neither errors nor requests an undefined level. Also asserts the logged `quiz_difficulty_adjusted` event's `held_at_bound` field is `true` for the decision(s) at the bound (FR-009, analysis finding C2, 2026-08-18), in `backend/tests/integration/test_quiz_difficulty_bounds.py` (depends on Phase 3 complete)
+- [X] T032 [US3] Integration test (SC-003): a scripted all-correct run reaches and holds at `hard`; a scripted all-incorrect run reaches and holds at `easy`; neither errors nor requests an undefined level. Also asserts the logged `quiz_difficulty_adjusted` event's `held_at_bound` field is `true` for the decision(s) at the bound (FR-009, analysis finding C2, 2026-08-18), in `backend/tests/integration/test_quiz_difficulty_bounds.py` (depends on Phase 3 complete)
 
 **Checkpoint**: All three user stories independently functional; the bound-holding guarantee -- both observable behavior and its audit-log record -- is mechanically verified.
 
@@ -119,9 +119,11 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/src/{models,ser
 
 **Purpose**: Regression safety and the extensibility gate this milestone shares with every prior one
 
-- [ ] T033 [P] Regression check: run Milestones 1-4's full test suites (`backend/tests/`, excluding this feature's new tests; relevant `frontend/tests/`) and confirm they still pass unmodified (roadmap.md Milestone 5 Definition of Done: "Milestones 1-4's full suites still pass")
-- [ ] T034 [P] Run `backend/scripts/check_no_subject_conditionals.py` (unchanged from Milestone 1) -- confirm zero subject-id-keyed conditionals introduced by this feature's new/changed files
-- [ ] T035 Run `quickstart.md`'s 10 validation scenarios end to end against a live environment and record results (depends on all prior tasks)
+- [X] T033 [P] Regression check: run Milestones 1-4's full test suites (`backend/tests/`, excluding this feature's new tests; relevant `frontend/tests/`) and confirm they still pass unmodified (roadmap.md Milestone 5 Definition of Done: "Milestones 1-4's full suites still pass")
+- [X] T034 [P] Run `backend/scripts/check_no_subject_conditionals.py` (unchanged from Milestone 1) -- confirm zero subject-id-keyed conditionals introduced by this feature's new/changed files
+- [X] T035 Run `quickstart.md`'s 10 validation scenarios end to end against a live environment and record results (depends on all prior tasks) -- **run against the live dev DB** (`backend/.env`'s `DATABASE_URL`) with real Claude generation calls. All 10 scenarios pass (covered by the existing `test_quiz_*` integration suite, executed for real rather than collected-only): 40/40 quiz tests pass, and the full backend suite (177 tests) passes with no regressions. This run surfaced and fixed two real bugs invisible to mocked/collect-only testing:
+  1. **Production bug** (`src/services/quiz/session.py`): `record_quiz_answer` is called after the current question's own `ANSWER_SUBMITTED` event is already flushed to the same DB session, so `_topic_answer_history` and the completion-count query both double-counted the current answer as its own "prior" history -- corrupting FR-009's `quiz_difficulty_adjusted` audit payload (`prior_band`/`new_band`/`streak_length_at_decision`/`held_at_bound` all one step ahead of reality) and completing quizzes one answer early (FR-005 off-by-one). Fixed by adding an explicit `exclude_question_id` parameter to `_topic_answer_history` and excluding the current question from the completion-count query.
+  2. **Test-helper bug** (`tests/integration/quiz_helpers.py`): `patch_generation()`'s default stem counter reset every time the context manager was re-entered (tests open a new `with patch_generation():` block per generated question), so every question after the first got an identical default stem, falsely triggering `is_near_duplicate` and premature `ended_early`. Fixed by giving the default stem a UUID suffix instead of a per-block counter, guaranteeing uniqueness across blocks; the explicit `stems=` cycle used by dedup-exhaustion tests is unaffected.
 
 ---
 
