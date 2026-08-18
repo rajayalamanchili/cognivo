@@ -59,7 +59,11 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 - [ ] T009 [US1] Wire a per-subject mastery-state fetch (existing `getMasteryState`, no backend change) into `DashboardSubjectSection` with its own loading/loaded/error phase, passing the result into the reused `MasteryView` component (FR-001, FR-006: fetched fresh on every mount, no caching) (depends on T007, T008)
 
-**Checkpoint**: User Story 1 is independently functional and demoable -- the multi-subject mastery view is live.
+### Additional Verification for User Story 1
+
+- [ ] T010 [US1] Playwright E2E test: answer a question via the API for one subject, reload `/dashboard`, and confirm the displayed mastery value for that topic matches the updated `MasteryState` exactly, with no drift (SC-001; US1 Acceptance Scenario 2's freshness requirement) -- in the same test, confirm the other, untouched subject's section still renders its own "just getting started" state correctly alongside the updated one (US1 Acceptance Scenario 3, the mixed-subject case) in `frontend/tests/e2e/dashboard-freshness.spec.ts` (depends on T009)
+
+**Checkpoint**: User Story 1 is independently functional and demoable -- the multi-subject mastery view is live, and its exact-match freshness guarantee is mechanically verified.
 
 ---
 
@@ -71,16 +75,20 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 ### Tests for User Story 2
 
-- [ ] T010 [P] [US2] Frontend unit test: `WeakAreaSection` renders `weak_areas`/`next_step` and `data_sufficiency`/`broad_review_needed` framing verbatim, never paraphrased (FR-002) in `frontend/tests/unit/weak-area-section.test.tsx`
-- [ ] T011 [P] [US2] Frontend unit test: a failed/rejected recommendations fetch renders a distinct "couldn't load" state in the weak-area section while the mastery view (US1) still renders correctly (FR-007) in `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T009)
+- [ ] T011 [P] [US2] Frontend unit test: `WeakAreaSection` renders `weak_areas`/`next_step` and `data_sufficiency`/`broad_review_needed` framing verbatim, never paraphrased (FR-002) in `frontend/tests/unit/weak-area-section.test.tsx`
+- [ ] T012 [P] [US2] Frontend unit test: a failed/rejected recommendations fetch renders a distinct "couldn't load" state in the weak-area section while the mastery view (US1) still renders correctly (FR-007) in `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T009)
 
 ### Implementation for User Story 2
 
-- [ ] T012 [P] [US2] Add `getRecommendations()` client function and `RecommendationsResponse`/`WeakAreaFlag`/`NextStepSuggestion`/`EvidenceCitation` types to `frontend/src/services/api.ts` per `specs/002-recommendation-agent/contracts/api.md` (first frontend consumer of this existing endpoint)
-- [ ] T013 [US2] Implement `WeakAreaSection.tsx` component rendering the response verbatim per FR-002 (depends on T012, T010)
-- [ ] T014 [US2] Wire a per-subject recommendations fetch (existing `getRecommendations`, no backend change) into `DashboardSubjectSection` with its own independent loading/loaded/error phase, rendering `WeakAreaSection` on success and a "couldn't load" state on failure without affecting the mastery-view phase (FR-007) (depends on T009, T013, T011)
+- [ ] T013 [P] [US2] Add `getRecommendations()` client function and `RecommendationsResponse`/`WeakAreaFlag`/`NextStepSuggestion`/`EvidenceCitation` types to `frontend/src/services/api.ts` per `specs/002-recommendation-agent/contracts/api.md` (first frontend consumer of this existing endpoint)
+- [ ] T014 [US2] Implement `WeakAreaSection.tsx` component rendering the response verbatim per FR-002 (depends on T013, T011)
+- [ ] T015 [US2] Wire a per-subject recommendations fetch (existing `getRecommendations`, no backend change) into `DashboardSubjectSection` with its own independent loading/loaded/error phase, rendering `WeakAreaSection` on success and a "couldn't load" state on failure without affecting the mastery-view phase (FR-007) (depends on T009, T014, T012)
 
-**Checkpoint**: User Stories 1 and 2 together deliver the dashboard's two P1 slices -- mastery + weak-area sections, each independently resilient.
+### Additional Verification for User Story 2
+
+- [ ] T016 [US2] Playwright E2E test: call `GET /api/learners/{learner_id}/recommendations?subject_id=X` directly and compare its `weak_areas`/`next_step`/`data_sufficiency`/`broad_review_needed` content against that subject's rendered weak-area section on `/dashboard` for the same learner -- confirm an exact match, per quickstart.md step 4 (SC-003 -- **hard gate** per roadmap.md) in `frontend/tests/e2e/dashboard-weak-area-match.spec.ts` (depends on T015)
+
+**Checkpoint**: User Stories 1 and 2 together deliver the dashboard's two P1 slices -- mastery + weak-area sections, each independently resilient, with SC-003's dashboard-matches-direct-call gate mechanically verified.
 
 ---
 
@@ -92,18 +100,18 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 ### Tests for User Story 3
 
-- [ ] T015 [P] [US3] Unit test: the extracted eligibility/ranking helper preserves `select_next_topic`'s existing chosen-topic behavior (regression) and the new `preview_topic_priority` returns up to 3 correctly-ranked upcoming topics plus the correct `is_fallback` flag when zero topics are strictly eligible (research.md §1) in `backend/tests/unit/test_topic_priority_ranking.py`
-- [ ] T016 [P] [US3] Integration test for `GET /api/learners/{learner_id}/topic-priority-preview` per contracts/api.md -- `next_topic` always present, `upcoming_topics` capped at 3, `404` on unknown/unvalidated `subject_id`, zero `AssessmentEvent` rows written and zero Langfuse spans emitted (research.md §3) in `backend/tests/integration/test_topic_priority_preview.py`
+- [ ] T017 [P] [US3] Unit test: the extracted eligibility/ranking helper preserves `select_next_topic`'s existing chosen-topic behavior (regression) and the new `preview_topic_priority` returns up to 3 correctly-ranked upcoming topics plus the correct `is_fallback` flag when zero topics are strictly eligible (research.md §1) in `backend/tests/unit/test_topic_priority_ranking.py`
+- [ ] T018 [P] [US3] Integration test for `GET /api/learners/{learner_id}/topic-priority-preview` per contracts/api.md -- `next_topic` always present, `upcoming_topics` capped at 3, `404` on unknown/unvalidated `subject_id`, zero `AssessmentEvent` rows written and zero Langfuse spans emitted (research.md §3) in `backend/tests/integration/test_topic_priority_preview.py`
 
 ### Implementation for User Story 3
 
-- [ ] T017 [US3] Refactor `backend/src/agents/sequencing/agent.py`: extract the eligible-topic ranking (currently inline in `select_next_topic`) into a shared private helper, then add `preview_topic_priority(db, *, learner_id, subject_id, upcoming_count=3)` reusing it -- `select_next_topic`'s own return value and behavior are unchanged (research.md §1, data-model.md) (depends on T015)
-- [ ] T018 [US3] Implement `GET /api/learners/{learner_id}/topic-priority-preview` in `backend/src/api/routes/sequencing_preview.py` -- no `AssessmentEvent` write, not wrapped in `traced_request()` (research.md §3) -- and mount its router in `backend/src/api/main.py` (depends on T017, T016)
-- [ ] T019 [P] [US3] Add `getTopicPriorityPreview()` client function and `TopicPriorityPreview`/`TopicPreviewEntry` types to `frontend/src/services/api.ts` per contracts/api.md
-- [ ] T020 [P] [US3] Frontend unit test: `PathVisualization` renders assessed topics (derived from the existing mastery-state response), the top-priority next topic, and up to 3 upcoming topics, and every render that includes an upcoming-topics list carries the visible illustrative/subject-to-change disclosure (FR-003, FR-004, SC-004, SC-006) in `frontend/tests/unit/path-visualization.test.tsx`
-- [ ] T021 [US3] Implement `PathVisualization.tsx` component per FR-003/FR-004 (depends on T019, T020)
-- [ ] T022 [US3] Wire a per-subject topic-priority-preview fetch into `DashboardSubjectSection` with its own independent loading/loaded/error phase, deriving "already assessed" topics from the existing mastery-state fetch (US1) and rendering `PathVisualization` (depends on T014, T018, T021)
-- [ ] T023 [P] [US3] Frontend unit test: a failed/rejected topic-priority-preview fetch renders a "couldn't load" state in the path-visualization portion only, while the mastery view and weak-area section (US1/US2) still render correctly (FR-008), extending `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T022)
+- [ ] T019 [US3] Refactor `backend/src/agents/sequencing/agent.py`: extract the eligible-topic ranking (currently inline in `select_next_topic`) into a shared private helper, then add `preview_topic_priority(db, *, learner_id, subject_id, upcoming_count=3)` reusing it -- `select_next_topic`'s own return value and behavior are unchanged (research.md §1, data-model.md) (depends on T017)
+- [ ] T020 [US3] Implement `GET /api/learners/{learner_id}/topic-priority-preview` in `backend/src/api/routes/sequencing_preview.py` -- no `AssessmentEvent` write, not wrapped in `traced_request()` (research.md §3) -- and mount its router in `backend/src/api/main.py` (depends on T019, T018)
+- [ ] T021 [P] [US3] Add `getTopicPriorityPreview()` client function and `TopicPriorityPreview`/`TopicPreviewEntry` types to `frontend/src/services/api.ts` per contracts/api.md
+- [ ] T022 [P] [US3] Frontend unit test: `PathVisualization` renders assessed topics (derived from the existing mastery-state response), the top-priority next topic, and up to 3 upcoming topics, and every render that includes an upcoming-topics list carries the visible illustrative/subject-to-change disclosure (FR-003, FR-004, SC-004, SC-006) in `frontend/tests/unit/path-visualization.test.tsx`
+- [ ] T023 [US3] Implement `PathVisualization.tsx` component per FR-003/FR-004 (depends on T021, T022)
+- [ ] T024 [US3] Wire a per-subject topic-priority-preview fetch into `DashboardSubjectSection` with its own independent loading/loaded/error phase, deriving "already assessed" topics from the existing mastery-state fetch and rendering `PathVisualization` (depends on T015, T020, T023)
+- [ ] T025 [P] [US3] Frontend unit test: a failed/rejected topic-priority-preview fetch renders a "couldn't load" state in the path-visualization portion only, while the mastery view and weak-area section (US1/US2) still render correctly (FR-008), extending `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T024)
 
 **Checkpoint**: User Stories 1-3 together deliver the full dashboard for an engaged learner -- mastery, weak-area, and path sections, each independently resilient.
 
@@ -117,8 +125,8 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 ### Tests for User Story 4
 
-- [ ] T024 [US4] Backend integration test: for a learner with zero `MasteryState` rows, exercise `mastery-state`, `recommendations`, and `topic-priority-preview` against **both** platform subjects (`algebra-1`, `biology`) -- confirm every topic reports "not yet assessed"/`unknown`, `data_sufficiency = "insufficient_data"`, and `next_topic` is an entry-level topic for each subject, with zero engine-code branching between the two (SC-002, SC-005 -- mirrors `backend/tests/integration/test_second_subject.py`'s pattern) in `backend/tests/integration/test_dashboard_two_subjects.py` (depends on T003, T018)
-- [ ] T025 [P] [US4] Playwright E2E test: load `/dashboard` for a brand-new learner and confirm one section per platform subject renders, each showing every topic "not yet assessed," the Recommendation Agent's own "insufficient data" framing, and a path visualization anchored on entry-level topics with the illustrative disclosure visible -- a coherent page, no error (SC-002) in `frontend/tests/e2e/dashboard-new-learner.spec.ts` (depends on T009, T014, T022, T024)
+- [ ] T026 [US4] Backend integration test: for a learner with zero `MasteryState` rows, exercise `mastery-state`, `recommendations`, and `topic-priority-preview` against **both** platform subjects (`algebra-1`, `biology`) -- confirm every topic reports "not yet assessed"/`unknown`, `data_sufficiency = "insufficient_data"`, and `next_topic` is an entry-level topic for each subject, with zero engine-code branching between the two (SC-002, SC-005 -- mirrors `backend/tests/integration/test_second_subject.py`'s pattern) in `backend/tests/integration/test_dashboard_two_subjects.py` (depends on T003, T020)
+- [ ] T027 [P] [US4] Playwright E2E test: load `/dashboard` for a brand-new learner and confirm one section per platform subject renders, each showing every topic "not yet assessed," the Recommendation Agent's own "insufficient data" framing, and a path visualization anchored on entry-level topics with the illustrative disclosure visible -- a coherent page, no error (SC-002) in `frontend/tests/e2e/dashboard-new-learner.spec.ts` (depends on T009, T015, T024, T026)
 
 **Checkpoint**: All four user stories independently functional; the empty-state gate (SC-002) is mechanically verified.
 
@@ -128,9 +136,10 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 **Purpose**: Regression safety and the extensibility gate this milestone shares with every prior one
 
-- [ ] T026 [P] Regression check: run Milestones 1-3's full test suites (`backend/tests/`, excluding this feature's new tests; relevant `frontend/tests/`) and confirm they still pass unmodified (roadmap.md Milestone 4 Definition of Done: "Milestones 1-3's full suites still pass")
-- [ ] T027 [P] Run `backend/scripts/check_no_subject_conditionals.py` (unchanged from Milestone 1) over this feature's new/changed files (`subjects.py`, `sequencing_preview.py`, `agents/sequencing/agent.py`) -- confirm SC-005's automated Principle III scan still passes with zero subject-id-keyed conditionals introduced
-- [ ] T028 Run `quickstart.md`'s 10 validation scenarios end to end against the deployed environment and record results (depends on all prior tasks)
+- [ ] T028 [P] Regression check: run Milestones 1-3's full test suites (`backend/tests/`, excluding this feature's new tests; relevant `frontend/tests/`) and confirm they still pass unmodified (roadmap.md Milestone 4 Definition of Done: "Milestones 1-3's full suites still pass")
+- [ ] T029 [P] Run `backend/scripts/check_no_subject_conditionals.py` (unchanged from Milestone 1) over this feature's new/changed files (`subjects.py`, `sequencing_preview.py`, `agents/sequencing/agent.py`) -- confirm SC-005's automated Principle III scan still passes with zero subject-id-keyed conditionals introduced
+- [ ] T030 Run `quickstart.md`'s 10 validation scenarios end to end against the deployed environment and record results (depends on all prior tasks)
+- [ ] T031 [P] Frontend unit test: FR-007's and FR-008's failure states render via the same shared failure-state presentation pattern (not two independently-styled "couldn't load" variants), and neither auto-retries within a single page load (FR-010), extending `frontend/tests/unit/dashboard-failure-isolation.test.tsx` (depends on T015, T025)
 
 ---
 
@@ -141,21 +150,21 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 - **Setup (Phase 1)**: No dependencies -- start immediately.
 - **Foundational (Phase 2)**: Depends on Setup completion -- BLOCKS all user stories.
 - **User Story 1 (Phase 3)**: Depends on Foundational completion only.
-- **User Story 2 (Phase 4)**: Depends on Foundational completion; its recommendations fetch is wired alongside (after) US1's mastery fetch in the same `DashboardSubjectSection`, but its own component/types (T012, T013) are independently implementable in parallel with US1.
-- **User Story 3 (Phase 5)**: Depends on Foundational completion; its backend work (T015-T018) is fully independent of US1/US2 and can proceed in parallel with them -- only its final wiring task (T022) depends on US1's mastery fetch (T014, for "already assessed" topics) and US2's fetch being wired first (matching this feature's incremental `DashboardSubjectSection` build-up).
-- **User Story 4 (Phase 6)**: Depends on US1 (T009), US2 (T014), and US3 (T018, T022) all existing -- it verifies the composed behavior those stories produce; no new production code of its own.
-- **Polish (Phase 7)**: T026/T027 have no hard dependency (can run any time after Foundational); T028 needs everything.
+- **User Story 2 (Phase 4)**: Depends on Foundational completion; its component/types (T013, T014) are independently implementable in parallel with US1, but its `DashboardSubjectSection` wiring task (T015) has a same-file sequencing dependency on US1's mastery-fetch wiring (T009) -- not a functional dependency on US1's feature.
+- **User Story 3 (Phase 5)**: Depends on Foundational completion; its backend work (T017-T020) is fully independent of US1/US2 and can proceed in parallel with them -- only its final wiring task (T024) has a same-file sequencing dependency on US2's recommendations-fetch wiring (T015), which itself already depends on US1's mastery-fetch wiring (T009).
+- **User Story 4 (Phase 6)**: Depends on US1 (T009), US2 (T015), and US3 (T020, T024) all existing -- it verifies the composed behavior those stories produce; no new production code of its own.
+- **Polish (Phase 7)**: T028/T029 have no hard dependency (can run any time after Foundational); T030 needs everything.
 
 ### User Story Dependencies
 
 - **US1 (P1)**: No dependency on US2/US3/US4.
-- **US2 (P1)**: No dependency on US1's implementation, only on the same `DashboardSubjectSection` shell (Foundational) -- independently testable via T010/T011 before T014 wires it into the shared component.
-- **US3 (P2)**: Its backend endpoint (T015-T018) has no dependency on US1/US2 at all; only the frontend wiring task (T022) sequences after US1/US2 are wired into the same component.
+- **US2 (P1)**: Its component and API-client work (T013, T014) are independently implementable in parallel with US1, and its pre-implementation tests (T011, T012) can be written before either exists; only its `DashboardSubjectSection` wiring task (T015) has a same-file sequencing dependency on US1's mastery-fetch wiring (T009), since both edit the same shared component -- not a functional dependency on US1's feature being complete.
+- **US3 (P2)**: Its backend endpoint (T017-T020) has no dependency on US1/US2 at all; only the frontend wiring task (T024) sequences after US1's and US2's wiring are already in `DashboardSubjectSection`, for the same same-file reason as US2 above.
 - **US4 (P2)**: Depends on US1+US2+US3's endpoints all existing to have a composed page to verify.
 
 ### Within Each User Story
 
-- Tests written and failing before implementation.
+- Tests written and failing before implementation, except each story's "Additional Verification" task(s) (T010, T016) and Polish's cross-cutting consistency check (T031), which validate already-composed behavior after implementation completes -- mirroring spec 002's own precedent of a late-phase explainability/audit check run after its endpoint exists, rather than a pre-implementation TDD test.
 - Backend before frontend, where both exist (US3): ranking refactor -> endpoint -> frontend client -> component -> wiring.
 - Types/client functions (`api.ts`) before the component that consumes them; component before the `DashboardSubjectSection` wiring task that renders it.
 
@@ -188,13 +197,16 @@ mastery model visible to a learner for the first time.
 
 1. Complete Phase 1 (Setup) + Phase 2 (Foundational) -- `/dashboard`
    loads with one empty section per subject.
-2. Complete Phase 3 (US1) -- multi-subject mastery view is live.
+2. Complete Phase 3 (US1) -- multi-subject mastery view is live, and
+   its exact-match freshness guarantee (SC-001) is mechanically
+   verified.
 3. **STOP and VALIDATE**: run US1's Independent Test. This is the
    smallest demoable increment.
 4. Complete Phase 4 (US2) -- weak-area sections live, failure-isolated
-   from US1.
+   from US1, with SC-003's dashboard-matches-direct-call hard gate
+   mechanically verified.
 5. Complete Phase 5 (US3) -- path visualization live, failure-isolated
-   from US1/US2. Backend half (T015-T018) can start as early as
+   from US1/US2. Backend half (T017-T020) can start as early as
    Foundational completes, in parallel with US1/US2.
 6. Complete Phase 6 (US4) -- brand-new-learner state mechanically
    verified across both subjects.
