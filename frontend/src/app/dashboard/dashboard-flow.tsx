@@ -11,14 +11,16 @@ type Phase = "loading" | "loaded" | "error";
 // independently starting in Phase 3+ (research.md §5, FR-007/FR-008).
 export default function DashboardFlow() {
   const [phase, setPhase] = useState<Phase>("loading");
+  const [learnerId, setLearnerId] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<SubjectSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     Promise.all([getDemoLearner(), getSubjects()])
-      .then(([, subjectsResponse]) => {
+      .then(([learner, subjectsResponse]) => {
         if (cancelled) return;
+        setLearnerId(learner.learner_id);
         setSubjects(subjectsResponse.subjects);
         setPhase("loaded");
       })
@@ -32,7 +34,7 @@ export default function DashboardFlow() {
     };
   }, []);
 
-  if (phase === "loading") {
+  if (phase === "loading" || !learnerId) {
     return <p className="p-8">Loading dashboard&hellip;</p>;
   }
 
@@ -52,6 +54,7 @@ export default function DashboardFlow() {
           key={subject.subject_id}
           subjectId={subject.subject_id}
           displayName={subject.display_name}
+          learnerId={learnerId}
         />
       ))}
     </div>

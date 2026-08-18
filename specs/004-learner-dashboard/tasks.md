@@ -53,15 +53,15 @@ Extends the existing `backend/` + `frontend/` monorepo from Milestones 1-2: `bac
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Frontend unit test: `DashboardSubjectSection` fetches its subject's mastery state and renders it via the reused `MasteryView` component, including "not yet assessed" for untouched topics (FR-001) in `frontend/tests/unit/dashboard-mastery-section.test.tsx` (depends on T006)
+- [X] T008 [P] [US1] Frontend unit test: `DashboardSubjectSection` fetches its subject's mastery state and renders it via the reused `MasteryView` component, including "not yet assessed" for untouched topics (FR-001) in `frontend/tests/unit/dashboard-mastery-section.test.tsx` (depends on T006)
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Wire a per-subject mastery-state fetch (existing `getMasteryState`, no backend change) into `DashboardSubjectSection` with its own loading/loaded/error phase, passing the result into the reused `MasteryView` component (FR-001, FR-006: fetched fresh on every mount, no caching) (depends on T007, T008)
+- [X] T009 [US1] Wire a per-subject mastery-state fetch (existing `getMasteryState`, no backend change) into `DashboardSubjectSection` with its own loading/loaded/error phase, passing the result into the reused `MasteryView` component (FR-001, FR-006: fetched fresh on every mount, no caching) (depends on T007, T008)
 
 ### Additional Verification for User Story 1
 
-- [ ] T010 [US1] Playwright E2E test: answer a question via the API for one subject, reload `/dashboard`, and confirm the displayed mastery value for that topic matches the updated `MasteryState` exactly, with no drift (SC-001; US1 Acceptance Scenario 2's freshness requirement) -- in the same test, confirm the other, untouched subject's section still renders its own "just getting started" state correctly alongside the updated one (US1 Acceptance Scenario 3, the mixed-subject case) in `frontend/tests/e2e/dashboard-freshness.spec.ts` (depends on T009)
+- [X] T010 [US1] Playwright E2E test: answer a question via the API for one subject, reload `/dashboard`, and confirm the displayed mastery value for that topic matches the updated `MasteryState` exactly, with no drift (SC-001; US1 Acceptance Scenario 2's freshness requirement) -- in the same test, confirm the other, untouched subject's section still renders its own "just getting started" state correctly alongside the updated one (US1 Acceptance Scenario 3, the mixed-subject case) in `frontend/tests/e2e/dashboard-freshness.spec.ts` (depends on T009)
 
 **Checkpoint**: User Story 1 is independently functional and demoable -- the multi-subject mastery view is live, and its exact-match freshness guarantee is mechanically verified.
 
