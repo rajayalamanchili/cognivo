@@ -179,7 +179,11 @@ before.
 
 ## Milestone 5: Adaptive Difficulty Quiz
 **Spec**: `specs/005-adaptive-quiz/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: `/speckit-clarify`, `/speckit-plan`, `/speckit-tasks`, and
+`/speckit-analyze` complete (35 tasks across 3 user stories, all
+findings resolved); a 19-item requirements-quality checklist was
+generated and fully resolved (2026-08-18, `checklists/difficulty-logic.md`).
+Pending `/speckit-implement`.
 
 **Scope**: A bounded, named quiz session (learner-chosen topic(s) and
 question count) where difficulty adapts within the session based on

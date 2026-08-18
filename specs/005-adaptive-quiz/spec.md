@@ -4,8 +4,12 @@
 
 **Created**: 2026-08-14
 
-**Status**: `/speckit-clarify` complete (4 questions resolved); pending
-`/speckit-plan`
+**Status**: `/speckit-clarify`, `/speckit-plan`, and `/speckit-tasks`
+complete (35 tasks across 3 user stories); a 19-item requirements-
+quality checklist was generated and fully resolved
+(`checklists/difficulty-logic.md`), and `/speckit-analyze` found 2
+coverage gaps (both closed) and 1 stale-status inconsistency (this
+line, now fixed). Pending `/speckit-implement`.
 
 **Input**: User description: "A bounded, named quiz session with
 difficulty that adapts within the session based on in-quiz performance,
