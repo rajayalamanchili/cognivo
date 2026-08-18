@@ -38,6 +38,15 @@ class ValidationStatus(enum.StrEnum):
     FLAGGED = "flagged"
 
 
+class QuizSessionStatus(enum.StrEnum):
+    """spec 005 data-model.md: an abandoned quiz is simply one left
+    IN_PROGRESS forever -- there is no distinct "abandoned" member."""
+
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    ENDED_EARLY = "ended_early"
+
+
 class AssessmentEventType(enum.StrEnum):
     PLACEMENT_QUESTION_SHOWN = "placement_question_shown"
     ANSWER_SUBMITTED = "answer_submitted"
@@ -47,6 +56,7 @@ class AssessmentEventType(enum.StrEnum):
     RECOMMENDATION_REPORT_GENERATED = "recommendation_report_generated"
     WEAK_AREA_FLAGGED = "weak_area_flagged"
     NEXT_STEP_SUGGESTED = "next_step_suggested"
+    QUIZ_DIFFICULTY_ADJUSTED = "quiz_difficulty_adjusted"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required

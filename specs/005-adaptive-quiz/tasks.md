@@ -24,7 +24,7 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/src/{models,ser
 
 **Purpose**: Confirm this feature needs no new dependency before any code is written
 
-- [ ] T001 [P] Confirm no new dependency is required in `backend/pyproject.toml` or `frontend/package.json` (research.md -- reuses the already-locked FastAPI/SQLAlchemy/Alembic/ADK and Next.js/React/Tailwind stacks; no `uv add` / `npm install` needed)
+- [X] T001 [P] Confirm no new dependency is required in `backend/pyproject.toml` or `frontend/package.json` (research.md -- reuses the already-locked FastAPI/SQLAlchemy/Alembic/ADK and Next.js/React/Tailwind stacks; no `uv add` / `npm install` needed)
 
 ---
 
@@ -34,15 +34,15 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/src/{models,ser
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Implement `QuizSession` model (`quiz_session_id`, `learner_id`, `subject_id`, `topic_ids`, `question_count`, `status`, `started_at`, `completed_at`) in `backend/src/models/quiz_session.py` per data-model.md
-- [ ] T003 [P] Add nullable `quiz_session_id` FK column to `GeneratedQuestion` in `backend/src/models/generated_question.py` per data-model.md
-- [ ] T004 [P] Add `QUIZ_DIFFICULTY_ADJUSTED = "quiz_difficulty_adjusted"` to `AssessmentEventType` in `backend/src/models/enums.py` per data-model.md
-- [ ] T005 Register `QuizSession` in `backend/src/models/__init__.py`'s imports/`__all__` (depends on T002)
-- [ ] T006 Alembic migration: create `quiz_sessions` table, add `generated_questions.quiz_session_id` FK column, `ALTER TYPE assessment_event_type ADD VALUE 'quiz_difficulty_adjusted'` (same technique as `533736af33d7_recommendation_event_types.py`, research.md §6) in `backend/alembic/versions/` (depends on T002, T003, T004)
-- [ ] T007 [P] Unit test: `next_difficulty` step function -- 2 consecutive correct moves up one band, 2 consecutive incorrect moves down one band, streak resets to zero on every band change (including a held bound), holds at `easy`/`hard` without erroring (FR-002, FR-007, research.md §1) in `backend/tests/unit/test_quiz_difficulty.py`
-- [ ] T008 [P] Unit test: `next_quiz_topic` round-robin selection -- cycles through `topic_ids` in selection order based on questions-generated-so-far count (research.md §2) in `backend/tests/unit/test_quiz_round_robin.py`
-- [ ] T009 Implement `services/quiz/difficulty.py`: `next_difficulty()` and `current_difficulty_for_topic()` (replay-based, no DB; shared by all three user stories) in `backend/src/services/quiz/difficulty.py` (depends on T007)
-- [ ] T010 Implement `next_quiz_topic()` pure function (shared by all three user stories) in `backend/src/services/quiz/session.py` (depends on T008)
+- [X] T002 [P] Implement `QuizSession` model (`quiz_session_id`, `learner_id`, `subject_id`, `topic_ids`, `question_count`, `status`, `started_at`, `completed_at`) in `backend/src/models/quiz_session.py` per data-model.md
+- [X] T003 [P] Add nullable `quiz_session_id` FK column to `GeneratedQuestion` in `backend/src/models/generated_question.py` per data-model.md
+- [X] T004 [P] Add `QUIZ_DIFFICULTY_ADJUSTED = "quiz_difficulty_adjusted"` to `AssessmentEventType` in `backend/src/models/enums.py` per data-model.md
+- [X] T005 Register `QuizSession` in `backend/src/models/__init__.py`'s imports/`__all__` (depends on T002)
+- [X] T006 Alembic migration: create `quiz_sessions` table, add `generated_questions.quiz_session_id` FK column, `ALTER TYPE assessment_event_type ADD VALUE 'quiz_difficulty_adjusted'` (same technique as `533736af33d7_recommendation_event_types.py`, research.md §6) in `backend/alembic/versions/` (depends on T002, T003, T004)
+- [X] T007 [P] Unit test: `next_difficulty` step function -- 2 consecutive correct moves up one band, 2 consecutive incorrect moves down one band, streak resets to zero on every band change (including a held bound), holds at `easy`/`hard` without erroring (FR-002, FR-007, research.md §1) in `backend/tests/unit/test_quiz_difficulty.py`
+- [X] T008 [P] Unit test: `next_quiz_topic` round-robin selection -- cycles through `topic_ids` in selection order based on questions-generated-so-far count (research.md §2) in `backend/tests/unit/test_quiz_round_robin.py`
+- [X] T009 Implement `services/quiz/difficulty.py`: `next_difficulty()` and `current_difficulty_for_topic()` (replay-based, no DB; shared by all three user stories) in `backend/src/services/quiz/difficulty.py` (depends on T007)
+- [X] T010 Implement `next_quiz_topic()` pure function (shared by all three user stories) in `backend/src/services/quiz/session.py` (depends on T008)
 
 **Checkpoint**: Foundation ready -- schema migrated, both pure algorithms implemented and regression-tested; user story implementation can now begin.
 
