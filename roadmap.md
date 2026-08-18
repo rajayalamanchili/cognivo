@@ -146,7 +146,9 @@ assumed one.
 
 ## Milestone 4: Learner Dashboard
 **Spec**: `specs/004-learner-dashboard/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: Planned -- `/speckit-clarify`, `/speckit-plan`, `/speckit-tasks`,
+and `/speckit-analyze` complete (31 tasks across 4 user stories, no
+unresolved findings); pending `/speckit-implement`.
 
 **Scope**: A learner-facing dashboard surfacing per-topic mastery, the
 Recommendation Agent's freshly-generated weak-area report and next-step
@@ -159,7 +161,7 @@ a "personalized path" to a learner is more honest to ship once
 Milestone 3 has actually measured that the personalization works, not
 before.
 
-**Definition of done** (draft, to be formalized in its own `spec.md`):
+**Definition of done**:
 - All acceptance scenarios in `specs/004-learner-dashboard/spec.md`
   pass.
 - SC-003 (weak-area section matches a direct Recommendation Agent call)
