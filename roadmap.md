@@ -214,8 +214,13 @@ exists).
 ---
 
 ## Milestone 6: Free-Text Grading via a Real A2A Service
-**Spec**: not yet written -- do not begin until Milestone 5 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/007-grading-agent/spec.md`
+**Status**: `/speckit-specify`, `/speckit-clarify`, `/speckit-plan`,
+`/speckit-tasks`, and `/speckit-analyze` complete (46 tasks across 3
+user stories); a 36-item requirements-quality checklist was generated
+and fully resolved (`checklists/review.md`), and `/speckit-analyze`
+found 3 coverage gaps and 4 consistency/wording issues (all closed).
+Pending `/speckit-implement`.
 
 **Scope**: The Grading Agent, built as an independently deployable A2A
 service per Constitution Principle VI's justification (independent
