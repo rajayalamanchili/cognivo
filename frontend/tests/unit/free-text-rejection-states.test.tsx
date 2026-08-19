@@ -57,6 +57,10 @@ describe("FreeTextAnswerInput rejection states", () => {
               prior_p_mastery: null,
               posterior_p_mastery: 0.5,
               band: "developing",
+              graduated_score: 0.9,
+              criteria_met: [],
+              criteria_missed: [],
+              grading_logic_version: "v1",
             });
         }),
     );

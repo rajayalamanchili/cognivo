@@ -125,6 +125,10 @@ export interface AnswerResult {
   prior_p_mastery: number | null;
   posterior_p_mastery: number;
   band: MasteryBand;
+  graduated_score: number | null;
+  criteria_met: string[] | null;
+  criteria_missed: string[] | null;
+  grading_logic_version: string | null;
 }
 
 export interface FlagResult {

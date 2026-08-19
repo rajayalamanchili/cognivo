@@ -288,3 +288,28 @@ free-text is simply a third value flowing through the same,
 unmodified path. Confirms FR-001 and FR-011 require no new selection
 logic, only the new type's generation/grading/moderation handling
 itself.
+
+## §11. Ground-truth eval gate: accuracy/consistency threshold and near-threshold margin (FR-008, SC-003)
+
+**Added at `/speckit-implement` time (T039/T040)**: spec.md's FR-008 and
+SC-003 both require this threshold -- and FR-008's near-threshold-score
+margin -- to be "locked and recorded at planning time in this feature's
+`research.md`," but neither was actually added to the §7 locked-parameter
+table during `/speckit-plan`. Recording them here now, before T039/T040
+consume them, keeps the "locked in exactly one place" guarantee spec.md
+asks for intact, even though the lock is happening one command later
+than originally intended.
+
+| Parameter | Value | Rationale |
+|---|---|---|
+| Near-threshold-score margin (FR-008) | `±0.05` around the `0.7` score-to-binary threshold (§7) -- i.e. a ground-truth triple with expected `graduated_score` in `[0.65, 0.75]` counts as "near-threshold" | Narrow enough to genuinely exercise the threshold boundary, wide enough to be a realistic band an LLM grader's score could land in for a borderline answer. |
+| Ground-truth eval accuracy threshold (FR-008, SC-003) | `>= 90%` of triples' expected `correct` (threshold-derived boolean) matched by the current `GRADING_LOGIC_VERSION` | Mirrors this project's other "high but not 100%" automated gates (e.g. Milestone 3's generation-validation re-check) -- allows for inherent LLM grading variance on genuinely ambiguous ground-truth triples without weakening the gate to the point it can't catch a real regression. |
+| Ground-truth eval consistency threshold (FR-008, SC-003) | `>= 95%` agreement between two independent grading runs of the same triple, on the threshold-derived boolean | Catches a scoring-logic change that makes grading nondeterministic/unstable, not just one that's inaccurate on average -- a grader that flips its answer run-to-run is exactly as untrustworthy as one that's simply wrong, per Constitution Principle II. |
+
+**Rationale for locking here rather than adjusting `/speckit-plan`'s
+output retroactively**: this project's established convention
+(`research.md` §7's own header) is that locked parameters live in
+`research.md`; amending this file at `/speckit-implement` time to add a
+value that was missed, rather than silently picking it inside
+`check_grading_agent_eval.py` (T040), keeps the traceability property
+SC-003 explicitly asks for.

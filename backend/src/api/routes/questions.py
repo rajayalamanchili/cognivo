@@ -145,6 +145,10 @@ class AnswerOut(BaseModel):
     prior_p_mastery: float | None
     posterior_p_mastery: float
     band: str
+    graduated_score: float | None = None
+    criteria_met: list[str] | None = None
+    criteria_missed: list[str] | None = None
+    grading_logic_version: str | None = None
 
 
 def _already_answered(db: Session, question_id: uuid.UUID) -> bool:
@@ -226,6 +230,7 @@ async def answer_question(
     except ValueError as exc:
         raise UnprocessableError(f"question {question_id}: {exc}") from exc
 
+    grading_result: GradingResult | None = None
     if question.question_type == QuestionType.FREE_TEXT:
         with traced_request():
             grading_result = await _grade_free_text_submission(
@@ -296,6 +301,10 @@ async def answer_question(
         prior_p_mastery=result.prior_p_mastery,
         posterior_p_mastery=result.posterior_p_mastery,
         band=result.posterior_band.value,
+        graduated_score=grading_result.graduated_score if grading_result else None,
+        criteria_met=grading_result.criteria_met if grading_result else None,
+        criteria_missed=grading_result.criteria_missed if grading_result else None,
+        grading_logic_version=grading_result.grading_logic_version if grading_result else None,
     )
 
 

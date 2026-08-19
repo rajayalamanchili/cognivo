@@ -28,6 +28,10 @@ describe("FreeTextAnswerInput", () => {
       prior_p_mastery: 0.4,
       posterior_p_mastery: 0.6,
       band: "developing",
+      graduated_score: 0.9,
+      criteria_met: [],
+      criteria_missed: [],
+      grading_logic_version: "v1",
     });
 
     render(<FreeTextAnswerInput questionId="q1" onGraded={onGraded} />);

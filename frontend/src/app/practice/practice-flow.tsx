@@ -13,6 +13,7 @@ import {
   type NextQuestion,
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
+import AnswerResultView from "@/components/AnswerResultView";
 
 type Phase = "loading" | "answering" | "submitting" | "result" | "error";
 
@@ -117,11 +118,7 @@ export default function PracticeFlow() {
   if (phase === "result" && result) {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-        <h1 className="text-2xl font-semibold">{result.correct ? "Correct!" : "Not quite."}</h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Topic: {result.topic_id} &mdash; now <strong>{result.band}</strong> (
-          {Math.round(result.posterior_p_mastery * 100)}%)
-        </p>
+        <AnswerResultView result={result} />
         <div className="flex items-center gap-4">
           <button
             type="button"
