@@ -146,9 +146,11 @@ assumed one.
 
 ## Milestone 4: Learner Dashboard
 **Spec**: `specs/004-learner-dashboard/spec.md`
-**Status**: Planned -- `/speckit-clarify`, `/speckit-plan`, `/speckit-tasks`,
-and `/speckit-analyze` complete (31 tasks across 4 user stories, no
-unresolved findings); pending `/speckit-implement`.
+**Status**: Complete (2026-08-18). All 31 tasks across 4 user stories
+implemented and merged to `staging` (PR #14), then promoted to `main`
+(PR #15). `specs/004-learner-dashboard/tasks.md`'s Phase 7 records
+`quickstart.md`'s 10 validation scenarios run end to end against a
+freshly migrated and seeded dev database, not only local development.
 
 **Scope**: A learner-facing dashboard surfacing per-topic mastery, the
 Recommendation Agent's freshly-generated weak-area report and next-step
@@ -177,7 +179,10 @@ before.
 
 ## Milestone 5: Adaptive Difficulty Quiz
 **Spec**: `specs/005-adaptive-quiz/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: `/speckit-implement` complete (35/35 tasks). All 10
+`quickstart.md` validation scenarios (T035) verified against the live
+dev DB with real Claude generation calls, 40/40 quiz tests plus the
+full 177-test backend suite passing with no regressions (2026-08-18).
 
 **Scope**: A bounded, named quiz session (learner-chosen topic(s) and
 question count) where difficulty adapts within the session based on
