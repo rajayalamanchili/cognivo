@@ -2,15 +2,29 @@
 
 **Feature**: `007-grading-agent` | **Phase**: 0 (outline & research)
 
-## §1. A2A implementation: `a2a-sdk` (a2a-python) wrapping an ADK `LlmAgent`
+## §1. A2A implementation: ADK's `to_a2a()` wrapping an ADK `LlmAgent`, backed by `a2a-sdk`
 
 **Decision**: The Grading Agent is a Google ADK `LlmAgent` (same pattern as
 Diagnostic/Sequencing/Assessment-Generation), wrapped into an A2A server
-via the official `a2a-python` SDK's `to_a2a()` utility, which converts an
-ADK `Agent` instance into a Starlette-based ASGI application with no
-hand-written protocol code. The main backend acts as an A2A *client*,
-issuing a JSON-RPC/HTTP request to the Grading Agent's public URL and
-awaiting its response.
+via `google.adk.a2a.utils.agent_to_a2a.to_a2a()` -- ADK's own utility
+(not `a2a-sdk`'s), which internally depends on `a2a-sdk` for the actual
+JSON-RPC/protocol routing -- converting an ADK `BaseAgent` instance into
+a Starlette-based ASGI application with no hand-written protocol code.
+The main backend acts as an A2A *client*, issuing a JSON-RPC/HTTP
+request to the Grading Agent's public URL and awaiting its response.
+
+**Verified at `/speckit-implement` time (T010)**: importing and building
+the app, then exercising it with Starlette's `TestClient` under a real
+ASGI lifespan, confirms `GET /.well-known/agent-card.json` returns
+`200` with a well-formed Agent Card advertising JSON-RPC support at the
+root -- not just an import-succeeds check. This required adding the
+`a2a-sdk[http-server]` extra (pulls in `sse_starlette`, which `a2a-sdk`'s
+base install does not include but its server-routing code path needs) --
+narrower than the plain `a2a-sdk` dependency originally scoped here.
+ADK's A2A support (`A2aAgentExecutor`, `to_a2a()`, and related pieces)
+is marked **EXPERIMENTAL** upstream as of the installed version
+(`google-adk` 2.7.x) -- a real breaking-change risk this project accepts
+for now, not yet mitigated by pinning or a compatibility shim.
 
 **Rationale**: `to_a2a()` is the documented, first-party path for
 exactly this situation (an existing ADK agent that needs to become an

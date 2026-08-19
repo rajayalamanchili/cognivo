@@ -43,7 +43,7 @@ topics:
         Predict the direction of osmosis and diffusion across a cell
         membrane given a concentration gradient, and distinguish passive
         from active transport.
-      preferred_question_types: [multiple_choice]
+      preferred_question_types: [free_text]
     difficulty_calibration:
       easy: "Predict the direction of diffusion for a simple two-side concentration gradient."
       medium: "Classify a described transport process as passive or active and explain why."

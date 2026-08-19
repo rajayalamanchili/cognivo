@@ -32,13 +32,15 @@ feature, per `tech-stack.md`'s "Explicitly not yet decided" note that
 language is a plan-time decision). TypeScript/Next.js frontend,
 unchanged runtime.
 
-**Primary Dependencies**: Backend -- adds `a2a-sdk` (a2a-python) as an
-A2A *client* dependency (research.md §1); all other backend
-dependencies (FastAPI, SQLAlchemy 2.0, Pydantic 2, Alembic, Google ADK,
-LiteLLM) already locked, unchanged. New Grading Agent project -- Google
-ADK, LiteLLM (Claude Sonnet default, matching the existing
-Assessment-Generation Agent's provider choice), `a2a-sdk`'s `to_a2a()`
-utility to expose it as an A2A server (research.md §1). Frontend --
+**Primary Dependencies**: Backend -- adds `a2a-sdk` as an A2A *client*
+dependency (research.md §1); all other backend dependencies (FastAPI,
+SQLAlchemy 2.0, Pydantic 2, Alembic, Google ADK, LiteLLM) already
+locked, unchanged. New Grading Agent project -- Google ADK, LiteLLM
+(Claude Sonnet default, matching the existing Assessment-Generation
+Agent's provider choice), `a2a-sdk[http-server]` (the `http-server`
+extra required for `sse_starlette`, discovered at implementation time --
+research.md §1), and ADK's own `google.adk.a2a.utils.agent_to_a2a
+.to_a2a()` utility to expose the agent as an A2A server. Frontend --
 Next.js/React/Tailwind, unchanged; no new dependency (a free-text
 answer is a plain `<textarea>`).
 

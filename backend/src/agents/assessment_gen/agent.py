@@ -11,6 +11,7 @@ learner.
 """
 
 import json
+import math
 import os
 from collections.abc import Sequence
 from typing import Literal
@@ -32,6 +33,14 @@ class GenerationValidationError(Exception):
     (FR-007) after exhausting all retry attempts."""
 
 
+class RubricCriterion(BaseModel):
+    """One weighted grading criterion within a free-text question's rubric
+    (data-model.md's `answer_key.criteria` shape, spec 007 FR-002)."""
+
+    description: str = Field(min_length=1)
+    weight: float = Field(gt=0)
+
+
 class GeneratedQuestionDraft(BaseModel):
     """The Assessment-Generation Agent's structured output shape.
 
@@ -41,10 +50,10 @@ class GeneratedQuestionDraft(BaseModel):
     then checked by `_validate_draft` below.
     """
 
-    question_type: Literal["multiple_choice", "numeric"]
+    question_type: Literal["multiple_choice", "numeric", "free_text"]
     stem: str = Field(min_length=1)
     options: list[str] | None = Field(
-        default=None, description="Required for multiple_choice; null for numeric."
+        default=None, description="Required for multiple_choice; null for numeric/free_text."
     )
     correct_index: int | None = Field(
         default=None,
@@ -55,6 +64,13 @@ class GeneratedQuestionDraft(BaseModel):
         default=None,
         description=(
             "Relative tolerance for numeric, e.g. 0.005 for +/-0.5%. Required for numeric."
+        ),
+    )
+    rubric_criteria: list[RubricCriterion] | None = Field(
+        default=None,
+        description=(
+            "Required for free_text: 1-4 grading criteria whose weights sum to 1.0. "
+            "Null for multiple_choice/numeric."
         ),
     )
 
@@ -78,6 +94,12 @@ Leave "correct_value" and "tolerance" null.
 numeric answer, and "tolerance" as a small positive relative tolerance (e.g. 0.005 \
 for +/-0.5%) appropriate for this question's precision. Leave "options" and \
 "correct_index" null.
+- If question_type is "free_text": ask a short-answer question requiring a \
+sentence or two of explanation, not a single word or number. Provide \
+"rubric_criteria" as a list of 1-4 grading criteria, each with a "description" \
+(a specific, checkable thing a correct answer must demonstrate -- never vague) \
+and a "weight" (a positive number; all weights in the list MUST sum to 1.0). \
+Leave "options", "correct_index", "correct_value", and "tolerance" null.
 - The question must be answerable using only the stated topic skill -- no outside \
 context needed.
 {avoid_section}
@@ -138,6 +160,16 @@ def _validate_draft(draft: GeneratedQuestionDraft, question_type: QuestionType) 
             raise GenerationValidationError("numeric question missing correct_value")
         if draft.tolerance is None or draft.tolerance <= 0:
             raise GenerationValidationError("numeric question missing a positive tolerance")
+    elif question_type == QuestionType.FREE_TEXT:
+        if not draft.rubric_criteria:
+            raise GenerationValidationError(
+                "free_text question needs >=1 rubric criterion (spec 007 FR-002)"
+            )
+        total_weight = sum(c.weight for c in draft.rubric_criteria)
+        if not math.isclose(total_weight, 1.0, rel_tol=0.01):
+            raise GenerationValidationError(
+                f"free_text rubric_criteria weights must sum to ~1.0, got {total_weight}"
+            )
 
 
 async def _run_agent_once(agent: LlmAgent, session_service: BaseSessionService) -> str:
@@ -211,4 +243,10 @@ def draft_to_answer_key(draft: GeneratedQuestionDraft) -> dict:
     GeneratedQuestion.answer_key)."""
     if draft.question_type == "multiple_choice":
         return {"correct_index": draft.correct_index}
+    if draft.question_type == "free_text":
+        return {
+            "criteria": [
+                {"description": c.description, "weight": c.weight} for c in draft.rubric_criteria
+            ]
+        }
     return {"value": draft.correct_value, "tolerance": draft.tolerance}

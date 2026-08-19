@@ -29,6 +29,7 @@ class MasteryBand(enum.StrEnum):
 class QuestionType(enum.StrEnum):
     MULTIPLE_CHOICE = "multiple_choice"
     NUMERIC = "numeric"
+    FREE_TEXT = "free_text"
 
 
 class ValidationStatus(enum.StrEnum):
@@ -57,6 +58,7 @@ class AssessmentEventType(enum.StrEnum):
     WEAK_AREA_FLAGGED = "weak_area_flagged"
     NEXT_STEP_SUGGESTED = "next_step_suggested"
     QUIZ_DIFFICULTY_ADJUSTED = "quiz_difficulty_adjusted"
+    FREE_TEXT_SUBMISSION_REJECTED = "free_text_submission_rejected"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required
