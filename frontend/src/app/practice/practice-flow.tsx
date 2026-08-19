@@ -86,6 +86,11 @@ export default function PracticeFlow() {
     }
   }
 
+  function handleFreeTextGraded(answer: AnswerResult) {
+    setResult(answer);
+    setPhase("result");
+  }
+
   async function handleFlag(reason: string) {
     if (!question || !learnerId) return;
     try {
@@ -145,15 +150,18 @@ export default function PracticeFlow() {
         onFlag={handleFlag}
         flagged={flagged}
         disabled={phase === "submitting"}
+        onFreeTextGraded={handleFreeTextGraded}
       />
-      <button
-        type="button"
-        disabled={response === "" || phase === "submitting"}
-        onClick={handleSubmit}
-        className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
-      >
-        {phase === "submitting" ? "Submitting…" : "Submit Answer"}
-      </button>
+      {question.question_type !== "free_text" && (
+        <button
+          type="button"
+          disabled={response === "" || phase === "submitting"}
+          onClick={handleSubmit}
+          className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+        >
+          {phase === "submitting" ? "Submitting…" : "Submit Answer"}
+        </button>
+      )}
     </div>
   );
 }

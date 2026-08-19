@@ -17,16 +17,30 @@ from sqlalchemy.orm import Session
 from src.agents.assessment_gen.agent import draft_to_answer_key
 from src.agents.sequencing.agent import generate_next_question
 from src.agents.sequencing.mastery_tool import apply_mastery_update
-from src.api.errors import ConflictError, NotFoundError, UnprocessableError
+from src.api.errors import (
+    ConflictError,
+    ModerationRejectedError,
+    NotFoundError,
+    RateLimitedError,
+    TooLongError,
+    UnprocessableError,
+)
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, ValidationStatus
+from src.models.enums import AssessmentEventType, QuestionType, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
 from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
+from src.services.grading_client import guardrails
+from src.services.grading_client.client import (
+    SCORE_THRESHOLD,
+    GradingResult,
+    grade_free_text_answer,
+)
+from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.quiz.session import record_quiz_answer
 
@@ -145,8 +159,61 @@ def _already_answered(db: Session, question_id: uuid.UUID) -> bool:
     )
 
 
+def _reject_free_text(
+    db: Session, *, question: GeneratedQuestion, reason: str, response_text: str
+) -> None:
+    """Logs a `free_text_submission_rejected` event and commits it
+    immediately (data-model.md) -- the caller raises the matching
+    HTTP-error exception right after this returns, so this write must
+    already be durable by then. Never paired with an `ANSWER_SUBMITTED`
+    event for the same submission (a rejected submission is never
+    graded, contracts/api.md)."""
+    record_event(
+        db,
+        learner_id=question.learner_id,
+        event_type=AssessmentEventType.FREE_TEXT_SUBMISSION_REJECTED,
+        subject_id=question.subject_id,
+        topic_id=question.topic_id,
+        question_id=question.question_id,
+        payload={
+            "reason": reason,
+            "submitted_text": response_text[: guardrails.MAX_ANSWER_LENGTH],
+            "length": len(response_text),
+        },
+    )
+    db.commit()
+
+
+async def _grade_free_text_submission(
+    db: Session, *, question: GeneratedQuestion, response_text: str
+) -> GradingResult:
+    """Runs the four pre-grading guardrails in contracts/api.md's locked
+    order -- length (cheapest) -> rate limit (one DB query) -> moderation
+    (one LLM call) -> grading (the A2A call) -- short-circuiting on the
+    first rejection."""
+    if not guardrails.check_length(response_text):
+        _reject_free_text(db, question=question, reason="too_long", response_text=response_text)
+        raise TooLongError(max_length=guardrails.MAX_ANSWER_LENGTH)
+
+    rate_limit_status = guardrails.check_rate_limit(db, learner_id=question.learner_id)
+    if not rate_limit_status.allowed:
+        _reject_free_text(db, question=question, reason="rate_limited", response_text=response_text)
+        raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
+
+    allowed = await check_moderation(response_text, session_service=get_database_session_service())
+    if not allowed:
+        _reject_free_text(db, question=question, reason="moderation", response_text=response_text)
+        raise ModerationRejectedError()
+
+    return await grade_free_text_answer(
+        question_stem=question.stem,
+        rubric_criteria=question.answer_key["criteria"],
+        learner_answer=response_text,
+    )
+
+
 @router.post("/api/questions/{question_id}/answer", response_model=AnswerOut)
-def answer_question(
+async def answer_question(
     question_id: uuid.UUID, body: AnswerIn, db: Session = Depends(get_db)
 ) -> AnswerOut:
     question = db.get(GeneratedQuestion, question_id)
@@ -159,10 +226,28 @@ def answer_question(
     except ValueError as exc:
         raise UnprocessableError(f"question {question_id}: {exc}") from exc
 
-    correct = grade_answer(
-        {"question_type": question.question_type, "answer_key": question.answer_key},
-        response=body.response,
-    )
+    if question.question_type == QuestionType.FREE_TEXT:
+        with traced_request():
+            grading_result = await _grade_free_text_submission(
+                db, question=question, response_text=body.response
+            )
+        correct = grading_result.correct
+        answer_payload = {
+            "response": body.response,
+            "correct": correct,
+            "graduated_score": grading_result.graduated_score,
+            "threshold_used": SCORE_THRESHOLD,
+            "criteria_met": grading_result.criteria_met,
+            "criteria_missed": grading_result.criteria_missed,
+            "grading_logic_version": grading_result.grading_logic_version,
+        }
+    else:
+        correct = grade_answer(
+            {"question_type": question.question_type, "answer_key": question.answer_key},
+            response=body.response,
+        )
+        answer_payload = {"response": body.response, "correct": correct}
+
     result = apply_mastery_update(
         db,
         learner_id=question.learner_id,
@@ -178,7 +263,7 @@ def answer_question(
         subject_id=question.subject_id,
         topic_id=question.topic_id,
         question_id=question.question_id,
-        payload={"response": body.response, "correct": correct},
+        payload=answer_payload,
     )
     record_event(
         db,
