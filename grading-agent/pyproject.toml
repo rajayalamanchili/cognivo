@@ -1,19 +1,11 @@
 [project]
-name = "cognivo-backend"
+name = "cognivo-grading-agent"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "a2a-sdk>=1.1.2",
-    "alembic>=1.19.1",
-    "fastapi>=0.141.1",
     "google-adk>=2.7.0",
-    "langfuse>=4.14.4",
     "litellm>=1.96.2",
-    "openinference-instrumentation-google-adk>=0.1.20",
-    "psycopg[binary]>=3.3.4",
-    "pydantic>=2.13.4",
-    "pyyaml>=6.0.3",
-    "sqlalchemy>=2.0.52",
     "uvicorn[standard]>=0.52.3",
 ]
 
@@ -32,12 +24,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-
-[tool.ruff.lint.flake8-bugbear]
-# FastAPI's `Depends(...)`-as-default-argument is the framework's
-# documented dependency-injection pattern, not the mutable-default-
-# argument footgun B008 exists to catch.
-extend-immutable-calls = ["fastapi.Depends"]
 
 [tool.black]
 line-length = 100

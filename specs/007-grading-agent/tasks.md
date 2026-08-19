@@ -27,9 +27,9 @@ Three deployable units per `plan.md`'s Project Structure: `backend/`, `frontend/
 
 **Purpose**: New-dependency and new-project scaffolding, before any schema or code change.
 
-- [ ] T001 [P] Add `a2a-sdk` (a2a-python) as a backend dependency in `backend/pyproject.toml` (research.md §1) -- A2A client only, no server-side usage in `backend/`
-- [ ] T002 [P] Scaffold the `grading-agent/` project: `grading-agent/pyproject.toml` (Google ADK, LiteLLM, `a2a-sdk` dependencies matching `backend/`'s locked versions), `grading-agent/src/__init__.py`, `grading-agent/tests/__init__.py` per `plan.md`'s Project Structure
-- [ ] T003 Create `grading-agent/vercel.json` and provision it as a **new, separate** Vercel project pointed at the `grading-agent/` directory (research.md §2) -- infrastructure step; `GRADING_AGENT_URL` env var is set on the backend's Vercel project once T003 and T010 are both done (see T044)
+- [X] T001 [P] Add `a2a-sdk` (a2a-python) as a backend dependency in `backend/pyproject.toml` (research.md §1) -- A2A client only, no server-side usage in `backend/`
+- [X] T002 [P] Scaffold the `grading-agent/` project: `grading-agent/pyproject.toml` (Google ADK, LiteLLM, `a2a-sdk` dependencies matching `backend/`'s locked versions), `grading-agent/src/__init__.py`, `grading-agent/tests/__init__.py` per `plan.md`'s Project Structure
+- [~] T003 Create `grading-agent/vercel.json` and provision it as a **new, separate** Vercel project pointed at the `grading-agent/` directory (research.md §2) -- infrastructure step; `GRADING_AGENT_URL` env var is set on the backend's Vercel project once T003 and T010 are both done (see T044). **Partial**: `vercel.json` file created (minimal placeholder -- kept deliberately empty pending T010's `agent.py` entrypoint and Vercel's own framework auto-detection, since this repo has no existing precedent for a standalone non-Services Python Vercel project to model it on with confidence). Actually provisioning the separate Vercel project (dashboard/CLI action, org access) is an external action requiring the user.
 
 **Checkpoint**: Both projects' dependency manifests exist; `grading-agent/` has a real (if empty) Vercel deployment target to iterate against.
 
