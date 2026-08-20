@@ -25,6 +25,12 @@ request/response shapes.
   review) -- the Grading Agent's endpoint is public, so it rejects any
   request without a matching `X-Grading-Agent-Secret` header with `401`
   before it ever reaches the model.
+- `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`/`LANGFUSE_HOST` set on the
+  Grading Agent's own deployment env too, not just the backend's (PR #18
+  review) -- CLAUDE.md's "every agent invocation must emit a Langfuse
+  trace" applies to the Grading Agent's own `LlmAgent` call, which the
+  backend's `traced_request()` can't see inside of (it only traces
+  in-process ADK calls, not this remote HTTP call's internals).
 
 ## Run locally
 
