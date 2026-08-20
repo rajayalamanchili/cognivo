@@ -42,9 +42,12 @@ def make_free_text_topic_next_up(db_session, learner_id, subject_id) -> None:
     prerequisite (`solving-multi-step-equations`) is included -- leaving
     it the sole `unknown`-band, prerequisite-satisfied topic, and
     therefore `next-question`'s only eligible pick (data-model.md's
-    Next-topic eligibility rule)."""
+    Next-topic eligibility rule). Uses `merge` (not `add`), since some
+    tests call this twice for the same learner/subject (e.g. to fetch
+    two separate free-text questions) and a plain `add` would violate
+    `mastery_states`' primary key on the second call."""
     for topic_id in _OTHER_ALGEBRA_TOPIC_IDS:
-        db_session.add(
+        db_session.merge(
             MasteryState(
                 learner_id=learner_id,
                 subject_id=subject_id,

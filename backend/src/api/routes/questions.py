@@ -216,7 +216,11 @@ async def _grade_free_text_submission(
     )
 
 
-@router.post("/api/questions/{question_id}/answer", response_model=AnswerOut)
+@router.post(
+    "/api/questions/{question_id}/answer",
+    response_model=AnswerOut,
+    response_model_exclude_none=True,
+)
 async def answer_question(
     question_id: uuid.UUID, body: AnswerIn, db: Session = Depends(get_db)
 ) -> AnswerOut:
