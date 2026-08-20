@@ -24,7 +24,12 @@ request/response shapes.
   backend's env and the Grading Agent's own deployment env (PR #18
   review) -- the Grading Agent's endpoint is public, so it rejects any
   request without a matching `X-Grading-Agent-Secret` header with `401`
-  before it ever reaches the model.
+  before it ever reaches the model. Optionally, `GRADING_AGENT_SHARED_
+  SECRET_NEXT` on the Grading Agent's deployment (not the backend's) for
+  rotation: the agent accepts either value, so a rotation is set-next ->
+  update the backend's `GRADING_AGENT_SHARED_SECRET` to the new value ->
+  confirm it works -> promote next to current on the agent -> remove
+  `_NEXT` (tech-stack.md's "A2A secret rotation" row).
 - `LANGFUSE_PUBLIC_KEY`/`LANGFUSE_SECRET_KEY`/`LANGFUSE_HOST` set on the
   Grading Agent's own deployment env too, not just the backend's (PR #18
   review) -- CLAUDE.md's "every agent invocation must emit a Langfuse

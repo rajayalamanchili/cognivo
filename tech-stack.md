@@ -90,6 +90,8 @@ obvious.
 | ADK session/state backing | Database-backed session service (Postgres), not the framework's default in-memory store | Required by the Vercel deployment constraint above -- a stateless function cannot rely on in-process memory surviving between requests. |
 | Cross-agent protocol | A2A, applied selectively per Constitution Principle VI | Not every agent boundary in Milestone 1 uses A2A -- Diagnostic, Sequencing, and Assessment-Generation start as local ADK sub-agents (fast, in-process, no justification yet for a network boundary). The Grading Agent is the anticipated first real A2A service, once free-text grading exists (Milestone 6), because independent versioning of grading rubrics without redeploying the whole system is a concrete, stated need. |
 | Language for a future remote agent | Deferred | If/when the Grading Agent becomes a remote A2A service, its language and whether it deploys as a separate Vercel project (for true independent deployment) or a route within the same project is a Milestone-3-planning decision. |
+| A2A inbound authentication | A shared-secret header (`X-<Agent>-Secret`, e.g. `GRADING_AGENT_SHARED_SECRET`), checked via `hmac.compare_digest` by each A2A service's own ASGI middleware before a request ever reaches the agent/model. Fails closed if the expected secret isn't configured. Each A2A service gets its own distinct secret -- never one secret shared across services. | Locked by Constitution Principle VI's v1.5.0 amendment: a network-reachable A2A service MUST authenticate inbound requests before this project's backend-owned guardrails (rate limit, moderation, length caps) can be assumed to apply. Closes the gap found in the Grading Agent's original public, unauthenticated endpoint (spec 007, PR #18) -- none of those guardrails ran inside the agent itself, so an unauthenticated endpoint let anyone bypass all of them. Per-service secrets, not a shared one, contain blast radius if a single secret leaks. |
+| A2A secret rotation | Each service's middleware MUST accept either a `CURRENT` or an optional `NEXT` secret env var (e.g. `GRADING_AGENT_SHARED_SECRET` / `GRADING_AGENT_SHARED_SECRET_NEXT`), so rotation is set-next -> confirm the caller sends it successfully -> promote next to current -> remove the old value, never a single cutover requiring the backend and the agent's independently-deployed Vercel project to redeploy in the same instant. A rotation *tool* (automated secret generation/deployment via Vercel's API) is explicitly out of scope for now. | Decided at Milestone 6, not deferred to Milestone 9, specifically because the Tutor Agent is already a second confirmed A2A service in `roadmap.md` -- building the rotation seam into the pattern once is cheaper than retrofitting it onto two already-live single-secret services later. No rotation *tooling* yet because nothing here rotates on a schedule -- a documented manual runbook is sufficient at two services; revisit if a third A2A service or an actual rotation cadence emerges. |
 
 ## Mastery model
 
@@ -166,4 +168,10 @@ per-developer branches, rather than three separate Neon projects); 1.8.0
 CI check as the enforcement mechanism for spec 002's SC-005
 agent-test-independence requirement, matching the existing SC-004
 extensibility-check precedent; see
-`specs/002-recommendation-agent/research.md` §6)
+`specs/002-recommendation-agent/research.md` §6); 1.9.0 -- Amended
+2026-08-20 (locked A2A inbound authentication as a per-service
+shared-secret header validated via `hmac.compare_digest`, plus
+current/next dual-secret rotation support, as the enforcement mechanism
+for Constitution Principle VI's v1.5.0 amendment; see spec 007's
+`grading-agent/src/agent.py` for the reference implementation this
+pattern is locked from)

@@ -12,6 +12,7 @@ persisting it -- this module never writes to a database.
 
 import hmac
 import os
+from collections.abc import Sequence
 
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import LlmAgent
@@ -86,8 +87,8 @@ configure_tracing()
 
 
 class _SharedSecretAuthMiddleware:
-    """Rejects any HTTP request that doesn't carry the shared secret in
-    `X-Grading-Agent-Secret` (PR #18 review).
+    """Rejects any HTTP request that doesn't carry a recognized shared
+    secret in `X-Grading-Agent-Secret` (PR #18 review).
 
     This agent is deployed as its own public Vercel project
     (research.md §2), and none of the backend's guardrails (length cap,
@@ -99,14 +100,24 @@ class _SharedSecretAuthMiddleware:
     this check anyone with the URL could call it directly, bypass every
     guardrail, and run up Sonnet API costs with no rate limiting at
     all. The backend attaches this same header on every call
-    (`grading_client/client.py`). Fails closed if the secret isn't
+    (`grading_client/client.py`). Fails closed if no secret is
     configured -- a misconfigured deployment should refuse traffic, not
     silently run unauthenticated.
+
+    Accepts up to two valid secrets at once (`GRADING_AGENT_SHARED_
+    SECRET` and an optional `GRADING_AGENT_SHARED_SECRET_NEXT`,
+    tech-stack.md's "A2A secret rotation" row, Constitution Principle
+    VI v1.5.0) so a rotation is set-next -> confirm the backend's calls
+    with the new secret succeed -> promote next to current on this
+    deployment -> remove the old value from the backend, rather than a
+    single cutover that requires this agent's and the backend's
+    independently-deployed Vercel projects to redeploy in the same
+    instant.
     """
 
-    def __init__(self, app: ASGIApp, expected_secret: str) -> None:
+    def __init__(self, app: ASGIApp, expected_secrets: Sequence[str]) -> None:
         self._app = app
-        self._expected_secret = expected_secret
+        self._expected_secrets = [secret for secret in expected_secrets if secret]
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -114,12 +125,12 @@ class _SharedSecretAuthMiddleware:
             return
         headers = dict(scope["headers"])
         provided = headers.get(b"x-grading-agent-secret", b"").decode("utf-8", errors="replace")
-        # hmac.compare_digest, not `!=` -- this is a public endpoint
-        # (PR #18 review), and a plain string comparison short-circuits
-        # on the first mismatched byte, a timing side-channel against
-        # the secret.
-        if not self._expected_secret or not hmac.compare_digest(
-            provided, self._expected_secret
+        # hmac.compare_digest per candidate, not `in`/`==` -- this is a
+        # public endpoint (PR #18 review), and a plain string comparison
+        # short-circuits on the first mismatched byte, a timing
+        # side-channel against the secret.
+        if not self._expected_secrets or not any(
+            hmac.compare_digest(provided, secret) for secret in self._expected_secrets
         ):
             response = JSONResponse({"error": "unauthorized"}, status_code=401)
             await response(scope, receive, send)
@@ -151,6 +162,10 @@ class _TracingFlushMiddleware:
 
 app = _TracingFlushMiddleware(
     _SharedSecretAuthMiddleware(
-        to_a2a(_agent), expected_secret=os.environ.get("GRADING_AGENT_SHARED_SECRET", "")
+        to_a2a(_agent),
+        expected_secrets=(
+            os.environ.get("GRADING_AGENT_SHARED_SECRET", ""),
+            os.environ.get("GRADING_AGENT_SHARED_SECRET_NEXT", ""),
+        ),
     )
 )
