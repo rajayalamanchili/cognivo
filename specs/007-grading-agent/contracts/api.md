@@ -87,6 +87,20 @@ question. This is what makes "content flagged -- please revise and
 resubmit your answer" (etc.) an actionable prompt rather than a dead
 end.
 
+**Concurrency (PR #18 review, CHK032)**: `_already_answered()`'s
+check-then-act pattern isn't sufficient on its own for free-text --
+moderation plus the Grading Agent A2A call (with retries) can put
+several seconds between that check and the write, wide enough for two
+concurrent submissions of the same question to both pass it. A partial
+unique index on `assessment_events(question_id)` where
+`event_type = 'answer_submitted'` (migration `e04658523ea2`) is the
+actual, DB-level arbiter: the losing request's `record_event()` call
+raises `IntegrityError`, its whole transaction (including the mastery
+update already computed) rolls back, and it receives the same `409`
+`_already_answered()` already returns for the non-concurrent case.
+CHK032's "server-side-authoritative" is enforced by the database, not
+only by application-level ordering.
+
 **Side effects (success path)**: identical downstream calls to the
 existing MC/numeric path -- `apply_mastery_update()` then two
 `record_event()` calls (`ANSWER_SUBMITTED`, `MASTERY_UPDATED`),
@@ -107,6 +121,19 @@ Not a public API -- documented here because it's the one genuinely new
 network boundary this project has introduced (Constitution Principle
 VI). The backend is an A2A client; the Grading Agent is reached at
 `GRADING_AGENT_URL` (its own Vercel deployment, research.md §2).
+
+**Authentication (PR #18 review)**: the Grading Agent's deployment is a
+public Vercel URL, and none of the backend's guardrails (length cap,
+rate limit, moderation, `prompt_defense.py`) run inside that service
+itself -- they're deliberately backend-only per plan.md's Constitution
+Principle IV table. That split only holds if the endpoint is reachable
+exclusively through the backend, so every request carries a shared
+secret in `X-Grading-Agent-Secret`, checked by the Grading Agent before
+any A2A routing (`grading-agent/src/agent.py`'s
+`_SharedSecretAuthMiddleware`). The backend sends it from
+`GRADING_AGENT_SHARED_SECRET`; the Grading Agent validates it against
+its own copy of the same env var. A request without a matching header
+gets `401` before ever reaching the agent/model.
 
 **Request** (A2A message content, JSON):
 ```json

@@ -98,7 +98,16 @@ async def _call_grading_agent_once(
         "rubric": {"criteria": rubric_criteria},
         "learner_answer": learner_answer,
     }
-    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS) as httpx_client:
+    # The Grading Agent's endpoint is a public Vercel URL with none of
+    # this backend's guardrails (length cap, rate limit, moderation)
+    # running inside it -- it authenticates every request via this
+    # shared secret (agent.py's _SharedSecretAuthMiddleware) so it can't
+    # be called directly, bypassing those guardrails (PR #18 review).
+    shared_secret = os.environ["GRADING_AGENT_SHARED_SECRET"]
+    headers = {"X-Grading-Agent-Secret": shared_secret}
+    async with httpx.AsyncClient(
+        timeout=REQUEST_TIMEOUT_SECONDS, headers=headers
+    ) as httpx_client:
         factory = ClientFactory(ClientConfig(streaming=False, httpx_client=httpx_client))
         client = await factory.create_from_url(grading_agent_url)
         message = new_text_message(json.dumps(request_payload), role=Role.ROLE_USER)

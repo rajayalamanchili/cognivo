@@ -16,6 +16,8 @@ from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from pydantic import BaseModel, Field
+from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.prompt_defense import build_instruction
 
@@ -71,4 +73,43 @@ def _build_agent(model_name: str) -> LlmAgent:
 _MODEL_NAME = os.environ.get("GRADING_AGENT_MODEL", "anthropic/claude-sonnet-4-5")
 _agent = _build_agent(_MODEL_NAME)
 
-app = to_a2a(_agent)
+
+class _SharedSecretAuthMiddleware:
+    """Rejects any HTTP request that doesn't carry the shared secret in
+    `X-Grading-Agent-Secret` (PR #18 review).
+
+    This agent is deployed as its own public Vercel project
+    (research.md §2), and none of the backend's guardrails (length cap,
+    rate limit, moderation, `prompt_defense.py`) run inside this
+    service -- they're deliberately backend-only, "platform-wide
+    abuse-prevention... not duplicated per-agent" (plan.md's
+    Constitution Principle IV table). That split only holds if this
+    endpoint is reachable exclusively through the backend, so without
+    this check anyone with the URL could call it directly, bypass every
+    guardrail, and run up Sonnet API costs with no rate limiting at
+    all. The backend attaches this same header on every call
+    (`grading_client/client.py`). Fails closed if the secret isn't
+    configured -- a misconfigured deployment should refuse traffic, not
+    silently run unauthenticated.
+    """
+
+    def __init__(self, app: ASGIApp, expected_secret: str) -> None:
+        self._app = app
+        self._expected_secret = expected_secret
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = dict(scope["headers"])
+        provided = headers.get(b"x-grading-agent-secret", b"").decode("utf-8", errors="replace")
+        if not self._expected_secret or provided != self._expected_secret:
+            response = JSONResponse({"error": "unauthorized"}, status_code=401)
+            await response(scope, receive, send)
+            return
+        await self._app(scope, receive, send)
+
+
+app = _SharedSecretAuthMiddleware(
+    to_a2a(_agent), expected_secret=os.environ.get("GRADING_AGENT_SHARED_SECRET", "")
+)

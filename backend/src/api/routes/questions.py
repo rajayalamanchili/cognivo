@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.agents.assessment_gen.agent import draft_to_answer_key
@@ -265,15 +266,28 @@ async def answer_question(
         correct=correct,
         question_type=question.question_type,
     )
-    record_event(
-        db,
-        learner_id=question.learner_id,
-        event_type=AssessmentEventType.ANSWER_SUBMITTED,
-        subject_id=question.subject_id,
-        topic_id=question.topic_id,
-        question_id=question.question_id,
-        payload=answer_payload,
-    )
+    try:
+        record_event(
+            db,
+            learner_id=question.learner_id,
+            event_type=AssessmentEventType.ANSWER_SUBMITTED,
+            subject_id=question.subject_id,
+            topic_id=question.topic_id,
+            question_id=question.question_id,
+            payload=answer_payload,
+        )
+    except IntegrityError as exc:
+        # `_already_answered` above is check-then-act and can't close
+        # the race on its own: for free-text answers, moderation + the
+        # Grading Agent A2A call (with retries) can put several seconds
+        # between that check and this write, wide enough for two
+        # concurrent submissions of the same question to both pass it.
+        # `ix_assessment_events_answer_submitted_question_id` (migration
+        # e04658523ea2) is the actual arbiter -- one of the two loses
+        # here, and its whole transaction (including the mastery update
+        # above) rolls back rather than double-recording (PR #18 review).
+        db.rollback()
+        raise ConflictError(f"question {question_id}: already answered") from exc
     record_event(
         db,
         learner_id=question.learner_id,

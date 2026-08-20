@@ -20,6 +20,11 @@ request/response shapes.
 - The Grading Agent deployed as its own Vercel project (or run locally
   via `uvicorn` against `grading-agent/src/agent.py`'s `to_a2a()`-wrapped
   app), with the backend's `GRADING_AGENT_URL` pointed at it.
+- `GRADING_AGENT_SHARED_SECRET` set to the same value in both the
+  backend's env and the Grading Agent's own deployment env (PR #18
+  review) -- the Grading Agent's endpoint is public, so it rejects any
+  request without a matching `X-Grading-Agent-Secret` header with `401`
+  before it ever reaches the model.
 
 ## Run locally
 
