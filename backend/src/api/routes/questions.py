@@ -11,6 +11,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -217,14 +218,10 @@ async def _grade_free_text_submission(
     )
 
 
-@router.post(
-    "/api/questions/{question_id}/answer",
-    response_model=AnswerOut,
-    response_model_exclude_none=True,
-)
+@router.post("/api/questions/{question_id}/answer", response_model=AnswerOut)
 async def answer_question(
     question_id: uuid.UUID, body: AnswerIn, db: Session = Depends(get_db)
-) -> AnswerOut:
+) -> JSONResponse:
     question = db.get(GeneratedQuestion, question_id)
     if question is None:
         raise NotFoundError(f"unknown question_id: {question_id}")
@@ -313,17 +310,28 @@ async def answer_question(
 
     db.commit()
 
-    return AnswerOut(
-        correct=correct,
-        topic_id=question.topic_id,
-        prior_p_mastery=result.prior_p_mastery,
-        posterior_p_mastery=result.posterior_p_mastery,
-        band=result.posterior_band.value,
-        graduated_score=grading_result.graduated_score if grading_result else None,
-        criteria_met=grading_result.criteria_met if grading_result else None,
-        criteria_missed=grading_result.criteria_missed if grading_result else None,
-        grading_logic_version=grading_result.grading_logic_version if grading_result else None,
-    )
+    # A plain dict via JSONResponse, not `AnswerOut(...)` -- `prior_p_mastery`
+    # is legitimately `None` on a learner's first observation for a topic
+    # and must stay present as `null` (contracts/api.md), whereas the four
+    # grading fields below must be *absent* (not merely `null`) for
+    # MC/numeric answers to match the pre-existing response-shape contract
+    # test. A single `response_model_exclude_none` can't apply differently
+    # per field, so this builds the body explicitly instead.
+    answer_body: dict[str, Any] = {
+        "correct": correct,
+        "topic_id": question.topic_id,
+        "prior_p_mastery": result.prior_p_mastery,
+        "posterior_p_mastery": result.posterior_p_mastery,
+        "band": result.posterior_band.value,
+    }
+    if grading_result is not None:
+        answer_body.update(
+            graduated_score=grading_result.graduated_score,
+            criteria_met=grading_result.criteria_met,
+            criteria_missed=grading_result.criteria_missed,
+            grading_logic_version=grading_result.grading_logic_version,
+        )
+    return JSONResponse(answer_body)
 
 
 class FlagIn(BaseModel):
