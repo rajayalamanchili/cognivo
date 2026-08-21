@@ -33,6 +33,33 @@ constraint that shapes several choices below, not an afterthought:
   `plan.md` must explicitly address it (e.g. via Fluid Compute, or by
   breaking the loop into resumable steps), not discover it at deploy
   time.
+  - **Milestone 6 hit this condition**: `answer_question` awaits
+    length/rate-limit/moderation checks, the Grading Agent's A2A call
+    (with retries), and the mastery-state write, all synchronously in
+    one request. CI's ground-truth eval gate measured ~3.3s average per
+    grading call in-process alone (no network hop) -- a real production
+    call adds an A2A round-trip and Vercel cold start on top. The root
+    `vercel.json` now sets an explicit `maxDuration: 30` on the backend
+    function (previously unset, meaning an unstated platform default) so
+    a slow worst-case path fails as a clean `grading_unavailable`
+    response instead of a hard platform-level kill. **Live-verified
+    2026-08-21**: a top-level `functions` key isn't valid alongside
+    `services` -- Vercel rejects the deploy ("the owning service is
+    ambiguous"), confirmed via a real PR build failure. `functions` MUST
+    be nested under the specific service's own object in a Services
+    `vercel.json` (`services.backend.functions`), not top-level; fixed,
+    pending redeploy confirmation. Whether 30s itself is within the
+    deployed plan's tier still isn't independently confirmed (the deploy
+    succeeding only proves the config is syntactically valid, not that
+    a 30s-duration invocation has actually been exercised) -- revisit if
+    a real request approaches that ceiling. Resolved via `/speckit-clarify`
+    on 2026-08-21: SC-006 now covers the full request path (not just the
+    grading call) at a 10-second, 95th-percentile target grounded in
+    this measured data, and the retry bound
+    (`services/grading_client/client.py`) dropped from 2 retries to 1 so
+    worst-case latency stays comfortably under the 30s ceiling --
+    see spec 007's `spec.md` Clarifications (Session 2026-08-21) and
+    `research.md` §7.
 - **Frontend and backend deploy together** using Vercel's support for
   running a Python backend and a Next.js frontend in one project
   (Vercel "Services"), so the whole product -- not just the frontend --

@@ -1,5 +1,5 @@
 """Integration test: a free-text grading round trip, including the
-retry path, completes within the locked 5-second budget (spec 007
+retry path, completes within the locked 10-second budget (spec 007
 SC-006), T025.
 """
 
@@ -42,4 +42,4 @@ def test_grading_round_trip_with_one_retry_completes_within_budget(
 
     assert response.status_code == 200, response.text
     assert flaky.await_count == 2
-    assert elapsed < 5.0
+    assert elapsed < 10.0
