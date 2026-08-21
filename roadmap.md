@@ -224,13 +224,12 @@ met/missed; User Story 3's infrastructure -- the grading-agent/backend
 test-independence check and the ground-truth eval gate are both written
 and wired into a new CI workflow). Phase 6 (Polish): the two
 sandbox-runnable checks (Milestones 1-5 regression suites,
-`check_no_subject_conditionals.py`) both pass; the three remaining
-items -- deploying `grading-agent/` as its own Vercel project (T044),
-live-demonstrating SC-005 (T045), and running `quickstart.md`'s 13
-scenarios against a live environment (T046) -- all require
-infrastructure this sandbox doesn't have (a provisioned Vercel project,
-a live Postgres instance, an `ANTHROPIC_API_KEY`) and remain blocked on
-that external/manual step, same as T003's Vercel-provisioning note.
+`check_no_subject_conditionals.py`) both pass; `grading-agent/`'s
+Vercel deployment (T044) is now done for both `staging` and `main`
+(external action, performed by the user 2026-08-21) -- the two
+remaining items, live-demonstrating SC-005 (T045) and running
+`quickstart.md`'s 13 scenarios against a live environment (T046), are
+unblocked but not yet performed.
 
 **Scope**: The Grading Agent, built as an independently deployable A2A
 service per Constitution Principle VI's justification (independent
