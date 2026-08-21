@@ -42,12 +42,17 @@ constraint that shapes several choices below, not an afterthought:
     `vercel.json` now sets an explicit `maxDuration: 30` on the backend
     function (previously unset, meaning an unstated platform default) so
     a slow worst-case path fails as a clean `grading_unavailable`
-    response instead of a hard platform-level kill. **Needs live
-    verification**: whether 30s is actually within what the deployed
-    plan's tier allows, and whether the Services `functions` key is
-    honored per-service the way a single-project `vercel.json` is --
-    same "confirm against a live deployment" caveat as T003/T044
-    (`specs/007-grading-agent/tasks.md`). Resolved via `/speckit-clarify`
+    response instead of a hard platform-level kill. **Live-verified
+    2026-08-21**: a top-level `functions` key isn't valid alongside
+    `services` -- Vercel rejects the deploy ("the owning service is
+    ambiguous"), confirmed via a real PR build failure. `functions` MUST
+    be nested under the specific service's own object in a Services
+    `vercel.json` (`services.backend.functions`), not top-level; fixed,
+    pending redeploy confirmation. Whether 30s itself is within the
+    deployed plan's tier still isn't independently confirmed (the deploy
+    succeeding only proves the config is syntactically valid, not that
+    a 30s-duration invocation has actually been exercised) -- revisit if
+    a real request approaches that ceiling. Resolved via `/speckit-clarify`
     on 2026-08-21: SC-006 now covers the full request path (not just the
     grading call) at a 10-second, 95th-percentile target grounded in
     this measured data, and the retry bound
