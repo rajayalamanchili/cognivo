@@ -77,12 +77,21 @@ introduced since Milestone 1.
 units instead of two (`backend/`, `frontend/`, `grading-agent/`).
 
 **Performance Goals**: SC-006 -- 95% of free-text submissions graded
-within 5 seconds including retries. Bounded by: one moderation
-classification call (Haiku, ~0.5-1s per research.md §5) + one grading
-call (Sonnet, same cost profile as existing question-generation calls)
-+ up to 2 retries on failure (research.md §7) -- comfortably within
-budget for the non-retry path; the retry path is the one SC-006
-explicitly measures against.
+within 10 seconds, measured across the full request path (guardrail
+checks + grading call incl. retries + mastery-state write), not the
+grading call in isolation. Revised 2026-08-21 (`/speckit-clarify`) from
+an original 5-second figure that was sized against the grading call
+alone, with no real latency data and no accounting for the rest of the
+request `answer_question` awaits synchronously. Bounded by: one
+moderation classification call (Haiku, ~0.5-1s per research.md §5) +
+one grading call (Sonnet, ~3.3s measured in-process baseline plus real
+network/cold-start overhead, research.md §7) + up to 1 retry on failure
+(research.md §7, revised from 2) + guardrail/DB writes (<1s) --
+comfortably within budget for the common non-retry path; the retry path
+is a tail case SC-006's 95th-percentile framing allows for, backstopped
+by `vercel.json`'s explicit `maxDuration: 30` (tech-stack.md) so a
+worst-case retry-exhausted request fails as a clean `grading_unavailable`
+response rather than a hard platform-level kill.
 
 **Constraints**: Stateless per request (Constitution Principle IX) --
 the Grading Agent holds no state at all (research.md §3); the rate

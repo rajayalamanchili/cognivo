@@ -75,7 +75,7 @@ Three deployable units per `plan.md`'s Project Structure: `backend/`, `frontend/
 - [X] T022 [P] [US1] Integration test: `is_flagged_for_review()` returns `true` once a learner crosses the locked moderation-flag threshold within the rolling window, `false` otherwise (FR-013) in `backend/tests/integration/test_moderation_review_flag.py`
 - [X] T023 [P] [US1] Integration test: two differently-worded, equally-correct free-text answers submitted to two instances of the same question receive identical `correct`/`criteria_met` outcomes -- proving grading is rubric-based, not exact-string-match (FR-004, User Story 1 Acceptance Scenario 3) in `backend/tests/integration/test_free_text_paraphrase_equivalence.py`
 - [X] T024 [P] [US1] Integration test: a free-text question generated inside a `QuizSession` is graded and feeds `record_quiz_answer`'s difficulty-adjustment logic identically to any other in-quiz question type, with no separate integration path (FR-011) in `backend/tests/integration/test_free_text_quiz_integration.py`
-- [X] T025 [P] [US1] Integration test: a free-text grading round trip, including the retry path, completes within the locked 5-second budget (SC-006) in `backend/tests/integration/test_free_text_grading_latency.py`
+- [X] T025 [P] [US1] Integration test: a free-text grading round trip, including the retry path, completes within the locked 10-second budget (SC-006) in `backend/tests/integration/test_free_text_grading_latency.py`
 - [X] T026 [P] [US1] Frontend unit test: `FreeTextAnswerInput` renders a textarea and submits its value via `answerQuestion()`, in `frontend/tests/unit/free-text-answer-input.test.tsx`
 - [X] T027 [P] [US1] Frontend unit test: the question flow renders five distinct states (grading-in-progress, too-long, rate-limited, moderation-rejected, grading-unavailable) without conflating them (FR-018) in `frontend/tests/unit/free-text-rejection-states.test.tsx`
 
@@ -185,7 +185,7 @@ Task: "Integration test: Grading Agent unavailable surfaces distinct retryable s
 Task: "Integration test: invalid Grading Agent response rejected and retried in backend/tests/integration/test_free_text_response_validation.py"
 Task: "Integration test: differently-worded correct answers grade identically in backend/tests/integration/test_free_text_paraphrase_equivalence.py"
 Task: "Integration test: free-text question inside a quiz session grades and adjusts difficulty normally in backend/tests/integration/test_free_text_quiz_integration.py"
-Task: "Integration test: grading round trip completes within the 5-second budget in backend/tests/integration/test_free_text_grading_latency.py"
+Task: "Integration test: grading round trip completes within the 10-second budget in backend/tests/integration/test_free_text_grading_latency.py"
 
 # Launch the four independent US1 service modules together:
 Task: "Implement guardrails.py (length + rate limit) in backend/src/services/grading_client/guardrails.py"

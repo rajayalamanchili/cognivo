@@ -19,6 +19,11 @@
 - Q: Should there be a maximum length enforced on a learner's free-text answer submission? → A: Yes -- a fixed maximum length is enforced on submission, rejected before it reaches moderation or grading, with a clear "answer too long" message. The exact character limit is locked at `/speckit-plan` time, consistent with how other numeric parameters are locked at planning time rather than in the spec.
 - Q: Should there be a rate limit on how many free-text answers a single learner can submit for grading within a given time window? → A: Yes -- a fixed per-learner rate limit is enforced on free-text grading submissions; a learner exceeding it sees a distinct rate-limited state and can retry once the window resets. The exact limit and window are locked at `/speckit-plan` time.
 
+### Session 2026-08-21
+
+- Q: Should SC-006's timing window continue to cover only the isolated Grading Agent call, or the entire request path `answer_question` actually awaits (length/rate-limit/moderation checks + the grading call incl. retries + the mastery-state write)? → A: Full request path -- from submission received to grade returned, including guardrail checks, the grading call (with retries), and the mastery-state write.
+- Q: Given that full-request-path scope, what should SC-006's numeric target actually be? → A: 10 seconds -- typical full-path latency (moderation ~1-2s, the grading call ~3.3s measured in-process plus real network/cold-start overhead, guardrail/DB writes <1s) runs roughly 6-10s for the common no-retry case; 10s gives real margin above that without being a meaningless bound.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Learner gets a fair, rubric-grounded grade on a free-text answer (Priority: P1)
@@ -207,7 +212,7 @@ component required a new deployment to pick it up.
   once the time window resets.
 - What happens while a free-text answer is being graded? The learner
   sees a distinct "grading in progress" state for the duration of the
-  call (bounded by SC-006's 5-second budget), separate from all five
+  call (bounded by SC-006's 10-second budget), separate from all five
   other named states (too-long, rate-limited, content-flagged,
   grading-unavailable, and the final graded result).
 - What happens if a learner submits a free-text answer twice in quick
@@ -495,10 +500,12 @@ component required a new deployment to pick it up.
   it; (3) the ground-truth evaluation gate (SC-003) ran and passed as
   part of that deployment.
 - **SC-006**: 95% of free-text answer submissions receive a grade
-  within 5 seconds of submission -- including any automatic retries --
-  so the added network hop to a remote Grading Agent does not make the
-  experience feel broken relative to today's in-process structured-
-  question grading.
+  within 10 seconds of submission, measured across the full request path
+  (pre-grading guardrail checks, the Grading Agent call including any
+  automatic retries, and the mastery-state write) -- not the grading
+  call in isolation -- so the added network hop to a remote Grading
+  Agent does not make the experience feel broken relative to today's
+  in-process structured-question grading.
 - **SC-007**: 100% of moderation-flagged free-text submissions are
   confirmed to never reach the Grading Agent and never produce a
   mastery-state update -- verified automatically, not by inspection.

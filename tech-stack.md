@@ -33,6 +33,28 @@ constraint that shapes several choices below, not an afterthought:
   `plan.md` must explicitly address it (e.g. via Fluid Compute, or by
   breaking the loop into resumable steps), not discover it at deploy
   time.
+  - **Milestone 6 hit this condition**: `answer_question` awaits
+    length/rate-limit/moderation checks, the Grading Agent's A2A call
+    (with retries), and the mastery-state write, all synchronously in
+    one request. CI's ground-truth eval gate measured ~3.3s average per
+    grading call in-process alone (no network hop) -- a real production
+    call adds an A2A round-trip and Vercel cold start on top. The root
+    `vercel.json` now sets an explicit `maxDuration: 30` on the backend
+    function (previously unset, meaning an unstated platform default) so
+    a slow worst-case path fails as a clean `grading_unavailable`
+    response instead of a hard platform-level kill. **Needs live
+    verification**: whether 30s is actually within what the deployed
+    plan's tier allows, and whether the Services `functions` key is
+    honored per-service the way a single-project `vercel.json` is --
+    same "confirm against a live deployment" caveat as T003/T044
+    (`specs/007-grading-agent/tasks.md`). Resolved via `/speckit-clarify`
+    on 2026-08-21: SC-006 now covers the full request path (not just the
+    grading call) at a 10-second, 95th-percentile target grounded in
+    this measured data, and the retry bound
+    (`services/grading_client/client.py`) dropped from 2 retries to 1 so
+    worst-case latency stays comfortably under the 30s ceiling --
+    see spec 007's `spec.md` Clarifications (Session 2026-08-21) and
+    `research.md` §7.
 - **Frontend and backend deploy together** using Vercel's support for
   running a Python backend and a Next.js frontend in one project
   (Vercel "Services"), so the whole product -- not just the frontend --
