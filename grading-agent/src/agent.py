@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from src.guardrails import before_model_guardrail
 from src.prompt_defense import build_instruction
 from src.tracing import configure_tracing, flush_traces
 
@@ -61,6 +62,11 @@ def _build_agent(model_name: str) -> LlmAgent:
         model=LiteLlm(model=model_name),
         instruction=build_instruction(grading_logic_version=GRADING_LOGIC_VERSION),
         output_schema=GradingResult,
+        # Compensating control for a leaked GRADING_AGENT_SHARED_SECRET
+        # (guardrails.py) -- the backend's own length/moderation checks
+        # only run for requests that go through the backend; a leaked
+        # secret bypasses it entirely.
+        before_model_callback=before_model_guardrail,
     )
 
 
@@ -91,18 +97,22 @@ class _SharedSecretAuthMiddleware:
     secret in `X-Grading-Agent-Secret` (PR #18 review).
 
     This agent is deployed as its own public Vercel project
-    (research.md §2), and none of the backend's guardrails (length cap,
-    rate limit, moderation, `prompt_defense.py`) run inside this
-    service -- they're deliberately backend-only, "platform-wide
-    abuse-prevention... not duplicated per-agent" (plan.md's
-    Constitution Principle IV table). That split only holds if this
-    endpoint is reachable exclusively through the backend, so without
-    this check anyone with the URL could call it directly, bypass every
-    guardrail, and run up Sonnet API costs with no rate limiting at
-    all. The backend attaches this same header on every call
-    (`grading_client/client.py`). Fails closed if no secret is
-    configured -- a misconfigured deployment should refuse traffic, not
-    silently run unauthenticated.
+    (research.md §2), and the backend's own guardrails (length cap, rate
+    limit, moderation) don't run inside this service -- they're
+    deliberately backend-only, "platform-wide abuse-prevention... not
+    duplicated per-agent" (plan.md's Constitution Principle IV table).
+    That split only holds for requests actually routed through the
+    backend, so without this check anyone with the URL could call this
+    endpoint directly and bypass every one of them. The backend attaches
+    this same header on every call (`grading_client/client.py`). Fails
+    closed if no secret is configured -- a misconfigured deployment
+    should refuse traffic, not silently run unauthenticated.
+
+    This is the primary control, not the only one: `guardrails.py`'s
+    `before_model_guardrail` (wired via `before_model_callback` in
+    `_build_agent`) re-checks length and moderation *inside* this agent
+    too, as a compensating control for the case this secret itself
+    leaks -- see that module's docstring.
 
     Accepts up to two valid secrets at once (`GRADING_AGENT_SHARED_
     SECRET` and an optional `GRADING_AGENT_SHARED_SECRET_NEXT`,
