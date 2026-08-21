@@ -94,6 +94,10 @@ describe("QuizFlow", () => {
       prior_p_mastery: null,
       posterior_p_mastery: 0.5,
       band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
     });
     vi.mocked(api.getQuizNextQuestion).mockRejectedValue(new ApiError(409, "already completed"));
     vi.mocked(api.getQuizSummary).mockResolvedValue({
@@ -133,6 +137,10 @@ describe("QuizFlow", () => {
       prior_p_mastery: null,
       posterior_p_mastery: 0.5,
       band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
     });
     vi.mocked(api.getQuizNextQuestion).mockResolvedValue({
       status: "ended_early",

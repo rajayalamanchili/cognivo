@@ -26,6 +26,9 @@ def validate_response_shape(question_type: QuestionType, response: Any) -> None:
     elif question_type == QuestionType.NUMERIC:
         if not isinstance(response, (int, float)):
             raise ValueError("numeric response must be a number")
+    elif question_type == QuestionType.FREE_TEXT:
+        if not isinstance(response, str):
+            raise ValueError("free_text response must be a string")
 
 
 def grade_answer(question: dict[str, Any], *, response: Any) -> bool:

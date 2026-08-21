@@ -214,8 +214,23 @@ exists).
 ---
 
 ## Milestone 6: Free-Text Grading via a Real A2A Service
-**Spec**: not yet written -- do not begin until Milestone 5 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/007-grading-agent/spec.md`
+**Status**: `/speckit-implement` in progress. Phases 1-5 of 6 complete
+(setup; foundational schema/content/agent-skeleton; User Story 1 --
+free-text questions are generated, guarded, graded via a real A2A call
+to the Grading Agent, and update mastery state, including inside a quiz
+session; User Story 2 -- learners see which rubric criteria their answer
+met/missed; User Story 3's infrastructure -- the grading-agent/backend
+test-independence check and the ground-truth eval gate are both written
+and wired into a new CI workflow). Phase 6 (Polish): the two
+sandbox-runnable checks (Milestones 1-5 regression suites,
+`check_no_subject_conditionals.py`) both pass; the three remaining
+items -- deploying `grading-agent/` as its own Vercel project (T044),
+live-demonstrating SC-005 (T045), and running `quickstart.md`'s 13
+scenarios against a live environment (T046) -- all require
+infrastructure this sandbox doesn't have (a provisioned Vercel project,
+a live Postgres instance, an `ANTHROPIC_API_KEY`) and remain blocked on
+that external/manual step, same as T003's Vercel-provisioning note.
 
 **Scope**: The Grading Agent, built as an independently deployable A2A
 service per Constitution Principle VI's justification (independent

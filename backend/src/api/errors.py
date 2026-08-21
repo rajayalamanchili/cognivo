@@ -22,3 +22,40 @@ class ConflictError(DomainError):
 
 class UnprocessableError(DomainError):
     """Maps to HTTP 422."""
+
+
+class TooLongError(DomainError):
+    """Maps to HTTP 422 (spec 007 FR-015): `{"error": "answer_too_long",
+    "max_length": ...}`, a distinct shape from `UnprocessableError`'s
+    generic `{"detail": ...}` -- contracts/api.md's free-text rejection
+    responses are structured, not free-text messages."""
+
+    def __init__(self, max_length: int):
+        super().__init__("answer_too_long")
+        self.max_length = max_length
+
+
+class RateLimitedError(DomainError):
+    """Maps to HTTP 429 (spec 007 FR-016)."""
+
+    def __init__(self, retry_after_seconds: int):
+        super().__init__("rate_limited")
+        self.retry_after_seconds = retry_after_seconds
+
+
+class ModerationRejectedError(DomainError):
+    """Maps to HTTP 422 (spec 007 FR-012). Deliberately carries no detail
+    about which rule was tripped (contracts/api.md) -- the reason is
+    still logged server-side via `free_text_submission_rejected`."""
+
+    def __init__(self):
+        super().__init__("moderation_rejected")
+
+
+class GradingUnavailableError(DomainError):
+    """Maps to HTTP 503 (spec 007 FR-010/FR-014) -- the Grading Agent was
+    unreachable, timed out, or its response repeatedly failed rubric-shape
+    validation after all retries were exhausted."""
+
+    def __init__(self):
+        super().__init__("grading_unavailable")

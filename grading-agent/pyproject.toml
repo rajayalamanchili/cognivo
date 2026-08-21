@@ -1,0 +1,37 @@
+[project]
+name = "cognivo-grading-agent"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "a2a-sdk[http-server]>=1.1.2",
+    "google-adk>=2.7.0",
+    "langfuse>=4.14.4",
+    "litellm>=1.96.2",
+    "openinference-instrumentation-google-adk>=0.1.20",
+    "uvicorn[standard]>=0.52.3",
+]
+
+[dependency-groups]
+dev = [
+    "black>=26.5.1",
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.3",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]

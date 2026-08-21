@@ -46,6 +46,12 @@ def test_real_data_untouched_and_synthetic_rows_cleaned_up(
     )
     mastery_state_count_before = db_session.query(MasteryState).count()
     assessment_event_count_before = db_session.query(AssessmentEvent).count()
+    # These are read-only counts, so committing here is just closing the
+    # transaction they auto-began -- not persisting anything new. Without
+    # it, db_session sits idle-in-transaction for the whole harness run
+    # below (real-DB round-trips, can take minutes), and Neon kills the
+    # connection once it exceeds the server's idle-in-transaction timeout.
+    db_session.commit()
 
     run_harness.main(
         ["--subject", algebra_subject.subject_id, "--profile", "cold-start", "--seed", "1"],
