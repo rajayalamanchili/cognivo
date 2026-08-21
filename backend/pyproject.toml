@@ -3,6 +3,7 @@ name = "cognivo-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
+    "a2a-sdk>=1.1.2",
     "alembic>=1.19.1",
     "fastapi>=0.141.1",
     "google-adk>=2.7.0",

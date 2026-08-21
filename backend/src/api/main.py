@@ -12,7 +12,15 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from src.api.errors import ConflictError, NotFoundError, UnprocessableError
+from src.api.errors import (
+    ConflictError,
+    GradingUnavailableError,
+    ModerationRejectedError,
+    NotFoundError,
+    RateLimitedError,
+    TooLongError,
+    UnprocessableError,
+)
 from src.api.routes import (
     demo_learner,
     evaluation,
@@ -51,6 +59,31 @@ def _handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
 @app.exception_handler(UnprocessableError)
 def _handle_unprocessable(request: Request, exc: UnprocessableError) -> JSONResponse:
     return JSONResponse(status_code=422, content={"detail": exc.message})
+
+
+@app.exception_handler(TooLongError)
+def _handle_too_long(request: Request, exc: TooLongError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422, content={"error": "answer_too_long", "max_length": exc.max_length}
+    )
+
+
+@app.exception_handler(RateLimitedError)
+def _handle_rate_limited(request: Request, exc: RateLimitedError) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={"error": "rate_limited", "retry_after_seconds": exc.retry_after_seconds},
+    )
+
+
+@app.exception_handler(ModerationRejectedError)
+def _handle_moderation_rejected(request: Request, exc: ModerationRejectedError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"error": "moderation_rejected"})
+
+
+@app.exception_handler(GradingUnavailableError)
+def _handle_grading_unavailable(request: Request, exc: GradingUnavailableError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"error": "grading_unavailable"})
 
 
 @app.exception_handler(Exception)

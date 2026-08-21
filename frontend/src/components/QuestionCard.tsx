@@ -1,10 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { NextQuestion } from "@/services/api";
+import type { AnswerResult, NextQuestion } from "@/services/api";
+import FreeTextAnswerInput from "@/components/FreeTextAnswerInput";
 
 // Presentational + flag-affordance only (FR-011) -- answer submission and
-// question fetching stay owned by the page that renders this card.
+// question fetching stay owned by the page that renders this card, with
+// one exception: `free_text` questions submit themselves via
+// `FreeTextAnswerInput` (spec 007 FR-018), reported back through
+// `onFreeTextGraded` rather than the shared `response`/`onResponseChange`
+// props MC/numeric use.
 
 export interface QuestionCardProps {
   question: NextQuestion;
@@ -13,6 +18,7 @@ export interface QuestionCardProps {
   onFlag: (reason: string) => void;
   flagged: boolean;
   disabled?: boolean;
+  onFreeTextGraded?: (result: AnswerResult) => void;
 }
 
 const DEFAULT_FLAG_REASON = "Learner flagged this question's answer key as incorrect.";
@@ -24,6 +30,7 @@ export default function QuestionCard({
   onFlag,
   flagged,
   disabled,
+  onFreeTextGraded,
 }: QuestionCardProps) {
   const [showFlagForm, setShowFlagForm] = useState(false);
   const [reason, setReason] = useState("");
@@ -53,6 +60,12 @@ export default function QuestionCard({
             </label>
           ))}
         </div>
+      ) : question.question_type === "free_text" ? (
+        <FreeTextAnswerInput
+          questionId={question.question_id}
+          onGraded={(result) => onFreeTextGraded?.(result)}
+          disabled={disabled}
+        />
       ) : (
         <input
           type="number"

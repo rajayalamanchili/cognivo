@@ -95,7 +95,7 @@ topics:
       summary: >-
         Identify slope and y-intercept from a linear equation and
         determine points that lie on its graph.
-      preferred_question_types: [multiple_choice]
+      preferred_question_types: [free_text]
     difficulty_calibration:
       easy: "Identify the slope and y-intercept of an equation already in y = mx + b form."
       medium: "Determine whether a given point lies on the line described by an equation."

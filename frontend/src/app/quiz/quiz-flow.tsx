@@ -152,6 +152,12 @@ export default function QuizFlow() {
     }
   }
 
+  async function handleFreeTextGraded() {
+    if (!quizSessionId) return;
+    setResponse("");
+    await advanceToNextQuestion(quizSessionId);
+  }
+
   async function handleFlag(reason: string) {
     if (!currentQuestion || !learnerId) return;
     try {
@@ -195,15 +201,18 @@ export default function QuizFlow() {
           onFlag={handleFlag}
           flagged={flagged}
           disabled={phase === "submitting"}
+          onFreeTextGraded={handleFreeTextGraded}
         />
-        <button
-          type="button"
-          disabled={response === "" || phase === "submitting"}
-          onClick={handleSubmitAnswer}
-          className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
-        >
-          {phase === "submitting" ? "Submitting…" : "Submit Answer"}
-        </button>
+        {currentQuestion.question_type !== "free_text" && (
+          <button
+            type="button"
+            disabled={response === "" || phase === "submitting"}
+            onClick={handleSubmitAnswer}
+            className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+          >
+            {phase === "submitting" ? "Submitting…" : "Submit Answer"}
+          </button>
+        )}
       </div>
     );
   }

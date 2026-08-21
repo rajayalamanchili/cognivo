@@ -16,6 +16,10 @@ P_T = 0.1  # probability of transitioning not-mastered -> mastered per opportuni
 P_S = 0.1  # slip: probability of an incorrect answer despite mastery
 P_G_MULTIPLE_CHOICE = 0.25  # guess: probability of a correct answer despite no mastery
 P_G_NUMERIC = 0.05
+# Same rationale as numeric: no discrete option set to luck into, and
+# rubric-based grading (spec 007) requires satisfying specific criteria
+# rather than matching one exact value -- negligible blind-guess odds.
+P_G_FREE_TEXT = 0.05
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,8 @@ def guess_probability(question_type: QuestionType) -> float:
         return P_G_MULTIPLE_CHOICE
     if question_type == QuestionType.NUMERIC:
         return P_G_NUMERIC
+    if question_type == QuestionType.FREE_TEXT:
+        return P_G_FREE_TEXT
     raise ValueError(f"unknown question_type: {question_type!r}")
 
 

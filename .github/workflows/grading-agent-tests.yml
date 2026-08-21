@@ -1,0 +1,51 @@
+name: Grading Agent Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [staging, main]
+    paths:
+      - "grading-agent/**"
+      - "backend/scripts/check_grading_agent_eval.py"
+      - "backend/scripts/check_grading_agent_test_independence.py"
+      - "backend/evaluation/grading_ground_truth.jsonl"
+      - ".github/workflows/grading-agent-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  grading-agent-suite:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.12"
+
+      - name: Install grading-agent dependencies
+        working-directory: grading-agent
+        run: uv sync
+
+      # T012/T038's own evidence for Constitution Principle VI -- this
+      # suite has had no CI coverage until this workflow existed.
+      - name: Run grading-agent's own (independent) pytest suite
+        working-directory: grading-agent
+        run: uv run pytest -q
+
+      # T038: grading-agent/tests and backend/tests must share no
+      # fixtures/imports -- pure stdlib, no dependency install needed.
+      - name: Check test-suite independence (spec 007 T038)
+        run: python3 backend/scripts/check_grading_agent_test_independence.py
+
+      # T040/FR-008/SC-003: the ground-truth eval gate -- a required
+      # merge gate for any scoring-logic change, not an advisory report.
+      # This script is plain stdlib (no venv needed) -- it shells out to
+      # `uv run` inside grading-agent/ itself for the actual agent calls
+      # (see check_grading_agent_eval.py's docstring).
+      - name: Run ground-truth eval gate (spec 007 T040, FR-008, SC-003)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GRADING_AGENT_MODEL: anthropic/claude-sonnet-4-5
+        run: python3 backend/scripts/check_grading_agent_eval.py

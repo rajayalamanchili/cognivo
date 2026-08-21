@@ -2,7 +2,7 @@
 // only -- `/api/*` requests are same-origin in production and proxied to
 // the local backend in dev (see next.config.ts).
 
-export type QuestionType = "multiple_choice" | "numeric";
+export type QuestionType = "multiple_choice" | "numeric" | "free_text";
 export type Difficulty = "easy" | "medium" | "hard";
 export type MasteryBand = "struggling" | "developing" | "mastered";
 export type MasteryStatus = "unknown" | "scored";
@@ -125,6 +125,10 @@ export interface AnswerResult {
   prior_p_mastery: number | null;
   posterior_p_mastery: number;
   band: MasteryBand;
+  graduated_score: number | null;
+  criteria_met: string[] | null;
+  criteria_missed: string[] | null;
+  grading_logic_version: string | null;
 }
 
 export interface FlagResult {
@@ -169,10 +173,38 @@ export interface QuizSummaryResponse {
   summary: QuizSummaryEntry[];
 }
 
+// Free-text's four distinct rejection responses (contracts/api.md) --
+// `ApiError.body` carries the parsed shape so callers can distinguish
+// them without re-parsing `message`.
+export interface AnswerTooLongBody {
+  error: "answer_too_long";
+  max_length: number;
+}
+
+export interface RateLimitedBody {
+  error: "rate_limited";
+  retry_after_seconds: number;
+}
+
+export interface ModerationRejectedBody {
+  error: "moderation_rejected";
+}
+
+export interface GradingUnavailableBody {
+  error: "grading_unavailable";
+}
+
+export type FreeTextErrorBody =
+  | AnswerTooLongBody
+  | RateLimitedBody
+  | ModerationRejectedBody
+  | GradingUnavailableBody;
+
 export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public body?: unknown,
   ) {
     super(message);
     this.name = "ApiError";
@@ -185,8 +217,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });
   if (!response.ok) {
-    const body = await response.text();
-    throw new ApiError(response.status, `${path} failed (${response.status}): ${body}`);
+    const text = await response.text();
+    let body: unknown;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = undefined;
+    }
+    throw new ApiError(response.status, `${path} failed (${response.status}): ${text}`, body);
   }
   return (await response.json()) as T;
 }

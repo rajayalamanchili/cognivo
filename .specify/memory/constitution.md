@@ -1,3 +1,23 @@
+<!--
+Sync Impact Report
+- Version change: 1.4.0 -> 1.5.0 (MINOR: materially expanded guidance on
+  an existing principle, no principle added/removed/renamed)
+- Modified principles:
+  - VI. Agent Boundaries Match Deployment Boundaries Where It Earns Its
+    Keep -- added an inbound-authentication requirement for any agent
+    split out as a network-reachable A2A service, plus rationale tying
+    it to the Grading Agent (spec 007) gap that motivated it
+- Added sections: none
+- Removed sections: none
+- Templates/commands requiring follow-up: none checked for this
+  amendment beyond the constitution itself (scope guard: this command
+  updates only .specify/memory/constitution.md)
+- Deferred non-governance items: recording the actual authentication
+  mechanism (shared-secret header via env var) as the locked
+  implementation pattern in tech-stack.md is intentionally NOT done
+  here -- see Next Actions in the command's final summary
+-->
+
 # Cognivo Constitution
 
 A domain-agnostic, AI-powered learning platform that personalizes what a
@@ -93,13 +113,30 @@ ADK sub-agent, that choice MUST be justified by a concrete need
 (independent versioning, independent evaluation, a different language
 being the right tool, or genuine horizontal scaling) stated in that
 feature's `spec.md` -- never adopted by default because A2A is available.
+Any such service, once split out, MUST authenticate inbound requests
+(e.g. a shared secret, mTLS, or equivalent) before this project's usual
+per-request guardrails (rate limiting, content moderation, length caps)
+can be assumed to apply -- independent deployability does not confer
+implicit network-level privacy, and a guardrail design that depends on
+"only the backend can reach this" MUST NOT be trusted unless that
+assumption is actually enforced. The specific authentication mechanism
+is a `tech-stack.md` decision, not restated per feature.
 
 **Rationale**: A2A and ADK are tools for a specific architectural
 problem (independently evolvable, possibly cross-language agent
 boundaries), not a checklist item. A remote-service boundary that exists
 only to demonstrate the technology, rather than to solve a real
 deployment or evaluation need, adds real cost (latency, operational
-surface, failure modes) for no real benefit.
+surface, failure modes) for no real benefit. The authentication
+requirement exists because Milestone 6's Grading Agent shipped this
+project's first A2A service as a public, unauthenticated Vercel URL --
+none of the backend's guardrails ran inside the agent itself, so anyone
+with the URL could bypass every one of them and run up LLM costs
+directly. That gap was fixed in code (spec 007, PR #18) but nothing in
+this constitution had actually required it; writing it down here closes
+it for every future A2A service (starting with Milestone 9's Tutor
+Agent) rather than leaving it to be independently rediscovered per
+feature.
 
 ### VII. Spec Before Code, Milestone-Gated
 No feature's implementation begins without an approved `spec.md`,
@@ -192,6 +229,6 @@ Check.
 - Amendments to this constitution require a written rationale and a
   version bump below.
 
-**Version**: 1.4.0 -- Amended 2026-08-14 (Principle VIII extended to
-require demo accounts be explicitly flagged and visibly distinguishable
-from real users)
+**Version**: 1.5.0 -- Amended 2026-08-20 (Principle VI extended to
+require A2A services authenticate inbound requests before backend-owned
+guardrails can be assumed to apply)
