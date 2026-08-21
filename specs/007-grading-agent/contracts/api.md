@@ -136,6 +136,19 @@ its own copy of the same env var (accepting a `..._SECRET_NEXT` value
 too, for rotation). A request without a matching header gets `401`
 before ever reaching the agent/model.
 
+**Vercel Deployment Protection** (discovered live, 2026-08-21): Vercel's
+own platform-level Vercel Authentication (SSO) sits in front of
+non-production deployments by default -- a separate, earlier gate than
+`_SharedSecretAuthMiddleware` above, returning its own `401 "Protected
+deployment"` before the request ever reaches the Grading Agent's code
+at all. If the deployment target has this enabled, the backend must
+also send Vercel's "Protection Bypass for Automation" secret as
+`x-vercel-protection-bypass` (`GRADING_AGENT_VERCEL_BYPASS_SECRET`,
+optional -- only added if configured). Neither this backend's guardrails
+nor `_SharedSecretAuthMiddleware` have any visibility into this layer;
+it's Vercel's own edge, checked before anything in this repo's code
+runs.
+
 **Leaked-secret compensating control** (`tech-stack.md`'s "A2A
 leaked-secret compensating control" row): authentication alone assumes
 the secret never leaks. If it does, the guardrails above are bypassed
