@@ -77,4 +77,12 @@
   reject-before-moderation-or-grading shape as FR-012/FR-015, with
   companion edge cases and SC-009/SC-010. Exact numeric values for
   both (length limit, rate limit + window) deferred to `/speckit-plan`.
+- Added FR-019 (2026-08-21, `/speckit-analyze` finding C1): A2A inbound
+  authentication requirement, backfilled after the fact -- the
+  requirement was already implemented (Constitution Principle VI's
+  v1.5.0 amendment, a PR review finding) but had no corresponding FR
+  until this pass caught the traceability gap. `/speckit-clarify`
+  (2026-08-21) also revised SC-006 (full-request-path scope, 10s target)
+  and the FR-010/FR-014 retry bound (1 retry, down from 2) against real
+  measured latency -- see spec.md Clarifications, Session 2026-08-21.
 - All checklist items pass. Spec is ready for `/speckit-plan`.

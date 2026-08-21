@@ -431,6 +431,24 @@ component required a new deployment to pick it up.
   unavailable, and grading-in-progress) MUST have its own distinct
   message -- a learner MUST be able to tell which of the five occurred
   from the message alone, not only from an internal error code.
+- **FR-019**: The Grading Agent MUST authenticate every inbound request
+  before it reaches the agent/model, rather than relying on "only the
+  backend can reach this" as an unenforced assumption -- this endpoint
+  is a public Vercel URL (FR-003, FR-009), and without authentication,
+  anyone with the URL could call it directly, bypassing every guardrail
+  in FR-012/FR-015/FR-016 and incurring ungoverned LLM cost. Added
+  retroactively (Constitution Principle VI's v1.5.0 amendment, following
+  a PR review finding the original A2A endpoint had shipped
+  unauthenticated); the authentication mechanism itself (a shared
+  secret, checked via constant-time comparison, with current/next
+  rotation support) is a `tech-stack.md` decision, not restated here.
+  Because authentication assumes the secret itself never leaks, the
+  Grading Agent additionally re-checks a total request-length cap and
+  re-runs content moderation on the raw incoming request internally, as
+  a compensating control for that one failure mode -- this does not
+  duplicate FR-012/FR-015's backend-side checks for legitimate,
+  backend-routed traffic, which already passed them before this agent
+  is ever called.
 
 ### Key Entities
 

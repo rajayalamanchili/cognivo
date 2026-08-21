@@ -114,7 +114,7 @@ design below.*
 | I. Personalization is a model, not a guess | The mastery model (BKT) is untouched -- free-text grading's graduated score is thresholded to the same binary observation shape every other question type already produces (FR-005, research.md §7) before it ever reaches the Sequencing Agent's mastery tool. | PASS |
 | II. Generated content graded against a rubric | The core purpose of this milestone: every free-text question carries a rubric generated alongside it (FR-002, reusing Milestone 1's `answer_key`-generation guarantee, research.md §9); grading evaluates against that rubric, never freeform judgment (FR-004) and never the answer's own embedded claims (FR-014). | PASS |
 | III. One engine, many subjects | Free-text question-type selection is entirely content-artifact-owned via `preferred_question_types` (research.md §10) -- zero new subject-id-keyed conditionals in engine code, covered by the existing `check_no_subject_conditionals.py` scan. Both seeded subjects opt in. | PASS |
-| IV. Agent boundaries reflect real responsibility | The Grading Agent's responsibility (rubric-based scoring) is genuinely distinct from Assessment-Generation's (question + rubric authoring) -- different failure modes (a bad grade vs. a bad question), different evaluation criteria (the ground-truth eval set, FR-008, vs. Milestone 1's draft-validation checks). Three of the four guardrails (moderation, length, rate limit) are platform-wide abuse-prevention concerns owned by the backend, not duplicated per-agent. The fourth, prompt-injection defense, is intrinsic to the Grading Agent's own scoring responsibility -- defending its own prompt from the untrusted input it evaluates is part of scoring correctly, not a duplicated cross-cutting concern -- so it correctly lives inside `grading-agent/` itself (`prompt_defense.py`), not the backend. | PASS |
+| IV. Agent boundaries reflect real responsibility | The Grading Agent's responsibility (rubric-based scoring) is genuinely distinct from Assessment-Generation's (question + rubric authoring) -- different failure modes (a bad grade vs. a bad question), different evaluation criteria (the ground-truth eval set, FR-008, vs. Milestone 1's draft-validation checks). Three of the four guardrails (moderation, length, rate limit) are platform-wide abuse-prevention concerns owned by the backend for a request routed through it, not duplicated per-agent for that path. The fourth, prompt-injection defense, is intrinsic to the Grading Agent's own scoring responsibility -- defending its own prompt from the untrusted input it evaluates is part of scoring correctly, not a duplicated cross-cutting concern -- so it correctly lives inside `grading-agent/` itself (`prompt_defense.py`), not the backend. Exception, added post-PR #18: length and moderation also run *inside* the Grading Agent (`grading-agent/src/guardrails.py`) as a compensating control if the A2A shared secret itself leaks (`tech-stack.md`'s "A2A leaked-secret compensating control" row) -- this isn't a duplication of the backend's guardrails for legitimate traffic (which already passed them before ever reaching this service), it's coverage for the one failure mode -- secret compromise -- that authentication alone can't address. | PASS |
 | V. Logged and explainable | Every grading outcome (FR-007) and every guardrail rejection (FR-012/015/016) is a distinct, queryable `AssessmentEvent` (data-model.md) -- "why was this marked wrong" and "why was this rejected" both have real, traceable answers. The backend's `traced_request()` covers its own in-process guardrail calls (moderation); it has no visibility inside the remote A2A call, so the Grading Agent's own `LlmAgent` invocation is independently instrumented inside `grading-agent/` itself (`src/tracing.py`, PR #18 review), reading the same Langfuse env vars. | PASS |
 | VI. A2A justified by concrete need | This is the concrete case Constitution Principle VI and `tech-stack.md` both name in advance: independent versioning/evaluation of grading logic (FR-008's merge gate) without redeploying the rest of the platform. SC-005 and this feature's own separate `grading-agent/tests/` suite exist specifically to prove the boundary earns its keep, not merely claim it does (research.md §2). | PASS |
 | VII. Spec before code | This plan follows the approved, twice-clarified spec.md (Clarifications sessions 2026-08-19). | PASS |
@@ -176,13 +176,23 @@ grading-agent/                        # NEW -- separate Vercel project (research
 │   ├── agent.py                      # NEW: the Grading Agent itself (ADK LlmAgent,
 │   │                                    # LiteLlm/Claude Sonnet) + to_a2a() wrapping
 │   │                                    # (research.md §1); GRADING_LOGIC_VERSION
-│   │                                    # constant (research.md §8)
-│   └── prompt_defense.py             # NEW: "treat answer as data, not instructions"
-│                                        # prompt construction (FR-014)
-├── tests/                            # NEW: this project's own independent test suite
-│   └── test_agent.py                 # (Constitution Principle VI's evidence requirement)
-├── pyproject.toml                    # NEW
-└── vercel.json                       # NEW: this project's own deployment config
+│   │                                    # constant (research.md §8). Also carries
+│   │                                    # _SharedSecretAuthMiddleware (PR #18 review,
+│   │                                    # tech-stack.md's A2A inbound-authentication row,
+│   │                                    # current/next secret rotation) and wires
+│   │                                    # guardrails.py's before_model_guardrail in.
+│   ├── prompt_defense.py             # "treat answer as data, not instructions"
+│   │                                    # prompt construction (FR-014)
+│   └── guardrails.py                 # NEW (post-PR #18): leaked-secret compensating
+│                                        # control -- re-checks a total request-length
+│                                        # cap and content moderation inside the agent
+│                                        # itself (tech-stack.md's "A2A leaked-secret
+│                                        # compensating control" row)
+├── tests/                            # this project's own independent test suite
+│   ├── test_prompt_defense.py        # (Constitution Principle VI's evidence requirement)
+│   └── test_guardrails.py            # NEW (post-PR #18)
+├── pyproject.toml
+└── vercel.json                       # this project's own deployment config
 
 frontend/
 ├── src/
