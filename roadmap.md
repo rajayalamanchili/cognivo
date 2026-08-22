@@ -215,21 +215,26 @@ exists).
 
 ## Milestone 6: Free-Text Grading via a Real A2A Service
 **Spec**: `specs/007-grading-agent/spec.md`
-**Status**: `/speckit-implement` in progress. Phases 1-5 of 6 complete
+**Status**: `/speckit-implement` complete, all 6 phases (2026-08-22)
 (setup; foundational schema/content/agent-skeleton; User Story 1 --
 free-text questions are generated, guarded, graded via a real A2A call
 to the Grading Agent, and update mastery state, including inside a quiz
 session; User Story 2 -- learners see which rubric criteria their answer
 met/missed; User Story 3's infrastructure -- the grading-agent/backend
 test-independence check and the ground-truth eval gate are both written
-and wired into a new CI workflow). Phase 6 (Polish): the two
-sandbox-runnable checks (Milestones 1-5 regression suites,
-`check_no_subject_conditionals.py`) both pass; `grading-agent/`'s
-Vercel deployment (T044) is now done for both `staging` and `main`
-(external action, performed by the user 2026-08-21) -- the two
-remaining items, live-demonstrating SC-005 (T045) and running
-`quickstart.md`'s 13 scenarios against a live environment (T046), are
-unblocked but not yet performed.
+and wired into a new CI workflow; Phase 6 Polish -- regression suites,
+`check_no_subject_conditionals.py`, live deployment, and live
+validation). `grading-agent/`'s Vercel deployment (T044) is done for
+both `staging` and `main` (external action, performed by the user
+2026-08-21). SC-005's live demonstration (T045) is done (2026-08-22) --
+reaching a live grading response required three sequential fixes only
+discoverable once real cross-service traffic was attempted for the
+first time (Vercel Deployment Protection bypass, PR #22; the content
+loader's Topic-row FK violation on reload, PR #23; `to_a2a()`'s
+AgentCard advertising `localhost:8000` instead of the real Vercel URL,
+PR #24). `quickstart.md`'s 13 validation scenarios (T046) all ran
+against staging (2026-08-22) -- see `tasks.md`'s T045/T046 for full
+detail on both.
 
 **Scope**: The Grading Agent, built as an independently deployable A2A
 service per Constitution Principle VI's justification (independent
