@@ -8,6 +8,13 @@
 
 **Input**: User description: "milestone 7"
 
+## Clarifications
+
+### Session 2026-08-22
+
+- Q: How does a real learner (a minor, provisioned per FR-003) actually authenticate, and who may enroll them? → A: A parent/guardian always creates the account and sets the child's login credentials directly (COPPA verifiable-parental-consent path, not a school-official-only model). Every classroom is configured as either **open** (a parent may enroll their child via a join code without instructor approval) or **closed** (the instructor must approve/invite each enrollment before it completes) -- this open/closed distinction governs enrollment gating only, not who holds the credential. (The open/closed distinction's *content-curation* difference -- LLM-curated for open classrooms vs. human-approved for closed -- is a separate, content-review-workflow concern, not part of this privacy/retention spec; tracked as a new `roadmap.md` backlog item instead.)
+- Q: When a deletion request is honored, is a learner's data hard-deleted or anonymized-and-retained for aggregate research? → A: Hard delete, no exceptions -- every row tied to the deleted identity is permanently removed, never de-identified and kept for mastery-model/eval-harness research. This is the stronger compliance posture (true right-to-erasure); it also means a deleted learner's contribution to any future aggregate training/eval corpus (Milestones 3, 11) is lost, not retained.
+
 ## User Scenarios & Testing *(mandatory)*
 
 This feature is the dedicated privacy/retention spec that Constitution
@@ -70,21 +77,20 @@ back out again is only half a privacy control.
 **Independent Test**: Simulate a deletion request against a synthetic
 account carrying the same data shape a real account would (roster
 membership, assessment events, mastery state, generated questions) and
-confirm every referencing row is deleted or irreversibly anonymized
-within the locked SLA, with no orphaned foreign-key references left
-behind.
+confirm every referencing row is hard-deleted within the locked SLA,
+with no orphaned foreign-key references left behind.
 
 **Acceptance Scenarios**:
 
 1. **Given** a learner account with roster membership, assessment
    history, and mastery state, **When** a deletion request is submitted
-   and processed, **Then** all of that learner's personally-identifying
-   data and activity history is deleted or irreversibly anonymized
-   within the locked SLA (FR-004).
+   and processed, **Then** all of that learner's data and activity
+   history is permanently deleted (not merely de-identified) within the
+   locked SLA (FR-004).
 2. **Given** a deletion request is in progress, **When** any other part
    of the system (dashboard, recommendation report, audit log) queries
-   for that learner's data, **Then** it either returns nothing or
-   returns already-anonymized data -- never a partial, inconsistent view.
+   for that learner's data, **Then** it returns nothing for that
+   learner -- never a partial, inconsistent view.
 
 ---
 
@@ -169,12 +175,20 @@ after navigation.
   `tech-stack.md`, which bounds how long such content could persist, but
   this spec does not add new content-scanning requirements beyond the
   existing moderation guardrails.)
+- What happens when a parent joins an **open** classroom the instructor
+  didn't specifically invite? (The enrollment completes immediately per
+  FR-003a; the instructor's roster and every access-control scope
+  (FR-006) update to include that learner right away -- there is no
+  separate "pending instructor review" state for an open classroom by
+  definition, since that would make it a closed one.)
 - What happens to audit-log rows (Constitution Principle V's
   "why was this learner shown this" trail) for a learner whose data is
-  deleted? (They must be deleted/anonymized along with everything else
-  this learner's identity is attached to -- Principle V's explainability
+  deleted? (They must be hard-deleted along with everything else this
+  learner's identity is attached to -- Principle V's explainability
   requirement does not override Principle VIII's deletion requirement;
-  see FR-005.)
+  see FR-005. Explainability for a since-deleted learner's past
+  decisions is no longer possible after deletion, which is the
+  expected, accepted tradeoff of a real erasure request.)
 
 ## Requirements *(mandatory)*
 
@@ -190,15 +204,24 @@ after navigation.
   listing every field collected about a real learner and a real
   instructor, each field's retention period, and the event that triggers
   its deletion.
-- **FR-003**: Real learner accounts MUST be provisioned only by an
-  instructor or institution on a learner's behalf -- there is no
-  self-serve sign-up path by which a prospective student can create
-  their own account.
+- **FR-003**: A real learner account's login credentials MUST always be
+  created and controlled by a parent/guardian, never by the learner
+  (a minor) independently and never by an instructor on the learner's
+  behalf -- this is the verifiable-parental-consent action itself, not
+  a formality. A learner never has a login credential their parent/
+  guardian didn't set.
+- **FR-003a**: Every classroom MUST be configured as either **open**
+  (a parent/guardian may enroll their child by joining a class code
+  without instructor approval) or **closed** (the instructor MUST
+  approve or send an individual invite for each enrollment before it
+  completes). This governs who may create the *enrollment link* between
+  a learner and a classroom -- it does not change FR-003: the parent
+  still creates the login credential in both cases.
 - **FR-004**: The system MUST support a deletion request (submitted by
-  the affected learner/instructor or the institution on their behalf)
-  that removes or irreversibly anonymizes all of that person's
-  personally-identifying data and activity history within 30 days of
-  the request.
+  the parent/guardian, the instructor, or the institution on the
+  learner's behalf) that permanently, irrecoverably deletes all of that
+  person's data and activity history -- a hard delete, never a
+  de-identify-and-retain operation -- within 30 days of the request.
 - **FR-005**: A deletion request MUST cascade to every table
   referencing that person's identity, including audit-log
   (`AssessmentEvent`) rows, mastery state, generated questions, roster
@@ -227,29 +250,36 @@ after navigation.
 - **FR-010**: The system MUST retain a real account's data for as long
   as the account remains enrolled/active, and for up to 1 year after
   the account becomes inactive (e.g. end of an academic term with no
-  successor enrollment), after which it MUST be automatically deleted
-  or anonymized under the same FR-004/FR-005 process, independent of
+  successor enrollment), after which it MUST be automatically
+  hard-deleted under the same FR-004/FR-005 process, independent of
   whether an explicit deletion request was ever submitted.
-- **FR-011**: Every real account, at creation time, MUST record which
-  instructor/institution authorized its creation -- this is the
-  system's record that the FERPA "school official" exception's
-  authorization chain was followed, not a live parental-consent
-  collection flow (see Assumptions).
+- **FR-011**: Every real learner account, at creation time, MUST record
+  which party authorized the *enrollment* (not the login credential,
+  which is always the parent/guardian per FR-003): the consenting
+  parent/guardian's own join action for an open classroom, or the
+  approving instructor's action for a closed classroom. This is the
+  system's audit record of which enrollment path (FR-003a) was actually
+  followed for that specific learner.
 
 ### Key Entities *(include if feature involves data)*
 
-- **RealLearnerAccount**: A real (non-demo) student's account, created
-  only by instructor/institution action (FR-003), distinct from
+- **RealGuardianAccount**: A real parent/guardian's account -- the
+  actual authenticating identity and credential holder (FR-003). Not a
+  learner-facing concept; this is who logs in and who consent legally
+  attaches to.
+- **RealLearnerAccount**: A real (non-demo) student's profile, linked to
+  and controlled by exactly one `RealGuardianAccount`, distinct from
   Milestone 1's synthetic `DemoLearnerProfile`. Carries the same
   mastery-state/assessment-event relationships `DemoLearnerProfile`
   does today, plus the retention/authorization metadata this spec
-  requires.
+  requires. Has no independent login credential of its own.
 - **RealInstructorAccount**: A real educator's account, owning one or
   more classroom rosters. Introduced by Milestone 7 proper; this spec
   defines the data-handling obligations it must carry from the moment
   it can be created.
 - **ClassroomRoster**: The enrollment relationship scoping a set of
-  `RealLearnerAccount`s to one `RealInstructorAccount`, and the
+  `RealLearnerAccount`s to one `RealInstructorAccount`, carrying an
+  **open**/**closed** enrollment-gating mode (FR-003a), and the
   boundary every access-control check (FR-006) is enforced against.
 - **DeletionRequest**: A record of a submitted deletion request, its
   target identity, submission time, and completion time -- proof the
@@ -273,8 +303,9 @@ after navigation.
   with non-overlapping rosters, 0 of the tested read paths ever return
   another instructor's roster data.
 - **SC-004**: 100% of real accounts created in testing carry a complete
-  `RetentionRecord` (enrollment status, authorizing instructor) at
-  creation time -- no account can be created without one.
+  `RetentionRecord` (enrollment status, authorizing party -- parent for
+  an open classroom, instructor for a closed one) at creation time --
+  no account can be created without one.
 - **SC-005**: 100% of manual/automated UI checks confirm the demo
   indicator is visible on every screen during an active demo session,
   and the automated check (FR-008) finds zero real-sign-up-reachable
@@ -290,14 +321,21 @@ after navigation.
   independent legal sign-off before onboarding a real institution --
   this spec makes the platform *capable* of meeting that bar, not a
   legal certification that it does.
-- The product operates under a FERPA "school official" model: an
-  instructor/institution provisions real learner accounts on behalf of
-  their own students (FR-003, FR-011), rather than collecting data
-  directly from a prospective student via self-serve sign-up. This
-  sidesteps COPPA's direct-to-child consent-collection requirements by
-  design (the institution, not this product, holds the parental/
-  guardian consent relationship) rather than building a consent-capture
-  flow into the product itself.
+- This spec scopes compliance to U.S. federal law (FERPA, COPPA) only,
+  consistent with the grade 1-12 framing used elsewhere in this
+  project's roadmap. International regulations with materially
+  different requirements (e.g. GDPR's variable age-of-consent by EU
+  member state) are out of scope until a specific non-U.S. institution
+  is being onboarded, at which point this spec would need a dedicated
+  addendum, not a silent extension.
+- The product operates under COPPA's verifiable-parental-consent path:
+  a parent/guardian always creates the account and consents directly
+  (FR-003), rather than the product relying solely on a school/
+  institution's own FERPA "school official" authorization as a stand-in
+  for consent. The open/closed classroom distinction (FR-003a) then
+  layers FERPA-style institutional control on top for closed classrooms
+  (the instructor gates enrollment) without changing who holds consent
+  (always the parent).
 - Instructor accounts (adults) and learner accounts (plausibly minors)
   are held to the same retention/deletion mechanics in this spec (FR-004
   /FR-005/FR-010) for implementation simplicity, even though COPPA's
