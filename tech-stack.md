@@ -33,6 +33,33 @@ constraint that shapes several choices below, not an afterthought:
   `plan.md` must explicitly address it (e.g. via Fluid Compute, or by
   breaking the loop into resumable steps), not discover it at deploy
   time.
+  - **Milestone 6 hit this condition**: `answer_question` awaits
+    length/rate-limit/moderation checks, the Grading Agent's A2A call
+    (with retries), and the mastery-state write, all synchronously in
+    one request. CI's ground-truth eval gate measured ~3.3s average per
+    grading call in-process alone (no network hop) -- a real production
+    call adds an A2A round-trip and Vercel cold start on top. The root
+    `vercel.json` now sets an explicit `maxDuration: 30` on the backend
+    function (previously unset, meaning an unstated platform default) so
+    a slow worst-case path fails as a clean `grading_unavailable`
+    response instead of a hard platform-level kill. **Live-verified
+    2026-08-21**: a top-level `functions` key isn't valid alongside
+    `services` -- Vercel rejects the deploy ("the owning service is
+    ambiguous"), confirmed via a real PR build failure. `functions` MUST
+    be nested under the specific service's own object in a Services
+    `vercel.json` (`services.backend.functions`), not top-level; fixed,
+    pending redeploy confirmation. Whether 30s itself is within the
+    deployed plan's tier still isn't independently confirmed (the deploy
+    succeeding only proves the config is syntactically valid, not that
+    a 30s-duration invocation has actually been exercised) -- revisit if
+    a real request approaches that ceiling. Resolved via `/speckit-clarify`
+    on 2026-08-21: SC-006 now covers the full request path (not just the
+    grading call) at a 10-second, 95th-percentile target grounded in
+    this measured data, and the retry bound
+    (`services/grading_client/client.py`) dropped from 2 retries to 1 so
+    worst-case latency stays comfortably under the 30s ceiling --
+    see spec 007's `spec.md` Clarifications (Session 2026-08-21) and
+    `research.md` §7.
 - **Frontend and backend deploy together** using Vercel's support for
   running a Python backend and a Next.js frontend in one project
   (Vercel "Services"), so the whole product -- not just the frontend --
@@ -93,6 +120,8 @@ obvious.
 | A2A inbound authentication | A shared-secret header (`X-<Agent>-Secret`, e.g. `GRADING_AGENT_SHARED_SECRET`), checked via `hmac.compare_digest` by each A2A service's own ASGI middleware before a request ever reaches the agent/model. Fails closed if the expected secret isn't configured. Each A2A service gets its own distinct secret -- never one secret shared across services. | Locked by Constitution Principle VI's v1.5.0 amendment: a network-reachable A2A service MUST authenticate inbound requests before this project's backend-owned guardrails (rate limit, moderation, length caps) can be assumed to apply. Closes the gap found in the Grading Agent's original public, unauthenticated endpoint (spec 007, PR #18) -- none of those guardrails ran inside the agent itself, so an unauthenticated endpoint let anyone bypass all of them. Per-service secrets, not a shared one, contain blast radius if a single secret leaks. |
 | A2A secret rotation | Each service's middleware MUST accept either a `CURRENT` or an optional `NEXT` secret env var (e.g. `GRADING_AGENT_SHARED_SECRET` / `GRADING_AGENT_SHARED_SECRET_NEXT`), so rotation is set-next -> confirm the caller sends it successfully -> promote next to current -> remove the old value, never a single cutover requiring the backend and the agent's independently-deployed Vercel project to redeploy in the same instant. A rotation *tool* (automated secret generation/deployment via Vercel's API) is explicitly out of scope for now. | Decided at Milestone 6, not deferred to Milestone 9, specifically because the Tutor Agent is already a second confirmed A2A service in `roadmap.md` -- building the rotation seam into the pattern once is cheaper than retrofitting it onto two already-live single-secret services later. No rotation *tooling* yet because nothing here rotates on a schedule -- a documented manual runbook is sufficient at two services; revisit if a third A2A service or an actual rotation cadence emerges. |
 | A2A leaked-secret compensating control | Each A2A service MUST re-check a total request-length cap and re-run content moderation on the raw inbound request text itself (e.g. `grading-agent/src/guardrails.py`'s `before_model_guardrail`, wired via ADK's `before_model_callback` so it runs before the model call), in addition to the shared-secret auth above. Deliberately does NOT include a duplicated rate limiter -- that would require the A2A service to hold shared state across invocations, reversing its stateless-pure-function design (research.md §3), so it's out of scope until an actual abuse pattern is observed. | Authentication alone assumes the secret never leaks; it can. If it does, the backend's own length/rate/moderation guardrails (Principle IV table, backend-only) are bypassed entirely along with it. These two checks are cheap, stateless, and bound the worst case of that scenario: a length cap bounds token cost per request, moderation stops disallowed content from reaching the model. Not a duplication of the backend's per-request guardrails for legitimate traffic (which already passed them before ever reaching this service) -- a compensating control for the one failure mode (secret compromise) that auth alone can't cover. |
+| A2A deployment: Vercel Deployment Protection bypass | Vercel's own Vercel Authentication (SSO) protects non-production deployments by default -- discovered live 2026-08-21 as a `401 "Protected deployment"` from Vercel itself, in front of `_SharedSecretAuthMiddleware`, not from it. Where the A2A service's deployment target has this enabled, the caller MUST also send Vercel's "Protection Bypass for Automation" secret as `x-vercel-protection-bypass` (e.g. `GRADING_AGENT_VERCEL_BYPASS_SECRET`, optional -- only sent if configured, since not every deployment target has this protection on). | This is a Vercel platform-level gate neither this project's shared-secret auth nor its compensating guardrails have any visibility into -- a request can fail here before any of this repo's own A2A security code ever runs. Locked as a pattern (not just a one-off env var) so a future A2A service's plan.md doesn't have to rediscover this the same way: check Deployment Protection settings before assuming the shared secret alone is sufficient. |
+| A2A deployment: `to_a2a()`'s advertised RPC URL | ADK's `to_a2a()` defaults to `host="localhost", port=8000, protocol="http"` -- those defaults are baked into the `AgentCard` it serves, which is the URL a real A2A client then POSTs its actual request to. On Vercel, an A2A service MUST pass `host`/`protocol` (and `port=443`, since `to_a2a()` always appends a port) derived from Vercel's own `VERCEL_BRANCH_URL`/`VERCEL_URL` System Environment Variables (auto-populated, no project config needed) -- see `grading-agent/src/agent.py`'s `_to_a2a_kwargs`. | Discovered live 2026-08-22 (T045): the backend's agent-card discovery GET succeeded (it hits the real deployment URL directly), but every actual grading POST silently failed against `localhost:8000` -- unreachable from another Vercel function -- surfacing only as a generic retried-then-`grading_unavailable`, with nothing pointing at the real cause. Left at its default, `to_a2a()` is silently broken for any non-local A2A deployment; a future A2A service's plan.md should set this explicitly rather than rediscover it the same way. |
 
 ## Mastery model
 

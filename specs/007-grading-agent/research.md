@@ -155,8 +155,8 @@ documented content-moderation pattern) issued through the same
 (not the Sonnet default used for grading/generation) for
 cost/latency -- moderation is a high-volume, low-complexity
 classification task where Haiku's cited $1/$5-per-million-token pricing
-and ~500-1000ms response time comfortably fit within SC-006's 5-second
-budget alongside the grading call itself.
+and ~500-1000ms response time comfortably fit within SC-006's 10-second
+full-request-path budget alongside the grading call itself.
 
 **Rationale**: Reuses already-locked infrastructure (no new vendor
 dependency, no `tech-stack.md` amendment needed) and follows Anthropic's
@@ -217,7 +217,8 @@ left to the spec), this feature locks:
 | Max free-text answer length (FR-015) | `2000` characters | Generously exceeds any genuine short-answer response (~400 words) while bounding worst-case prompt size/cost per grading call, including retries. |
 | Per-learner grading rate limit (FR-016) | `20` submissions per rolling `10`-minute window | Comfortably covers a full quiz session's worth of free-text questions for a genuine learner while bounding cost/abuse exposure. |
 | Moderation-flag escalation threshold (FR-013) | `5` flagged submissions per rolling `24`-hour window | Low enough to catch a genuine pattern, high enough that one or two ambiguous moderation calls don't over-trigger the account-level flag. |
-| Grading Agent call retry bound (FR-010, FR-014) | `2` retries (`3` total attempts), short fixed backoff | Bounded so total latency (including retries) stays within SC-006's 5-second budget. |
+| Grading Agent call retry bound (FR-010, FR-014) | `1` retry (`2` total attempts), short fixed backoff | Revised 2026-08-21 (`/speckit-clarify`): originally `2` retries (`3` total attempts), sized against an assumed 5-second budget with no real latency data behind it and no accounting for the guardrail checks/mastery-state write `answer_question` awaits in the same request. CI's ground-truth eval gate measured ~3.3s average per grading call in-process alone (no network hop); a per-attempt timeout below that just guarantees a retry rather than protecting the budget (a timeout is caught as retriable identically to a fast transport failure). `1` retry keeps worst-case latency (2 × `REQUEST_TIMEOUT_SECONDS` + 1 × backoff) comfortably under the 30s Vercel `maxDuration` (`tech-stack.md`) while still satisfying FR-010's "automatic retry" requirement. |
+| Grading Agent call timeout (FR-010) | `REQUEST_TIMEOUT_SECONDS = 8.0` seconds per attempt | Added 2026-08-21 (`/speckit-clarify`) -- not previously its own locked row despite `client.py`'s comment claiming it was. Grounded in the ~3.3s in-process measured baseline above, plus margin for a real A2A network hop and Vercel cold start; a timeout tighter than real latency causes spurious retries rather than preventing slow ones. |
 | Initial Grading Logic Version (§8) | `"v1"` | Starting value; bumped whenever the Grading Agent's scoring prompt/logic changes (FR-008). |
 
 These are implementation constants (Python module-level values in the

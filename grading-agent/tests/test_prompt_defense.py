@@ -63,3 +63,14 @@ def test_build_instruction_rejects_string_expected_answer_matching():
     # to comparing against one fixed expected phrasing.
     instruction = build_instruction(grading_logic_version="v1")
     assert "one fixed expected phrasing" in instruction.lower()
+
+
+def test_build_instruction_treats_equivalent_phrasing_as_meeting_a_criterion():
+    # v2 scoring fix (T045, SC-005's live-deployment demonstration):
+    # substantively correct answers must not be marked unmet just
+    # because of surface-form differences (spelled-out numbers,
+    # reordered equations, etc.).
+    instruction = build_instruction(grading_logic_version="v1")
+    lowered = instruction.lower()
+    assert "surface form" in lowered
+    assert "spelled-out number" in lowered

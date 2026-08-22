@@ -11,6 +11,9 @@ dependencies = [
     "uvicorn[standard]>=0.52.3",
 ]
 
+[tool.vercel]
+entrypoint = "src.agent:app"
+
 [dependency-groups]
 dev = [
     "black>=26.5.1",

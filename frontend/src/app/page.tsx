@@ -8,12 +8,20 @@ export default function Home() {
         A domain-agnostic learning platform that personalizes sequencing based on a real mastery
         model, and generates assessments dynamically.
       </p>
-      <Link
-        href="/placement?subject=algebra-1"
-        className="rounded bg-foreground px-5 py-3 text-background"
-      >
-        Start Algebra I Placement
-      </Link>
+      <div className="flex gap-4">
+        <Link
+          href="/placement?subject=algebra-1"
+          className="rounded bg-foreground px-5 py-3 text-background"
+        >
+          Start Algebra I Placement
+        </Link>
+        <Link
+          href="/placement?subject=biology"
+          className="rounded bg-foreground px-5 py-3 text-background"
+        >
+          Start Biology Placement
+        </Link>
+      </div>
     </div>
   );
 }

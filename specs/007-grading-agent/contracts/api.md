@@ -123,17 +123,45 @@ VI). The backend is an A2A client; the Grading Agent is reached at
 `GRADING_AGENT_URL` (its own Vercel deployment, research.md §2).
 
 **Authentication (PR #18 review)**: the Grading Agent's deployment is a
-public Vercel URL, and none of the backend's guardrails (length cap,
-rate limit, moderation, `prompt_defense.py`) run inside that service
-itself -- they're deliberately backend-only per plan.md's Constitution
-Principle IV table. That split only holds if the endpoint is reachable
-exclusively through the backend, so every request carries a shared
-secret in `X-Grading-Agent-Secret`, checked by the Grading Agent before
-any A2A routing (`grading-agent/src/agent.py`'s
+public Vercel URL, and the backend's own guardrails (length cap, rate
+limit, moderation) don't run inside that service for a request routed
+through the backend -- they're deliberately backend-only per plan.md's
+Constitution Principle IV table for that path. That split only holds if
+the endpoint is reachable exclusively through the backend, so every
+request carries a shared secret in `X-Grading-Agent-Secret`, checked by
+the Grading Agent before any A2A routing (`grading-agent/src/agent.py`'s
 `_SharedSecretAuthMiddleware`). The backend sends it from
 `GRADING_AGENT_SHARED_SECRET`; the Grading Agent validates it against
-its own copy of the same env var. A request without a matching header
-gets `401` before ever reaching the agent/model.
+its own copy of the same env var (accepting a `..._SECRET_NEXT` value
+too, for rotation). A request without a matching header gets `401`
+before ever reaching the agent/model.
+
+**Vercel Deployment Protection** (discovered live, 2026-08-21): Vercel's
+own platform-level Vercel Authentication (SSO) sits in front of
+non-production deployments by default -- a separate, earlier gate than
+`_SharedSecretAuthMiddleware` above, returning its own `401 "Protected
+deployment"` before the request ever reaches the Grading Agent's code
+at all. If the deployment target has this enabled, the backend must
+also send Vercel's "Protection Bypass for Automation" secret as
+`x-vercel-protection-bypass` (`GRADING_AGENT_VERCEL_BYPASS_SECRET`,
+optional -- only added if configured). Neither this backend's guardrails
+nor `_SharedSecretAuthMiddleware` have any visibility into this layer;
+it's Vercel's own edge, checked before anything in this repo's code
+runs.
+
+**Leaked-secret compensating control** (`tech-stack.md`'s "A2A
+leaked-secret compensating control" row): authentication alone assumes
+the secret never leaks. If it does, the guardrails above are bypassed
+along with it, since they never ran inside this service to begin with.
+`grading-agent/src/guardrails.py`'s `before_model_guardrail` re-checks a
+total request-length cap and re-runs content moderation on the raw
+incoming request text itself, wired via ADK's `before_model_callback` so
+it runs before the grading model call -- this is a compensating control
+for the one failure mode (secret compromise) that auth alone can't
+cover, not a duplication of the backend's per-request guardrails for
+legitimate traffic. Deliberately excludes a duplicated rate limiter,
+which would require this stateless service (research.md §3) to hold
+shared state across invocations.
 
 **Request** (A2A message content, JSON):
 ```json
@@ -171,9 +199,15 @@ generate-then-validate shape as `assessment_gen/agent.py`'s
 `_validate_draft()` -- the Grading Agent's output is never trusted
 blindly, exactly as an LLM's question draft never is.
 
-**Retry policy (FR-010, research.md §7)**: up to 2 retries (3 total
+**Retry policy (FR-010, research.md §7)**: up to 1 retry (2 total
 attempts) on timeout, transport failure, or a validation failure above,
-short fixed backoff between attempts. After all attempts are
+short fixed backoff between attempts. Revised 2026-08-21
+(`/speckit-clarify`) from an original 2 retries (3 total attempts) --
+worst-case latency now stays comfortably under `vercel.json`'s
+`maxDuration: 30`, and a per-attempt timeout grounded in real measured
+latency (`REQUEST_TIMEOUT_SECONDS = 8.0`, up from an untested `5.0`)
+means a legitimate slow-but-working call is less likely to be cut off
+and retried unnecessarily in the first place. After all attempts are
 exhausted, the caller returns the `503 grading_unavailable` response
 above. Safe to retry unconditionally because the Grading Agent is
 stateless (research.md §3) -- retrying never risks a duplicate write,
