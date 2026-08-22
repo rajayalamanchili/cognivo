@@ -227,9 +227,14 @@ sandbox-runnable checks (Milestones 1-5 regression suites,
 `check_no_subject_conditionals.py`) both pass; `grading-agent/`'s
 Vercel deployment (T044) is now done for both `staging` and `main`
 (external action, performed by the user 2026-08-21) -- the two
-remaining items, live-demonstrating SC-005 (T045) and running
-`quickstart.md`'s 13 scenarios against a live environment (T046), are
-unblocked but not yet performed.
+remaining items, live-demonstrating SC-005 (T045) is now done (2026-08-22) -- reaching a live grading response required
+three sequential fixes only discoverable once real cross-service
+traffic was attempted for the first time (Vercel Deployment Protection
+bypass, PR #22; the content loader's Topic-row FK violation on reload,
+PR #23; `to_a2a()`'s AgentCard advertising `localhost:8000` instead of
+the real Vercel URL, PR #24) -- see `tasks.md`'s T045 for detail.
+Running `quickstart.md`'s 13 scenarios against a live environment
+(T046) is unblocked and not yet performed.
 
 **Scope**: The Grading Agent, built as an independently deployable A2A
 service per Constitution Principle VI's justification (independent
