@@ -30,8 +30,10 @@ APP_NAME = "cognivo-grading-agent"
 # Bumped whenever this agent's scoring prompt/logic changes (FR-008's
 # ground-truth eval gate protects any such change before it ships).
 # A code constant, not a database row (research.md §8) -- git history is
-# the audit trail for when/why this changed.
-GRADING_LOGIC_VERSION = "v1"
+# the audit trail for when/why this changed. v2 (T045, SC-005's live
+# deployment demonstration): prompt_defense.py's surface-form-vs-
+# substance scoring fix -- see that module's docstring.
+GRADING_LOGIC_VERSION = "v2"
 
 
 class CriterionResult(BaseModel):
