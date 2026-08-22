@@ -600,6 +600,17 @@ if they've already seen it recently.
   attribute needs its own `/speckit-clarify` before a spec is written,
   given how directly it touches the mastery model's structure
   (Principle I).
+- Content-curation policy differing by classroom type (an "open"
+  classroom's content is LLM-curated; a "closed" classroom's content is
+  human-created or LLM-generated-then-human-approved). Raised
+  2026-08-22 during `/speckit-clarify` on `specs/009-privacy-retention/
+  spec.md`, where the "open vs. closed" distinction itself was scoped
+  down to enrollment-gating only (who may join a classroom) -- this
+  content-curation half is a distinct, different-feature concern
+  (Milestone 1's flagged-question review mechanism, FR-011, and
+  Milestone 7's content-review workflow ownership), not a privacy/
+  retention matter. Needs its own scoping pass whenever Milestone 7
+  proper or the content-review workflow is picked up.
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
