@@ -17,7 +17,13 @@ class inheriting from the project's declarative `Base`
 suggests a real-account concept (`learner`, `student`, `instructor`,
 `teacher`, `guardian`, `parent`, `account`, `user` -- case-insensitive
 substring match) unless that class declares a non-nullable `is_demo`
-column.
+column -- non-nullability recognized from either an explicit
+`nullable=False` keyword in a `mapped_column(...)` call, or a
+`Mapped[bool]` annotation with no `Optional`/`| None` wrapper
+(SQLAlchemy 2.0's own type-inferred non-nullability, revised from an
+earlier draft of this check that only recognized the explicit keyword
+and would have false-positived on a model correctly relying on type
+inference instead, per `/speckit-analyze` finding F4, 2026-08-22).
 
 **Rationale**: `check_no_subject_conditionals.py` (Principle III's
 gate) greps `backend/src` for known subject-id string literals --

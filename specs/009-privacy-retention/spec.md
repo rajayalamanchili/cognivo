@@ -53,11 +53,17 @@ spec first.
 1. **Given** the current codebase, **When** the automated real-account
    gate check runs, **Then** it finds zero code paths that can create or
    persist a non-demo learner or instructor account.
-2. **Given** a future PR that adds a real-account creation path,
+2. **Given** a future PR that adds a real-account-shaped model (its
+   table name matching a learner/instructor/guardian/account pattern),
    **When** that PR's CI runs, **Then** the gate check fails unless that
-   PR also demonstrates every control this spec requires (retention
-   policy fields populated, access control enforced, deletion path
-   implemented).
+   model also carries a non-nullable `is_demo` column. (This is a
+   necessary, not sufficient, condition -- the gate script verifies
+   `is_demo` presence only; it cannot verify retention-policy fields,
+   access control, or a working deletion path exist, since none of
+   those tables are in this spec's own scope to check against. Full
+   verification of this spec's other requirements is Milestone 7
+   proper's own review responsibility when it actually builds those
+   tables.)
 
 ---
 
