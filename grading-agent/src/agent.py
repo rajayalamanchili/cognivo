@@ -172,9 +172,26 @@ class _TracingFlushMiddleware:
             flush_traces()
 
 
+# to_a2a()'s defaults (host="localhost", port=8000, protocol="http")
+# are baked into the AgentCard it serves as the RPC endpoint clients
+# must POST to -- fine for local `uvicorn` (quickstart.md's "Run
+# locally"), but on Vercel that card would advertise an unreachable
+# `http://localhost:8000/` to every real caller, discovered live
+# (T045): the backend's agent-card GET succeeded (that request goes
+# straight to this deployment's real URL) while every actual grading
+# POST then failed against localhost, surfacing only as a generic
+# retried-then-`grading_unavailable` with no direct error pointing
+# here. VERCEL_BRANCH_URL/VERCEL_URL are Vercel's own System
+# Environment Variables (auto-populated on every deployment, no
+# project configuration needed) -- prefer the branch alias (stable
+# per environment) over the per-deployment URL so the advertised
+# endpoint doesn't change on every redeploy.
+_vercel_host = os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("VERCEL_URL")
+_to_a2a_kwargs = {"host": _vercel_host, "protocol": "https", "port": 443} if _vercel_host else {}
+
 app = _TracingFlushMiddleware(
     _SharedSecretAuthMiddleware(
-        to_a2a(_agent),
+        to_a2a(_agent, **_to_a2a_kwargs),
         expected_secrets=(
             os.environ.get("GRADING_AGENT_SHARED_SECRET", ""),
             os.environ.get("GRADING_AGENT_SHARED_SECRET_NEXT", ""),
