@@ -123,6 +123,16 @@ async def _call_grading_agent_once(
     # be called directly, bypassing those guardrails (PR #18 review).
     shared_secret = os.environ["GRADING_AGENT_SHARED_SECRET"]
     headers = {"X-Grading-Agent-Secret": shared_secret}
+    # Vercel's own Deployment Protection (Vercel Authentication/SSO) sits
+    # in front of non-production deployments by default -- a separate,
+    # earlier gate than _SharedSecretAuthMiddleware above, discovered via
+    # a live 401 "Protected deployment" response from Vercel itself, not
+    # from grading-agent's own code. Optional (only added if configured)
+    # since not every deployment target has this protection enabled --
+    # see tech-stack.md's A2A deployment row for the bypass-secret setup.
+    vercel_bypass_secret = os.environ.get("GRADING_AGENT_VERCEL_BYPASS_SECRET", "")
+    if vercel_bypass_secret:
+        headers["x-vercel-protection-bypass"] = vercel_bypass_secret
     async with httpx.AsyncClient(
         timeout=REQUEST_TIMEOUT_SECONDS, headers=headers
     ) as httpx_client:
