@@ -568,6 +568,38 @@ if they've already seen it recently.
 - Automatic prompt optimization/auto-tuning -- explicitly deferred from
   Milestone 12's prompt-versioning scope, a distinct and much larger
   capability.
+- Schema-drift detection as a required CI check (not auto-applied
+  migrations) -- surfaced 2026-08-22 when production's DB turned out to
+  be several Alembic migrations behind (Milestone 5's `quiz_sessions`
+  onward), causing a live `500` on placement start rather than a caught
+  PR-time failure. Chosen direction when this is picked up: a CI job on
+  promotion PRs that connects to the target environment's DB and
+  compares `alembic current` against `alembic heads`, failing the check
+  (not applying anything) if they diverge -- lower blast radius than
+  auto-migrating in CI or in Vercel's build step (see the discussion in
+  this session: both have real ordering/concurrency issues against
+  Vercel's independent git-triggered deploys), and consistent with this
+  project's existing pattern of deliberate manual infra steps (T044's
+  Vercel provisioning, the Deployment Protection bypass secret) rather
+  than new deploy automation. Needs `STAGING_DATABASE_URL`/
+  `PRODUCTION_DATABASE_URL` as GitHub Actions secrets (distinct from
+  their Vercel-env-var copies) before it can be built.
+- Grade-banded curriculum scoping (grades 1-12) per subject, with an
+  initial placement quiz that also assesses a starting grade level (not
+  just per-topic mastery as Milestone 1 does today), placement questions
+  labeled with the grade they represent, a skip option for a question
+  too far above the learner's current assessed level, and progressive
+  grade-level unlocking -- a learner only sees next-grade questions
+  after mastering the current grade's content. Raised 2026-08-22 after
+  live testing surfaced some generated questions as too hard for their
+  intended level. Real open design question for whoever scopes this:
+  how "grade" relates to the existing Topic/mastery-state model --
+  likely a new content-artifact-owned dimension (per Constitution
+  Principle III, never an engine-side conditional), but whether it's a
+  property of each topic, a grouping above topics, or a per-question
+  attribute needs its own `/speckit-clarify` before a spec is written,
+  given how directly it touches the mastery model's structure
+  (Principle I).
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
