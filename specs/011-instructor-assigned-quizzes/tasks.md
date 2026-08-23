@@ -145,30 +145,30 @@ in-flight-completion assertion).
 
 ### Tests for User Story 2
 
-- [ ] T017 [P] [US2] Integration test: guardian starts/continues an
+- [X] T017 [P] [US2] Integration test: guardian starts/continues an
       assigned attempt; non-owning-guardian and not-targeted rejections
       on start and on the two extended continuation routes in
       `backend/tests/integration/test_quiz_assignment_start_
       authorization.py` (FR-006, FR-013; `quickstart.md` scenario 3)
-- [ ] T018 [P] [US2] Integration test: single-attempt enforcement,
+- [X] T018 [P] [US2] Integration test: single-attempt enforcement,
       including a concurrent double-start race (mirrors
       `test_roster_duplicate_join.py`'s existing pattern) in
       `backend/tests/integration/test_quiz_assignment_single_
       attempt.py` (FR-014; `quickstart.md` scenario 4)
-- [ ] T019 [P] [US2] Integration test: a past due date blocks a new
+- [X] T019 [P] [US2] Integration test: a past due date blocks a new
       start but an already-in-progress attempt is allowed to finish in
       `backend/tests/integration/test_quiz_assignment_due_date.py`
       (FR-014; `quickstart.md` scenario 4)
-- [ ] T020 [P] [US2] Integration test: a learner unenrolled from the
+- [X] T020 [P] [US2] Integration test: a learner unenrolled from the
       roster after being targeted is blocked from starting in
       `backend/tests/integration/test_quiz_assignment_unenrollment.py`
       (FR-011; `quickstart.md` scenario 6)
-- [ ] T021 [P] [US2] Integration test: an assigned quiz's difficulty-
+- [X] T021 [P] [US2] Integration test: an assigned quiz's difficulty-
       adaptation and grading/mastery-update behavior is identical to a
       non-assigned quiz given the same scripted answer sequence, in
       `backend/tests/integration/test_quiz_assignment_mastery_
       parity.py` (FR-007, FR-008; SC-002's hard gate)
-- [ ] T022 [US2] Integration test: cancellation never retracts a
+- [X] T022 [US2] Integration test: cancellation never retracts a
       completed attempt's mastery data, a cancelled assignment still
       appears (marked cancelled) in the guardian's list, and an attempt
       already in progress at cancellation still reports `completed`
@@ -179,7 +179,7 @@ in-flight-completion assertion).
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Implement start-eligibility checks (targeted,
+- [X] T023 [US2] Implement start-eligibility checks (targeted,
       not-already-attempted, not-past-due, not-cancelled, still-
       enrolled) and `start_assignment_attempt()` in `backend/src/
       services/quiz_assignment/assignment.py` -- calls the existing
@@ -187,30 +187,30 @@ in-flight-completion assertion).
       `quiz_assignment_targets.quiz_session_id` in the same transaction
       (FR-006, FR-011, FR-014, research.md §1/§2/§3) (depends on T005,
       T006)
-- [ ] T024 [US2] Add `GET /api/learners/{learner_id}/assignments`
+- [X] T024 [US2] Add `GET /api/learners/{learner_id}/assignments`
       (includes cancelled assignments, FR-016, using T007's status
       helper) and `POST /api/assignments/{assignment_id}/learners/
       {learner_id}/start` routes in `backend/src/api/routes/
       quiz_assignments.py`, gated by `current_guardian` plus an
       own-learner check mirroring `learners.py` (contracts/api.md)
       (depends on T023, T007)
-- [ ] T025 [US2] Extend `GET /api/quizzes/{quiz_session_id}/next-
+- [X] T025 [US2] Extend `GET /api/quizzes/{quiz_session_id}/next-
       question` (`backend/src/api/routes/quiz.py`) and `POST
       /api/questions/{question_id}/answer` (`backend/src/api/routes/
       questions.py`) with the conditional guardian-ownership check for
       an assignment-linked session (research.md §2) -- no behavior
       change when the session is not assignment-linked (depends on
       T023)
-- [ ] T026 [P] [US2] Add `listLearnerAssignments`, `startAssignment`
+- [X] T026 [P] [US2] Add `listLearnerAssignments`, `startAssignment`
       client functions in `frontend/src/services/api.ts`
       (contracts/api.md) (depends on T024)
-- [ ] T027 [US2] Create `frontend/src/components/
+- [X] T027 [US2] Create `frontend/src/components/
       LearnerAssignments.tsx` -- a per-learner assignment list (status,
       due date, cancelled badge) with a "start" action, rendered from
       `frontend/src/app/(auth)/guardian/learners/page.tsx`, reusing
       `frontend/src/app/quiz/quiz-flow.tsx`'s existing question/answer
       UI for an in-progress attempt (depends on T026)
-- [ ] T028 [P] [US2] Vitest test for `LearnerAssignments.tsx` (not-
+- [X] T028 [P] [US2] Vitest test for `LearnerAssignments.tsx` (not-
       started/in-progress/completed/cancelled rendering, start action)
       in `frontend/tests/unit/learner-assignments.test.tsx` (depends on
       T027)

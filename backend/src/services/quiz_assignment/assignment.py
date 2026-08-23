@@ -1,11 +1,12 @@
-"""Assignment creation, cancellation, and target-list resolution (spec
-011 FR-001-FR-005, FR-012, FR-015; research.md §1/§4/§6/§7).
+"""Assignment creation, cancellation, target-list resolution, and
+guardian-mediated attempt start (spec 011 FR-001-FR-006, FR-011-FR-016;
+research.md §1/§2/§3/§4/§6/§7).
 
-`create_assignment`/`cancel_assignment` never touch `QuizSession`,
-`GeneratedQuestion`, or the grading/mastery-update path -- an
-assignment attempt is just an ordinary `QuizSession` (research.md §1),
-started via `services/quiz/session.py`'s existing `start_quiz()`
-(User Story 2's `start_assignment_attempt()`, not this module).
+`create_assignment`/`cancel_assignment`/`start_assignment_attempt` never
+modify the grading/mastery-update path, and `start_assignment_attempt`
+calls `services/quiz/session.py`'s existing `start_quiz()`/
+`generate_quiz_question()` unchanged -- an assignment attempt is just an
+ordinary `QuizSession` (research.md §1).
 """
 
 import datetime
@@ -13,18 +14,27 @@ import uuid
 from collections.abc import Sequence
 from typing import Literal
 
+from google.adk.sessions import BaseSessionService
 from sqlalchemy.orm import Session
 
-from src.api.errors import ConflictError, NotFoundError, UnprocessableError
-from src.models.assessment_event import AssessmentEvent
+from src.api.errors import ConflictError, ForbiddenError, NotFoundError, UnprocessableError
 from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
 from src.models.enums import AssessmentEventType, QuizSessionStatus
+from src.models.learner_profile import LearnerProfile
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
 from src.models.quiz_session import QuizSession
 from src.models.topic import Topic
+from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
+from src.services.auth.tokens import SessionClaims
+from src.services.quiz.session import (
+    QuizEndedEarlyError,
+    QuizQuestionResult,
+    generate_quiz_question,
+    start_quiz,
+)
 
 LearnerIdsIn = list[uuid.UUID] | Literal["all"]
 
@@ -132,6 +142,126 @@ def create_assignment(
     db.commit()
     db.refresh(assignment)
     return assignment
+
+
+def _assert_eligible_to_start(
+    db: Session, *, assignment: QuizAssignment, target: QuizAssignmentTarget
+) -> None:
+    """FR-006/FR-011/FR-014's start-eligibility checks, in
+    contracts/api.md's documented failure-mode order -- "targeted" and
+    "own learner" are checked by the caller (the route) before it ever
+    has a `target` row to pass in here."""
+    if target.quiz_session_id is not None:
+        raise ConflictError("already_attempted")
+    if assignment.due_at is not None and datetime.datetime.now(datetime.UTC) > assignment.due_at:
+        raise ConflictError("past_due")
+    if assignment.cancelled_at is not None:
+        raise ConflictError("assignment_cancelled")
+    still_enrolled = (
+        db.query(Enrollment)
+        .filter(
+            Enrollment.learner_id == target.learner_id,
+            Enrollment.roster_id == assignment.roster_id,
+        )
+        .first()
+        is not None
+    )
+    if not still_enrolled:
+        raise ForbiddenError("not_enrolled")
+
+
+def _claim_target_for_quiz_session(
+    db: Session, *, target: QuizAssignmentTarget, quiz_session_id: uuid.UUID
+) -> bool:
+    """Atomically sets `target.quiz_session_id` only if it is still
+    `NULL` -- an `UPDATE ... WHERE quiz_session_id IS NULL` re-evaluates
+    against the latest committed row once any concurrent racer's own
+    update has released its row lock, so at most one concurrent caller
+    ever wins this (research.md §3's DB-enforced single-attempt
+    guarantee, same reasoning `uq_enrollments_learner_roster` documents
+    for the comparable duplicate-enrollment case). Returns whether this
+    call won the claim."""
+    claimed_rows = (
+        db.query(QuizAssignmentTarget)
+        .filter(
+            QuizAssignmentTarget.assignment_target_id == target.assignment_target_id,
+            QuizAssignmentTarget.quiz_session_id.is_(None),
+        )
+        .update({QuizAssignmentTarget.quiz_session_id: quiz_session_id})
+    )
+    if claimed_rows == 1:
+        target.quiz_session_id = quiz_session_id
+        return True
+    return False
+
+
+async def start_assignment_attempt(
+    db: Session,
+    *,
+    assignment: QuizAssignment,
+    target: QuizAssignmentTarget,
+    session_service: BaseSessionService,
+) -> tuple[QuizSession, QuizQuestionResult | None]:
+    """Runs start-eligibility checks, then calls the existing
+    `start_quiz()`/`generate_quiz_question()` unchanged and claims
+    `target.quiz_session_id` in the same transaction (FR-006, FR-011,
+    FR-014; research.md §1/§2/§3). Mirrors `quiz.py`'s `start_quiz_route`
+    control flow exactly (including the `QuizEndedEarlyError` branch) so
+    an assigned quiz's first-question generation is behaviorally
+    identical to a non-assigned one (SC-002) -- the caller (the route)
+    persists the returned `QuizQuestionResult` via `persist_quiz_question`
+    and commits, exactly as `quiz.py`'s own route does for a `None`-free
+    result; a `None` result means the quiz already ended early and this
+    function has already committed that outcome itself."""
+    _assert_eligible_to_start(db, assignment=assignment, target=target)
+
+    quiz = start_quiz(
+        db,
+        learner_id=target.learner_id,
+        subject_id=assignment.subject_id,
+        topic_ids=assignment.topic_ids,
+        question_count=assignment.question_count,
+    )
+
+    if not _claim_target_for_quiz_session(db, target=target, quiz_session_id=quiz.quiz_session_id):
+        db.rollback()
+        raise ConflictError("already_attempted")
+
+    try:
+        with traced_request():
+            result = await generate_quiz_question(db, quiz=quiz, session_service=session_service)
+    except QuizEndedEarlyError:
+        quiz.status = QuizSessionStatus.ENDED_EARLY
+        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        db.commit()
+        return quiz, None
+
+    return quiz, result
+
+
+def assert_guardian_owns_assignment_session(
+    db: Session, *, quiz_session_id: uuid.UUID, claims: SessionClaims | None
+) -> None:
+    """No-op unless `quiz_session_id` is linked to a `QuizAssignmentTarget`
+    row (research.md §2) -- the pre-existing, non-assignment quiz/answer
+    path is completely unaffected. When it *is* assignment-linked, the
+    request must carry a guardian session matching that target's
+    learner's own `guardian_id`, or this raises `ForbiddenError`
+    (`not_learner_guardian`)."""
+    target = (
+        db.query(QuizAssignmentTarget)
+        .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
+        .first()
+    )
+    if target is None:
+        return
+
+    if claims is None or claims.account_type != "guardian":
+        raise ForbiddenError("not_learner_guardian")
+
+    learner = db.get(LearnerProfile, target.learner_id)
+    if learner is None or learner.guardian_id != claims.account_id:
+        raise ForbiddenError("not_learner_guardian")
 
 
 def cancel_assignment(db: Session, *, assignment: QuizAssignment) -> QuizAssignment:

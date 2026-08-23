@@ -393,11 +393,13 @@ assignment-linked sessions, leaving the non-assignment quiz path
 behaviorally untouched. Constitution Check passed with no violations.
 `/speckit-tasks` complete (2026-08-23): 37 tasks across Setup,
 Foundational, and three user-story phases. `/speckit-implement` has
-completed Setup, Foundational, and User Story 1 (Phases 1-3, T001-T016)
--- an instructor can create, list, and cancel a quiz assignment against
-a chosen subset (or all) of a roster end to end; the guardian-mediated
-attempt (User Story 2) and per-student report (User Story 3) are not
-yet built.
+completed Setup, Foundational, User Story 1, and User Story 2 (Phases
+1-4, T001-T028) -- an instructor can create, list, and cancel a quiz
+assignment against a chosen subset (or all) of a roster, and a
+targeted learner's own guardian can start and complete that attempt
+end to end with grading/mastery-update/difficulty-adaptation behavior
+verified identical to a non-assigned quiz (SC-002). The per-student
+report (User Story 3) is not yet built.
 
 **Scope**: Extends the Adaptive Difficulty Quiz (Milestone 5) so an
 instructor can configure and assign a specific quiz (topic(s), question

@@ -44,6 +44,21 @@ def current_session_claims(
     return claims
 
 
+def optional_session_claims(
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+) -> SessionClaims | None:
+    """`None` (never raises) when there's no cookie or it doesn't verify --
+    for routes that are unauthenticated by default (spec 005's quiz
+    endpoints) but need to conditionally check a guardian's identity only
+    when the resource in question turns out to require it (spec 011
+    research.md §2's assignment-linked-session check). Unlike
+    `current_session_claims`, absence of a session is not itself an
+    error here -- the caller decides whether that's a problem."""
+    if session_cookie is None:
+        return None
+    return verify_token(session_cookie)
+
+
 def current_guardian(
     claims: SessionClaims = Depends(current_session_claims),
     db: Session = Depends(get_db),

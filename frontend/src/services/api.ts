@@ -658,3 +658,38 @@ export function cancelAssignment(rosterId: string, assignmentId: string): Promis
     method: "DELETE",
   });
 }
+
+// Instructor-assigned quizzes (guardian-facing, User Story 2).
+
+export type AssignmentStatus = "not_started" | "in_progress" | "completed" | "ended_early";
+
+export interface LearnerAssignment {
+  assignment_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  cancelled_at: string | null;
+  status: AssignmentStatus;
+}
+
+export interface ListLearnerAssignmentsResponse {
+  assignments: LearnerAssignment[];
+}
+
+export function listLearnerAssignments(
+  learnerId: string,
+): Promise<ListLearnerAssignmentsResponse> {
+  return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments`);
+}
+
+// Identical response shape to `startQuiz` (spec 005) -- reuses
+// `StartQuizResponse` (contracts/api.md).
+export function startAssignment(
+  assignmentId: string,
+  learnerId: string,
+): Promise<StartQuizResponse> {
+  return request<StartQuizResponse>(
+    `/api/assignments/${assignmentId}/learners/${learnerId}/start`,
+    { method: "POST" },
+  );
+}

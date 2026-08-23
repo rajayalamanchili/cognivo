@@ -11,7 +11,6 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py. Skips
 otherwise.
 """
 
-import uuid
 
 import pytest
 
