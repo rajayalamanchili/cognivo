@@ -38,17 +38,17 @@ fail).
 
 ### Tests for User Story 1
 
-- [ ] T001 [US1] Unit test: gate script exits `0` against the
+- [X] T001 [US1] Unit test: gate script exits `0` against the
       current `backend/src/models/` (no violations) in
       `backend/tests/unit/test_check_no_real_account_path.py`
-- [ ] T002 [US1] Unit test: gate script exits non-zero and names
+- [X] T002 [US1] Unit test: gate script exits non-zero and names
       the offending class/table when a fixture model (a `Base`
       subclass named e.g. `Student`/`Instructor`/`Account` with no
       `is_demo` column) is present, using a temporary fixture directory
       the test constructs rather than modifying real source, in
       `backend/tests/unit/test_check_no_real_account_path.py` (same
       file as T001, no dependency on it)
-- [ ] T003 [US1] Unit test: gate script exits `0` once the same fixture
+- [X] T003 [US1] Unit test: gate script exits `0` once the same fixture
       model from T002 gains a non-nullable `is_demo` column -- confirms
       `is_demo` presence, not the table name alone, is the actual
       discriminating condition (quickstart.md scenario 3), in
@@ -57,7 +57,7 @@ fail).
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Implement `backend/scripts/check_no_real_account_path.py`
+- [X] T004 [US1] Implement `backend/scripts/check_no_real_account_path.py`
       (research.md §1): parse every `.py` file under
       `backend/src/models/` with `ast`, find every class whose bases
       include `Base` (`src/models/base.py`), and fail with a clear
@@ -75,11 +75,15 @@ fail).
       all violations listed otherwise. Depends on T001-T003 existing
       first (tests written before implementation, per this project's
       convention).
-- [ ] T005 [US1] Wire `check_no_real_account_path.py` as a new step in
-      `.github/workflows/backend-tests.yml`'s existing `pytest` job,
-      running before the `pytest` step (research.md §2's cheapest-
-      first ordering) -- no live Postgres or `ANTHROPIC_API_KEY` needed
-      for this step (depends on T004).
+- [X] T005 [US1] Wire `check_no_real_account_path.py` into CI (depends
+      on T004). **Revised during implementation** (research.md §2): no
+      new workflow step needed -- `backend/tests/unit/
+      test_check_no_real_account_path.py` (T001-T003) imports
+      `find_violations` directly, the same pattern
+      `test_no_subject_conditionals.py` already uses for
+      `check_no_subject_conditionals.py`, so `backend-tests.yml`'s
+      existing `pytest` step (`pyproject.toml`'s `testpaths = ["tests"]`)
+      already runs it on every PR with no workflow file change at all.
 
 **Checkpoint**: User Story 1 is fully functional and independently
 verifiable -- `check_no_real_account_path.py` passes today and blocks
@@ -136,19 +140,19 @@ proper's real sign-up flow exists -- deferred to that spec's tasks.md.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T006 [P] Review `data-classification.md` against `data-model.md`
+- [X] T006 [P] Review `data-classification.md` against `data-model.md`
       -- confirm every non-key field in each of the six entities has a
       row with a non-empty retention period and deletion trigger
       (quickstart.md scenario 5)
-- [ ] T007 Run `quickstart.md`'s scenarios 1-4 end to end (gate passes
+- [X] T007 Run `quickstart.md`'s scenarios 1-4 end to end (gate passes
       today, fails on a throwaway fixture violation, passes again once
       `is_demo` is added, and a throwaway PR confirms the CI step
       actually blocks merge) and record results
-- [ ] T008 [P] Regression check: run `backend/tests/` (excluding
+- [X] T008 [P] Regression check: run `backend/tests/` (excluding
       `grading-agent/tests/`, independent per Constitution Principle
       VI) and confirm the full suite still passes unmodified after
       T004/T005's changes
-- [ ] T009 Update `roadmap.md`'s Milestone 7 status line to record this
+- [X] T009 Update `roadmap.md`'s Milestone 7 status line to record this
       spec (009-privacy-retention) as approved, per this milestone's
       own Definition of Done requiring it before the rest of Milestone
       7's work begins

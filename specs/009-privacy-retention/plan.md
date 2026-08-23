@@ -40,12 +40,12 @@ entities in `data-model.md` are a forward-looking schema for Milestone
 fails against a synthetic fixture introducing an account-shaped model
 without `is_demo`.
 
-**Target Platform**: Runs in the existing `backend-tests.yml` GitHub
-Actions workflow (research.md §2) -- no live Postgres or API key
-needed, so it can gate every PR cheaply, unlike
-`check_no_subject_conditionals.py`'s current manual-only invocation
-(research.md §2 also flags this as a pre-existing gap, out of this
-spec's scope to fix).
+**Target Platform**: Runs inside the existing `backend-tests.yml`
+GitHub Actions workflow's `pytest` step, via a pytest test that imports
+the gate function directly -- the same pattern already used for
+`check_no_subject_conditionals.py` (research.md §2, corrected during
+implementation from an earlier, inaccurate claim that no such CI wiring
+existed). No workflow file changes, no live Postgres or API key needed.
 
 **Project Type**: Documentation + a CI gate script -- no user-facing
 feature, no new deployable unit.
@@ -114,17 +114,18 @@ backend/
 │                                          # same style as check_no_subject_conditionals.py
 └── tests/
     └── unit/
-        └── test_check_no_real_account_path.py  # NEW
-
-.github/workflows/
-└── backend-tests.yml                   # + one new step running the gate script
-                                          # (research.md §2)
+        └── test_check_no_real_account_path.py  # NEW -- imports the gate
+                                                  # function directly; this IS
+                                                  # the CI wiring (research.md §2),
+                                                  # no .github/workflows/ change
 ```
 
-**Structure Decision**: Single new script + CI step in the existing
+**Structure Decision**: Single new script + test in the existing
 `backend/` project, matching the pattern already established by
 `check_no_subject_conditionals.py` for a different Constitution
-principle's gate. No new deployable unit, no frontend change.
+principle's gate -- including that gate's own CI-wiring mechanism (a
+pytest import), not a new workflow step. No new deployable unit, no
+frontend change.
 
 ## Complexity Tracking
 

@@ -259,8 +259,20 @@ Agent's full A2A delegation (Milestone 9).
 ---
 
 ## Milestone 7: Instructor Classroom -- Auth, Rosters, Dashboard, Content Review, Real Learner Data Gate
-**Spec**: not yet written -- do not begin until Milestone 6 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/009-privacy-retention/spec.md` covers this milestone's
+privacy/retention prerequisite only (Constitution Principle VIII); the
+auth/rosters/dashboard/content-review spec proper is not yet written.
+**Status**: The privacy/retention gate (`009-privacy-retention`) is
+implemented (2026-08-22) -- `backend/scripts/check_no_real_account_path.py`
+CI-enforced via `backend/tests/unit/test_check_no_real_account_path.py`
+(same pytest-import wiring as `check_no_subject_conditionals.py`), plus
+a written data classification (`specs/009-privacy-retention/
+data-classification.md`) and forward-looking data model for the
+account/roster schema this milestone's own implementation will build
+against. This milestone's Definition of Done requires this gate
+approved before the rest of the work below begins -- that condition is
+now met; the auth/rosters/dashboard/content-review implementation
+itself has not started.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

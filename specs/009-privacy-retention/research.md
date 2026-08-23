@@ -50,33 +50,32 @@ its own mini-parser -- `ast` already is one.
   exactly the moment this gate is supposed to catch it, not the moment
   someone remembers to update a list.
 
-## §2. CI wiring: a new step in `backend-tests.yml`, not a separate workflow -- and a note on an existing gap
+## §2. CI wiring: a pytest test importing the check function, not a new workflow step
 
-**Decision**: Add the gate script as a new step in the existing
-`pytest` job in `.github/workflows/backend-tests.yml`, running before
-`pytest` itself (cheapest check first, same ordering principle
-`grading_client/guardrails.py`'s length-before-rate-limit-before-
-moderation check already uses). No new workflow file, no live Postgres
-or `ANTHROPIC_API_KEY` needed for this step.
+**Decision** (revised during `/speckit-implement`, 2026-08-22 -- see
+below): wire `check_no_real_account_path.py` into CI the same way
+`check_no_subject_conditionals.py` already is: a plain pytest test
+(`backend/tests/unit/test_check_no_real_account_path.py`) that imports
+`find_violations` directly and asserts it returns `[]`. No new
+workflow step, no new workflow file -- `backend-tests.yml`'s existing
+`pytest` step already discovers this test automatically
+(`pyproject.toml`'s `testpaths = ["tests"]`), since a plain Python
+import needs nothing a fresh `uv sync` doesn't already provide.
 
-**Rationale**: The script has zero dependencies beyond the Python
-standard library and needs no database or model credentials -- adding
-it as a workflow step is strictly cheaper than a new workflow (no
-additional `uv sync`, no additional Neon branch).
-
-**Note, not acted on in this spec**: `check_no_subject_conditionals.py`
-(Principle III's gate) is *not* currently wired into any GitHub Actions
-workflow at all -- spec 007's T043 ran it manually during
-`/speckit-implement` and recorded the output in `tasks.md`, which means
-Principle III's gate currently depends on a human remembering to run it
-each time, not CI enforcement. Given Principle VIII's materially higher
-stakes (real minors' data, legal exposure) versus Principle III's
-(architecture cleanliness), this spec chooses actual CI enforcement for
-its own gate rather than following that precedent. Retrofitting
-`check_no_subject_conditionals.py` into CI the same way is a reasonable
-follow-up but is out of this spec's scope -- it's a different
-principle's gate and touching it isn't necessary to satisfy Principle
-VIII.
+**Correction**: this section originally (Phase 0) claimed
+`check_no_subject_conditionals.py` "is not currently wired into any
+GitHub Actions workflow at all" and proposed a brand-new workflow step
+for this spec's own gate as a result. That claim was wrong --
+discovered only once actually writing this feature's test file and
+finding `tests/unit/test_no_subject_conditionals.py` already exists,
+importing `check_no_subject_conditionals.py`'s functions directly, and
+running as part of the existing `pytest` step every PR already
+triggers. `check_no_subject_conditionals.py` *is* CI-enforced; it's
+just wired in as a test rather than a standalone script invocation.
+This spec now follows that same, already-proven pattern instead of
+inventing a second, redundant mechanism -- a case of not trusting an
+earlier research note enough to re-verify it against the actual
+codebase before building on it.
 
 ## §3. Data classification as a standalone Markdown file, not embedded in spec.md
 

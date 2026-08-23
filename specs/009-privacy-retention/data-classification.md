@@ -40,6 +40,7 @@ is a Principle VIII violation until it's added here.
 | Field | Category | Retention period | Deletion trigger |
 |---|---|---|---|
 | `join_code` | Operational (not personal data) | Life of the roster | Roster deletion (follows the owning instructor's account per the Edge Case above) |
+| `enrollment_mode` (open/closed) | Operational (not personal data) | Life of the roster | Roster deletion |
 | Learner-to-roster membership | Relationship data | Same as the shorter-lived of the two linked accounts | Either side's deletion cascades to remove the membership row |
 
 ## DeletionRequest / RetentionRecord
