@@ -7,6 +7,10 @@
 # DATABASE_URL env var set in that Vercel project environment) -- run
 # manually against an ephemeral preview/dev branch's DATABASE_URL
 # instead, since those aren't persistent Vercel environments.
+#
+# `uv run`, not a bare `alembic` call: this project manages Python deps
+# via uv (pyproject.toml/uv.lock), so alembic is only reachable through
+# uv's managed environment, not a global/PATH install.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -16,4 +20,4 @@ if [ -z "${DATABASE_URL:-}" ]; then
   exit 1
 fi
 
-alembic upgrade head
+uv run alembic upgrade head
