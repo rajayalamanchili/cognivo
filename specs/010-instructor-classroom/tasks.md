@@ -12,9 +12,9 @@ they cover, not as optional polish).
 
 ## Phase 1: Setup
 
-- [ ] T001 Add `argon2-cffi` and `pyjwt` to `backend/pyproject.toml`'s
+- [X] T001 Add `argon2-cffi` and `pyjwt` to `backend/pyproject.toml`'s
       dependencies; `uv sync` (tech-stack.md's Authentication section)
-- [ ] T002 [P] Document `JWT_SECRET` in `backend/.env.example`
+- [X] T002 [P] Document `JWT_SECRET` in `backend/.env.example`
       (research.md §1)
 
 ---
