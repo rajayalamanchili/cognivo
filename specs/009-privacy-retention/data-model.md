@@ -24,6 +24,21 @@ the learner.
 
 ## RealLearnerAccount
 
+**Corrected 2026-08-23 by `specs/010-instructor-classroom/data-model.md`**:
+this entity as a *separate table* turned out to be wrong -- building
+against it during that spec's planning found that `AssessmentEvent`,
+`MasteryState`, `QuizSession`, and `GeneratedQuestion`'s learner-
+referencing columns are all hard foreign keys to
+`demo_learner_profiles.learner_id` specifically, not a generalizable
+"either table" relationship as this section originally claimed (see
+the now-inaccurate note on the `learner_id` row below). The corrected
+design extends `demo_learner_profiles` in place (renamed to
+`learner_profiles`) with nullable `guardian_id`/`retention_record_id`
+columns instead of creating a new table -- see spec 010's data-model.md
+for the actual implemented shape. Left here, uncorrected below, as the
+historical record of what this spec originally proposed; do not build
+against this section.
+
 A real student's profile (FR-003), linked to exactly one guardian.
 Structurally parallel to `DemoLearnerProfile` for everything downstream
 of enrollment (mastery state, assessment events, generated questions),

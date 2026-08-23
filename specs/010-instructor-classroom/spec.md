@@ -307,7 +307,13 @@ known-good state on schedule.
 
 Extends spec 009's `data-model.md` (`RealGuardianAccount`,
 `RealLearnerAccount`, `RealInstructorAccount`, `ClassroomRoster`,
-`DeletionRequest`, `RetentionRecord`) with:
+`DeletionRequest`, `RetentionRecord`) with the entities below.
+`RealLearnerAccount` here names the concept (a real learner's account,
+guardian-controlled per FR-002) -- see this feature's own
+`data-model.md` for how planning found that concept must actually be
+*implemented* (extending the existing learner-profile table in place,
+not a new one), a physical-schema detail this spec deliberately doesn't
+dictate.
 
 - **ClassroomRoster.subject_id** (extends spec 009's entity): the one
   subject this roster is scoped to -- added here since spec 009 left
