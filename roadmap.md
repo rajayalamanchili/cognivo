@@ -289,8 +289,12 @@ roster's enrolled learners for the roster-management page. Phase 5
 (User Story 3: the instructor dashboard, aggregating Milestone 2's
 Recommendation Agent output per enrolled learner with no new
 weak-area logic, verified byte-for-byte identical to that agent's own
-endpoint) is also complete (2026-08-23). User Stories 4-5 (Phases 6-7)
-and Polish (Phase 8) have not started.
+endpoint) is also complete (2026-08-23). Phase 6 (User Story 4:
+content-review queue, scoped via an `Enrollment` join at query time
+rather than a denormalized snapshot, with reactivate/reject resolution
+and its own audited event type) is also complete (2026-08-23). User
+Story 5 (Phase 7, demo accounts) and Polish (Phase 8) have not
+started.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

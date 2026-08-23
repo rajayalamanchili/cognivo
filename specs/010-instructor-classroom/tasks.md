@@ -254,12 +254,12 @@ roster(s), with a reactivate/reject resolution action.
 
 ### Tests for User Story 4
 
-- [ ] T043 [P] [US4] Integration test: the flagged-question queue is
+- [X] T043 [P] [US4] Integration test: the flagged-question queue is
       scoped via an `Enrollment` join at query time -- a flagged
       question for a learner outside the instructor's roster(s) never
       appears (quickstart scenario 8, FR-011, research.md §5) in
       `backend/tests/integration/test_content_review_scoping.py`
-- [ ] T044 [P] [US4] Integration test: resolving a flagged question
+- [X] T044 [P] [US4] Integration test: resolving a flagged question
       (`reactivate` or `reject`) updates `validation_status`
       accordingly and records an audited event with the resolving
       instructor, action, and timestamp (FR-012/FR-013, SC-003) in
@@ -267,16 +267,16 @@ roster(s), with a reactivate/reject resolution action.
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] Implement `backend/src/services/content_review/
+- [X] T045 [US4] Implement `backend/src/services/content_review/
       resolution.py` -- query flagged `GeneratedQuestion` rows joined
       through `Enrollment` to the requesting instructor's rosters;
       resolve action + audit event (depends on T030, T009)
-- [ ] T046 [US4] Implement `GET /api/content-review/flagged`, `POST
+- [X] T046 [US4] Implement `GET /api/content-review/flagged`, `POST
       /api/content-review/{question_id}/resolve` in
       `backend/src/api/routes/content_review.py` (depends on T045)
-- [ ] T047 [US4] Register the `content_review` router in
+- [X] T047 [US4] Register the `content_review` router in
       `backend/src/api/main.py`
-- [ ] T048 [P] [US4] Instructor content-review queue page in
+- [X] T048 [P] [US4] Instructor content-review queue page in
       `frontend/src/app/instructor/review/` (depends on T046, T047)
 
 **Checkpoint**: User Stories 1-4 all work independently.

@@ -550,3 +550,40 @@ export interface DashboardResponse {
 export function getRosterDashboard(rosterId: string): Promise<DashboardResponse> {
   return request<DashboardResponse>(`/api/rosters/${rosterId}/dashboard`);
 }
+
+// Content review (spec 010 contracts/api.md "Content review" section,
+// User Story 4).
+
+export interface FlaggedQuestion {
+  question_id: string;
+  learner_id: string;
+  roster_id: string;
+  stem: string;
+  flagged_reason: string | null;
+  flagged_at: string;
+}
+
+export interface ListFlaggedResponse {
+  flagged: FlaggedQuestion[];
+}
+
+export function listFlaggedQuestions(): Promise<ListFlaggedResponse> {
+  return request<ListFlaggedResponse>("/api/content-review/flagged");
+}
+
+export type ResolutionAction = "reactivate" | "reject";
+
+export interface ResolveResponse {
+  question_id: string;
+  validation_status: string;
+}
+
+export function resolveFlaggedQuestion(
+  questionId: string,
+  action: ResolutionAction,
+): Promise<ResolveResponse> {
+  return request<ResolveResponse>(`/api/content-review/${questionId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
