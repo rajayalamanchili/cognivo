@@ -384,7 +384,14 @@ learner's assigned-quiz attempt is guardian-mediated, not a new
 learner-login surface; and attempts are capped at one per learner per
 assignment, hard-blocked from starting after the due date (an
 in-progress attempt may still finish). Requirements-quality checklist
-passed with no outstanding items. Pending `/speckit-plan`.
+passed with no outstanding items. `/speckit-plan` complete (2026-08-23):
+two new tables (`quiz_assignments`, `quiz_assignment_targets`) as a
+pure join layer on top of Milestone 5/6's entirely-unmodified quiz/
+grading mechanism; the two existing quiz-continuation routes gain a
+conditional guardian-ownership check that only applies to
+assignment-linked sessions, leaving the non-assignment quiz path
+behaviorally untouched. Constitution Check passed with no violations.
+Pending `/speckit-tasks`.
 
 **Scope**: Extends the Adaptive Difficulty Quiz (Milestone 5) so an
 instructor can configure and assign a specific quiz (topic(s), question
