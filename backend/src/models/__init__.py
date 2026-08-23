@@ -9,6 +9,8 @@ from src.models.generated_question import GeneratedQuestion
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
 from src.models.prerequisite_edge import PrerequisiteEdge
+from src.models.quiz_assignment import QuizAssignment
+from src.models.quiz_assignment_target import QuizAssignmentTarget
 from src.models.quiz_session import QuizSession
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
@@ -28,6 +30,8 @@ __all__ = [
     "LearnerProfile",
     "MasteryState",
     "PrerequisiteEdge",
+    "QuizAssignment",
+    "QuizAssignmentTarget",
     "QuizSession",
     "RealGuardianAccount",
     "RealInstructorAccount",

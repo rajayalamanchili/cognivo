@@ -110,7 +110,7 @@ export default function PracticeFlow() {
   if (phase === "error") {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {errorMessage}</p>
+        <p className="text-error">Something went wrong: {errorMessage}</p>
       </div>
     );
   }
@@ -123,11 +123,11 @@ export default function PracticeFlow() {
           <button
             type="button"
             onClick={() => learnerId && loadNextQuestion(learnerId)}
-            className="rounded bg-foreground px-5 py-3 text-background"
+            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
           >
             Next question
           </button>
-          <Link href={`/mastery?subject=${subjectId}`} className="text-blue-600 underline">
+          <Link href={`/mastery?subject=${subjectId}`} className="text-link underline">
             View mastery state
           </Link>
         </div>
@@ -154,7 +154,7 @@ export default function PracticeFlow() {
           type="button"
           disabled={response === "" || phase === "submitting"}
           onClick={handleSubmit}
-          className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+          className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
         >
           {phase === "submitting" ? "Submitting…" : "Submit Answer"}
         </button>

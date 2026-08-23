@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
+/* Kid-friendly design-token system. Every color is a single semantic
+   name (`--color-*`) with its own light/dark pair defined once here --
+   components use `bg-primary`, `text-muted`, `border-border`, etc.
+   directly, never a raw Tailwind palette color or a `dark:` variant of
+   one, so changing the look later means editing this file, not every
+   component that happens to use a color. */
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #1e293b; /* slate-800 -- softer than near-black */
+
+  --color-primary: #0d9488; /* teal-600 */
+  --color-primary-foreground: #ffffff;
+
+  --color-border: #e4e4e7; /* zinc-200 */
+  --color-muted: #71717a; /* zinc-500 */
+
+  --color-error: #dc2626; /* red-600 */
+  --color-success: #059669; /* emerald-600 */
+  --color-warning: #d97706; /* amber-600 */
+  --color-link: #2563eb; /* blue-600 */
+
+  /* Demo-account banner (Constitution Principle VIII) -- a bold, fixed
+     warning color deliberately unaffected by light/dark, distinct from
+     `--color-warning`'s softer in-content pill use. */
+  --color-demo: #fbbf24; /* amber-400 */
+  --color-demo-foreground: #451a03; /* amber-950 */
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-primary: var(--color-primary);
+  --color-primary-foreground: var(--color-primary-foreground);
+  --color-border: var(--color-border);
+  --color-muted: var(--color-muted);
+  --color-error: var(--color-error);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-link: var(--color-link);
+  --color-demo: var(--color-demo);
+  --color-demo-foreground: var(--color-demo-foreground);
+  --font-sans: var(--font-nunito);
+  --font-heading: var(--font-baloo);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0f172a; /* slate-900 */
+    --foreground: #f1f5f9; /* slate-100 */
+
+    --color-primary: #2dd4bf; /* teal-400 */
+    --color-primary-foreground: #042f2e; /* teal-950 */
+
+    --color-border: #3f3f46; /* zinc-700 */
+    --color-muted: #a1a1aa; /* zinc-400 */
+
+    --color-error: #f87171; /* red-400 */
+    --color-success: #34d399; /* emerald-400 */
+    --color-warning: #fbbf24; /* amber-400 */
+    --color-link: #60a5fa; /* blue-400 */
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading), var(--font-sans), Arial, Helvetica, sans-serif;
 }

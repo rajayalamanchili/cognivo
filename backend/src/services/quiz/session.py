@@ -16,10 +16,20 @@ from dataclasses import dataclass, field
 from google.adk.sessions import BaseSessionService
 from sqlalchemy.orm import Session
 
-from src.agents.assessment_gen.agent import GeneratedQuestionDraft, generate_question
+from src.agents.assessment_gen.agent import (
+    GeneratedQuestionDraft,
+    draft_to_answer_key,
+    generate_question,
+)
 from src.agents.diagnostic.agent import difficulty_guidance, preferred_question_type, skill_summary
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, DifficultyBand, QuestionType, QuizSessionStatus
+from src.models.enums import (
+    AssessmentEventType,
+    DifficultyBand,
+    QuestionType,
+    QuizSessionStatus,
+    ValidationStatus,
+)
 from src.models.generated_question import GeneratedQuestion
 from src.models.quiz_session import QuizSession
 from src.models.topic import Topic
@@ -171,6 +181,41 @@ async def generate_quiz_question(
         f"quiz {quiz.quiz_session_id}: could not generate a fresh question for topic "
         f"{topic_id!r} after {max_dedup_attempts} attempts"
     )
+
+
+def persist_quiz_question(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    learner_id: uuid.UUID,
+    subject_id: str,
+    result: QuizQuestionResult,
+) -> GeneratedQuestion:
+    """Builds and persists the `GeneratedQuestion` row for a freshly
+    generated quiz question. Shared by `POST /api/quizzes`/`GET
+    /api/quizzes/{quiz_session_id}/next-question` (spec 005) and the
+    assignment-attempt start path (spec 011, `services/quiz_assignment/
+    assignment.py`'s `start_assignment_attempt`) so a quiz question is
+    persisted identically regardless of which route generated it
+    (SC-002's parity guarantee). Does not commit -- same convention as
+    `start_quiz` above."""
+    now = datetime.datetime.now(datetime.UTC)
+    question = GeneratedQuestion(
+        learner_id=learner_id,
+        subject_id=subject_id,
+        topic_id=result.topic_id,
+        difficulty=result.difficulty,
+        question_type=result.question_type,
+        stem=result.draft.stem,
+        options=result.draft.options,
+        answer_key=draft_to_answer_key(result.draft),
+        validation_status=ValidationStatus.VALID,
+        shown_at=now,
+        quiz_session_id=quiz_session_id,
+    )
+    db.add(question)
+    db.flush()
+    return question
 
 
 def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: bool) -> None:

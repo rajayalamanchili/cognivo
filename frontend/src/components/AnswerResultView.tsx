@@ -19,20 +19,18 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
   return (
     <div className="flex flex-col gap-4" data-testid="answer-result-view">
       <h1 className="text-2xl font-semibold">{result.correct ? "Correct!" : "Not quite."}</h1>
-      <p className="text-zinc-600 dark:text-zinc-400">
+      <p className="text-muted">
         Topic: {result.topic_id} &mdash; now <strong>{result.band}</strong> (
         {Math.round(result.posterior_p_mastery * 100)}%)
       </p>
 
       {hasCriteria && (
-        <div className="flex flex-col gap-2 rounded border border-black/10 p-4 dark:border-white/10">
-          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-            Rubric criteria
-          </p>
+        <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
+          <p className="text-sm font-medium text-muted">Rubric criteria</p>
           <ul className="flex flex-col gap-1">
             {result.criteria_met?.map((criterion) => (
               <li key={criterion} className="flex items-start gap-2 text-sm">
-                <span aria-hidden="true" className="text-green-600">
+                <span aria-hidden="true" className="text-success">
                   ✓
                 </span>
                 <span>{criterion}</span>
@@ -40,7 +38,7 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
             ))}
             {result.criteria_missed?.map((criterion) => (
               <li key={criterion} className="flex items-start gap-2 text-sm">
-                <span aria-hidden="true" className="text-red-600">
+                <span aria-hidden="true" className="text-error">
                   ✗
                 </span>
                 <span>{criterion}</span>

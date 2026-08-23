@@ -45,7 +45,7 @@ export default function PersonalizationEvalReport() {
   if (phase === "error") {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {errorMessage}</p>
+        <p className="text-error">Something went wrong: {errorMessage}</p>
       </div>
     );
   }
@@ -97,7 +97,7 @@ export default function PersonalizationEvalReport() {
         </p>
       )}
 
-      <p className="text-sm text-gray-600">
+      <p className="text-sm text-muted">
         Covering {report.profiles?.length ?? 0} learner profile
         {report.profiles?.length === 1 ? "" : "s"}
         {report.profiles?.length

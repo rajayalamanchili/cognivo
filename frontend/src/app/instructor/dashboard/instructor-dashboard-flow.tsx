@@ -88,7 +88,7 @@ export default function InstructorDashboardFlow() {
         <select
           value={selectedRosterId ?? ""}
           onChange={(event) => setSelectedRosterId(event.target.value)}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+          className="rounded-lg border border-border px-3 py-2"
         >
           {rosters.map((roster) => (
             <option key={roster.roster_id} value={roster.roster_id}>
@@ -98,9 +98,9 @@ export default function InstructorDashboardFlow() {
         </select>
       </label>
 
-      {errorMessage && <p className="text-sm text-red-600">Something went wrong: {errorMessage}</p>}
+      {errorMessage && <p className="text-sm text-error">Something went wrong: {errorMessage}</p>}
       {dashboardError && (
-        <p className="text-sm text-red-600">Couldn&rsquo;t load this roster: {dashboardError}</p>
+        <p className="text-sm text-error">Couldn&rsquo;t load this roster: {dashboardError}</p>
       )}
 
       {dashboardLoading && <p className="text-sm">Loading roster data&hellip;</p>}
@@ -114,7 +114,7 @@ export default function InstructorDashboardFlow() {
           {dashboard.learners.map((entry) => (
             <div
               key={entry.learner_id}
-              className="flex flex-col gap-3 rounded border border-black/20 p-4 dark:border-white/20"
+              className="flex flex-col gap-3 rounded-lg border border-border p-4"
             >
               <h2 className="font-medium">{entry.display_name}</h2>
               <WeakAreaSection recommendations={entry.recommendations} />

@@ -17,8 +17,11 @@ test("personalization evidence page is reachable from nav and renders its curren
     if (msg.type() === "error") consoleErrors.push(msg.text());
   });
 
+  // The bare landing page is neutral (no demo/login choice made yet) --
+  // confirms the link itself is reachable regardless, not gated behind
+  // entering demo mode.
   await page.goto("/");
-  await expect(page.getByTestId("demo-badge")).toBeVisible();
+  await expect(page.getByTestId("demo-badge")).not.toBeVisible();
 
   await page.getByRole("link", { name: "Personalization Evidence" }).click();
   await expect(page).toHaveURL(/\/personalization-eval/);

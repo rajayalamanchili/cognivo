@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ApiError, getDemoInstructor } from "@/services/api";
+import { enterDemoLearnerMode, notifySessionChanged } from "@/lib/visitor-state";
 
 export default function DemoEntryPage() {
   const router = useRouter();
@@ -15,6 +16,7 @@ export default function DemoEntryPage() {
     setErrorText(null);
     try {
       await getDemoInstructor();
+      notifySessionChanged();
       router.push("/instructor/rosters");
     } catch (error) {
       setErrorText(
@@ -38,7 +40,8 @@ export default function DemoEntryPage() {
       <div className="flex flex-col gap-3">
         <Link
           href="/practice"
-          className="rounded bg-foreground px-5 py-3 text-center text-background"
+          onClick={enterDemoLearnerMode}
+          className="rounded-lg bg-primary px-5 py-3 text-center text-primary-foreground"
         >
           Try as a demo learner
         </Link>
@@ -46,13 +49,13 @@ export default function DemoEntryPage() {
           type="button"
           onClick={handleTryAsInstructor}
           disabled={starting}
-          className="rounded border border-black/20 px-5 py-3 disabled:opacity-40 dark:border-white/20"
+          className="rounded-lg border border-border px-5 py-3 disabled:opacity-40"
         >
           {starting ? "Starting…" : "Try as a demo instructor"}
         </button>
       </div>
 
-      {errorText && <p className="text-sm text-red-600">{errorText}</p>}
+      {errorText && <p className="text-sm text-error">{errorText}</p>}
     </div>
   );
 }

@@ -35,12 +35,10 @@ export default function QuizSummary({ summary }: QuizSummaryProps) {
           {summary.summary.map((entry) => (
             <li
               key={`${entry.topic_id}-${entry.difficulty}`}
-              className="flex items-center justify-between rounded border border-black/10 px-4 py-3 dark:border-white/10"
+              className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
             >
               <span className="font-medium">{formatTopicId(entry.topic_id)}</span>
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                {DIFFICULTY_LABEL[entry.difficulty]}
-              </span>
+              <span className="text-sm text-muted">{DIFFICULTY_LABEL[entry.difficulty]}</span>
               <span className="text-sm">
                 {entry.correct} / {entry.total}
               </span>

@@ -70,22 +70,20 @@ export default function QuestionCard({
         <input
           type="number"
           step="any"
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+          className="rounded-lg border border-border px-3 py-2"
           value={response}
           onChange={(event) => onResponseChange(event.target.value)}
         />
       )}
 
       {flagged ? (
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          Flagged for review -- thanks for the report.
-        </p>
+        <p className="text-sm text-muted">Flagged for review -- thanks for the report.</p>
       ) : showFlagForm ? (
         <div className="flex flex-col gap-2">
           <input
             type="text"
             placeholder="Why is this question wrong? (optional)"
-            className="rounded border border-black/20 px-3 py-2 text-sm dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2 text-sm"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
@@ -93,14 +91,14 @@ export default function QuestionCard({
             <button
               type="button"
               onClick={handleFlagSubmit}
-              className="text-sm text-red-600 underline"
+              className="text-sm text-error underline"
             >
               Submit flag
             </button>
             <button
               type="button"
               onClick={() => setShowFlagForm(false)}
-              className="text-sm text-zinc-500 underline dark:text-zinc-400"
+              className="text-sm text-muted underline"
             >
               Cancel
             </button>
@@ -110,7 +108,7 @@ export default function QuestionCard({
         <button
           type="button"
           onClick={() => setShowFlagForm(true)}
-          className="self-start text-sm text-zinc-500 underline dark:text-zinc-400"
+          className="self-start text-sm text-muted underline"
         >
           Flag this question
         </button>
