@@ -7,6 +7,7 @@ import {
   createAssignment,
   createRoster,
   declineRosterRequest,
+  getAssignmentDetail,
   getSubjects,
   listRosterAssignments,
   listRosterEnrollments,
@@ -14,6 +15,7 @@ import {
   listRosters,
   unenrollLearner,
   updateRosterEnrollmentMode,
+  type AssignmentDetail,
   type EnrolledLearner,
   type EnrollmentMode,
   type EnrollmentRequestEntry,
@@ -52,6 +54,11 @@ export default function RostersFlow() {
   const [assignSelectedLearnerIds, setAssignSelectedLearnerIds] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+
+  const [resultsAssignmentId, setResultsAssignmentId] = useState<string | null>(null);
+  const [resultsDetail, setResultsDetail] = useState<AssignmentDetail | null>(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +110,9 @@ export default function RostersFlow() {
     setAssignTargetMode("all");
     setAssignSelectedLearnerIds([]);
     setAssignError(null);
+    setResultsAssignmentId(null);
+    setResultsDetail(null);
+    setResultsError(null);
     loadDetail(rosterId);
   }
 
@@ -151,6 +161,27 @@ export default function RostersFlow() {
     } catch (error) {
       setDetailError(errorText(error));
     }
+  }
+
+  async function handleViewResults(assignmentId: string) {
+    if (!selectedRosterId) return;
+    setResultsAssignmentId(assignmentId);
+    setResultsLoading(true);
+    setResultsError(null);
+    try {
+      const detail = await getAssignmentDetail(selectedRosterId, assignmentId);
+      setResultsDetail(detail);
+    } catch (error) {
+      setResultsError(errorText(error));
+    } finally {
+      setResultsLoading(false);
+    }
+  }
+
+  function handleCloseResults() {
+    setResultsAssignmentId(null);
+    setResultsDetail(null);
+    setResultsError(null);
   }
 
   async function handleCreate(event: FormEvent) {
@@ -508,18 +539,78 @@ export default function RostersFlow() {
                     </span>
                   )}
                 </span>
-                {!assignment.cancelled_at && (
+                <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => handleCancelAssignment(assignment.assignment_id)}
+                    onClick={() => handleViewResults(assignment.assignment_id)}
                     className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
                   >
-                    Cancel
+                    View results
                   </button>
-                )}
+                  {!assignment.cancelled_at && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelAssignment(assignment.assignment_id)}
+                      className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
+
+          {resultsAssignmentId && (
+            <div
+              className="flex flex-col gap-3 rounded border border-black/20 p-4 dark:border-white/20"
+              data-testid="assignment-results"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Results</h3>
+                <button
+                  type="button"
+                  onClick={handleCloseResults}
+                  className="text-sm text-zinc-500 underline dark:text-zinc-400"
+                >
+                  Close
+                </button>
+              </div>
+              {resultsLoading && <p className="text-sm">Loading&hellip;</p>}
+              {resultsError && (
+                <p className="text-sm text-red-600" data-testid="assignment-results-error">
+                  {resultsError}
+                </p>
+              )}
+              {resultsDetail && (
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr>
+                      <th className="pb-2 font-medium">Learner</th>
+                      <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 font-medium">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultsDetail.learners.map((learner) => (
+                      <tr
+                        key={learner.learner_id}
+                        data-testid={`assignment-result-${learner.learner_id}`}
+                      >
+                        <td className="py-1">{learner.display_name}</td>
+                        <td className="py-1">{learner.status}</td>
+                        <td className="py-1">
+                          {learner.score
+                            ? `${learner.score.correct} / ${learner.score.total}`
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

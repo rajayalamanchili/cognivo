@@ -231,25 +231,25 @@ per-student report), plus scenario 1's per-student-view portion.
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Integration test: per-assignment report shows the
+- [X] T029 [P] [US3] Integration test: per-assignment report shows the
       correct status and score for a mix of not_started/in_progress/
       completed/ended_early learners in `backend/tests/integration/
       test_quiz_assignment_report.py` (FR-009, FR-010)
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Add `GET /api/rosters/{roster_id}/assignments/
+- [X] T030 [US3] Add `GET /api/rosters/{roster_id}/assignments/
       {assignment_id}` route in `backend/src/api/routes/
       quiz_assignments.py`, using T007's status helper plus the
       existing `compute_quiz_summary()` for a completed attempt's score
       (FR-009, FR-010, contracts/api.md) (depends on T007, T010)
-- [ ] T031 [P] [US3] Add `getAssignmentDetail` client function in
+- [X] T031 [P] [US3] Add `getAssignmentDetail` client function in
       `frontend/src/services/api.ts` (contracts/api.md) (depends on
       T030)
-- [ ] T032 [US3] Extend `frontend/src/app/instructor/rosters/
+- [X] T032 [US3] Extend `frontend/src/app/instructor/rosters/
       rosters-flow.tsx` with a per-assignment results view (a table of
       targeted learners' status/score) (depends on T031, T015)
-- [ ] T033 [P] [US3] Vitest test for the per-assignment results view in
+- [X] T033 [P] [US3] Vitest test for the per-assignment results view in
       `frontend/tests/unit/rosters-flow.test.tsx` (depends on T032)
 
 **Checkpoint**: All three user stories are independently functional.

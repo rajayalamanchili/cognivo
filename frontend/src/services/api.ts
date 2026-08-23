@@ -693,3 +693,33 @@ export function startAssignment(
     { method: "POST" },
   );
 }
+
+// Instructor-facing per-assignment results report (User Story 3).
+
+export interface AssignmentLearnerScore {
+  correct: number;
+  total: number;
+}
+
+export interface AssignmentLearnerReport {
+  learner_id: string;
+  display_name: string;
+  status: AssignmentStatus;
+  score: AssignmentLearnerScore | null;
+}
+
+export interface AssignmentDetail {
+  assignment_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  cancelled_at: string | null;
+  learners: AssignmentLearnerReport[];
+}
+
+export function getAssignmentDetail(
+  rosterId: string,
+  assignmentId: string,
+): Promise<AssignmentDetail> {
+  return request<AssignmentDetail>(`/api/rosters/${rosterId}/assignments/${assignmentId}`);
+}

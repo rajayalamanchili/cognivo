@@ -19,6 +19,7 @@ vi.mock("@/services/api", async () => {
     listRosterAssignments: vi.fn(),
     createAssignment: vi.fn(),
     cancelAssignment: vi.fn(),
+    getAssignmentDetail: vi.fn(),
   };
 });
 
@@ -129,5 +130,114 @@ describe("RostersFlow assign-a-quiz form", () => {
 
     expect(screen.getByText("Assign quiz")).toBeDisabled();
     expect(api.createAssignment).not.toHaveBeenCalled();
+  });
+});
+
+describe("RostersFlow per-assignment results view", () => {
+  const ASSIGNMENT = {
+    assignment_id: "assignment-1",
+    topic_ids: ["integers-and-operations"],
+    question_count: 5,
+    due_at: null,
+    cancelled_at: null,
+    created_at: "2026-08-23T00:00:00Z",
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.listRosters).mockReset();
+    vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.listRosterRequests).mockReset();
+    vi.mocked(api.listRosterEnrollments).mockReset();
+    vi.mocked(api.listRosterAssignments).mockReset();
+    vi.mocked(api.getAssignmentDetail).mockReset();
+  });
+
+  async function renderWithOneAssignment() {
+    vi.mocked(api.listRosters).mockResolvedValue({ rosters: [ROSTER] });
+    vi.mocked(api.getSubjects).mockResolvedValue({
+      subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
+    });
+    vi.mocked(api.listRosterRequests).mockResolvedValue({ requests: [] });
+    vi.mocked(api.listRosterEnrollments).mockResolvedValue({
+      enrollments: [LEARNER_A, LEARNER_B],
+    });
+    vi.mocked(api.listRosterAssignments).mockResolvedValue({ assignments: [ASSIGNMENT] });
+
+    render(<RostersFlow />);
+    await waitFor(() => expect(api.listRosters).toHaveBeenCalled());
+    fireEvent.click(await screen.findByText("Manage"));
+    await screen.findByTestId(`assignment-${ASSIGNMENT.assignment_id}`);
+  }
+
+  it("shows a mixed-status per-student results table on 'View results'", async () => {
+    await renderWithOneAssignment();
+    vi.mocked(api.getAssignmentDetail).mockResolvedValue({
+      assignment_id: ASSIGNMENT.assignment_id,
+      topic_ids: ASSIGNMENT.topic_ids,
+      question_count: ASSIGNMENT.question_count,
+      due_at: null,
+      cancelled_at: null,
+      learners: [
+        {
+          learner_id: LEARNER_A.learner_id,
+          display_name: "Learner A",
+          status: "completed",
+          score: { correct: 4, total: 5 },
+        },
+        {
+          learner_id: LEARNER_B.learner_id,
+          display_name: "Learner B",
+          status: "not_started",
+          score: null,
+        },
+      ],
+    });
+
+    fireEvent.click(screen.getByText("View results"));
+
+    await waitFor(() =>
+      expect(api.getAssignmentDetail).toHaveBeenCalledWith("roster-1", ASSIGNMENT.assignment_id),
+    );
+    const table = await screen.findByTestId("assignment-results");
+    expect(table).toBeInTheDocument();
+
+    const rowA = screen.getByTestId(`assignment-result-${LEARNER_A.learner_id}`);
+    expect(rowA).toHaveTextContent("Learner A");
+    expect(rowA).toHaveTextContent("completed");
+    expect(rowA).toHaveTextContent("4 / 5");
+
+    const rowB = screen.getByTestId(`assignment-result-${LEARNER_B.learner_id}`);
+    expect(rowB).toHaveTextContent("Learner B");
+    expect(rowB).toHaveTextContent("not_started");
+    expect(rowB).toHaveTextContent("—");
+  });
+
+  it("shows an error without crashing when the results fetch fails", async () => {
+    await renderWithOneAssignment();
+    vi.mocked(api.getAssignmentDetail).mockRejectedValue(new Error("network error"));
+
+    fireEvent.click(screen.getByText("View results"));
+
+    expect(await screen.findByTestId("assignment-results-error")).toHaveTextContent(
+      "network error",
+    );
+  });
+
+  it("closes the results table when 'Close' is clicked", async () => {
+    await renderWithOneAssignment();
+    vi.mocked(api.getAssignmentDetail).mockResolvedValue({
+      assignment_id: ASSIGNMENT.assignment_id,
+      topic_ids: ASSIGNMENT.topic_ids,
+      question_count: ASSIGNMENT.question_count,
+      due_at: null,
+      cancelled_at: null,
+      learners: [],
+    });
+
+    fireEvent.click(screen.getByText("View results"));
+    await screen.findByTestId("assignment-results");
+
+    fireEvent.click(screen.getByText("Close"));
+    expect(screen.queryByTestId("assignment-results")).not.toBeInTheDocument();
   });
 });

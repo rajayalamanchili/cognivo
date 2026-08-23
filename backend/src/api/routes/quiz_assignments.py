@@ -25,7 +25,7 @@ from src.models.quiz_session import QuizSession
 from src.models.real_guardian_account import RealGuardianAccount
 from src.observability.session import get_database_session_service
 from src.services.auth.dependencies import InstructorAccount, current_guardian, current_instructor
-from src.services.quiz.session import persist_quiz_question
+from src.services.quiz.session import compute_quiz_summary, persist_quiz_question
 from src.services.quiz_assignment.assignment import (
     cancel_assignment,
     create_assignment,
@@ -162,6 +162,93 @@ def cancel_assignment_route(
 ) -> None:
     assignment = _get_owned_assignment(db, roster_id, assignment_id, instructor)
     cancel_assignment(db, assignment=assignment)
+
+
+class LearnerScoreOut(BaseModel):
+    correct: int
+    total: int
+
+
+class AssignmentLearnerReportOut(BaseModel):
+    learner_id: uuid.UUID
+    display_name: str
+    status: str
+    score: LearnerScoreOut | None
+
+
+class AssignmentDetailOut(BaseModel):
+    assignment_id: uuid.UUID
+    topic_ids: list[str]
+    question_count: int
+    due_at: datetime.datetime | None
+    cancelled_at: datetime.datetime | None
+    learners: list[AssignmentLearnerReportOut]
+
+
+@router.get(
+    "/api/rosters/{roster_id}/assignments/{assignment_id}", response_model=AssignmentDetailOut
+)
+def get_assignment_detail_route(
+    roster_id: uuid.UUID,
+    assignment_id: uuid.UUID,
+    instructor: InstructorAccount = Depends(current_instructor),
+    db: Session = Depends(get_db),
+) -> AssignmentDetailOut:
+    """Per-student status/score (FR-009, FR-010) -- a direct query, not
+    routed through the Recommendation Agent (research.md §5): "did this
+    learner complete this assignment" is a different question from that
+    agent's weak-area analysis."""
+    assignment = _get_owned_assignment(db, roster_id, assignment_id, instructor)
+
+    rows = (
+        db.query(QuizAssignmentTarget, LearnerProfile)
+        .join(LearnerProfile, LearnerProfile.learner_id == QuizAssignmentTarget.learner_id)
+        .filter(QuizAssignmentTarget.assignment_id == assignment_id)
+        .order_by(QuizAssignmentTarget.created_at)
+        .all()
+    )
+
+    quiz_session_ids = [
+        target.quiz_session_id for target, _learner in rows if target.quiz_session_id is not None
+    ]
+    status_by_session_id: dict[uuid.UUID, QuizSessionStatus] = {}
+    if quiz_session_ids:
+        for quiz_session_id, status in (
+            db.query(QuizSession.quiz_session_id, QuizSession.status)
+            .filter(QuizSession.quiz_session_id.in_(quiz_session_ids))
+            .all()
+        ):
+            status_by_session_id[quiz_session_id] = status
+
+    learners_out: list[AssignmentLearnerReportOut] = []
+    for target, learner in rows:
+        session_status = (
+            status_by_session_id.get(target.quiz_session_id)
+            if target.quiz_session_id is not None
+            else None
+        )
+        status = derive_target_status(session_status)
+        score: LearnerScoreOut | None = None
+        if status in ("completed", "ended_early"):
+            summary = compute_quiz_summary(db, quiz_session_id=target.quiz_session_id)
+            score = LearnerScoreOut(correct=summary.score.correct, total=summary.score.total)
+        learners_out.append(
+            AssignmentLearnerReportOut(
+                learner_id=learner.learner_id,
+                display_name=learner.display_name,
+                status=status,
+                score=score,
+            )
+        )
+
+    return AssignmentDetailOut(
+        assignment_id=assignment.assignment_id,
+        topic_ids=assignment.topic_ids,
+        question_count=assignment.question_count,
+        due_at=assignment.due_at,
+        cancelled_at=assignment.cancelled_at,
+        learners=learners_out,
+    )
 
 
 def _get_own_learner(
