@@ -420,6 +420,9 @@ export type SessionAccountType = "guardian" | "instructor" | "demo_instructor";
 
 export interface WhoAmIResponse {
   account_type: SessionAccountType | null;
+  // Login email for a real guardian/instructor, or the seeded display
+  // name for a demo instructor -- `null` for no session.
+  identifier: string | null;
 }
 
 // Read-only session-identity check -- drives the nav's per-user-type

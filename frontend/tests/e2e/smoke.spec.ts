@@ -25,8 +25,10 @@ async function answerVisibleQuestion(page: Page, root: Page | Locator = page): P
 test("demo badge, placement, and first follow-up question all work end to end", async ({
   page,
 }) => {
+  // The bare landing page is neutral (no demo/login choice made yet) --
+  // the badge only appears once actually on a demo page.
   await page.goto("/");
-  await expect(page.getByTestId("demo-badge")).toBeVisible();
+  await expect(page.getByTestId("demo-badge")).not.toBeVisible();
 
   await page.goto("/placement?subject=algebra-1");
   await expect(page.getByTestId("demo-badge")).toBeVisible();

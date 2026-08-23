@@ -51,25 +51,38 @@ function bucketFor(accountType: SessionAccountType | null, demoLearnerMode: bool
   return "anonymous";
 }
 
+const ACCOUNT_TYPE_LABEL: Record<"guardian" | "instructor", string> = {
+  guardian: "Guardian",
+  instructor: "Instructor",
+};
+
 function useVisitorState() {
   const [accountType, setAccountType] = useState<SessionAccountType | null | "loading">(
     "loading",
   );
+  const [identifier, setIdentifier] = useState<string | null>(null);
   const [demoLearnerMode, setDemoLearnerMode] = useState(() => isDemoLearnerMode());
 
   function refresh() {
     setDemoLearnerMode(isDemoLearnerMode());
     getWhoAmI()
-      .then((result) => setAccountType(result.account_type))
-      .catch(() => setAccountType(null));
+      .then((result) => {
+        setAccountType(result.account_type);
+        setIdentifier(result.identifier);
+      })
+      .catch(() => {
+        setAccountType(null);
+        setIdentifier(null);
+      });
   }
 
-  return { accountType, demoLearnerMode, refresh, setAccountType };
+  return { accountType, identifier, demoLearnerMode, refresh, setAccountType, setIdentifier };
 }
 
 export default function Nav() {
   const router = useRouter();
-  const { accountType, demoLearnerMode, refresh, setAccountType } = useVisitorState();
+  const { accountType, identifier, demoLearnerMode, refresh, setAccountType, setIdentifier } =
+    useVisitorState();
 
   useEffect(() => {
     refresh();
@@ -80,6 +93,7 @@ export default function Nav() {
   async function handleSignOut() {
     await logout();
     setAccountType(null);
+    setIdentifier(null);
     router.push("/");
   }
 
@@ -127,13 +141,20 @@ export default function Nav() {
         </button>
       )}
       {(bucket === "guardian" || bucket === "instructor") && (
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="text-zinc-600 underline dark:text-zinc-400"
-        >
-          Sign Out
-        </button>
+        <span className="ml-auto flex items-center gap-4">
+          {(accountType === "guardian" || accountType === "instructor") && identifier && (
+            <span className="text-zinc-500 dark:text-zinc-400" data-testid="nav-identity">
+              {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="text-zinc-600 underline dark:text-zinc-400"
+          >
+            Sign Out
+          </button>
+        </span>
       )}
       {(bucket === "anonymous" || bucket === "demo-learner") && (
         <Link href="/sign-in" className="ml-auto text-zinc-600 dark:text-zinc-400">

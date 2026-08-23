@@ -1,6 +1,7 @@
 // Unit test: Nav's per-visitor-type menu (anonymous/demo-learner/
-// guardian/instructor buckets) and the always-visible Personalization
-// Evidence link (SC-005, no login required).
+// guardian/instructor buckets), the always-visible Personalization
+// Evidence link (SC-005, no login required), and the "signed in as"
+// identity readout for real guardian/instructor sessions.
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -33,7 +34,7 @@ describe("Nav", () => {
   });
 
   it("shows only Try Demo, Sign In, and Personalization Evidence when logged out", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
     render(<Nav />);
 
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
@@ -47,7 +48,7 @@ describe("Nav", () => {
   });
 
   it("shows the demo-learner bucket when demo-learner mode is set, with no real session", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
     window.localStorage.setItem(DEMO_LEARNER_MODE_KEY, "true");
     render(<Nav />);
 
@@ -63,7 +64,7 @@ describe("Nav", () => {
   });
 
   it("exiting demo mode clears the flag and navigates home", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
     window.localStorage.setItem(DEMO_LEARNER_MODE_KEY, "true");
     render(<Nav />);
 
@@ -73,32 +74,58 @@ describe("Nav", () => {
     expect(push).toHaveBeenCalledWith("/");
   });
 
-  it("shows the guardian bucket for a guardian session", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: "guardian" });
+  it("shows the guardian bucket with an identity readout for a guardian session", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+    });
     render(<Nav />);
 
     expect(await screen.findByText("My Learners")).toBeInTheDocument();
     expect(screen.getByText("Sign Out")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-identity")).toHaveTextContent("parent@example.com · Guardian");
     expect(screen.queryByText("Try Demo")).not.toBeInTheDocument();
     expect(screen.queryByText("Rosters")).not.toBeInTheDocument();
   });
 
-  it("shows the instructor bucket for both real and demo instructor sessions", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: "demo_instructor" });
+  it("shows the instructor bucket with an identity readout for a real instructor session", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "instructor",
+      identifier: "teacher@example.com",
+    });
     render(<Nav />);
 
     expect(await screen.findByText("Rosters")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Review")).toBeInTheDocument();
     expect(screen.getByText("Sign Out")).toBeInTheDocument();
+    expect(screen.getByTestId("nav-identity")).toHaveTextContent(
+      "teacher@example.com · Instructor",
+    );
   });
 
-  it("signing out logs out and navigates home", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: "guardian" });
+  it("shows the instructor bucket with no identity readout for a demo instructor session", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "demo_instructor",
+      identifier: "Demo Instructor",
+    });
+    render(<Nav />);
+
+    expect(await screen.findByText("Rosters")).toBeInTheDocument();
+    expect(screen.getByText("Sign Out")).toBeInTheDocument();
+    expect(screen.queryByTestId("nav-identity")).not.toBeInTheDocument();
+  });
+
+  it("signing out logs out, clears the identity readout, and navigates home", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+    });
     vi.mocked(api.logout).mockResolvedValue(undefined);
     render(<Nav />);
 
-    fireEvent.click(await screen.findByText("Sign Out"));
+    await screen.findByTestId("nav-identity");
+    fireEvent.click(screen.getByText("Sign Out"));
 
     await waitFor(() => expect(api.logout).toHaveBeenCalled());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));

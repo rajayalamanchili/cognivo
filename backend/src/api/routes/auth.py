@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from src.api.errors import AuthenticationError, ConflictError
 from src.db import get_db
+from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEnrollmentStatus
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
@@ -183,12 +184,33 @@ def logout(response: Response) -> None:
 
 class WhoAmIOut(BaseModel):
     account_type: AccountType | None
+    identifier: str | None = None
 
 
 @router.get("/api/auth/whoami", response_model=WhoAmIOut)
-def whoami(claims: SessionClaims | None = Depends(optional_session_claims)) -> WhoAmIOut:
+def whoami(
+    claims: SessionClaims | None = Depends(optional_session_claims),
+    db: Session = Depends(get_db),
+) -> WhoAmIOut:
     """Read-only session-identity check for the frontend nav (no
     business logic gated on this -- every real authorization decision
     still happens per-route via `current_guardian`/`current_instructor`,
-    same as before this endpoint existed)."""
-    return WhoAmIOut(account_type=claims.account_type if claims else None)
+    same as before this endpoint existed). `identifier` is the login
+    email for a real guardian/instructor, or the seeded display name for
+    a demo instructor -- `None` for a `None` `claims` or a session whose
+    account row no longer exists."""
+    if claims is None:
+        return WhoAmIOut(account_type=None)
+
+    identifier: str | None = None
+    if claims.account_type == "guardian":
+        guardian = db.get(RealGuardianAccount, claims.account_id)
+        identifier = guardian.email if guardian else None
+    elif claims.account_type == "instructor":
+        instructor = db.get(RealInstructorAccount, claims.account_id)
+        identifier = instructor.email if instructor else None
+    elif claims.account_type == "demo_instructor":
+        demo_instructor = db.get(DemoInstructorProfile, claims.account_id)
+        identifier = demo_instructor.display_name if demo_instructor else None
+
+    return WhoAmIOut(account_type=claims.account_type, identifier=identifier)
