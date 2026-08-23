@@ -49,11 +49,12 @@ def test_reset_restores_seeded_baseline_after_mutation(db_session, algebra_subje
     )
     db_session.add(roster)
     db_session.flush()
+    roster_id = roster.roster_id  # captured now -- reset_demo_data() deletes this row below
 
     db_session.add(
         Enrollment(
             learner_id=other_learner.learner_id,
-            roster_id=roster.roster_id,
+            roster_id=roster_id,
             authorized_by_type=AuthorizedByType.GUARDIAN,
             authorized_by_id=uuid.uuid4(),
         )
@@ -135,9 +136,7 @@ def test_reset_restores_seeded_baseline_after_mutation(db_session, algebra_subje
         .count()
         == 0
     )
-    assert (
-        db_session.query(Enrollment).filter(Enrollment.roster_id == roster.roster_id).count() == 0
-    )
+    assert db_session.query(Enrollment).filter(Enrollment.roster_id == roster_id).count() == 0
 
     # The unrelated learner (not the demo learner) is untouched.
     assert db_session.get(LearnerProfile, other_learner.learner_id) is not None

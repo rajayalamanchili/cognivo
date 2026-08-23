@@ -25,7 +25,7 @@ class MasteryState(Base):
     )
 
     learner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("demo_learner_profiles.learner_id"), primary_key=True
+        UUID(as_uuid=True), ForeignKey("learner_profiles.learner_id"), primary_key=True
     )
     subject_id: Mapped[str] = mapped_column(primary_key=True)
     topic_id: Mapped[str] = mapped_column(primary_key=True)

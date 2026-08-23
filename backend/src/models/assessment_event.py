@@ -31,7 +31,7 @@ class AssessmentEvent(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     learner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("demo_learner_profiles.learner_id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("learner_profiles.learner_id"), nullable=False
     )
     event_type: Mapped[AssessmentEventType] = mapped_column(
         Enum(AssessmentEventType, name="assessment_event_type", values_callable=enum_values),
