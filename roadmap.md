@@ -373,8 +373,18 @@ already carries.
 ---
 
 ## Milestone 8: Instructor-Assigned Quizzes
-**Spec**: not yet written -- do not begin until Milestone 7 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/011-instructor-assigned-quizzes/spec.md`
+**Status**: `/speckit-specify` complete (2026-08-23). Milestone 7's DoD
+is met (see that milestone's entry above), so this milestone's spec was
+written against it. Two clarifications were resolved during
+`/speckit-specify` itself, both surfaced by inspecting the actual
+Milestone 7 auth code rather than assumed: no real-learner-facing login
+exists yet (only guardian and instructor sessions), so a targeted
+learner's assigned-quiz attempt is guardian-mediated, not a new
+learner-login surface; and attempts are capped at one per learner per
+assignment, hard-blocked from starting after the due date (an
+in-progress attempt may still finish). Requirements-quality checklist
+passed with no outstanding items. Pending `/speckit-plan`.
 
 **Scope**: Extends the Adaptive Difficulty Quiz (Milestone 5) so an
 instructor can configure and assign a specific quiz (topic(s), question
