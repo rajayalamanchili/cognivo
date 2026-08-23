@@ -20,6 +20,13 @@ class ConflictError(DomainError):
     """Maps to HTTP 409."""
 
 
+class AuthenticationError(DomainError):
+    """Maps to HTTP 401 (spec 010) -- missing/invalid session, or a
+    login attempt with the wrong email/password. Deliberately the same
+    error for both an unknown email and a wrong password (contracts/api.md:
+    no account enumeration)."""
+
+
 class UnprocessableError(DomainError):
     """Maps to HTTP 422."""
 

@@ -92,19 +92,19 @@ account types -- and a guardian can add learner profiles.
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Integration test: instructor register/login/logout
+- [X] T016 [P] [US1] Integration test: instructor register/login/logout
       round trip; a protected route rejects a missing/expired session
       (quickstart scenario 1) in
       `backend/tests/integration/test_auth_instructor.py`
-- [ ] T017 [P] [US1] Integration test: guardian register/login/logout
+- [X] T017 [P] [US1] Integration test: guardian register/login/logout
       + add a learner profile, creating a `RetentionRecord` in the same
       transaction (quickstart scenario 1) in
       `backend/tests/integration/test_auth_guardian.py`
-- [ ] T018 [P] [US1] Integration test: the same email registers
+- [X] T018 [P] [US1] Integration test: the same email registers
       successfully as both a guardian and an instructor independently
       (quickstart scenario 2, FR-002a) in
       `backend/tests/integration/test_auth_email_scoping.py`
-- [ ] T019 [P] [US1] Integration test: a client-supplied `is_demo: true`
+- [X] T019 [P] [US1] Integration test: a client-supplied `is_demo: true`
       in the register request body is rejected or ignored -- the
       created account always has `is_demo: false` (quickstart scenario
       9, FR-016, SC-004) in
@@ -112,21 +112,21 @@ account types -- and a guardian can add learner profiles.
 
 ### Implementation for User Story 1
 
-- [ ] T020 [US1] Implement `POST /api/auth/instructor/register` and
+- [X] T020 [US1] Implement `POST /api/auth/instructor/register` and
       `POST /api/auth/instructor/login` in
       `backend/src/api/routes/auth.py` (depends on T013, T014, T006)
-- [ ] T021 [US1] Implement `POST /api/auth/guardian/register` and
+- [X] T021 [US1] Implement `POST /api/auth/guardian/register` and
       `POST /api/auth/guardian/login` in `backend/src/api/routes/auth.py`
       (same file, depends on T020)
-- [ ] T022 [US1] Implement `POST /api/auth/logout` in
+- [X] T022 [US1] Implement `POST /api/auth/logout` in
       `backend/src/api/routes/auth.py` (depends on T014)
-- [ ] T023 [US1] Implement `POST /api/learners` (guardian-authenticated,
+- [X] T023 [US1] Implement `POST /api/learners` (guardian-authenticated,
       creates a `LearnerProfile` + `RetentionRecord` in one transaction)
       in `backend/src/api/routes/learners.py` (depends on T015, T004,
       T007)
-- [ ] T024 [US1] Register the `auth` and `learners` routers in
+- [X] T024 [US1] Register the `auth` and `learners` routers in
       `backend/src/api/main.py`
-- [ ] T025 [P] [US1] Guardian and instructor register/sign-in pages in
+- [X] T025 [P] [US1] Guardian and instructor register/sign-in pages in
       `frontend/src/app/(auth)/guardian/` and
       `frontend/src/app/(auth)/instructor/`, plus an "add a learner"
       form on the guardian side (depends on T020-T024)

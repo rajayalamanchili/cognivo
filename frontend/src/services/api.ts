@@ -195,10 +195,7 @@ export interface GradingUnavailableBody {
 }
 
 export type FreeTextErrorBody =
-  | AnswerTooLongBody
-  | RateLimitedBody
-  | ModerationRejectedBody
-  | GradingUnavailableBody;
+  AnswerTooLongBody | RateLimitedBody | ModerationRejectedBody | GradingUnavailableBody;
 
 export class ApiError extends Error {
   constructor(
@@ -211,7 +208,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchOrThrow(path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(path, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -226,7 +223,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(response.status, `${path} failed (${response.status}): ${text}`, body);
   }
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetchOrThrow(path, init);
   return (await response.json()) as T;
+}
+
+// For endpoints with no response body (e.g. logout's 204) -- `request`
+// always calls `response.json()`, which throws on an empty body.
+async function requestVoid(path: string, init?: RequestInit): Promise<void> {
+  await fetchOrThrow(path, init);
 }
 
 export function getDemoLearner(): Promise<DemoLearner> {
@@ -352,4 +360,70 @@ export interface EvaluationReport {
 
 export function getEvaluationReport(): Promise<EvaluationReport> {
   return request<EvaluationReport>("/api/evaluation/report");
+}
+
+// Auth (spec 010 contracts/api.md "Auth" section). Session is a
+// stateless JWT in an httpOnly cookie set by the backend's Set-Cookie
+// response header -- these calls never read/write the token directly.
+
+export interface GuardianAuthResponse {
+  guardian_id: string;
+}
+
+export interface InstructorAuthResponse {
+  instructor_id: string;
+}
+
+// `AuthErrorBody.detail` distinguishes register/login failures (e.g.
+// "email_taken", "invalid_credentials") without re-parsing `message`,
+// same pattern as `FreeTextErrorBody` above.
+export interface AuthErrorBody {
+  detail: string;
+}
+
+export function registerGuardian(email: string, password: string): Promise<GuardianAuthResponse> {
+  return request<GuardianAuthResponse>("/api/auth/guardian/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function loginGuardian(email: string, password: string): Promise<GuardianAuthResponse> {
+  return request<GuardianAuthResponse>("/api/auth/guardian/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function registerInstructor(
+  email: string,
+  password: string,
+): Promise<InstructorAuthResponse> {
+  return request<InstructorAuthResponse>("/api/auth/instructor/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function loginInstructor(email: string, password: string): Promise<InstructorAuthResponse> {
+  return request<InstructorAuthResponse>("/api/auth/instructor/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function logout(): Promise<void> {
+  return requestVoid("/api/auth/logout", { method: "POST" });
+}
+
+export interface CreateLearnerResponse {
+  learner_id: string;
+  guardian_id: string;
+}
+
+export function createLearner(displayName: string): Promise<CreateLearnerResponse> {
+  return request<CreateLearnerResponse>("/api/learners", {
+    method: "POST",
+    body: JSON.stringify({ display_name: displayName }),
+  });
 }

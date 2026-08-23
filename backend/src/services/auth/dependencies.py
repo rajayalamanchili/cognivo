@@ -3,11 +3,17 @@ from the session cookie (research.md §1) -- the sole authentication gate
 every guardian-/instructor-only route sits behind. No server-side
 session store: each call is a pure function of the cookie's JWT
 signature/claims plus one lookup of the account it names.
+
+Raises `AuthenticationError` (not a bare `HTTPException`), matching this
+codebase's convention (`api/errors.py`) of routes/dependencies raising a
+domain error and letting `main.py`'s exception handlers own the actual
+status-code mapping.
 """
 
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends
 from sqlalchemy.orm import Session
 
+from src.api.errors import AuthenticationError
 from src.db import get_db
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
@@ -18,10 +24,10 @@ def _current_claims(
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> SessionClaims:
     if session_cookie is None:
-        raise HTTPException(status_code=401, detail="not authenticated")
+        raise AuthenticationError("not_authenticated")
     claims = verify_token(session_cookie)
     if claims is None:
-        raise HTTPException(status_code=401, detail="invalid or expired session")
+        raise AuthenticationError("invalid_session")
     return claims
 
 
@@ -30,10 +36,10 @@ def current_guardian(
     db: Session = Depends(get_db),
 ) -> RealGuardianAccount:
     if claims.account_type != "guardian":
-        raise HTTPException(status_code=401, detail="guardian session required")
+        raise AuthenticationError("guardian_session_required")
     guardian = db.get(RealGuardianAccount, claims.account_id)
     if guardian is None:
-        raise HTTPException(status_code=401, detail="guardian account not found")
+        raise AuthenticationError("guardian_account_not_found")
     return guardian
 
 
@@ -42,8 +48,8 @@ def current_instructor(
     db: Session = Depends(get_db),
 ) -> RealInstructorAccount:
     if claims.account_type != "instructor":
-        raise HTTPException(status_code=401, detail="instructor session required")
+        raise AuthenticationError("instructor_session_required")
     instructor = db.get(RealInstructorAccount, claims.account_id)
     if instructor is None:
-        raise HTTPException(status_code=401, detail="instructor account not found")
+        raise AuthenticationError("instructor_account_not_found")
     return instructor

@@ -270,12 +270,14 @@ CI-enforced via `backend/tests/unit/test_check_no_real_account_path.py`
 a written data classification (`specs/009-privacy-retention/
 data-classification.md`) and forward-looking data model for the
 account/roster schema. `010-instructor-classroom` (spec, plan, tasks)
-is approved; `/speckit-implement` is underway -- Phase 1 (Setup) and
+is approved; `/speckit-implement` is underway -- Phase 1 (Setup),
 Phase 2 (Foundational: migration creating the 8 new tables plus the
 `demo_learner_profiles` -> `learner_profiles` rename/extension, all 8
-new SQLAlchemy models, and the Argon2id/JWT auth utilities) are
-complete (2026-08-23). User Stories 1-5 (Phases 3-7) and Polish (Phase
-8) have not started.
+new SQLAlchemy models, and the Argon2id/JWT auth utilities), and Phase
+3 (User Story 1: guardian/instructor register-login-logout, session
+cookie auth end to end, guardian add-a-learner) are complete
+(2026-08-23). User Stories 2-5 (Phases 4-7) and Polish (Phase 8) have
+not started.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

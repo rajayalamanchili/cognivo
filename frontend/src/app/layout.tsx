@@ -9,6 +9,8 @@ const NAV_LINKS = [
   { href: "/practice", label: "Practice" },
   { href: "/mastery", label: "Mastery" },
   { href: "/personalization-eval", label: "Personalization Evidence" },
+  { href: "/guardian/sign-in", label: "Guardian Sign In" },
+  { href: "/instructor/sign-in", label: "Instructor Sign In" },
 ];
 
 const geistSans = Geist({
