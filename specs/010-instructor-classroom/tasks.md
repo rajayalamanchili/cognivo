@@ -125,7 +125,7 @@ account types -- and a guardian can add learner profiles.
       in `backend/src/api/routes/learners.py` (depends on T015, T004,
       T007)
 - [ ] T024 [US1] Register the `auth` and `learners` routers in
-      `backend/src/main.py`
+      `backend/src/api/main.py`
 - [ ] T025 [P] [US1] Guardian and instructor register/sign-in pages in
       `frontend/src/app/(auth)/guardian/` and
       `frontend/src/app/(auth)/instructor/`, plus an "add a learner"
@@ -163,6 +163,19 @@ either side.
       `Enrollment` link -- the learner's account/data are unaffected
       (quickstart scenario 5, SC-007) in
       `backend/tests/integration/test_roster_unenrollment.py`
+- [ ] T029a [P] [US2] Integration test: instructor A's `GET /api/rosters`
+      never includes instructor B's rosters (SC-002's "roster list"
+      path, `/speckit-analyze` finding F2) in
+      `backend/tests/integration/test_roster_cross_tenant.py`
+- [ ] T029b [P] [US2] Integration test: a learner can join two
+      different rosters (different instructors and/or subjects)
+      simultaneously -- confirms two independent `Enrollment` rows
+      exist and each roster's enrolled-learner list includes this
+      learner with no cross-contamination between rosters (FR-007,
+      `/speckit-analyze` finding F3). Deliberately tested at the
+      roster/enrollment level, not via the dashboard, so this task has
+      no dependency on User Story 3's endpoint. In
+      `backend/tests/integration/test_roster_multi_enrollment.py`
 
 ### Implementation for User Story 2
 
@@ -182,7 +195,7 @@ either side.
       /api/rosters/{roster_id}/enrollments/{learner_id}` (FR-007a,
       guardian-of-that-learner or the owning instructor only) in
       `backend/src/api/routes/rosters.py` (depends on T032)
-- [ ] T034 [US2] Register the `rosters` router in `backend/src/main.py`
+- [ ] T034 [US2] Register the `rosters` router in `backend/src/api/main.py`
 - [ ] T035 [P] [US2] Instructor roster-management page (create roster,
       view/approve/decline requests, view enrolled learners with an
       unenroll action) and the guardian-side join-by-code flow in
@@ -224,7 +237,7 @@ unmodified Recommendation Agent output.
       `backend/src/api/routes/instructor_dashboard.py` (depends on
       T039)
 - [ ] T041 [US3] Register the `instructor_dashboard` router in
-      `backend/src/main.py`
+      `backend/src/api/main.py`
 - [ ] T042 [P] [US3] Instructor dashboard page in
       `frontend/src/app/instructor/dashboard/` (depends on T040, T041)
 
@@ -262,7 +275,7 @@ roster(s), with a reactivate/reject resolution action.
       /api/content-review/{question_id}/resolve` in
       `backend/src/api/routes/content_review.py` (depends on T045)
 - [ ] T047 [US4] Register the `content_review` router in
-      `backend/src/main.py`
+      `backend/src/api/main.py`
 - [ ] T048 [P] [US4] Instructor content-review queue page in
       `frontend/src/app/instructor/review/` (depends on T046, T047)
 
@@ -291,7 +304,7 @@ extending Milestone 1's existing demo-learner pattern.
 - [ ] T051 [US5] Implement `GET /api/demo-instructor` in
       `backend/src/api/routes/demo_instructor.py` (depends on T012)
 - [ ] T052 [US5] Register the `demo_instructor` router in
-      `backend/src/main.py`
+      `backend/src/api/main.py`
 - [ ] T053 [P] [US5] Extend `frontend/src/app/demo/`'s existing
       demo-learner entry point with a demo-instructor path (depends on
       T051, T052)
@@ -315,6 +328,21 @@ extending Milestone 1's existing demo-learner pattern.
 - [ ] T057 Playwright E2E: a full guardian+instructor round trip --
       register both, create a roster, join it, view the dashboard,
       flag and resolve a question -- against the live dev deployment
+- [ ] T057a [P] Implement `backend/scripts/reset_demo_data.py`: resets
+      `DemoInstructorProfile` and every `LearnerProfile` row with
+      `is_demo: true` (plus their mastery state, assessment events,
+      generated questions, quiz sessions, and roster
+      enrollments/rosters) to a known-good seeded state -- mirrors
+      `seed_demo_learner.py`/`seed_demo_instructor.py`'s seed data
+      exactly (FR-015, `/speckit-analyze` finding F4)
+- [ ] T057b Wire `reset_demo_data.py` to run on a schedule via Vercel
+      Cron (`vercel.json`), per `tech-stack.md`'s Demo account reset
+      row ("e.g. daily") (FR-015/SC-005, depends on T057a)
+- [ ] T057c [P] Integration test: running `reset_demo_data.py` against
+      a demo state that's been mutated (e.g. the demo instructor's
+      roster has extra enrollments, the demo learner has extra
+      assessment events) restores it to exactly the seeded baseline
+      (SC-005) in `backend/tests/integration/test_reset_demo_data.py`
 - [ ] T058 Update `roadmap.md`'s Milestone 7 status line to record this
       spec's implementation progress
 
