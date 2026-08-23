@@ -36,8 +36,11 @@ research.md §7).
 
 **Storage**: PostgreSQL via Neon, same database as every other
 milestone. Two new tables (`quiz_assignments`, `quiz_assignment_
-targets`) -- see data-model.md. One new Alembic migration. No existing
-table altered.
+targets`) -- see data-model.md. Two new Alembic migrations: one for the
+two tables, and one `ALTER TYPE assessment_event_type ADD VALUE`
+migration per new `AssessmentEventType` label (data-model.md's Audit
+events section -- exact precedent: `5a723b34fc55_content_review_
+resolved_event_type.py`). No existing table altered.
 
 **Testing**: `pytest` (`backend/tests/{unit,integration}/`) for
 assignment creation/targeting (empty-target rejection FR-003,
@@ -174,8 +177,12 @@ backend/
 │       │                                 # (research.md §2)
 │       └── questions.py               # EXTENDED -- answer route gains the same check
 ├── alembic/versions/
-│   └── <new>_instructor_assigned_quizzes.py  # NEW -- quiz_assignments,
-│                                                # quiz_assignment_targets
+│   ├── <new>_instructor_assigned_quizzes.py  # NEW -- quiz_assignments,
+│   │                                            # quiz_assignment_targets
+│   └── <new>_quiz_assignment_event_types.py  # NEW -- ALTER TYPE
+│                                                # assessment_event_type ADD VALUE
+│                                                # x2 (FR-015, precedent:
+│                                                # 5a723b34fc55)
 └── tests/
     ├── unit/
     │   └── test_quiz_assignment_target_resolution.py   # NEW

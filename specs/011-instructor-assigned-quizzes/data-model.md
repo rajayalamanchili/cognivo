@@ -70,6 +70,15 @@ targeted learner, not one event per assignment):
   a learner who had already `completed` is not re-notified (research.md
   §7/§8; FR-012).
 
+`assessment_event_type` is a Postgres native enum type, not a plain
+string column -- the two new labels each need their own `ALTER TYPE
+assessment_event_type ADD VALUE IF NOT EXISTS '...'` migration
+statement, run outside any transaction that also writes a row using
+that value (exact precedent: `backend/alembic/versions/
+5a723b34fc55_content_review_resolved_event_type.py`, which added
+`content_review_resolved` the same way). This is a real migration step,
+not just a Python enum-class edit.
+
 ## Relationships
 
 ```

@@ -194,6 +194,14 @@ learner is a direct fit for data that's about to exist anyway
 consumer of a learner's audit history (a future "why was I assigned
 this" view) already knows to query by `learner_id`.
 
+**Implementation note**: `assessment_event_type` is a Postgres native
+enum, so each new label needs its own `ALTER TYPE ... ADD VALUE`
+migration (data-model.md's Audit events section) -- a distinct step
+from adding the Python `AssessmentEventType` member, easy to miss since
+nothing at the ORM layer forces it (the exact class of gap Milestone
+7's stale-FK-string bug also came from: a schema-shape assumption that
+only surfaces against a real Postgres instance, not this sandbox).
+
 ## §8: Cancelled-visibility and post-cancellation completion are read-time query behavior, not new stored state
 
 **Decision** (added post-`/speckit-clarify`, FR-016/FR-012): `GET
