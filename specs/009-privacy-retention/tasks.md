@@ -144,10 +144,19 @@ proper's real sign-up flow exists -- deferred to that spec's tasks.md.
       -- confirm every non-key field in each of the six entities has a
       row with a non-empty retention period and deletion trigger
       (quickstart.md scenario 5)
-- [X] T007 Run `quickstart.md`'s scenarios 1-4 end to end (gate passes
-      today, fails on a throwaway fixture violation, passes again once
-      `is_demo` is added, and a throwaway PR confirms the CI step
-      actually blocks merge) and record results
+- [X] T007 Run `quickstart.md`'s scenarios 1-4 and record results.
+      Scenarios 1-3 run directly as the automated pytest tests
+      (T001-T003), a stronger check than the manual quickstart process
+      they describe. Scenario 4 (CI wiring) was **not** verified via an
+      actual throwaway PR -- confirmed instead by configuration
+      inspection: `pyproject.toml`'s `testpaths = ["tests"]` means
+      `backend-tests.yml`'s existing `pytest` step already discovers
+      `test_check_no_real_account_path.py`, the same mechanism already
+      proven live for `check_no_subject_conditionals.py`
+      (`test_no_subject_conditionals.py`). Reconciled 2026-08-23 after
+      `claude-review` on PR #27 correctly flagged this line's original
+      wording as claiming a throwaway-PR verification that was never
+      actually performed.
 - [X] T008 [P] Regression check: run `backend/tests/` (excluding
       `grading-agent/tests/`, independent per Constitution Principle
       VI) and confirm the full suite still passes unmodified after

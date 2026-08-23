@@ -99,6 +99,13 @@ def _explicit_nullable_keyword(call: ast.Call) -> bool | None:
 
 
 def _is_demo_column_non_nullable(class_def: ast.ClassDef) -> bool:
+    # Only recognizes SQLAlchemy 2.0's annotated-attribute style
+    # (`is_demo: Mapped[bool] = mapped_column(...)`, an ast.AnnAssign) --
+    # every model in this codebase already uses this style. A legacy
+    # `is_demo = Column(...)` (ast.Assign, no annotation) would be
+    # invisible here and reported as "no is_demo column at all", which
+    # fails in the safe direction (a false violation, not a false
+    # negative) rather than silently letting a real gap through.
     for node in class_def.body:
         if not (
             isinstance(node, ast.AnnAssign)

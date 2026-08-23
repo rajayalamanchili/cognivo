@@ -43,10 +43,13 @@ code `0`. Confirms the check's actual discriminating condition is the
 
 ## Validation scenario 4: the gate is wired into CI
 
-Open a throwaway PR containing scenario 2's violation -> confirm
-`backend-tests.yml`'s new step fails the PR's checks, before `pytest`
-even runs (research.md §2's ordering choice) -> close the PR without
-merging.
+Open a throwaway PR containing scenario 2's violation (a fixture model
+with no `is_demo` committed under `backend/src/models/`) -> confirm the
+existing `pytest` step in `backend-tests.yml` fails, since
+`test_check_no_real_account_path.py` imports `find_violations()`
+directly and asserts `== []` (research.md §2 -- no separate workflow
+step was added; this runs inside the same `pytest` step every other
+backend unit test does) -> close the PR without merging.
 
 ## Validation scenario 5: the data classification covers every FR-002 field
 
