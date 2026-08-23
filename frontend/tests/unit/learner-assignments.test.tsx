@@ -149,4 +149,28 @@ describe("LearnerAssignments", () => {
     );
     expect(screen.getByTestId("learner-assignments")).toBeInTheDocument();
   });
+
+  it("refetches the list when 'Refresh' is clicked", async () => {
+    vi.mocked(api.listLearnerAssignments).mockResolvedValueOnce({ assignments: [] });
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    await waitFor(() => expect(api.listLearnerAssignments).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("No assignments yet.")).toBeInTheDocument();
+
+    vi.mocked(api.listLearnerAssignments).mockResolvedValueOnce({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+        },
+      ],
+    });
+    fireEvent.click(screen.getByText("Refresh"));
+
+    await waitFor(() => expect(api.listLearnerAssignments).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId("learner-assignment-a1")).toBeInTheDocument();
+  });
 });

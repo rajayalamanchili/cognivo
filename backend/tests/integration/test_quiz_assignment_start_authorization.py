@@ -22,6 +22,7 @@ from tests.integration.quiz_assignment_helpers import (
     create_assignment,
     create_roster,
     join_roster,
+    login_instructor,
     register_guardian_with_learner,
     register_instructor,
 )
@@ -67,7 +68,7 @@ def scenario(client, algebra_subject):
     join_roster(client, learner_id=learner_b_id, join_code=join_code)
 
     client.post("/api/auth/logout")
-    register_instructor(client, "assign-auth-instructor@example.com")
+    login_instructor(client, "assign-auth-instructor@example.com")
     assignment = create_assignment(
         client, roster_id=roster_id, topic_ids=[ENTRY_TOPIC], learner_ids=[learner_a_id]
     )
@@ -110,7 +111,13 @@ def test_403_not_targeted_on_start(client, scenario):
 
 def test_guardian_starts_continues_and_answers(client, scenario):
     _login_guardian(client, "assign-auth-guardian-a@example.com")
-    with patch_generation(["assigned quiz q1", "assigned quiz q2", "assigned quiz q3"]):
+    # A fresh `with patch_generation():` block per API call (no explicit
+    # `stems`) -- quiz_helpers.py's own documented convention -- so each
+    # generated question gets a distinct UUID-suffixed stem and dedup
+    # detection never falsely treats the second question as a repeat of
+    # the first (which a shared, explicit stems list would, since each
+    # new `with` block restarts that list's cycle at index 0).
+    with patch_generation():
         start = client.post(
             f"/api/assignments/{scenario['assignment_id']}/learners/{scenario['learner_a_id']}/start"
         )
@@ -123,7 +130,7 @@ def test_guardian_starts_continues_and_answers(client, scenario):
     answer = client.post(f"/api/questions/{question_id}/answer", json={"response": 0})
     assert answer.status_code == 200, answer.text
 
-    with patch_generation(["assigned quiz q1", "assigned quiz q2", "assigned quiz q3"]):
+    with patch_generation():
         next_question = client.get(f"/api/quizzes/{quiz_session_id}/next-question")
     assert next_question.status_code == 200, next_question.text
     assert next_question.json()["status"] == "in_progress"
@@ -159,7 +166,9 @@ def test_403_not_learner_guardian_on_answer(client, scenario):
     assert response.json() == {"detail": "not_learner_guardian"}
 
 
-def test_non_assignment_quiz_next_question_unaffected_by_missing_session(client, algebra_subject):
+def test_non_assignment_quiz_next_question_unaffected_by_missing_session(
+    client, demo_learner, algebra_subject
+):
     """No guardian session at all, and the quiz isn't assignment-linked
     -- confirms `assert_guardian_owns_assignment_session` stays a true
     no-op for the pre-existing demo/M5 quiz path (research.md §2's hard

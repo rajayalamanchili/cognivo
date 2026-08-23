@@ -258,19 +258,19 @@ per-student report), plus scenario 1's per-student-view portion.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] Playwright E2E: assign -> guardian starts and completes
+- [X] T034 [P] Playwright E2E: assign -> guardian starts and completes
       -> instructor views the per-student result, extending
       `instructor-classroom-round-trip.spec.ts`'s pattern, in
       `frontend/tests/e2e/instructor-assigned-quiz-round-trip.spec.ts`
       (quickstart.md, full round trip)
-- [ ] T035 Run the full backend regression suite (`uv run pytest`) and
+- [X] T035 Run the full backend regression suite (`uv run pytest`) and
       `check_no_subject_conditionals.py` -- confirm no regression in
       Milestones 1-7's suites (plan.md's Constitution Check, Principle
       III)
-- [ ] T036 Update `roadmap.md`'s Milestone 8 status line to reflect
+- [X] T036 Update `roadmap.md`'s Milestone 8 status line to reflect
       `/speckit-implement` completion, in the same commit that
       completes it
-- [ ] T037 Run `quickstart.md`'s 8 validation scenarios end to end
+- [X] T037 Run `quickstart.md`'s 8 validation scenarios end to end
       against a real migrated dev database
 
 ---

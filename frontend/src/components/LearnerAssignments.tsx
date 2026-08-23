@@ -240,7 +240,16 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
 
   return (
     <div className="flex flex-col gap-2" data-testid="learner-assignments">
-      <h3 className="text-sm font-medium">Assigned quizzes</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">Assigned quizzes</h3>
+        <button
+          type="button"
+          onClick={refreshAssignments}
+          className="text-sm text-zinc-500 underline dark:text-zinc-400"
+        >
+          Refresh
+        </button>
+      </div>
       {assignments.length === 0 && <p className="text-sm">No assignments yet.</p>}
       {assignments.map((assignment) => (
         <div

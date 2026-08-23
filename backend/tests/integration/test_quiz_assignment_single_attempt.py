@@ -21,6 +21,7 @@ from tests.integration.quiz_assignment_helpers import (
     create_assignment,
     create_roster,
     join_roster,
+    login_instructor,
     register_guardian_with_learner,
     register_instructor,
 )
@@ -51,7 +52,7 @@ def scenario(client, algebra_subject):
     join_roster(client, learner_id=learner_id, join_code=join_code)
 
     client.post("/api/auth/logout")
-    register_instructor(client, "assign-single-instructor@example.com")
+    login_instructor(client, "assign-single-instructor@example.com")
     assignment = create_assignment(
         client, roster_id=roster_id, topic_ids=[ENTRY_TOPIC], learner_ids=[learner_id]
     )

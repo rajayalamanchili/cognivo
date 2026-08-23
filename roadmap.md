@@ -392,16 +392,29 @@ conditional guardian-ownership check that only applies to
 assignment-linked sessions, leaving the non-assignment quiz path
 behaviorally untouched. Constitution Check passed with no violations.
 `/speckit-tasks` complete (2026-08-23): 37 tasks across Setup,
-Foundational, and three user-story phases. `/speckit-implement` has
-completed Setup, Foundational, and all three user stories (Phases 1-5,
-T001-T033) -- an instructor can create, list, and cancel a quiz
-assignment against a chosen subset (or all) of a roster; a targeted
-learner's own guardian can start and complete that attempt end to end
-with grading/mastery-update/difficulty-adaptation behavior verified
-identical to a non-assigned quiz (SC-002); and the instructor sees each
-targeted learner's individual status/score in a per-assignment report,
-not a class-wide aggregate (SC-003). Remaining: Phase 6 polish (E2E
-coverage, full regression pass, live quickstart validation).
+Foundational, and three user-story phases. `/speckit-implement`
+complete (2026-08-23), all 37 tasks (T001-T037) -- an instructor can
+create, list, and cancel a quiz assignment against a chosen subset (or
+all) of a roster; a targeted learner's own guardian can start and
+complete that attempt end to end with grading/mastery-update/
+difficulty-adaptation behavior verified identical to a non-assigned
+quiz (SC-002); and the instructor sees each targeted learner's
+individual status/score in a per-assignment report, not a class-wide
+aggregate (SC-003). Milestone DoD confirmed against a real, freshly
+migrated dev database (all 12 Alembic migrations applied cleanly from
+base, including this milestone's two): the full backend suite passes
+(287/288, the sole failure a pre-existing, unrelated Milestone-1 test
+confirmed flaky under Neon/PgBouncer connection-pooled type-OID churn,
+not a regression -- passes in isolation), `check_no_subject_
+conditionals.py` clean, and a Playwright E2E spec
+(`instructor-assigned-quiz-round-trip.spec.ts`) covers the full
+assign -> guardian-completes -> instructor-views-result round trip.
+Also fixed, while validating against the real database, three
+test-authoring bugs that a DB-less sandbox run had never been able to
+exercise: two files re-registering an already-registered instructor
+email instead of logging back in, and a `patch_generation` stems list
+reused across two separate mocked-generation calls that falsely
+triggered dedup-exhaustion.
 
 **Scope**: Extends the Adaptive Difficulty Quiz (Milestone 5) so an
 instructor can configure and assign a specific quiz (topic(s), question
