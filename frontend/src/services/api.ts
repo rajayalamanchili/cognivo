@@ -529,3 +529,24 @@ export function listRosterEnrollments(rosterId: string): Promise<ListEnrollments
 export function unenrollLearner(rosterId: string, learnerId: string): Promise<void> {
   return requestVoid(`/api/rosters/${rosterId}/enrollments/${learnerId}`, { method: "DELETE" });
 }
+
+// Dashboard (spec 010 contracts/api.md "Dashboard" section, User Story 3).
+// Each `learners[].recommendations` entry is byte-for-byte what
+// `getRecommendations` returns for that learner directly (SC-001) --
+// reuses the same `RecommendationsResponse` type for that reason.
+
+export interface DashboardLearnerEntry {
+  learner_id: string;
+  display_name: string;
+  recommendations: RecommendationsResponse;
+}
+
+export interface DashboardResponse {
+  roster_id: string;
+  subject_id: string;
+  learners: DashboardLearnerEntry[];
+}
+
+export function getRosterDashboard(rosterId: string): Promise<DashboardResponse> {
+  return request<DashboardResponse>(`/api/rosters/${rosterId}/dashboard`);
+}

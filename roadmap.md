@@ -285,8 +285,12 @@ closed roster's `join_code` turned out to need generating (not staying
 null) since the join endpoint has no other field to target a roster
 by, and a `GET /api/rosters/{roster_id}/enrollments` endpoint was added
 (not in the original contract) since no existing endpoint listed a
-roster's enrolled learners for the roster-management page. User
-Stories 3-5 (Phases 5-7) and Polish (Phase 8) have not started.
+roster's enrolled learners for the roster-management page. Phase 5
+(User Story 3: the instructor dashboard, aggregating Milestone 2's
+Recommendation Agent output per enrolled learner with no new
+weak-area logic, verified byte-for-byte identical to that agent's own
+endpoint) is also complete (2026-08-23). User Stories 4-5 (Phases 6-7)
+and Polish (Phase 8) have not started.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

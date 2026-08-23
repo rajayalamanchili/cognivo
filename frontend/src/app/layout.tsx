@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: "/guardian/sign-in", label: "Guardian Sign In" },
   { href: "/instructor/sign-in", label: "Instructor Sign In" },
   { href: "/instructor/rosters", label: "Instructor Rosters" },
+  { href: "/instructor/dashboard", label: "Instructor Dashboard" },
 ];
 
 const geistSans = Geist({

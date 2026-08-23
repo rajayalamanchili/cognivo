@@ -27,6 +27,7 @@ from src.api.routes import (
     auth,
     demo_learner,
     evaluation,
+    instructor_dashboard,
     learners,
     mastery,
     placement,
@@ -124,3 +125,4 @@ app.include_router(quiz.router)
 app.include_router(auth.router)
 app.include_router(learners.router)
 app.include_router(rosters.router)
+app.include_router(instructor_dashboard.router)

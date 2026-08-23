@@ -214,31 +214,31 @@ unmodified Recommendation Agent output.
 
 ### Tests for User Story 3
 
-- [ ] T036 [P] [US3] Integration test: dashboard's per-learner data is
+- [X] T036 [P] [US3] Integration test: dashboard's per-learner data is
       byte-for-byte identical to calling that learner's own
       recommendations endpoint directly (quickstart scenario 6, SC-001)
       in `backend/tests/integration/test_dashboard_aggregation.py`
-- [ ] T037 [P] [US3] Integration test: a learner with insufficient
+- [X] T037 [P] [US3] Integration test: a learner with insufficient
       assessment history is shown with an explicit indicator, never
       omitted or as an error (FR-009) in
       `backend/tests/integration/test_dashboard_insufficient_data.py`
-- [ ] T038 [P] [US3] Integration test: instructor A's dashboard never
+- [X] T038 [P] [US3] Integration test: instructor A's dashboard never
       includes instructor B's roster/learners; a direct request for
       B's roster from A's session returns `403` (quickstart scenario 7,
       SC-002) in `backend/tests/integration/test_dashboard_cross_tenant.py`
 
 ### Implementation for User Story 3
 
-- [ ] T039 [US3] Implement `backend/src/services/dashboard/aggregation.py`
+- [X] T039 [US3] Implement `backend/src/services/dashboard/aggregation.py`
       -- calls `build_weak_area_report` once per learner enrolled in
       the requested roster, no new classification logic (research.md
       §4, FR-008) (depends on T030)
-- [ ] T040 [US3] Implement `GET /api/rosters/{roster_id}/dashboard` in
+- [X] T040 [US3] Implement `GET /api/rosters/{roster_id}/dashboard` in
       `backend/src/api/routes/instructor_dashboard.py` (depends on
       T039)
-- [ ] T041 [US3] Register the `instructor_dashboard` router in
+- [X] T041 [US3] Register the `instructor_dashboard` router in
       `backend/src/api/main.py`
-- [ ] T042 [P] [US3] Instructor dashboard page in
+- [X] T042 [P] [US3] Instructor dashboard page in
       `frontend/src/app/instructor/dashboard/` (depends on T040, T041)
 
 **Checkpoint**: User Stories 1-3 all work independently.
