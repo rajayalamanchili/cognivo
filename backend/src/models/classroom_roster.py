@@ -13,8 +13,11 @@ class ClassroomRoster(Base):
     """One instructor's subject-scoped class (data-model.md). `subject_id`
     fills the gap spec 009 left undetermined -- a roster is scoped to
     exactly one subject, matching `build_weak_area_report`'s own
-    per-subject shape. `join_code` is meaningful only when
-    `enrollment_mode` is `open`."""
+    per-subject shape. `join_code` is generated for every roster
+    regardless of mode (data-model.md's Correction) -- it's the only
+    field `POST /api/rosters/join` uses to identify the target roster;
+    the API layer hides it in the create/PATCH response for a `closed`
+    roster, but the column itself is never null."""
 
     __tablename__ = "classroom_rosters"
 
@@ -28,7 +31,7 @@ class ClassroomRoster(Base):
     enrollment_mode: Mapped[EnrollmentMode] = mapped_column(
         Enum(EnrollmentMode, name="enrollment_mode", values_callable=enum_values), nullable=False
     )
-    join_code: Mapped[str | None] = mapped_column(nullable=True)
+    join_code: Mapped[str | None] = mapped_column(unique=True, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

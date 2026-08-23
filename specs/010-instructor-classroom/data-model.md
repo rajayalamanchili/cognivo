@@ -83,8 +83,26 @@ instead of only synthetic rows.
 | `instructor_id` | FK -> `RealInstructorAccount.instructor_id`, not null | One owning instructor per roster (co-taught rosters are a future need, not required here). |
 | `subject_id` | FK -> `Subject.subject_id`, not null | **Fills the gap spec 009 left undetermined** -- a roster is scoped to exactly one subject (spec.md's Assumption), matching how `build_weak_area_report` and this platform's content model are already per-subject. |
 | `enrollment_mode` | enum(`open`, `closed`), not null | FR-004/FR-005/FR-006. Mutable after creation (an instructor can toggle it; no special transition logic beyond updating the column). |
-| `join_code` | string, nullable | Meaningful only when `enrollment_mode = open`. |
+| `join_code` | string, nullable, unique | Column-nullable for schema flexibility, but populated for **every** roster regardless of mode -- see Correction below. Unique constraint added in migration `0892d285dcd8` (`uq_classroom_rosters_join_code`; Postgres UNIQUE permits multiple NULLs, so this doesn't constrain hypothetical future null cases). |
 | `created_at` | timestamp, not null | |
+
+**Correction (found during Phase 4 implementation)**: this row originally
+read "Meaningful only when `enrollment_mode = open`," implying a
+`closed` roster's `join_code` stays `null`. Building `POST
+/api/rosters/join` (contracts/api.md) against that reading is
+impossible: that endpoint's request body is `{learner_id, join_code}`
+-- no `roster_id` field at all -- so `join_code` is the *only*
+mechanism that identifies which roster a join attempt targets,
+`closed` included (contracts/api.md's own join endpoint text, "For a
+closed roster's code," and quickstart.md scenario 4's "join with the
+code" both already assumed this). Corrected design: every roster gets
+a generated `join_code` at creation, open or closed; the API response
+(`_roster_out` in `api/routes/rosters.py`) is what keeps a closed
+roster's code out of the `POST`/`PATCH /api/rosters` response body
+(contracts/api.md: `"join_code" is null in the response when
+enrollment_mode: closed"`) -- the column itself is never null. A
+closed roster's code reaching its guardians is out-of-band (e.g. the
+instructor shares it directly) and out of scope for this milestone.
 
 ### Enrollment
 

@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from src.api.errors import (
     AuthenticationError,
     ConflictError,
+    ForbiddenError,
     GradingUnavailableError,
     ModerationRejectedError,
     NotFoundError,
@@ -32,6 +33,7 @@ from src.api.routes import (
     questions,
     quiz,
     recommendation,
+    rosters,
     sequencing_preview,
     subjects,
 )
@@ -62,6 +64,11 @@ def _handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
 @app.exception_handler(AuthenticationError)
 def _handle_authentication(request: Request, exc: AuthenticationError) -> JSONResponse:
     return JSONResponse(status_code=401, content={"detail": exc.message})
+
+
+@app.exception_handler(ForbiddenError)
+def _handle_forbidden(request: Request, exc: ForbiddenError) -> JSONResponse:
+    return JSONResponse(status_code=403, content={"detail": exc.message})
 
 
 @app.exception_handler(UnprocessableError)
@@ -116,3 +123,4 @@ app.include_router(sequencing_preview.router)
 app.include_router(quiz.router)
 app.include_router(auth.router)
 app.include_router(learners.router)
+app.include_router(rosters.router)

@@ -27,6 +27,14 @@ class AuthenticationError(DomainError):
     no account enumeration)."""
 
 
+class ForbiddenError(DomainError):
+    """Maps to HTTP 403 (spec 010) -- an authenticated session that
+    isn't authorized for this specific resource (e.g. another
+    instructor's roster, contracts/api.md's `PATCH /api/rosters/
+    {roster_id}`). Distinct from `AuthenticationError`: the session
+    itself is valid, it just isn't the right one for this resource."""
+
+
 class UnprocessableError(DomainError):
     """Maps to HTTP 422."""
 

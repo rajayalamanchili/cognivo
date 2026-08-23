@@ -125,6 +125,20 @@ No body. `200`:
 { "status": "declined" }
 ```
 
+### `GET /api/rosters/{roster_id}/enrollments` (instructor-authenticated, owner only)
+
+Added during Phase 4 implementation (`/speckit-clarify` with the
+user) -- the roster-management page's "view enrolled learners with an
+unenroll action" (tasks.md T035) has no other source for who's
+currently enrolled: `GET /api/rosters/{roster_id}/dashboard` below
+also carries this, but bundled with a full weak-area report this
+endpoint deliberately never computes.
+
+`200`:
+```json
+{ "enrollments": [{ "learner_id": "...", "display_name": "Jamie" }] }
+```
+
 ### `DELETE /api/rosters/{roster_id}/enrollments/{learner_id}` (instructor-authenticated, owner only, OR the enrolled learner's own guardian)
 
 `204`. Removes the `Enrollment` row (FR-007a) -- never a

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { ApiError, createLearner } from "@/services/api";
+import JoinRosterForm from "@/components/JoinRosterForm";
 
 interface AddedLearner {
   learner_id: string;
@@ -66,9 +67,12 @@ export default function GuardianLearnersPage() {
         </button>
       </form>
       {addedLearners.length > 0 && (
-        <ul className="flex flex-col gap-2 text-sm" data-testid="added-learners">
+        <ul className="flex flex-col gap-4 text-sm" data-testid="added-learners">
           {addedLearners.map((learner) => (
-            <li key={learner.learner_id}>{learner.display_name} added.</li>
+            <li key={learner.learner_id} className="flex flex-col gap-2">
+              <span>{learner.display_name} added.</span>
+              <JoinRosterForm learnerId={learner.learner_id} />
+            </li>
           ))}
         </ul>
       )}

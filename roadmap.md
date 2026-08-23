@@ -273,11 +273,20 @@ account/roster schema. `010-instructor-classroom` (spec, plan, tasks)
 is approved; `/speckit-implement` is underway -- Phase 1 (Setup),
 Phase 2 (Foundational: migration creating the 8 new tables plus the
 `demo_learner_profiles` -> `learner_profiles` rename/extension, all 8
-new SQLAlchemy models, and the Argon2id/JWT auth utilities), and Phase
-3 (User Story 1: guardian/instructor register-login-logout, session
-cookie auth end to end, guardian add-a-learner) are complete
-(2026-08-23). User Stories 2-5 (Phases 4-7) and Polish (Phase 8) have
-not started.
+new SQLAlchemy models, and the Argon2id/JWT auth utilities), Phase 3
+(User Story 1: guardian/instructor register-login-logout, session
+cookie auth end to end, guardian add-a-learner), and Phase 4 (User
+Story 2: roster creation, open/closed enrollment gating, guardian
+join-by-code, instructor approve/decline, unenrollment from either
+side) are complete (2026-08-23). Two implementation-time corrections to
+the original design were made along the way and documented in
+`specs/010-instructor-classroom/data-model.md`/`contracts/api.md`: a
+closed roster's `join_code` turned out to need generating (not staying
+null) since the join endpoint has no other field to target a roster
+by, and a `GET /api/rosters/{roster_id}/enrollments` endpoint was added
+(not in the original contract) since no existing endpoint listed a
+roster's enrolled learners for the roster-management page. User
+Stories 3-5 (Phases 5-7) and Polish (Phase 8) have not started.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

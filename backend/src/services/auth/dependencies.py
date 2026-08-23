@@ -20,9 +20,14 @@ from src.models.real_instructor_account import RealInstructorAccount
 from src.services.auth.tokens import SESSION_COOKIE_NAME, SessionClaims, verify_token
 
 
-def _current_claims(
+def current_session_claims(
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> SessionClaims:
+    """Public (unlike the account-type-specific dependencies below) for
+    routes that accept either a guardian or an instructor session and
+    do their own type-specific authorization -- e.g. `DELETE
+    /api/rosters/{roster_id}/enrollments/{learner_id}` (contracts/api.md:
+    the owning instructor OR the enrolled learner's own guardian)."""
     if session_cookie is None:
         raise AuthenticationError("not_authenticated")
     claims = verify_token(session_cookie)
@@ -32,7 +37,7 @@ def _current_claims(
 
 
 def current_guardian(
-    claims: SessionClaims = Depends(_current_claims),
+    claims: SessionClaims = Depends(current_session_claims),
     db: Session = Depends(get_db),
 ) -> RealGuardianAccount:
     if claims.account_type != "guardian":
@@ -44,7 +49,7 @@ def current_guardian(
 
 
 def current_instructor(
-    claims: SessionClaims = Depends(_current_claims),
+    claims: SessionClaims = Depends(current_session_claims),
     db: Session = Depends(get_db),
 ) -> RealInstructorAccount:
     if claims.account_type != "instructor":

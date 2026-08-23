@@ -146,28 +146,28 @@ either side.
 
 ### Tests for User Story 2
 
-- [ ] T026 [P] [US2] Integration test: open-roster creation and
+- [X] T026 [P] [US2] Integration test: open-roster creation and
       immediate guardian join via code (quickstart scenario 3) in
       `backend/tests/integration/test_roster_open_enrollment.py`
-- [ ] T027 [P] [US2] Integration test: closed-roster join creates a
+- [X] T027 [P] [US2] Integration test: closed-roster join creates a
       pending request; approve creates the `Enrollment` recording the
       instructor as `authorized_by`; decline leaves the learner
       unenrolled (quickstart scenario 4) in
       `backend/tests/integration/test_roster_closed_enrollment.py`
-- [ ] T028 [P] [US2] Integration test: a second join attempt for the
+- [X] T028 [P] [US2] Integration test: a second join attempt for the
       same (learner, roster) pair while a request is already pending
       returns the existing pending request, not a duplicate (Edge
       Cases) in `backend/tests/integration/test_roster_duplicate_join.py`
-- [ ] T029 [P] [US2] Integration test: unenrollment by the guardian and
+- [X] T029 [P] [US2] Integration test: unenrollment by the guardian and
       separately by the owning instructor each remove only the
       `Enrollment` link -- the learner's account/data are unaffected
       (quickstart scenario 5, SC-007) in
       `backend/tests/integration/test_roster_unenrollment.py`
-- [ ] T029a [P] [US2] Integration test: instructor A's `GET /api/rosters`
+- [X] T029a [P] [US2] Integration test: instructor A's `GET /api/rosters`
       never includes instructor B's rosters (SC-002's "roster list"
       path, `/speckit-analyze` finding F2) in
       `backend/tests/integration/test_roster_cross_tenant.py`
-- [ ] T029b [P] [US2] Integration test: a learner can join two
+- [X] T029b [P] [US2] Integration test: a learner can join two
       different rosters (different instructors and/or subjects)
       simultaneously -- confirms two independent `Enrollment` rows
       exist and each roster's enrolled-learner list includes this
@@ -179,24 +179,24 @@ either side.
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] Implement `backend/src/services/roster/enrollment.py`:
+- [X] T030 [US2] Implement `backend/src/services/roster/enrollment.py`:
       roster creation/update, open-join (immediate `Enrollment` +
       `authorized_by_type: guardian`), closed-join (creates or returns
       an existing pending `EnrollmentRequest`), approve/decline
       (depends on T008, T009, T010, T015)
-- [ ] T031 [US2] Implement `POST /api/rosters`, `PATCH
+- [X] T031 [US2] Implement `POST /api/rosters`, `PATCH
       /api/rosters/{roster_id}`, `GET /api/rosters` in
       `backend/src/api/routes/rosters.py` (depends on T030)
-- [ ] T032 [US2] Implement `POST /api/rosters/join`, `GET
+- [X] T032 [US2] Implement `POST /api/rosters/join`, `GET
       /api/rosters/{roster_id}/requests`, `POST .../approve`, `POST
       .../decline` in `backend/src/api/routes/rosters.py` (same file,
       depends on T031)
-- [ ] T033 [US2] Implement `DELETE
+- [X] T033 [US2] Implement `DELETE
       /api/rosters/{roster_id}/enrollments/{learner_id}` (FR-007a,
       guardian-of-that-learner or the owning instructor only) in
       `backend/src/api/routes/rosters.py` (depends on T032)
-- [ ] T034 [US2] Register the `rosters` router in `backend/src/api/main.py`
-- [ ] T035 [P] [US2] Instructor roster-management page (create roster,
+- [X] T034 [US2] Register the `rosters` router in `backend/src/api/main.py`
+- [X] T035 [P] [US2] Instructor roster-management page (create roster,
       view/approve/decline requests, view enrolled learners with an
       unenroll action) and the guardian-side join-by-code flow in
       `frontend/src/app/instructor/rosters/` (depends on T031-T034)

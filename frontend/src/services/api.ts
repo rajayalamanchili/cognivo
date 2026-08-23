@@ -427,3 +427,105 @@ export function createLearner(displayName: string): Promise<CreateLearnerRespons
     body: JSON.stringify({ display_name: displayName }),
   });
 }
+
+// Rosters (spec 010 contracts/api.md "Rosters" section, User Story 2).
+
+export type EnrollmentMode = "open" | "closed";
+
+export interface Roster {
+  roster_id: string;
+  subject_id: string;
+  enrollment_mode: EnrollmentMode;
+  join_code: string | null;
+}
+
+export interface RosterSummary {
+  roster_id: string;
+  subject_id: string;
+  enrollment_mode: EnrollmentMode;
+}
+
+export interface ListRostersResponse {
+  rosters: RosterSummary[];
+}
+
+export function createRoster(subjectId: string, enrollmentMode: EnrollmentMode): Promise<Roster> {
+  return request<Roster>("/api/rosters", {
+    method: "POST",
+    body: JSON.stringify({ subject_id: subjectId, enrollment_mode: enrollmentMode }),
+  });
+}
+
+export function updateRosterEnrollmentMode(
+  rosterId: string,
+  enrollmentMode: EnrollmentMode,
+): Promise<Roster> {
+  return request<Roster>(`/api/rosters/${rosterId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enrollment_mode: enrollmentMode }),
+  });
+}
+
+export function listRosters(): Promise<ListRostersResponse> {
+  return request<ListRostersResponse>("/api/rosters");
+}
+
+export type JoinRosterResponse =
+  | { status: "enrolled"; enrollment_id: string }
+  | { status: "pending"; enrollment_request_id: string };
+
+export function joinRoster(learnerId: string, joinCode: string): Promise<JoinRosterResponse> {
+  return request<JoinRosterResponse>("/api/rosters/join", {
+    method: "POST",
+    body: JSON.stringify({ learner_id: learnerId, join_code: joinCode }),
+  });
+}
+
+export interface EnrollmentRequestEntry {
+  enrollment_request_id: string;
+  learner_id: string;
+  requested_at: string;
+}
+
+export interface ListRequestsResponse {
+  requests: EnrollmentRequestEntry[];
+}
+
+export function listRosterRequests(rosterId: string): Promise<ListRequestsResponse> {
+  return request<ListRequestsResponse>(`/api/rosters/${rosterId}/requests`);
+}
+
+export function approveRosterRequest(
+  rosterId: string,
+  enrollmentRequestId: string,
+): Promise<{ status: "approved"; enrollment_id: string }> {
+  return request(`/api/rosters/${rosterId}/requests/${enrollmentRequestId}/approve`, {
+    method: "POST",
+  });
+}
+
+export function declineRosterRequest(
+  rosterId: string,
+  enrollmentRequestId: string,
+): Promise<{ status: "declined" }> {
+  return request(`/api/rosters/${rosterId}/requests/${enrollmentRequestId}/decline`, {
+    method: "POST",
+  });
+}
+
+export interface EnrolledLearner {
+  learner_id: string;
+  display_name: string;
+}
+
+export interface ListEnrollmentsResponse {
+  enrollments: EnrolledLearner[];
+}
+
+export function listRosterEnrollments(rosterId: string): Promise<ListEnrollmentsResponse> {
+  return request<ListEnrollmentsResponse>(`/api/rosters/${rosterId}/enrollments`);
+}
+
+export function unenrollLearner(rosterId: string, learnerId: string): Promise<void> {
+  return requestVoid(`/api/rosters/${rosterId}/enrollments/${learnerId}`, { method: "DELETE" });
+}
