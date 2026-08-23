@@ -1,0 +1,34 @@
+"""Vercel Cron-triggered demo-data reset (tech-stack.md's Demo account
+reset row, FR-015/SC-005, T057b).
+
+Vercel Cron sends a `GET` request to this path on its configured
+schedule (`vercel.json`'s `crons` array) with `Authorization: Bearer
+$CRON_SECRET` (Vercel's own documented cron-authentication mechanism).
+Verified via `hmac.compare_digest`, fails closed if `CRON_SECRET` isn't
+configured -- the same shared-secret pattern this project already locks
+for A2A inbound auth (tech-stack.md), applied here so an arbitrary
+public caller can't trigger a reset of the live demo state on demand.
+"""
+
+import hmac
+import os
+
+from fastapi import APIRouter, Header, HTTPException
+
+from scripts.reset_demo_data import reset_demo_data
+
+router = APIRouter()
+
+
+@router.get("/api/cron/reset-demo-data")
+def reset_demo_data_route(authorization: str | None = Header(default=None)) -> dict:
+    expected_secret = os.environ.get("CRON_SECRET")
+    if not expected_secret:
+        raise HTTPException(status_code=503, detail="CRON_SECRET not configured")
+
+    provided = (authorization or "").removeprefix("Bearer ")
+    if not hmac.compare_digest(provided, expected_secret):
+        raise HTTPException(status_code=401, detail="unauthorized")
+
+    reset_demo_data()
+    return {"status": "ok"}

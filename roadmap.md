@@ -263,46 +263,71 @@ Agent's full A2A delegation (Milestone 9).
 privacy/retention prerequisite (Constitution Principle VIII, approved
 and merged); `specs/010-instructor-classroom/spec.md` is the
 auth/rosters/dashboard/content-review spec proper, gated on 009.
-**Status**: The privacy/retention gate (`009-privacy-retention`) is
-implemented (2026-08-22) -- `backend/scripts/check_no_real_account_path.py`
-CI-enforced via `backend/tests/unit/test_check_no_real_account_path.py`
-(same pytest-import wiring as `check_no_subject_conditionals.py`), plus
-a written data classification (`specs/009-privacy-retention/
-data-classification.md`) and forward-looking data model for the
-account/roster schema. `010-instructor-classroom` (spec, plan, tasks)
-is approved; `/speckit-implement` is underway -- Phase 1 (Setup),
-Phase 2 (Foundational: migration creating the 8 new tables plus the
-`demo_learner_profiles` -> `learner_profiles` rename/extension, all 8
-new SQLAlchemy models, and the Argon2id/JWT auth utilities), Phase 3
-(User Story 1: guardian/instructor register-login-logout, session
-cookie auth end to end, guardian add-a-learner), and Phase 4 (User
-Story 2: roster creation, open/closed enrollment gating, guardian
-join-by-code, instructor approve/decline, unenrollment from either
-side) are complete (2026-08-23). Two implementation-time corrections to
-the original design were made along the way and documented in
-`specs/010-instructor-classroom/data-model.md`/`contracts/api.md`: a
-closed roster's `join_code` turned out to need generating (not staying
-null) since the join endpoint has no other field to target a roster
-by, and a `GET /api/rosters/{roster_id}/enrollments` endpoint was added
-(not in the original contract) since no existing endpoint listed a
-roster's enrolled learners for the roster-management page. Phase 5
-(User Story 3: the instructor dashboard, aggregating Milestone 2's
-Recommendation Agent output per enrolled learner with no new
-weak-area logic, verified byte-for-byte identical to that agent's own
-endpoint) is also complete (2026-08-23). Phase 6 (User Story 4:
-content-review queue, scoped via an `Enrollment` join at query time
-rather than a denormalized snapshot, with reactivate/reject resolution
-and its own audited event type) is also complete (2026-08-23). Phase 7
-(User Story 5: seeded demo instructor) is also complete (2026-08-23) --
-extended beyond its original identity-only contract during
-`/speckit-clarify` to a fully navigable session (a new `demo_instructor`
-session-claim type resolving against `DemoInstructorProfile`), which in
-turn required relaxing `classroom_rosters.instructor_id` from a hard FK
-to `real_instructor_accounts` down to an application-enforced value
-(migration `7e686faa5e6d`), matching the same "could point at more than
-one table" precedent `RetentionRecord.account_id`/`DeletionRequest.
-target_id` already set. All five user stories are now independently
-functional; only Polish (Phase 8) remains.
+**Status**: `/speckit-implement` complete, all 8 phases (2026-08-23).
+The privacy/retention gate (`009-privacy-retention`, 2026-08-22) --
+`check_no_real_account_path.py` CI-enforced, a written data
+classification, and the forward-looking account/roster data model --
+was the approved prerequisite `010-instructor-classroom` built against.
+Phase-by-phase: Setup + Foundational (migration creating 8 new tables
+plus the `demo_learner_profiles` -> `learner_profiles` rename, all 8
+new models, Argon2id/JWT auth utilities); User Story 1 (guardian/
+instructor register-login-logout, guardian add-a-learner); User Story 2
+(roster creation, open/closed enrollment, guardian join-by-code,
+instructor approve/decline, unenrollment from either side); User
+Story 3 (the instructor dashboard, aggregating Milestone 2's
+Recommendation Agent output per learner, verified byte-for-byte
+identical to that agent's own endpoint -- no new weak-area logic);
+User Story 4 (content-review queue, scoped via an `Enrollment` join at
+query time rather than a denormalized snapshot, reactivate/reject
+resolution with its own audited event type); User Story 5 (seeded demo
+instructor, extended during `/speckit-implement` `/speckit-clarify`
+past its original identity-only contract to a fully navigable session --
+see Corrections below); Polish (regression + gate re-checks, demo-data
+reset wired to Vercel Cron, E2E spec written).
+
+**Corrections made during implementation** (each documented in
+`specs/010-instructor-classroom/data-model.md`/`contracts/api.md` with
+full reasoning): a closed roster's `join_code` needed generating (not
+staying null) since `POST /api/rosters/join` has no other field to
+target a roster by; `GET /api/rosters/{roster_id}/enrollments` was
+added (not in the original contract) since nothing else listed a
+roster's enrolled learners for the management page; the demo
+instructor's session was extended from identity-only to fully
+navigable, which required relaxing `classroom_rosters.instructor_id`
+from a hard FK to `real_instructor_accounts` down to an
+application-enforced value (migration `7e686faa5e6d`) -- same
+"could point at more than one table" shape `RetentionRecord.account_id`/
+`DeletionRequest.target_id` already had.
+
+**Known gaps, not yet closed** (found during Polish, none blocking, none
+silently worked around):
+- `DemoBadge` (`frontend/src/components/DemoBadge.tsx`) still renders
+  unconditionally in the root layout -- accurate for the demo-learner-
+  exclusive pages (`/practice`, `/mastery`, `/quiz`, `/dashboard`,
+  `/placement`; no real-learner practice UI exists yet, spec 010 never
+  built one), but now also shows "DEMO ACCOUNT" on the real guardian/
+  instructor pages this spec added, regardless of whether the signed-in
+  session is real or demo. Fixing this properly needs a session-
+  introspection endpoint (no "whoami" exists) and a frontend change to
+  make the badge conditional -- real, scoped work, not attempted here
+  since it's outside every task this spec's `tasks.md` actually lists.
+- T057 (Playwright E2E, `frontend/tests/e2e/instructor-classroom-round-
+  trip.spec.ts`) is written and verified to parse/list correctly, but
+  was never executed against a live deployment -- this sandbox has
+  neither `PLAYWRIGHT_BASE_URL` nor a reachable Postgres. Its own
+  module comment documents a further, real scope boundary found while
+  writing it: "flag and resolve a question" (tasks.md's literal T057
+  wording) isn't achievable at all yet, live deployment or not --
+  every question-generating endpoint resolves the seeded demo learner
+  internally rather than accepting an arbitrary `learner_id`, so a
+  guardian-created real learner has no path to ever generate a
+  question, and the demo learner can't be enrolled in a roster by a
+  guardian (`guardian_id` mismatch by construction).
+- T056's regression check ran clean for everything this sandbox can
+  execute (118 passed, 0 failed, every DB-dependent test skipping for
+  lack of a reachable `DATABASE_URL`) -- consistent throughout every
+  phase of this implementation, but not the same as having actually
+  run the full suite against a real database.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

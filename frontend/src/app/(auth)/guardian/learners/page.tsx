@@ -69,7 +69,12 @@ export default function GuardianLearnersPage() {
       {addedLearners.length > 0 && (
         <ul className="flex flex-col gap-4 text-sm" data-testid="added-learners">
           {addedLearners.map((learner) => (
-            <li key={learner.learner_id} className="flex flex-col gap-2">
+            <li
+              key={learner.learner_id}
+              data-testid="added-learner"
+              data-learner-id={learner.learner_id}
+              className="flex flex-col gap-2"
+            >
               <span>{learner.display_name} added.</span>
               <JoinRosterForm learnerId={learner.learner_id} />
             </li>

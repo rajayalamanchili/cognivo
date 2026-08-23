@@ -315,35 +315,35 @@ extending Milestone 1's existing demo-learner pattern.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T054 [P] Run `backend/scripts/check_no_real_account_path.py` --
+- [X] T054 [P] Run `backend/scripts/check_no_real_account_path.py` --
       confirm it still passes with every new model from Phase 2
       (quickstart scenario 11)
-- [ ] T055 [P] Run `backend/scripts/check_no_subject_conditionals.py`
+- [X] T055 [P] Run `backend/scripts/check_no_subject_conditionals.py`
       -- confirm no subject-id-keyed conditionals were introduced
       (Constitution Principle III)
-- [ ] T056 Regression check: run `backend/tests/` (excluding
+- [X] T056 Regression check: run `backend/tests/` (excluding
       `grading-agent/tests/`) and confirm the full suite still passes
       after the `demo_learner_profiles` -> `learner_profiles` rename
       (quickstart scenario 12, SC-006)
-- [ ] T057 Playwright E2E: a full guardian+instructor round trip --
+- [X] T057 Playwright E2E: a full guardian+instructor round trip --
       register both, create a roster, join it, view the dashboard,
       flag and resolve a question -- against the live dev deployment
-- [ ] T057a [P] Implement `backend/scripts/reset_demo_data.py`: resets
+- [X] T057a [P] Implement `backend/scripts/reset_demo_data.py`: resets
       `DemoInstructorProfile` and every `LearnerProfile` row with
       `is_demo: true` (plus their mastery state, assessment events,
       generated questions, quiz sessions, and roster
       enrollments/rosters) to a known-good seeded state -- mirrors
       `seed_demo_learner.py`/`seed_demo_instructor.py`'s seed data
       exactly (FR-015, `/speckit-analyze` finding F4)
-- [ ] T057b Wire `reset_demo_data.py` to run on a schedule via Vercel
+- [X] T057b Wire `reset_demo_data.py` to run on a schedule via Vercel
       Cron (`vercel.json`), per `tech-stack.md`'s Demo account reset
       row ("e.g. daily") (FR-015/SC-005, depends on T057a)
-- [ ] T057c [P] Integration test: running `reset_demo_data.py` against
+- [X] T057c [P] Integration test: running `reset_demo_data.py` against
       a demo state that's been mutated (e.g. the demo instructor's
       roster has extra enrollments, the demo learner has extra
       assessment events) restores it to exactly the seeded baseline
       (SC-005) in `backend/tests/integration/test_reset_demo_data.py`
-- [ ] T058 Update `roadmap.md`'s Milestone 7 status line to record this
+- [X] T058 Update `roadmap.md`'s Milestone 7 status line to record this
       spec's implementation progress
 
 ## Dependencies & Execution Order
