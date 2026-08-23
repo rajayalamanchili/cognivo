@@ -101,6 +101,15 @@ obvious.
 | Demo account reset | Seeded demo accounts (one instructor, at least one student, per Milestone 7) are reset to a known-good seeded state on a schedule (e.g. daily) | A public demo that drifts into a confusing state over time (a demo student with a chaotic, half-finished mastery history from many strangers' clicks) undermines the demo's own purpose -- a scheduled reset keeps it representative. |
 | Milestone 1's lighter version | Before real auth exists (Milestone 7), Milestone 1 seeds one or more clearly-labeled demo learner profiles (same `is_demo` flag, same UI badge) so the live Vercel deployment has something to show a visitor rather than an empty state | Constitution Principle IX requires the product be demoable from Milestone 1 -- an empty, dataless demo doesn't satisfy that in spirit, even if it satisfies it technically. |
 
+## Authentication (Milestone 7, decided in `specs/010-instructor-classroom/plan.md`)
+
+| Concern | Choice | Rationale |
+|---|---|---|
+| Password hashing | `argon2-cffi` (Argon2id) | OWASP's current recommended default for new systems, ahead of bcrypt -- no existing hashing dependency in this codebase to stay consistent with instead. |
+| Session mechanism | A signed JWT (via `pyjwt`) in an `httpOnly`, `Secure`, `SameSite=Lax` cookie, verified per-request by a FastAPI dependency -- no server-side session table | Stateless verification fits Vercel's serverless execution model directly (Constitution Principle IX) -- no session store to keep warm or garbage-collect, matching this project's existing "no in-memory state assumed" discipline. A DB-backed session table (the ADK session-service pattern) was considered and rejected here: that pattern exists because ADK's own session abstraction needs a durable store across agent turns, not because every kind of session in this project must be DB-backed -- a login session has no equivalent turn-by-turn state to persist. |
+| Third-party auth provider (Clerk, Auth0, Supabase Auth, etc.) | Rejected | This project already rejected Supabase's bundled Auth for the same reason it rejected Supabase as the database (`tech-stack.md`'s Database row): the backend owns its own auth logic rather than delegating to a client SDK. A hand-rolled password+JWT flow is well within a FastAPI backend's normal scope and avoids a new external dependency/cost for a two-role (guardian, instructor), non-enterprise-SSO auth need. |
+| Two separate account tables, not one polymorphic `users` table | `RealGuardianAccount` and `RealInstructorAccount` stay two distinct tables (spec 009's data model), each with independently-unique email | Decided during `/speckit-clarify` on spec 010: the same person/email may hold both roles (a parent who also teaches), which a single email-unique-globally `users` table would block outright. Two tables cost one extra join at sign-in time (resolve which table the credentials matched) in exchange for never needing a migration to relax a wrongly-global uniqueness constraint later. |
+
 ## Tutor Agent grounding and delivery (Milestone 9)
 
 | Concern | Choice | Rationale |
@@ -179,7 +188,6 @@ obvious.
 ## Explicitly not yet decided (do not pre-select)
 
 - The Grading Agent's language and deployment shape -- Milestone 6 decision, once free-text grading's concrete needs are clear.
-- Instructor auth/identity approach -- Milestone 7 decision, tied to the privacy/retention spec required by Constitution Principle VIII.
 - Fine-tuning approach and base model for the misconception classifier -- Milestone 11 decision, made once Milestone 6's accumulated grading data is actually available to inspect.
 - Prompt-versioning storage mechanism (a dedicated table, a file-based store, or a third-party prompt-management tool) -- Milestone 12 decision.
 - Semantic-caching layer (in-database via Postgres, or a dedicated cache like Redis/Upstash) -- Milestone 13 decision, made once Milestone 9's actual call volume is known well enough to size the cache correctly.
@@ -204,4 +212,10 @@ shared-secret header validated via `hmac.compare_digest`, plus
 current/next dual-secret rotation support, as the enforcement mechanism
 for Constitution Principle VI's v1.5.0 amendment; see spec 007's
 `grading-agent/src/agent.py` for the reference implementation this
-pattern is locked from)
+pattern is locked from); 2.0.0 -- Amended 2026-08-23 (Milestone 7
+`/speckit-plan`: locked instructor/guardian authentication as
+Argon2id password hashing + a stateless JWT-in-httpOnly-cookie
+session, rejecting both a DB-backed session table and a third-party
+auth provider; resolves the "Instructor auth/identity approach"
+item this file previously listed as not yet decided; see
+`specs/010-instructor-classroom/research.md` §1)

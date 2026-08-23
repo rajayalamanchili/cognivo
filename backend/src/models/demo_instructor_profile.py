@@ -8,17 +8,21 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.models.base import Base
 
 
-class DemoLearnerProfile(Base):
-    """Milestone 1's lightweight seeded learner.
+class DemoInstructorProfile(Base):
+    """Milestone 1's `LearnerProfile` demo-row pattern, extended to
+    instructors (FR-014). Kept as its own table -- mirroring the
+    pre-existing separation between `LearnerProfile` and
+    `RealInstructorAccount` -- rather than a nullable-`is_demo` row
+    inside `RealInstructorAccount`, so a demo instructor never needs a
+    password/credential at all.
 
     `is_demo` MUST be explicitly set `true` at seed time -- never
-    inferred (Constitution Principle VIII). No real-learner-data path
-    exists in Milestone 1.
+    inferred (Constitution Principle VIII).
     """
 
-    __tablename__ = "demo_learner_profiles"
+    __tablename__ = "demo_instructor_profiles"
 
-    learner_id: Mapped[uuid.UUID] = mapped_column(
+    instructor_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     display_name: Mapped[str] = mapped_column(nullable=False)

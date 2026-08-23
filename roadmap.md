@@ -259,8 +259,75 @@ Agent's full A2A delegation (Milestone 9).
 ---
 
 ## Milestone 7: Instructor Classroom -- Auth, Rosters, Dashboard, Content Review, Real Learner Data Gate
-**Spec**: not yet written -- do not begin until Milestone 6 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/009-privacy-retention/spec.md` covers this milestone's
+privacy/retention prerequisite (Constitution Principle VIII, approved
+and merged); `specs/010-instructor-classroom/spec.md` is the
+auth/rosters/dashboard/content-review spec proper, gated on 009.
+**Status**: `/speckit-implement` complete, all 8 phases (2026-08-23).
+The privacy/retention gate (`009-privacy-retention`, 2026-08-22) --
+`check_no_real_account_path.py` CI-enforced, a written data
+classification, and the forward-looking account/roster data model --
+was the approved prerequisite `010-instructor-classroom` built against.
+Phase-by-phase: Setup + Foundational (migration creating 8 new tables
+plus the `demo_learner_profiles` -> `learner_profiles` rename, all 8
+new models, Argon2id/JWT auth utilities); User Story 1 (guardian/
+instructor register-login-logout, guardian add-a-learner); User Story 2
+(roster creation, open/closed enrollment, guardian join-by-code,
+instructor approve/decline, unenrollment from either side); User
+Story 3 (the instructor dashboard, aggregating Milestone 2's
+Recommendation Agent output per learner, verified byte-for-byte
+identical to that agent's own endpoint -- no new weak-area logic);
+User Story 4 (content-review queue, scoped via an `Enrollment` join at
+query time rather than a denormalized snapshot, reactivate/reject
+resolution with its own audited event type); User Story 5 (seeded demo
+instructor, extended during `/speckit-implement` `/speckit-clarify`
+past its original identity-only contract to a fully navigable session --
+see Corrections below); Polish (regression + gate re-checks, demo-data
+reset wired to Vercel Cron, E2E spec written).
+
+**Corrections made during implementation** (each documented in
+`specs/010-instructor-classroom/data-model.md`/`contracts/api.md` with
+full reasoning): a closed roster's `join_code` needed generating (not
+staying null) since `POST /api/rosters/join` has no other field to
+target a roster by; `GET /api/rosters/{roster_id}/enrollments` was
+added (not in the original contract) since nothing else listed a
+roster's enrolled learners for the management page; the demo
+instructor's session was extended from identity-only to fully
+navigable, which required relaxing `classroom_rosters.instructor_id`
+from a hard FK to `real_instructor_accounts` down to an
+application-enforced value (migration `7e686faa5e6d`) -- same
+"could point at more than one table" shape `RetentionRecord.account_id`/
+`DeletionRequest.target_id` already had.
+
+**Known gaps, not yet closed** (found during Polish, none blocking, none
+silently worked around):
+- `DemoBadge` (`frontend/src/components/DemoBadge.tsx`) still renders
+  unconditionally in the root layout -- accurate for the demo-learner-
+  exclusive pages (`/practice`, `/mastery`, `/quiz`, `/dashboard`,
+  `/placement`; no real-learner practice UI exists yet, spec 010 never
+  built one), but now also shows "DEMO ACCOUNT" on the real guardian/
+  instructor pages this spec added, regardless of whether the signed-in
+  session is real or demo. Fixing this properly needs a session-
+  introspection endpoint (no "whoami" exists) and a frontend change to
+  make the badge conditional -- real, scoped work, not attempted here
+  since it's outside every task this spec's `tasks.md` actually lists.
+- T057 (Playwright E2E, `frontend/tests/e2e/instructor-classroom-round-
+  trip.spec.ts`) is written and verified to parse/list correctly, but
+  was never executed against a live deployment -- this sandbox has
+  neither `PLAYWRIGHT_BASE_URL` nor a reachable Postgres. Its own
+  module comment documents a further, real scope boundary found while
+  writing it: "flag and resolve a question" (tasks.md's literal T057
+  wording) isn't achievable at all yet, live deployment or not --
+  every question-generating endpoint resolves the seeded demo learner
+  internally rather than accepting an arbitrary `learner_id`, so a
+  guardian-created real learner has no path to ever generate a
+  question, and the demo learner can't be enrolled in a roster by a
+  guardian (`guardian_id` mismatch by construction).
+- T056's regression check ran clean for everything this sandbox can
+  execute (118 passed, 0 failed, every DB-dependent test skipping for
+  lack of a reachable `DATABASE_URL`) -- consistent throughout every
+  phase of this implementation, but not the same as having actually
+  run the full suite against a real database.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's
@@ -568,6 +635,49 @@ if they've already seen it recently.
 - Automatic prompt optimization/auto-tuning -- explicitly deferred from
   Milestone 12's prompt-versioning scope, a distinct and much larger
   capability.
+- Schema-drift detection as a required CI check (not auto-applied
+  migrations) -- surfaced 2026-08-22 when production's DB turned out to
+  be several Alembic migrations behind (Milestone 5's `quiz_sessions`
+  onward), causing a live `500` on placement start rather than a caught
+  PR-time failure. Chosen direction when this is picked up: a CI job on
+  promotion PRs that connects to the target environment's DB and
+  compares `alembic current` against `alembic heads`, failing the check
+  (not applying anything) if they diverge -- lower blast radius than
+  auto-migrating in CI or in Vercel's build step (see the discussion in
+  this session: both have real ordering/concurrency issues against
+  Vercel's independent git-triggered deploys), and consistent with this
+  project's existing pattern of deliberate manual infra steps (T044's
+  Vercel provisioning, the Deployment Protection bypass secret) rather
+  than new deploy automation. Needs `STAGING_DATABASE_URL`/
+  `PRODUCTION_DATABASE_URL` as GitHub Actions secrets (distinct from
+  their Vercel-env-var copies) before it can be built.
+- Grade-banded curriculum scoping (grades 1-12) per subject, with an
+  initial placement quiz that also assesses a starting grade level (not
+  just per-topic mastery as Milestone 1 does today), placement questions
+  labeled with the grade they represent, a skip option for a question
+  too far above the learner's current assessed level, and progressive
+  grade-level unlocking -- a learner only sees next-grade questions
+  after mastering the current grade's content. Raised 2026-08-22 after
+  live testing surfaced some generated questions as too hard for their
+  intended level. Real open design question for whoever scopes this:
+  how "grade" relates to the existing Topic/mastery-state model --
+  likely a new content-artifact-owned dimension (per Constitution
+  Principle III, never an engine-side conditional), but whether it's a
+  property of each topic, a grouping above topics, or a per-question
+  attribute needs its own `/speckit-clarify` before a spec is written,
+  given how directly it touches the mastery model's structure
+  (Principle I).
+- Content-curation policy differing by classroom type (an "open"
+  classroom's content is LLM-curated; a "closed" classroom's content is
+  human-created or LLM-generated-then-human-approved). Raised
+  2026-08-22 during `/speckit-clarify` on `specs/009-privacy-retention/
+  spec.md`, where the "open vs. closed" distinction itself was scoped
+  down to enrollment-gating only (who may join a classroom) -- this
+  content-curation half is a distinct, different-feature concern
+  (Milestone 1's flagged-question review mechanism, FR-011, and
+  Milestone 7's content-review workflow ownership), not a privacy/
+  retention matter. Needs its own scoping pass whenever Milestone 7
+  proper or the content-review workflow is picked up.
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was

@@ -48,6 +48,37 @@ class QuizSessionStatus(enum.StrEnum):
     ENDED_EARLY = "ended_early"
 
 
+class EnrollmentMode(enum.StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class AuthorizedByType(enum.StrEnum):
+    GUARDIAN = "guardian"
+    INSTRUCTOR = "instructor"
+
+
+class EnrollmentDecision(enum.StrEnum):
+    APPROVED = "approved"
+    DECLINED = "declined"
+
+
+class DeletionTargetType(enum.StrEnum):
+    LEARNER = "learner"
+    INSTRUCTOR = "instructor"
+    GUARDIAN = "guardian"
+
+
+class RetentionAccountType(enum.StrEnum):
+    LEARNER = "learner"
+    INSTRUCTOR = "instructor"
+
+
+class RetentionEnrollmentStatus(enum.StrEnum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
 class AssessmentEventType(enum.StrEnum):
     PLACEMENT_QUESTION_SHOWN = "placement_question_shown"
     ANSWER_SUBMITTED = "answer_submitted"
@@ -59,6 +90,7 @@ class AssessmentEventType(enum.StrEnum):
     NEXT_STEP_SUGGESTED = "next_step_suggested"
     QUIZ_DIFFICULTY_ADJUSTED = "quiz_difficulty_adjusted"
     FREE_TEXT_SUBMISSION_REJECTED = "free_text_submission_rejected"
+    CONTENT_REVIEW_RESOLVED = "content_review_resolved"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required

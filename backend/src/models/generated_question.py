@@ -26,7 +26,7 @@ class GeneratedQuestion(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     learner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("demo_learner_profiles.learner_id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("learner_profiles.learner_id"), nullable=False
     )
     subject_id: Mapped[str] = mapped_column(nullable=False)
     topic_id: Mapped[str] = mapped_column(nullable=False)
@@ -45,7 +45,7 @@ class GeneratedQuestion(Base):
         default=ValidationStatus.PENDING,
     )
     flagged_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("demo_learner_profiles.learner_id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("learner_profiles.learner_id"), nullable=True
     )
     flagged_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     generated_at: Mapped[datetime.datetime] = mapped_column(

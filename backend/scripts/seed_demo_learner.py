@@ -17,23 +17,23 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.db import get_sessionmaker  # noqa: E402
-from src.models.demo_learner_profile import DemoLearnerProfile  # noqa: E402
+from src.models.learner_profile import LearnerProfile  # noqa: E402
 
 DEFAULT_DISPLAY_NAME = "Demo Learner"
 
 
-def seed_demo_learner(display_name: str = DEFAULT_DISPLAY_NAME) -> DemoLearnerProfile:
+def seed_demo_learner(display_name: str = DEFAULT_DISPLAY_NAME) -> LearnerProfile:
     session_local = get_sessionmaker()
     with session_local() as db:
         existing = (
-            db.query(DemoLearnerProfile)
-            .filter(DemoLearnerProfile.display_name == display_name)
+            db.query(LearnerProfile)
+            .filter(LearnerProfile.display_name == display_name)
             .one_or_none()
         )
         if existing is not None:
             return existing
 
-        learner = DemoLearnerProfile(display_name=display_name, is_demo=True)
+        learner = LearnerProfile(display_name=display_name, is_demo=True)
         db.add(learner)
         db.commit()
         db.refresh(learner)

@@ -5,6 +5,7 @@ requires-python = ">=3.12"
 dependencies = [
     "a2a-sdk>=1.1.2",
     "alembic>=1.19.1",
+    "argon2-cffi>=25.1.0",
     "fastapi>=0.141.1",
     "google-adk>=2.7.0",
     "langfuse>=4.14.4",
@@ -12,6 +13,7 @@ dependencies = [
     "openinference-instrumentation-google-adk>=0.1.20",
     "psycopg[binary]>=3.3.4",
     "pydantic>=2.13.4",
+    "pyjwt>=2.11.0",
     "pyyaml>=6.0.3",
     "sqlalchemy>=2.0.52",
     "uvicorn[standard]>=0.52.3",
@@ -34,10 +36,10 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.ruff.lint.flake8-bugbear]
-# FastAPI's `Depends(...)`-as-default-argument is the framework's
-# documented dependency-injection pattern, not the mutable-default-
-# argument footgun B008 exists to catch.
-extend-immutable-calls = ["fastapi.Depends"]
+# FastAPI's `Depends(...)`/`Cookie(...)`-as-default-argument is the
+# framework's documented dependency-injection pattern, not the
+# mutable-default-argument footgun B008 exists to catch.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Cookie"]
 
 [tool.black]
 line-length = 100
