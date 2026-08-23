@@ -24,6 +24,25 @@
   due date block starting a new attempt once it has passed? → A: Single
   attempt per learner per assignment; starting is blocked once the due
   date passes, though an already-in-progress attempt may still finish.
+- Q: Should assignment creation and cancellation be recorded as their
+  own explicit audited events, or is it enough that the assignment
+  record itself carries who created/cancelled it and when? → A:
+  Explicit audited events for both -- mirrors Milestone 7's precedent of
+  enrollment/unenrollment/content-review resolution each getting their
+  own audited event type, so "why was this learner assigned/un-assigned
+  this" is answerable through the same unified audit-log mechanism every
+  other traceable action in this product already uses.
+- Q: When an instructor cancels an assignment, should the targeted
+  learners' guardians still see it in their assignment list marked as
+  cancelled, or should it disappear from their view entirely? → A:
+  Still shown, marked cancelled -- consistent with never silently
+  retracting or hiding what already happened once an assignment exists.
+- Q: If a learner's attempt is already in progress when the instructor
+  cancels the assignment, and the guardian finishes it afterward, should
+  that completed attempt still count and display as a real result in
+  the assignment's per-student report? → A: Yes -- it still counts,
+  consistent with FR-012's rule that cancellation never retracts an
+  already-recorded result.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -111,6 +130,10 @@ assignment.
    learner never started it, **When** their guardian attempts to start
    it, **Then** the system rejects the request; an attempt already in
    progress before the due date passed is allowed to finish.
+7. **Given** an assignment the instructor has cancelled, **When** a
+   targeted learner's guardian views their learner's assignment list,
+   **Then** the assignment is still visible, clearly marked as
+   cancelled, rather than silently disappearing.
 
 ---
 
@@ -146,11 +169,14 @@ any) for each of those learners individually.
 
 ### Edge Cases
 
-- What happens when an instructor deletes/cancels an assignment that no
-  learner has started yet, versus one where some learners are mid-quiz
-  or already completed? (Completed attempts and their mastery-state
-  updates must never be retracted; in-progress attempts should be
-  allowed to finish or be explicitly ended, not silently orphaned.)
+- What happens when an instructor cancels an assignment that no learner
+  has started yet, versus one where some learners are mid-quiz or
+  already completed? Already-completed results and their mastery-state
+  updates are never retracted (FR-012); an in-progress attempt is left
+  to finish naturally and, if completed, still counts (FR-012,
+  Clarifications); only starting a *new* attempt becomes unavailable.
+  Cancelled assignments remain visible (marked cancelled) in affected
+  guardians' assignment lists rather than disappearing (FR-016).
 - What happens when a learner is unenrolled from the roster (Milestone
   7's existing unenrollment flow) after being targeted by an assignment
   but before starting it? They should no longer be able to start it.
@@ -206,7 +232,11 @@ any) for each of those learners individually.
   assignment attempt they had not already completed.
 - **FR-012**: The system MUST NOT retract or alter a learner's
   already-recorded mastery-state updates when an instructor cancels an
-  assignment.
+  assignment. An attempt already in progress at the moment of
+  cancellation MAY still be completed, and if so MUST still count and
+  display as a real result in that assignment's per-student report --
+  cancellation only prevents *new* attempts from starting, never
+  invalidates one already under way.
 - **FR-013**: The system MUST require the requester starting or
   continuing an assigned-quiz attempt to be authenticated as the
   targeted learner's own guardian; no separate learner-facing login or
@@ -215,6 +245,14 @@ any) for each of those learners individually.
   assignment, and MUST reject any request to start a new attempt after
   the assignment's due date has passed -- an attempt already in
   progress before the due date passed MAY continue to completion.
+- **FR-015**: The system MUST record assignment creation and
+  cancellation as their own distinct, audited events (which instructor,
+  which roster, which assignment, when), through the same audit-log
+  mechanism already used for enrollment, unenrollment, and
+  content-review resolution.
+- **FR-016**: A cancelled assignment MUST remain visible in a targeted
+  learner's guardian-facing assignment list, clearly marked as
+  cancelled, rather than being removed from view.
 
 ### Key Entities *(include if feature involves data)*
 
