@@ -48,6 +48,28 @@ data-model.md):
 | joined `QuizSession.status = completed` | `completed`, with `compute_quiz_summary`'s score |
 | joined `QuizSession.status = ended_early` | `ended_early` |
 
+`cancelled_at` (on `QuizAssignment`, not the target row) is surfaced
+alongside this status, never folded into it as a fifth status value
+(FR-016, research.md §8) -- a learner who finishes after their
+assignment is cancelled still reports `completed` with a real score.
+
+### Audit events (no new table -- reuses `AssessmentEvent`)
+
+Two new `AssessmentEventType` members: `QUIZ_ASSIGNMENT_CREATED`,
+`QUIZ_ASSIGNMENT_CANCELLED` (FR-015, research.md §7). Written via the
+existing `record_event()` writer, one row per affected
+`quiz_assignment_targets.learner_id` (`AssessmentEvent.learner_id` is
+non-nullable, so a roster-wide action decomposes into one event per
+targeted learner, not one event per assignment):
+
+- On creation: one event per learner in the new target list, `payload`
+  = `{assignment_id, roster_id, instructor_id, topic_ids,
+  question_count, due_at}`.
+- On cancellation: one event per target row whose `quiz_session_id` was
+  still `NULL` or whose `QuizSession.status` was still `in_progress` --
+  a learner who had already `completed` is not re-notified (research.md
+  §7/§8; FR-012).
+
 ## Relationships
 
 ```

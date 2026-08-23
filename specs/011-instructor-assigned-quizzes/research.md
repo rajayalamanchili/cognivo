@@ -154,3 +154,66 @@ since those updates live entirely in `MasteryState`/`AssessmentEvent`
 rows this feature never touches, that requirement is met by
 construction rather than by an explicit "don't delete mastery data"
 check somewhere.
+
+## §7: Assignment audit events -- one `AssessmentEvent` row per targeted learner, not a new audit table
+
+**Decision** (added post-`/speckit-clarify`, FR-015): Two new
+`AssessmentEventType` members, `QUIZ_ASSIGNMENT_CREATED` and
+`QUIZ_ASSIGNMENT_CANCELLED`, written via the existing `record_event()`
+writer (`services/audit_log/writer.py`). Because `record_event()`'s
+signature is per-`learner_id` (`AssessmentEvent.learner_id` is
+non-nullable -- there is no roster- or instructor-scoped audit-event
+shape in this codebase), assignment creation writes one event per
+targeted learner in the same transaction as their `quiz_assignment_
+targets` row, each carrying `assignment_id`/`roster_id`/`instructor_id`/
+`topic_ids`/`question_count`/`due_at` in `payload`. Cancellation writes
+one event per target row whose `quiz_session_id` was still `NULL` or
+whose linked `QuizSession.status` was still `in_progress` at the moment
+of cancellation -- a learner whose attempt had already `completed` has
+nothing new to be told "this was cancelled" about (research.md §6/§8;
+FR-012 already guarantees their result stands regardless).
+
+**Rationale**: `record_event()`/`AssessmentEventType` is this
+codebase's actual, code-verified audit-log mechanism (`services/
+content_review/resolution.py`'s `CONTENT_REVIEW_RESOLVED` write is the
+real precedent -- see spec.md's Clarifications for a correction: this
+feature's own first-drafted justification also cited enrollment/
+unenrollment as prior art, which checking `services/roster/
+enrollment.py` shows do NOT use this mechanism at all). Reusing the
+existing per-learner shape, rather than introducing a new roster-scoped
+audit table, keeps "why was I assigned this" answerable from the exact
+same mechanism a learner's other audit history already lives in
+(Constitution Principle V's own framing is per-learner: "an instructor
+or learner MUST be able to ask 'why was I shown this'").
+
+**Alternatives considered**: A new `RosterAuditEvent`-style table
+scoped to (roster_id, instructor_id) rather than a learner -- rejected
+as unnecessary schema growth; one `AssessmentEvent` row per affected
+learner is a direct fit for data that's about to exist anyway
+(`quiz_assignment_targets` is already one row per learner), and every
+consumer of a learner's audit history (a future "why was I assigned
+this" view) already knows to query by `learner_id`.
+
+## §8: Cancelled-visibility and post-cancellation completion are read-time query behavior, not new stored state
+
+**Decision** (added post-`/speckit-clarify`, FR-016/FR-012): `GET
+/api/learners/{learner_id}/assignments` returns every assignment
+targeting the learner regardless of `cancelled_at`, including
+`cancelled_at` itself in each entry so the guardian-facing UI can render
+a "cancelled" badge (FR-016) rather than the assignment silently
+disappearing. The per-target derived-status table (data-model.md) is
+**not** modified to add a "cancelled" status value -- a target's status
+stays purely a function of `quiz_session_id`/`QuizSession.status`
+(§1/§6), so a learner who completes an in-progress attempt after their
+assignment was cancelled still reports `completed` with a real score
+(FR-012), and a learner who never started still reports `not_started`
+even once cancelled. `cancelled_at` is assignment-level metadata the UI
+layers on top of a target's status, not a third dimension of it.
+
+**Rationale**: Keeps a single source of truth for "did this learner
+finish this quiz" (the `QuizSession`/target join, unaffected by
+cancellation) separate from "is this assignment still open for new
+attempts" (`cancelled_at`/`due_at`, both checked only at start-time,
+research.md §3/§6) -- avoids a combinatorial "status × cancelled" state
+matrix that both `contracts/api.md` and the frontend would otherwise
+have to reason about.

@@ -27,8 +27,12 @@ Next.js frontend (unchanged) -- no new deployable unit.
 
 **Primary Dependencies**: None new. Reuses `services/quiz/session.py`'s
 existing `start_quiz`/`generate_quiz_question`/`compute_quiz_summary`
-functions and `services/auth/dependencies.py`'s existing
-`current_guardian`/`current_instructor`/`current_session_claims`.
+functions, `services/auth/dependencies.py`'s existing
+`current_guardian`/`current_instructor`/`current_session_claims`, and
+`services/audit_log/writer.py`'s existing `record_event()` (two new
+`AssessmentEventType` members added post-`/speckit-clarify`: `QUIZ_
+ASSIGNMENT_CREATED`, `QUIZ_ASSIGNMENT_CANCELLED` -- FR-015,
+research.md §7).
 
 **Storage**: PostgreSQL via Neon, same database as every other
 milestone. Two new tables (`quiz_assignments`, `quiz_assignment_
@@ -45,11 +49,19 @@ concurrent-double-start race test mirroring
 `test_roster_duplicate_join.py`'s existing pattern), unenrollment
 blocking a not-yet-started target (FR-011), cancellation leaving
 recorded mastery data untouched (FR-012, asserting `MasteryState`/
-`AssessmentEvent` rows are byte-for-byte unchanged before/after), and a
-regression test asserting an assigned quiz's difficulty-adaptation and
-grading behavior is identical to `test_quiz_difficulty_bounds.py`/
-`test_quiz_mastery_effect.py`'s existing non-assigned-quiz assertions
-run against the same scripted answer sequence (SC-002's hard gate).
+`AssessmentEvent` rows for an already-completed attempt are
+byte-for-byte unchanged before/after cancellation), a regression test
+asserting an assigned quiz's difficulty-adaptation and grading behavior
+is identical to `test_quiz_difficulty_bounds.py`/`test_quiz_mastery_
+effect.py`'s existing non-assigned-quiz assertions run against the same
+scripted answer sequence (SC-002's hard gate), a test asserting
+creation/cancellation each write the expected `QUIZ_ASSIGNMENT_CREATED`/
+`QUIZ_ASSIGNMENT_CANCELLED` `AssessmentEvent` rows (FR-015) and that
+cancellation does *not* write one for an already-`completed` target
+(research.md §7), and a test asserting an attempt that completes after
+its assignment was cancelled still reports `completed` with a real
+score, while the guardian-facing list still includes the now-cancelled
+assignment rather than omitting it (FR-012/FR-016, research.md §8).
 `Vitest` + React Testing Library for the new assignment-creation form
 (instructor) and assignment-list/start UI (guardian). `Playwright`
 (E2E) extends `instructor-classroom-round-trip.spec.ts`'s pattern with
@@ -91,7 +103,7 @@ design below.*
 | II. Generated content graded against a rubric | Not implicated -- assigned-quiz questions are generated and graded via Milestone 5/6's existing, unmodified mechanism (research.md §1); no new generation or grading path. | N/A |
 | III. One engine, many subjects | `QuizAssignment.subject_id`/`topic_ids` are DB values validated at query time against `Topic`/`Subject` rows, never hardcoded -- covered by the existing `check_no_subject_conditionals.py` scan. | PASS |
 | IV. Agent boundaries reflect real responsibility | No new or modified agent. Per-assignment reporting is a direct query, deliberately not routed through the Recommendation Agent (research.md §5) -- a different concern than that agent owns, not a duplicated implementation of what it already does. | PASS |
-| V. Logged and explainable | Every assignment attempt is an ordinary, already-logged `QuizSession`/`AssessmentEvent` trail (Milestone 5/6, unchanged) linked via `quiz_assignment_targets` -- "why was this learner assigned this" is answerable from `QuizAssignment.instructor_id`/`created_at`, "why was this graded this way" from the same rubric-based mechanism every other quiz question already uses. | PASS |
+| V. Logged and explainable | Every assignment attempt is an ordinary, already-logged `QuizSession`/`AssessmentEvent` trail (Milestone 5/6, unchanged) linked via `quiz_assignment_targets`; "why was this graded this way" comes from the same rubric-based mechanism every other quiz question already uses. "Why was this learner assigned/un-assigned this" is answerable through an explicit `QUIZ_ASSIGNMENT_CREATED`/`QUIZ_ASSIGNMENT_CANCELLED` audit event per learner (FR-015, added post-`/speckit-clarify` -- the original draft of this row relied on `QuizAssignment.instructor_id`/`created_at` columns alone, which `/speckit-clarify` correctly upgraded to a real audit-log event via the existing `record_event()` mechanism, verified against `services/content_review/resolution.py`'s actual precedent rather than an inaccurate enrollment/unenrollment citation -- see spec.md's Clarifications). | PASS |
 | VI. A2A justified by concrete need | Not implicated -- no new agent or service boundary. | N/A |
 | VII. Spec before code | Full lifecycle followed: Milestone 7 (approved, merged, staging+main) -> this spec (2 clarifications resolved) -> this plan. | PASS |
 | VIII. No real learner data | Targets real (`is_demo: false`) `LearnerProfile` rows already gated in by Milestone 7 -- this feature adds no new account-shaped table (`quiz_assignments`/`quiz_assignment_targets` carry no `is_demo` column, matching `Enrollment`'s precedent of not needing one since it isn't itself an account). Guardian-mediated access (research.md §2) is a stricter authorization boundary than Milestone 5's original demo-only quiz flow, not a weaker one. | PASS |
@@ -107,6 +119,19 @@ planned in research.md §1, and the guardian-auth extension to the two
 existing quiz routes (research.md §2) is additive/conditional, not a
 behavior change for the existing non-assignment quiz path. Constitution
 Check table above still holds unchanged.
+
+**Post-`/speckit-clarify` re-check** (2026-08-23, after this plan was
+first written): three spec changes required updates here and in
+research.md/data-model.md/contracts/api.md/quickstart.md -- explicit
+audit events for assignment creation/cancellation (FR-015, research.md
+§7, strengthening Principle V's row above from an implicit to an
+explicit PASS), a cancelled assignment staying visible to the guardian
+rather than disappearing (FR-016, research.md §8), and an in-flight
+attempt that finishes after cancellation still counting in the report
+(FR-012's extension, research.md §8). None of the three required a new
+violation or Complexity Tracking entry -- all three fit as read-time
+query behavior or an additional `record_event()` call on top of the
+existing design, not a new table or mechanism.
 
 ## Project Structure
 
@@ -130,13 +155,17 @@ backend/
 ├── src/
 │   ├── models/
 │   │   ├── quiz_assignment.py         # NEW
-│   │   └── quiz_assignment_target.py  # NEW
+│   │   ├── quiz_assignment_target.py  # NEW
+│   │   └── enums.py                   # EXTENDED -- AssessmentEventType gains
+│   │                                     # QUIZ_ASSIGNMENT_CREATED/CANCELLED (FR-015)
 │   ├── services/
 │   │   └── quiz_assignment/           # NEW
 │   │       └── assignment.py          # create/cancel/target-resolution (FR-001-FR-005),
 │   │                                     # start-eligibility checks (FR-006/FR-011/FR-014)
 │   │                                     # -- calls services/quiz/session.py's existing
-│   │                                     # start_quiz()/generate_quiz_question() unchanged
+│   │                                     # start_quiz()/generate_quiz_question() unchanged,
+│   │                                     # and audit_log/writer.py's record_event() for
+│   │                                     # QUIZ_ASSIGNMENT_CREATED/CANCELLED (FR-015)
 │   └── api/routes/
 │       ├── quiz_assignments.py        # NEW -- instructor create/list/get/cancel,
 │       │                                 # guardian list/start (contracts/api.md)

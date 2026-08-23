@@ -47,6 +47,9 @@ unknown or spans a subject other than the roster's own (mirrors
 `quiz.py`'s existing `_resolve_quiz_subject_id` validation, research.md
 data-model.md).
 
+Records one `QUIZ_ASSIGNMENT_CREATED` audit event per targeted learner
+in the same transaction (FR-015, data-model.md's Audit events section).
+
 ### `GET /api/rosters/{roster_id}/assignments` (instructor-authenticated, owner only)
 
 `200`:
@@ -86,6 +89,9 @@ is `null` unless `status` is `completed` or `ended_early`.
 No body. `204`. Sets `cancelled_at`; does not delete the assignment,
 its target rows, or touch any learner's recorded mastery-state updates
 (FR-012, research.md §6). `409 already_cancelled` if called twice.
+Records one `QUIZ_ASSIGNMENT_CANCELLED` audit event per target row that
+was not yet `completed` at that moment (FR-015, research.md §7) -- a
+learner who had already finished is not re-notified.
 
 ## Assignments (guardian-facing)
 
@@ -96,14 +102,19 @@ its target rows, or touch any learner's recorded mastery-state updates
 {
   "assignments": [
     { "assignment_id": "...", "topic_ids": [...], "question_count": 5,
-      "due_at": "...", "status": "not_started" }
+      "due_at": "...", "cancelled_at": null, "status": "not_started" }
   ]
 }
 ```
-Lists every non-cancelled assignment targeting this learner, with the
-same derived `status` as the instructor view. `403 not_your_learner` if
-the requesting guardian does not own `learner_id` (mirrors
-`learners.py`'s existing ownership check).
+Lists **every** assignment targeting this learner, including cancelled
+ones -- `cancelled_at` is non-null rather than the assignment being
+omitted (FR-016, research.md §8), so the frontend renders a "cancelled"
+badge instead of the assignment silently disappearing. `status` is the
+same derived value as the instructor view (data-model.md) and is
+unaffected by `cancelled_at` -- a learner who finished before
+cancellation still shows `completed` with their real score. `403
+not_your_learner` if the requesting guardian does not own `learner_id`
+(mirrors `learners.py`'s existing ownership check).
 
 ### `POST /api/assignments/{assignment_id}/learners/{learner_id}/start` (guardian-authenticated, own learner only)
 
@@ -125,7 +136,8 @@ Failure modes: `403 not_your_learner` (guardian doesn't own the
 learner); `403 not_targeted` (learner isn't in this assignment's target
 list); `409 already_attempted` (`quiz_session_id` already set --
 FR-014); `409 past_due` (`due_at` has passed -- FR-014); `409
-assignment_cancelled` (FR-011/research.md §6); `403 not_enrolled` (the
+assignment_cancelled` (FR-012's "cancellation only prevents new
+attempts from starting" -- research.md §6); `403 not_enrolled` (the
 learner was unenrolled from the roster after being targeted -- FR-011).
 
 ## Extended existing routes

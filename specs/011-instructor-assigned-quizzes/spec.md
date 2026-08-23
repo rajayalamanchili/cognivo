@@ -27,11 +27,18 @@
 - Q: Should assignment creation and cancellation be recorded as their
   own explicit audited events, or is it enough that the assignment
   record itself carries who created/cancelled it and when? → A:
-  Explicit audited events for both -- mirrors Milestone 7's precedent of
-  enrollment/unenrollment/content-review resolution each getting their
-  own audited event type, so "why was this learner assigned/un-assigned
-  this" is answerable through the same unified audit-log mechanism every
-  other traceable action in this product already uses.
+  Explicit audited events for both, via `record_event()`/
+  `AssessmentEventType` -- the same mechanism Milestone 1's
+  question-flagging and Milestone 7's content-review resolution already
+  use (verified in code: `services/content_review/resolution.py`). Note
+  this corrects an inaccurate justification given when this question was
+  first asked, which also cited enrollment/unenrollment as prior art --
+  checking `services/roster/enrollment.py` shows those two actions have
+  no `AssessmentEventType`/`record_event` trail at all, only
+  `EnrollmentRequest.decided_at`/`decision` columns. The decision (add
+  explicit audit events here) still stands on content-review's real
+  precedent alone; it does not extend or retrofit enrollment/
+  unenrollment, which are out of this feature's scope.
 - Q: When an instructor cancels an assignment, should the targeted
   learners' guardians still see it in their assignment list marked as
   cancelled, or should it disappear from their view entirely? → A:
@@ -247,9 +254,10 @@ any) for each of those learners individually.
   progress before the due date passed MAY continue to completion.
 - **FR-015**: The system MUST record assignment creation and
   cancellation as their own distinct, audited events (which instructor,
-  which roster, which assignment, when), through the same audit-log
-  mechanism already used for enrollment, unenrollment, and
-  content-review resolution.
+  which roster, which assignment, when), through the same
+  `record_event()`/`AssessmentEventType` audit-log mechanism Milestone 1's
+  question-flagging and Milestone 7's content-review resolution already
+  use.
 - **FR-016**: A cancelled assignment MUST remain visible in a targeted
   learner's guardian-facing assignment list, clearly marked as
   cancelled, rather than being removed from view.

@@ -59,12 +59,14 @@ in scenario 2) -> `409 already_attempted`. Create a second assignment
 with `due_at` in the past -> as the targeted learner's guardian,
 `POST .../start` -> `409 past_due`.
 
-## Validation scenario 5: instructor cancellation doesn't touch recorded mastery data
+## Validation scenario 5: instructor cancellation doesn't touch recorded mastery data, and stays visible to the guardian
 
 Create a third assignment targeting learner B, `DELETE
 /api/rosters/{roster_id}/assignments/{assignment_id}` before learner B
 starts it -> `204`. Confirm learner B's guardian can no longer start it
-(`409 assignment_cancelled`). Re-run scenario 2's mastery-state check
+(`409 assignment_cancelled`), but `GET /api/learners/{learner_B_id}/
+assignments` still lists it, now with `cancelled_at` set (FR-016) --
+not omitted from the response. Re-run scenario 2's mastery-state check
 for learner A's already-completed assignment from scenario 1 -> values
 unchanged by the unrelated cancellation.
 
@@ -74,3 +76,16 @@ Create a fourth assignment targeting learner B; as the instructor,
 unenroll learner B from the roster (`DELETE /api/rosters/{roster_id}/
 enrollments/{learner_B_id}`, spec 010). As learner B's guardian, attempt
 `POST .../start` for that assignment -> `403 not_enrolled`.
+
+## Validation scenario 7: assignment creation/cancellation are audited, and an in-flight attempt still counts after cancellation
+
+After scenario 1's `POST /api/rosters/{roster_id}/assignments`, confirm
+a `QUIZ_ASSIGNMENT_CREATED` `AssessmentEvent` row exists for learner A
+(FR-015). Create a fifth assignment targeting a third enrolled learner
+(learner C); as learner C's guardian, start it (attempt now
+`in_progress`); as the instructor, cancel the assignment -> confirm a
+`QUIZ_ASSIGNMENT_CANCELLED` event is recorded for learner C (their
+attempt hadn't completed yet). As learner C's guardian, finish the
+already-started attempt -> confirm `GET /api/rosters/{roster_id}/
+assignments/{assignment_id}` still shows learner C as `completed` with
+a real score, even though the assignment is cancelled (FR-012).
