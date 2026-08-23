@@ -26,7 +26,7 @@ class QuizSession(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     learner_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("demo_learner_profiles.learner_id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("learner_profiles.learner_id"), nullable=False
     )
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.subject_id"), nullable=False)
     topic_ids: Mapped[list[str]] = mapped_column(JSON, nullable=False)

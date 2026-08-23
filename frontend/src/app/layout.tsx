@@ -5,10 +5,16 @@ import DemoBadge from "@/components/DemoBadge";
 import "./globals.css";
 
 const NAV_LINKS = [
+  { href: "/demo", label: "Try Demo" },
   { href: "/placement?subject=algebra-1", label: "Placement" },
   { href: "/practice", label: "Practice" },
   { href: "/mastery", label: "Mastery" },
   { href: "/personalization-eval", label: "Personalization Evidence" },
+  { href: "/guardian/sign-in", label: "Guardian Sign In" },
+  { href: "/instructor/sign-in", label: "Instructor Sign In" },
+  { href: "/instructor/rosters", label: "Instructor Rosters" },
+  { href: "/instructor/dashboard", label: "Instructor Dashboard" },
+  { href: "/instructor/review", label: "Instructor Review" },
 ];
 
 const geistSans = Geist({

@@ -195,10 +195,7 @@ export interface GradingUnavailableBody {
 }
 
 export type FreeTextErrorBody =
-  | AnswerTooLongBody
-  | RateLimitedBody
-  | ModerationRejectedBody
-  | GradingUnavailableBody;
+  AnswerTooLongBody | RateLimitedBody | ModerationRejectedBody | GradingUnavailableBody;
 
 export class ApiError extends Error {
   constructor(
@@ -211,7 +208,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchOrThrow(path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(path, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
@@ -226,7 +223,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(response.status, `${path} failed (${response.status}): ${text}`, body);
   }
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetchOrThrow(path, init);
   return (await response.json()) as T;
+}
+
+// For endpoints with no response body (e.g. logout's 204) -- `request`
+// always calls `response.json()`, which throws on an empty body.
+async function requestVoid(path: string, init?: RequestInit): Promise<void> {
+  await fetchOrThrow(path, init);
 }
 
 export function getDemoLearner(): Promise<DemoLearner> {
@@ -352,4 +360,245 @@ export interface EvaluationReport {
 
 export function getEvaluationReport(): Promise<EvaluationReport> {
   return request<EvaluationReport>("/api/evaluation/report");
+}
+
+// Auth (spec 010 contracts/api.md "Auth" section). Session is a
+// stateless JWT in an httpOnly cookie set by the backend's Set-Cookie
+// response header -- these calls never read/write the token directly.
+
+export interface GuardianAuthResponse {
+  guardian_id: string;
+}
+
+export interface InstructorAuthResponse {
+  instructor_id: string;
+}
+
+// `AuthErrorBody.detail` distinguishes register/login failures (e.g.
+// "email_taken", "invalid_credentials") without re-parsing `message`,
+// same pattern as `FreeTextErrorBody` above.
+export interface AuthErrorBody {
+  detail: string;
+}
+
+export function registerGuardian(email: string, password: string): Promise<GuardianAuthResponse> {
+  return request<GuardianAuthResponse>("/api/auth/guardian/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function loginGuardian(email: string, password: string): Promise<GuardianAuthResponse> {
+  return request<GuardianAuthResponse>("/api/auth/guardian/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function registerInstructor(
+  email: string,
+  password: string,
+): Promise<InstructorAuthResponse> {
+  return request<InstructorAuthResponse>("/api/auth/instructor/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function loginInstructor(email: string, password: string): Promise<InstructorAuthResponse> {
+  return request<InstructorAuthResponse>("/api/auth/instructor/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function logout(): Promise<void> {
+  return requestVoid("/api/auth/logout", { method: "POST" });
+}
+
+export interface CreateLearnerResponse {
+  learner_id: string;
+  guardian_id: string;
+}
+
+export function createLearner(displayName: string): Promise<CreateLearnerResponse> {
+  return request<CreateLearnerResponse>("/api/learners", {
+    method: "POST",
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
+// Rosters (spec 010 contracts/api.md "Rosters" section, User Story 2).
+
+export type EnrollmentMode = "open" | "closed";
+
+export interface Roster {
+  roster_id: string;
+  subject_id: string;
+  enrollment_mode: EnrollmentMode;
+  join_code: string | null;
+}
+
+export interface RosterSummary {
+  roster_id: string;
+  subject_id: string;
+  enrollment_mode: EnrollmentMode;
+}
+
+export interface ListRostersResponse {
+  rosters: RosterSummary[];
+}
+
+export function createRoster(subjectId: string, enrollmentMode: EnrollmentMode): Promise<Roster> {
+  return request<Roster>("/api/rosters", {
+    method: "POST",
+    body: JSON.stringify({ subject_id: subjectId, enrollment_mode: enrollmentMode }),
+  });
+}
+
+export function updateRosterEnrollmentMode(
+  rosterId: string,
+  enrollmentMode: EnrollmentMode,
+): Promise<Roster> {
+  return request<Roster>(`/api/rosters/${rosterId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enrollment_mode: enrollmentMode }),
+  });
+}
+
+export function listRosters(): Promise<ListRostersResponse> {
+  return request<ListRostersResponse>("/api/rosters");
+}
+
+export type JoinRosterResponse =
+  | { status: "enrolled"; enrollment_id: string }
+  | { status: "pending"; enrollment_request_id: string };
+
+export function joinRoster(learnerId: string, joinCode: string): Promise<JoinRosterResponse> {
+  return request<JoinRosterResponse>("/api/rosters/join", {
+    method: "POST",
+    body: JSON.stringify({ learner_id: learnerId, join_code: joinCode }),
+  });
+}
+
+export interface EnrollmentRequestEntry {
+  enrollment_request_id: string;
+  learner_id: string;
+  requested_at: string;
+}
+
+export interface ListRequestsResponse {
+  requests: EnrollmentRequestEntry[];
+}
+
+export function listRosterRequests(rosterId: string): Promise<ListRequestsResponse> {
+  return request<ListRequestsResponse>(`/api/rosters/${rosterId}/requests`);
+}
+
+export function approveRosterRequest(
+  rosterId: string,
+  enrollmentRequestId: string,
+): Promise<{ status: "approved"; enrollment_id: string }> {
+  return request(`/api/rosters/${rosterId}/requests/${enrollmentRequestId}/approve`, {
+    method: "POST",
+  });
+}
+
+export function declineRosterRequest(
+  rosterId: string,
+  enrollmentRequestId: string,
+): Promise<{ status: "declined" }> {
+  return request(`/api/rosters/${rosterId}/requests/${enrollmentRequestId}/decline`, {
+    method: "POST",
+  });
+}
+
+export interface EnrolledLearner {
+  learner_id: string;
+  display_name: string;
+}
+
+export interface ListEnrollmentsResponse {
+  enrollments: EnrolledLearner[];
+}
+
+export function listRosterEnrollments(rosterId: string): Promise<ListEnrollmentsResponse> {
+  return request<ListEnrollmentsResponse>(`/api/rosters/${rosterId}/enrollments`);
+}
+
+export function unenrollLearner(rosterId: string, learnerId: string): Promise<void> {
+  return requestVoid(`/api/rosters/${rosterId}/enrollments/${learnerId}`, { method: "DELETE" });
+}
+
+// Dashboard (spec 010 contracts/api.md "Dashboard" section, User Story 3).
+// Each `learners[].recommendations` entry is byte-for-byte what
+// `getRecommendations` returns for that learner directly (SC-001) --
+// reuses the same `RecommendationsResponse` type for that reason.
+
+export interface DashboardLearnerEntry {
+  learner_id: string;
+  display_name: string;
+  recommendations: RecommendationsResponse;
+}
+
+export interface DashboardResponse {
+  roster_id: string;
+  subject_id: string;
+  learners: DashboardLearnerEntry[];
+}
+
+export function getRosterDashboard(rosterId: string): Promise<DashboardResponse> {
+  return request<DashboardResponse>(`/api/rosters/${rosterId}/dashboard`);
+}
+
+// Content review (spec 010 contracts/api.md "Content review" section,
+// User Story 4).
+
+export interface FlaggedQuestion {
+  question_id: string;
+  learner_id: string;
+  roster_id: string;
+  stem: string;
+  flagged_reason: string | null;
+  flagged_at: string;
+}
+
+export interface ListFlaggedResponse {
+  flagged: FlaggedQuestion[];
+}
+
+export function listFlaggedQuestions(): Promise<ListFlaggedResponse> {
+  return request<ListFlaggedResponse>("/api/content-review/flagged");
+}
+
+export type ResolutionAction = "reactivate" | "reject";
+
+export interface ResolveResponse {
+  question_id: string;
+  validation_status: string;
+}
+
+export function resolveFlaggedQuestion(
+  questionId: string,
+  action: ResolutionAction,
+): Promise<ResolveResponse> {
+  return request<ResolveResponse>(`/api/content-review/${questionId}/resolve`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
+
+// Demo entry points (spec 010 contracts/api.md "Demo entry points"
+// section). Unlike `getDemoLearner`, this also issues a session cookie
+// (`/speckit-clarify` with the user) -- calling it signs the browser in
+// as the seeded demo instructor, so the instructor pages become
+// browsable immediately afterward.
+
+export interface DemoInstructor {
+  instructor_id: string;
+  display_name: string;
+}
+
+export function getDemoInstructor(): Promise<DemoInstructor> {
+  return request<DemoInstructor>("/api/demo-instructor");
 }

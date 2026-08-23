@@ -2,7 +2,7 @@
 
 The Sequencing Agent condition is the only one that touches the
 database -- it must exercise the real `select_next_topic` code path,
-which reads/writes real Postgres rows keyed to a real `DemoLearnerProfile`
+which reads/writes real Postgres rows keyed to a real `LearnerProfile`
 (research.md §6). The random and fixed-order baselines run entirely
 in-memory (research.md §4) and only need the answer-draw/convergence
 helpers below, which every condition shares.
@@ -20,8 +20,8 @@ from src.agents.diagnostic.agent import preferred_question_type
 from src.agents.sequencing.agent import NextTopicSelection, select_next_topic
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.models.assessment_event import AssessmentEvent
-from src.models.demo_learner_profile import DemoLearnerProfile
 from src.models.enums import AssessmentEventType, MasteryBand, QuestionType
+from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
 from src.models.topic import Topic
 from src.services.audit_log.writer import record_event
@@ -79,19 +79,15 @@ def has_reached_mastered_band(observation: MasteryObservation | None) -> bool:
 
 
 @contextlib.contextmanager
-def synthetic_learners(
-    db: Session, *, count: int
-) -> Generator[list[DemoLearnerProfile], None, None]:
-    """Creates `count` `is_demo=True` `DemoLearnerProfile` rows
+def synthetic_learners(db: Session, *, count: int) -> Generator[list[LearnerProfile], None, None]:
+    """Creates `count` `is_demo=True` `LearnerProfile` rows
     (`eval-harness-`-prefixed, Constitution Principle VIII) for the
     Sequencing Agent condition to use, and guarantees every row this run
     creates against them -- `MasteryState` and `AssessmentEvent` rows
     included -- is deleted at the end, success or failure (research.md
     §6-§7)."""
     learners = [
-        DemoLearnerProfile(
-            display_name=f"{EVAL_HARNESS_LEARNER_PREFIX}{uuid.uuid4()}", is_demo=True
-        )
+        LearnerProfile(display_name=f"{EVAL_HARNESS_LEARNER_PREFIX}{uuid.uuid4()}", is_demo=True)
         for _ in range(count)
     ]
     db.add_all(learners)
@@ -107,7 +103,7 @@ def synthetic_learners(
         db.query(MasteryState).filter(MasteryState.learner_id.in_(learner_ids)).delete(
             synchronize_session=False
         )
-        db.query(DemoLearnerProfile).filter(DemoLearnerProfile.learner_id.in_(learner_ids)).delete(
+        db.query(LearnerProfile).filter(LearnerProfile.learner_id.in_(learner_ids)).delete(
             synchronize_session=False
         )
         db.commit()

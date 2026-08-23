@@ -13,7 +13,7 @@ that is provably non-nullable.
 Non-nullability is recognized from either an explicit `nullable=False`
 keyword in a `mapped_column(...)` call, or a bare `Mapped[bool]`
 annotation with no `Optional`/`| None` wrapper (SQLAlchemy 2.0's own
-type-inferred non-nullability, e.g. `DemoLearnerProfile.is_demo`'s
+type-inferred non-nullability, e.g. `LearnerProfile.is_demo`'s
 style) -- checking only the explicit keyword would false-positive on a
 model correctly relying on type inference (spec 009 /speckit-analyze
 finding F4). An explicit `nullable=True` (or any non-literal `nullable=`

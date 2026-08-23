@@ -2,7 +2,7 @@
 
 `next-question` takes a `learner_id` path param directly per
 contracts/api.md, unlike placement's implicit demo-learner resolution --
-Milestone 1 still has exactly one seeded DemoLearnerProfile, but this
+Milestone 1 still has exactly one seeded demo LearnerProfile, but this
 endpoint's shape matches the contract as written.
 """
 

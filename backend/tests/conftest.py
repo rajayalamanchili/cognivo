@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 from src.models import Base
-from src.models.demo_learner_profile import DemoLearnerProfile
+from src.models.learner_profile import LearnerProfile
 from src.services.content_artifact.loader import load_content_artifact
 
 
@@ -69,8 +69,8 @@ def db_session(_schema_engine):
 
 
 @pytest.fixture()
-def demo_learner(db_session) -> DemoLearnerProfile:
-    learner = DemoLearnerProfile(display_name="Test Demo Learner", is_demo=True)
+def demo_learner(db_session) -> LearnerProfile:
+    learner = LearnerProfile(display_name="Test Demo Learner", is_demo=True)
     db_session.add(learner)
     db_session.commit()
     db_session.refresh(learner)

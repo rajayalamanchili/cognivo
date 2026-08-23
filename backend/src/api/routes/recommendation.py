@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.agents.recommendation.agent import build_weak_area_report
+from src.agents.recommendation.agent import WeakAreaReport, build_weak_area_report
 from src.api.errors import NotFoundError
 from src.db import get_db
 from src.models.enums import AssessmentEventType
@@ -70,9 +70,50 @@ class RecommendationsResponse(BaseModel):
     insufficient_data_topic_ids: list[str]
 
 
-@router.get(
-    "/api/learners/{learner_id}/recommendations", response_model=RecommendationsResponse
-)
+def recommendations_response_from_report(report: WeakAreaReport) -> RecommendationsResponse:
+    """The single place `WeakAreaReport` -> wire-shape conversion
+    happens -- the instructor dashboard (`services/dashboard/
+    aggregation.py`, FR-008/SC-001) reuses this exact function so its
+    per-learner entries are guaranteed byte-for-byte identical to
+    calling this endpoint directly, never a hand-copied second mapping
+    that could quietly drift from this one."""
+    return RecommendationsResponse(
+        subject_id=report.subject_id,
+        data_sufficiency=report.data_sufficiency,
+        broad_review_needed=report.broad_review_needed,
+        weak_areas=[
+            WeakAreaFlagOut(
+                topic_id=flag.topic_id,
+                display_name=flag.display_name,
+                p_mastery=flag.p_mastery,
+                evidence=[
+                    EvidenceCitationOut(
+                        event_id=citation.event_id,
+                        question_id=citation.question_id,
+                        question_stem=citation.question_stem,
+                        answer_correct=citation.answer_correct,
+                        prior_p_mastery=citation.prior_p_mastery,
+                        posterior_p_mastery=citation.posterior_p_mastery,
+                        created_at=citation.created_at.isoformat(),
+                    )
+                    for citation in flag.evidence
+                ],
+                next_step=NextStepSuggestionOut(
+                    recommended_topic_id=flag.next_step.recommended_topic_id,
+                    recommended_display_name=flag.next_step.recommended_display_name,
+                    reason=flag.next_step.reason.value,
+                    prerequisite_chain=flag.next_step.prerequisite_chain,
+                ),
+            )
+            for flag in report.weak_areas
+        ],
+        in_progress_topic_ids=report.in_progress_topic_ids,
+        not_yet_assessed_topic_ids=report.not_yet_assessed_topic_ids,
+        insufficient_data_topic_ids=report.insufficient_data_topic_ids,
+    )
+
+
+@router.get("/api/learners/{learner_id}/recommendations", response_model=RecommendationsResponse)
 def get_recommendations(
     learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
 ) -> RecommendationsResponse:
@@ -124,37 +165,4 @@ def get_recommendations(
 
     db.commit()
 
-    return RecommendationsResponse(
-        subject_id=report.subject_id,
-        data_sufficiency=report.data_sufficiency,
-        broad_review_needed=report.broad_review_needed,
-        weak_areas=[
-            WeakAreaFlagOut(
-                topic_id=flag.topic_id,
-                display_name=flag.display_name,
-                p_mastery=flag.p_mastery,
-                evidence=[
-                    EvidenceCitationOut(
-                        event_id=citation.event_id,
-                        question_id=citation.question_id,
-                        question_stem=citation.question_stem,
-                        answer_correct=citation.answer_correct,
-                        prior_p_mastery=citation.prior_p_mastery,
-                        posterior_p_mastery=citation.posterior_p_mastery,
-                        created_at=citation.created_at.isoformat(),
-                    )
-                    for citation in flag.evidence
-                ],
-                next_step=NextStepSuggestionOut(
-                    recommended_topic_id=flag.next_step.recommended_topic_id,
-                    recommended_display_name=flag.next_step.recommended_display_name,
-                    reason=flag.next_step.reason.value,
-                    prerequisite_chain=flag.next_step.prerequisite_chain,
-                ),
-            )
-            for flag in report.weak_areas
-        ],
-        in_progress_topic_ids=report.in_progress_topic_ids,
-        not_yet_assessed_topic_ids=report.not_yet_assessed_topic_ids,
-        insufficient_data_topic_ids=report.insufficient_data_topic_ids,
-    )
+    return recommendations_response_from_report(report)
