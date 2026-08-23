@@ -85,7 +85,7 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -97,23 +97,23 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
             autoComplete={mode === "register" ? "new-password" : "current-password"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2"
           />
         </label>
         {errorText && (
-          <p className="text-sm text-red-600" data-testid="auth-error">
+          <p className="text-sm text-error" data-testid="auth-error">
             {errorText}
           </p>
         )}
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+          className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
         >
           {submitting ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}
         </button>
       </form>
-      <Link href={otherModeHref} className="text-sm text-blue-600 underline">
+      <Link href={otherModeHref} className="text-sm text-link underline">
         {otherModeLabel}
       </Link>
     </div>

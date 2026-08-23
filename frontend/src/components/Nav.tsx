@@ -57,9 +57,7 @@ const ACCOUNT_TYPE_LABEL: Record<"guardian" | "instructor", string> = {
 };
 
 function useVisitorState() {
-  const [accountType, setAccountType] = useState<SessionAccountType | null | "loading">(
-    "loading",
-  );
+  const [accountType, setAccountType] = useState<SessionAccountType | null | "loading">("loading");
   const [identifier, setIdentifier] = useState<string | null>(null);
   const [demoLearnerMode, setDemoLearnerMode] = useState(() => isDemoLearnerMode());
 
@@ -117,47 +115,39 @@ export default function Nav() {
           : [];
 
   return (
-    <nav className="flex flex-wrap items-center gap-4 border-b border-zinc-200 px-8 py-3 text-sm dark:border-zinc-800">
+    <nav className="flex flex-wrap items-center gap-4 border-b border-border px-8 py-3 text-sm">
       {bucket === "anonymous" && (
-        <Link href="/demo" className="text-zinc-600 dark:text-zinc-400">
+        <Link href="/demo" className="text-muted">
           Try Demo
         </Link>
       )}
-      <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-zinc-600 dark:text-zinc-400">
+      <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-muted">
         {PERSONALIZATION_EVIDENCE_LINK.label}
       </Link>
       {links.map((link) => (
-        <Link key={link.href} href={link.href} className="text-zinc-600 dark:text-zinc-400">
+        <Link key={link.href} href={link.href} className="text-muted">
           {link.label}
         </Link>
       ))}
       {bucket === "demo-learner" && (
-        <button
-          type="button"
-          onClick={handleExitDemo}
-          className="text-zinc-600 underline dark:text-zinc-400"
-        >
+        <button type="button" onClick={handleExitDemo} className="text-muted underline">
           Exit Demo
         </button>
       )}
       {(bucket === "guardian" || bucket === "instructor") && (
         <span className="ml-auto flex items-center gap-4">
           {(accountType === "guardian" || accountType === "instructor") && identifier && (
-            <span className="text-zinc-500 dark:text-zinc-400" data-testid="nav-identity">
+            <span className="text-muted" data-testid="nav-identity">
               {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
             </span>
           )}
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="text-zinc-600 underline dark:text-zinc-400"
-          >
+          <button type="button" onClick={handleSignOut} className="text-muted underline">
             Sign Out
           </button>
         </span>
       )}
       {(bucket === "anonymous" || bucket === "demo-learner") && (
-        <Link href="/sign-in" className="ml-auto text-zinc-600 dark:text-zinc-400">
+        <Link href="/sign-in" className="ml-auto text-muted">
           Sign In
         </Link>
       )}

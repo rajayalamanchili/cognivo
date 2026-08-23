@@ -85,9 +85,7 @@ export default function QuizFlow() {
 
   function toggleTopic(topicId: string) {
     setSelectedTopicIds((current) =>
-      current.includes(topicId)
-        ? current.filter((id) => id !== topicId)
-        : [...current, topicId],
+      current.includes(topicId) ? current.filter((id) => id !== topicId) : [...current, topicId],
     );
   }
 
@@ -176,7 +174,7 @@ export default function QuizFlow() {
   if (phase === "error") {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {errorMessage}</p>
+        <p className="text-error">Something went wrong: {errorMessage}</p>
       </div>
     );
   }
@@ -208,7 +206,7 @@ export default function QuizFlow() {
             type="button"
             disabled={response === "" || phase === "submitting"}
             onClick={handleSubmitAnswer}
-            className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
           >
             {phase === "submitting" ? "Submitting…" : "Submit Answer"}
           </button>
@@ -218,10 +216,7 @@ export default function QuizFlow() {
   }
 
   return (
-    <div
-      className="mx-auto flex max-w-2xl flex-col gap-6 p-8"
-      data-testid="quiz-start-form"
-    >
+    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="quiz-start-form">
       <h1 className="text-2xl font-semibold">Start a Quiz</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">
@@ -229,7 +224,7 @@ export default function QuizFlow() {
           <select
             value={selectedSubjectId ?? ""}
             onChange={(event) => setSelectedSubjectId(event.target.value)}
-            className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2"
           >
             {subjects.map((subject) => (
               <option key={subject.subject_id} value={subject.subject_id}>
@@ -260,14 +255,14 @@ export default function QuizFlow() {
           max={50}
           value={questionCount}
           onChange={(event) => setQuestionCount(Number(event.target.value))}
-          className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+          className="rounded-lg border border-border px-3 py-2"
         />
       </label>
       <button
         type="button"
         disabled={selectedTopicIds.length === 0 || phase === "starting"}
         onClick={handleStart}
-        className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+        className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
       >
         {phase === "starting" ? "Starting…" : "Start Quiz"}
       </button>

@@ -41,7 +41,7 @@ export default function DemoEntryPage() {
         <Link
           href="/practice"
           onClick={enterDemoLearnerMode}
-          className="rounded bg-foreground px-5 py-3 text-center text-background"
+          className="rounded-lg bg-primary px-5 py-3 text-center text-primary-foreground"
         >
           Try as a demo learner
         </Link>
@@ -49,13 +49,13 @@ export default function DemoEntryPage() {
           type="button"
           onClick={handleTryAsInstructor}
           disabled={starting}
-          className="rounded border border-black/20 px-5 py-3 disabled:opacity-40 dark:border-white/20"
+          className="rounded-lg border border-border px-5 py-3 disabled:opacity-40"
         >
           {starting ? "Starting…" : "Try as a demo instructor"}
         </button>
       </div>
 
-      {errorText && <p className="text-sm text-red-600">{errorText}</p>}
+      {errorText && <p className="text-sm text-error">{errorText}</p>}
     </div>
   );
 }

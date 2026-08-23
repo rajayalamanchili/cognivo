@@ -8,13 +8,13 @@ export default function SignInChooserPage() {
       <div className="flex flex-col gap-3">
         <Link
           href="/guardian/sign-in"
-          className="rounded bg-foreground px-5 py-3 text-center text-background"
+          className="rounded-lg bg-primary px-5 py-3 text-center text-primary-foreground"
         >
           Sign in as guardian
         </Link>
         <Link
           href="/instructor/sign-in"
-          className="rounded border border-black/20 px-5 py-3 text-center dark:border-white/20"
+          className="rounded-lg border border-border px-5 py-3 text-center"
         >
           Sign in as instructor
         </Link>

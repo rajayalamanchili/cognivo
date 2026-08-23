@@ -21,9 +21,7 @@ export default function PathVisualization({ assessedTopics, preview }: PathVisua
     <div data-testid="path-visualization" className="flex flex-col gap-3">
       {assessedTopics.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Assessed so far
-          </h3>
+          <h3 className="text-sm font-medium text-muted">Assessed so far</h3>
           <ul className="flex flex-col gap-1">
             {assessedTopics.map((topic) => (
               <li key={topic.topic_id} className="text-sm">
@@ -35,7 +33,7 @@ export default function PathVisualization({ assessedTopics, preview }: PathVisua
       )}
 
       <div>
-        <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Up next</h3>
+        <h3 className="text-sm font-medium text-muted">Up next</h3>
         <p data-testid="next-topic" className="font-medium">
           {preview.next_topic.display_name}
         </p>
@@ -43,9 +41,7 @@ export default function PathVisualization({ assessedTopics, preview }: PathVisua
 
       {upcomingTopics.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-            Likely coming up
-          </h3>
+          <h3 className="text-sm font-medium text-muted">Likely coming up</h3>
           <ol data-testid="upcoming-topics" className="flex flex-col gap-1">
             {upcomingTopics.map((topic) => (
               <li key={topic.topic_id} className="text-sm">
@@ -53,10 +49,7 @@ export default function PathVisualization({ assessedTopics, preview }: PathVisua
               </li>
             ))}
           </ol>
-          <p
-            data-testid="illustrative-disclosure"
-            className="mt-1 text-xs text-zinc-500 dark:text-zinc-400"
-          >
+          <p data-testid="illustrative-disclosure" className="mt-1 text-xs text-muted">
             Illustrative only &mdash; subject to change as your mastery updates.
           </p>
         </div>

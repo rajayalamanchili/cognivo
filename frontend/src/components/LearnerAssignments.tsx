@@ -187,7 +187,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         <button
           type="button"
           onClick={handleBackToList}
-          className="self-start rounded border border-black/20 px-4 py-2 text-sm dark:border-white/20"
+          className="self-start rounded-lg border border-border px-4 py-2 text-sm"
         >
           Back to assignments
         </button>
@@ -199,7 +199,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     return (
       <div className="flex flex-col gap-6" data-testid="learner-assignment-attempt">
         {attemptError && (
-          <p className="text-sm text-red-600" data-testid="learner-assignment-attempt-error">
+          <p className="text-sm text-error" data-testid="learner-assignment-attempt-error">
             {attemptError}
           </p>
         )}
@@ -217,7 +217,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
             type="button"
             disabled={response === "" || phase === "submitting"}
             onClick={handleSubmitAnswer}
-            className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
           >
             {phase === "submitting" ? "Submitting…" : "Submit Answer"}
           </button>
@@ -232,7 +232,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
 
   if (loadError) {
     return (
-      <p className="text-sm text-red-600" data-testid="learner-assignments-error">
+      <p className="text-sm text-error" data-testid="learner-assignments-error">
         {loadError}
       </p>
     );
@@ -242,11 +242,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     <div className="flex flex-col gap-2" data-testid="learner-assignments">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Assigned quizzes</h3>
-        <button
-          type="button"
-          onClick={refreshAssignments}
-          className="text-sm text-zinc-500 underline dark:text-zinc-400"
-        >
+        <button type="button" onClick={refreshAssignments} className="text-sm text-muted underline">
           Refresh
         </button>
       </div>
@@ -255,13 +251,13 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         <div
           key={assignment.assignment_id}
           data-testid={`learner-assignment-${assignment.assignment_id}`}
-          className="flex items-center justify-between rounded border border-black/20 px-4 py-3 text-sm dark:border-white/20"
+          className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm"
         >
           <div className="flex flex-col gap-1">
             <span>
               {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
             </span>
-            <span className="text-zinc-500 dark:text-zinc-400">
+            <span className="text-muted">
               {STATUS_LABEL[assignment.status]}
               {assignment.due_at && ` · due ${new Date(assignment.due_at).toLocaleString()}`}
               {assignment.cancelled_at && (
@@ -277,7 +273,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
               type="button"
               onClick={() => handleStart(assignment.assignment_id)}
               disabled={startingId === assignment.assignment_id}
-              className="rounded bg-foreground px-4 py-2 text-background disabled:opacity-40"
+              className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40"
             >
               {startingId === assignment.assignment_id ? "Starting…" : "Start"}
             </button>
@@ -285,7 +281,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         </div>
       ))}
       {startError && (
-        <p className="text-sm text-red-600" data-testid="learner-assignment-start-error">
+        <p className="text-sm text-error" data-testid="learner-assignment-start-error">
           {startError}
         </p>
       )}

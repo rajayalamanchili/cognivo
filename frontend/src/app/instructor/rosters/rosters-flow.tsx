@@ -258,7 +258,7 @@ export default function RostersFlow() {
   if (loadError) {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {loadError}</p>
+        <p className="text-error">Something went wrong: {loadError}</p>
       </div>
     );
   }
@@ -269,7 +269,7 @@ export default function RostersFlow() {
 
       <form
         onSubmit={handleCreate}
-        className="flex flex-col gap-4 rounded border border-black/20 p-4 dark:border-white/20"
+        className="flex flex-col gap-4 rounded-lg border border-border p-4"
       >
         <h2 className="font-medium">Create a roster</h2>
         <label className="flex flex-col gap-1 text-sm">
@@ -277,7 +277,7 @@ export default function RostersFlow() {
           <select
             value={newSubjectId}
             onChange={(event) => setNewSubjectId(event.target.value)}
-            className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2"
           >
             {subjects.map((subject) => (
               <option key={subject.subject_id} value={subject.subject_id}>
@@ -307,14 +307,14 @@ export default function RostersFlow() {
           </label>
         </fieldset>
         {createError && (
-          <p className="text-sm text-red-600" data-testid="create-roster-error">
+          <p className="text-sm text-error" data-testid="create-roster-error">
             {createError}
           </p>
         )}
         <button
           type="submit"
           disabled={creating || !newSubjectId}
-          className="self-start rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+          className="self-start rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
         >
           {creating ? "Creating…" : "Create roster"}
         </button>
@@ -325,7 +325,7 @@ export default function RostersFlow() {
         {rosters.map((roster) => (
           <div
             key={roster.roster_id}
-            className="flex items-center justify-between rounded border border-black/20 px-4 py-3 dark:border-white/20"
+            className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
           >
             <div className="flex flex-col gap-1">
               <span className="font-medium">{roster.subject_id}</span>
@@ -338,7 +338,7 @@ export default function RostersFlow() {
               <button
                 type="button"
                 onClick={() => handleSetMode(roster.roster_id, roster.enrollment_mode)}
-                className="rounded border border-black/20 px-3 py-1.5 text-sm dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm"
               >
                 Show code
               </button>
@@ -350,14 +350,14 @@ export default function RostersFlow() {
                     roster.enrollment_mode === "open" ? "closed" : "open",
                   )
                 }
-                className="rounded border border-black/20 px-3 py-1.5 text-sm dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm"
               >
                 Switch to {roster.enrollment_mode === "open" ? "closed" : "open"}
               </button>
               <button
                 type="button"
                 onClick={() => selectRoster(roster.roster_id)}
-                className="rounded bg-foreground px-3 py-1.5 text-sm text-background"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground"
               >
                 Manage
               </button>
@@ -367,11 +367,11 @@ export default function RostersFlow() {
       </div>
 
       {selectedRosterId && (
-        <div className="flex flex-col gap-6 rounded border border-black/20 p-4 dark:border-white/20">
+        <div className="flex flex-col gap-6 rounded-lg border border-border p-4">
           <h2 className="font-medium">Managing roster {selectedRosterId}</h2>
           {detailLoading && <p className="text-sm">Loading&hellip;</p>}
           {detailError && (
-            <p className="text-sm text-red-600" data-testid="roster-detail-error">
+            <p className="text-sm text-error" data-testid="roster-detail-error">
               {detailError}
             </p>
           )}
@@ -389,14 +389,14 @@ export default function RostersFlow() {
                   <button
                     type="button"
                     onClick={() => handleApprove(request.enrollment_request_id)}
-                    className="rounded bg-foreground px-3 py-1 text-background"
+                    className="rounded-lg bg-primary px-3 py-1 text-primary-foreground"
                   >
                     Approve
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDecline(request.enrollment_request_id)}
-                    className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                    className="rounded-lg border border-border px-3 py-1"
                   >
                     Decline
                   </button>
@@ -414,7 +414,7 @@ export default function RostersFlow() {
                 <button
                   type="button"
                   onClick={() => handleUnenroll(learner.learner_id)}
-                  className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                  className="rounded-lg border border-border px-3 py-1"
                 >
                   Unenroll
                 </button>
@@ -425,7 +425,7 @@ export default function RostersFlow() {
           <form
             onSubmit={handleCreateAssignment}
             data-testid="assign-quiz-form"
-            className="flex flex-col gap-3 rounded border border-black/20 p-4 dark:border-white/20"
+            className="flex flex-col gap-3 rounded-lg border border-border p-4"
           >
             <h3 className="text-sm font-medium">Assign a quiz</h3>
             <label className="flex flex-col gap-1 text-sm">
@@ -435,7 +435,7 @@ export default function RostersFlow() {
                 value={assignTopicIds}
                 onChange={(event) => setAssignTopicIds(event.target.value)}
                 data-testid="assign-topic-ids"
-                className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-2"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -447,7 +447,7 @@ export default function RostersFlow() {
                 value={assignQuestionCount}
                 onChange={(event) => setAssignQuestionCount(Number(event.target.value))}
                 data-testid="assign-question-count"
-                className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-2"
               />
             </label>
             <label className="flex flex-col gap-1 text-sm">
@@ -457,7 +457,7 @@ export default function RostersFlow() {
                 value={assignDueAt}
                 onChange={(event) => setAssignDueAt(event.target.value)}
                 data-testid="assign-due-at"
-                className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-2"
               />
             </label>
             <fieldset className="flex flex-col gap-2 text-sm">
@@ -485,9 +485,7 @@ export default function RostersFlow() {
               </div>
               {assignTargetMode === "subset" && (
                 <div className="flex flex-col gap-1 pl-2">
-                  {enrollments.length === 0 && (
-                    <p className="text-sm">No learners enrolled yet.</p>
-                  )}
+                  {enrollments.length === 0 && <p className="text-sm">No learners enrolled yet.</p>}
                   {enrollments.map((learner) => (
                     <label key={learner.learner_id} className="flex items-center gap-2">
                       <input
@@ -503,7 +501,7 @@ export default function RostersFlow() {
               )}
             </fieldset>
             {assignError && (
-              <p className="text-sm text-red-600" data-testid="assign-quiz-error">
+              <p className="text-sm text-error" data-testid="assign-quiz-error">
                 {assignError}
               </p>
             )}
@@ -514,7 +512,7 @@ export default function RostersFlow() {
                 assignTopicIds.trim().length === 0 ||
                 (assignTargetMode === "subset" && assignSelectedLearnerIds.length === 0)
               }
-              className="self-start rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+              className="self-start rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
             >
               {assigning ? "Assigning…" : "Assign quiz"}
             </button>
@@ -543,7 +541,7 @@ export default function RostersFlow() {
                   <button
                     type="button"
                     onClick={() => handleViewResults(assignment.assignment_id)}
-                    className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                    className="rounded-lg border border-border px-3 py-1"
                   >
                     View results
                   </button>
@@ -551,7 +549,7 @@ export default function RostersFlow() {
                     <button
                       type="button"
                       onClick={() => handleCancelAssignment(assignment.assignment_id)}
-                      className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                      className="rounded-lg border border-border px-3 py-1"
                     >
                       Cancel
                     </button>
@@ -563,7 +561,7 @@ export default function RostersFlow() {
 
           {resultsAssignmentId && (
             <div
-              className="flex flex-col gap-3 rounded border border-black/20 p-4 dark:border-white/20"
+              className="flex flex-col gap-3 rounded-lg border border-border p-4"
               data-testid="assignment-results"
             >
               <div className="flex items-center justify-between">
@@ -571,14 +569,14 @@ export default function RostersFlow() {
                 <button
                   type="button"
                   onClick={handleCloseResults}
-                  className="text-sm text-zinc-500 underline dark:text-zinc-400"
+                  className="text-sm text-muted underline"
                 >
                   Close
                 </button>
               </div>
               {resultsLoading && <p className="text-sm">Loading&hellip;</p>}
               {resultsError && (
-                <p className="text-sm text-red-600" data-testid="assignment-results-error">
+                <p className="text-sm text-error" data-testid="assignment-results-error">
                   {resultsError}
                 </p>
               )}
