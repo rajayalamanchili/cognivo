@@ -9,8 +9,9 @@
 Extends Milestone 5's adaptive-difficulty quiz mechanism so an
 instructor can configure and target a quiz assignment (topic(s),
 question count, optional due date) at a chosen subset (or all) of a
-roster's enrolled learners, and see per-student results in the
-instructor dashboard. Introduces two new tables (`quiz_assignments`,
+roster's enrolled learners, and see per-student results in a dedicated
+per-assignment results view (distinct from Milestone 7's existing
+weak-area dashboard). Introduces two new tables (`quiz_assignments`,
 `quiz_assignment_targets`) as a pure join layer on top of the existing,
 entirely-unmodified `QuizSession`/`GeneratedQuestion`/grading/mastery-
 update mechanism (research.md §1) -- no new grading or difficulty logic

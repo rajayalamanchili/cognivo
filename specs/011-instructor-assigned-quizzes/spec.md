@@ -146,10 +146,13 @@ assignment.
 
 ### User Story 3 - Instructor reviews per-student assignment results (Priority: P2)
 
-An instructor opens their dashboard and sees, for a given assignment,
-each targeted learner's individual status (not started / in progress /
-completed / ended early) and score, broken out per student rather than
-collapsed into a single class-wide number.
+An instructor opens an assignment's results view and sees, for that
+assignment, each targeted learner's individual status (not started /
+in progress / completed / ended early) and score, broken out per
+student rather than collapsed into a single class-wide number. (This is
+a results view scoped to one assignment, distinct from Milestone 7's
+existing weak-area dashboard -- it does not extend or replace that
+page.)
 
 **Why this priority**: Assigning work an instructor can't then check on
 delivers little value on its own -- but it strictly depends on User
@@ -158,15 +161,15 @@ both.
 
 **Independent Test**: Given an assignment with a mix of learners who
 have completed it, started it, and not touched it at all, confirm the
-instructor's dashboard shows the correct distinct status and score (if
-any) for each of those learners individually.
+assignment's results view shows the correct distinct status and score
+(if any) for each of those learners individually.
 
 **Acceptance Scenarios**:
 
 1. **Given** an assignment where some targeted learners have completed
-   it and others have not started, **When** the instructor views the
-   assignment, **Then** each targeted learner's individual status and
-   score (if completed) is shown separately.
+   it, some are in progress, and others have not started, **When** the
+   instructor views the assignment, **Then** each targeted learner's
+   individual status and score (if completed) is shown separately.
 2. **Given** an assignment past its due date with learners who never
    started it, **When** the instructor views the assignment, **Then**
    those learners are clearly distinguishable from ones who completed it
@@ -209,9 +212,10 @@ any) for each of those learners individually.
   currently-enrolled learners, or all of them.
 - **FR-003**: The system MUST reject assignment creation if the
   resulting target-learner list would be empty.
-- **FR-004**: The system MUST reject any attempt to create, view,
-  modify, or cancel an assignment for a roster the requesting instructor
-  does not own.
+- **FR-004**: The system MUST reject any attempt to create, view, or
+  cancel an assignment for a roster the requesting instructor does not
+  own. (No modify/edit capability exists for an already-created
+  assignment -- see Assumptions.)
 - **FR-005**: The system MUST fix an assignment's target-learner list at
   creation time; learners enrolled in the roster afterward are not
   retroactively added to that assignment.
@@ -230,10 +234,11 @@ any) for each of those learners individually.
   path.
 - **FR-009**: The system MUST record which assignment a given quiz
   attempt belongs to, so results can be reported per assignment.
-- **FR-010**: The instructor dashboard MUST show, for a given
+- **FR-010**: The system MUST show an instructor, for a given
   assignment, each targeted learner's individual status (not started /
   in progress / completed / ended early) and score if completed --
-  never only a class-wide aggregate.
+  never only a class-wide aggregate. This is a per-assignment results
+  view, not an extension of Milestone 7's existing weak-area dashboard.
 - **FR-011**: The system MUST prevent a learner who is unenrolled from
   the roster after being targeted from starting or continuing an
   assignment attempt they had not already completed.
@@ -270,8 +275,9 @@ any) for each of those learners individually.
   instructor.
 - **Assignment Attempt**: The link between a specific targeted learner's
   quiz session (Milestone 5's existing quiz mechanism) and the
-  assignment it counts toward, carrying that learner's status and score
-  for reporting.
+  assignment it counts toward, yielding that learner's status and score
+  for reporting when queried (derived from the linked quiz session, not
+  separately stored).
 
 ## Success Criteria *(mandatory)*
 
@@ -284,12 +290,16 @@ any) for each of those learners individually.
   learner's mastery state, verified to go through the identical
   mechanism a learner-initiated quiz already uses -- zero new grading or
   mastery-update code paths introduced.
-- **SC-003**: For every assignment, the instructor dashboard shows a
-  distinct status for 100% of targeted learners individually, never
-  collapsing results into a single class-wide number.
-- **SC-004**: Zero learners outside an assignment's targeted list (or no
-  longer enrolled in the roster) are able to start, continue, or appear
-  in that assignment's results.
+- **SC-003**: For every assignment, the instructor-facing results view
+  shows a distinct status for 100% of targeted learners individually,
+  never collapsing results into a single class-wide number.
+- **SC-004**: Zero learners outside an assignment's targeted list are
+  able to start, continue, or appear in that assignment's results. A
+  learner unenrolled from the roster after being targeted can no longer
+  start or continue their attempt (FR-011), but -- consistent with
+  FR-016's rule that a cancelled assignment stays visible rather than
+  disappearing -- their existing target entry remains visible in the
+  per-student report rather than being retroactively hidden.
 - **SC-005**: An instructor can distinguish, for any assignment past its
   due date, which targeted learners completed it on time versus never
   started, without manual cross-referencing.

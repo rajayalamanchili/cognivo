@@ -13,10 +13,10 @@ request/response shapes.
 - Same as `specs/010-instructor-classroom/quickstart.md`, plus this
   feature's migration applied (`alembic upgrade head` -- adds
   `quiz_assignments` and `quiz_assignment_targets`).
-- An instructor account with an open roster containing at least two
+- An instructor account with an open roster containing at least three
   enrolled learners, each with a distinct guardian account (follow
   `specs/010-instructor-classroom/quickstart.md` scenarios 1 and 3
-  twice to set this up).
+  three times to set this up).
 
 ## Validation scenario 1: instructor assigns a quiz to a subset of the roster
 
@@ -89,3 +89,18 @@ attempt hadn't completed yet). As learner C's guardian, finish the
 already-started attempt -> confirm `GET /api/rosters/{roster_id}/
 assignments/{assignment_id}` still shows learner C as `completed` with
 a real score, even though the assignment is cancelled (FR-012).
+
+## Validation scenario 8: instructor sees a mixed-status per-student report (US3)
+
+Create a sixth assignment targeting all three enrolled learners (A, B,
+C). As learner A's guardian, start and fully complete the attempt. As
+learner B's guardian, start it but stop after one question (leave it
+`in_progress`). Leave learner C's untouched. As the instructor,
+`GET /api/rosters/{roster_id}/assignments/{assignment_id}` -> confirm
+the three learners show `completed` (with a score), `in_progress`, and
+`not_started` respectively, in the same response -- not collapsed into
+one aggregate (SC-003). (The fourth possible status, `ended_early`, is
+validated only by the automated `test_quiz_assignment_report.py`
+integration test, T029 -- triggering it manually requires exhausting
+the dedup-retry mechanism, which spec 005's own quickstart also does
+not attempt to drive by hand.)

@@ -56,9 +56,12 @@ these tables/enum values.
       shared by User Story 2's guardian list and User Story 3's
       per-student report (depends on T005, T006)
 
-**Checkpoint**: Foundation ready -- User Stories 1 and 2 can now be
-implemented in parallel (if staffed); User Story 3 additionally depends
-on User Story 1 having assignments to report on.
+**Checkpoint**: Foundation ready -- User Stories 1 and 2's
+*implementation* (T010-T016, T023-T028) can now proceed in parallel (if
+staffed); User Story 2's own *tests* (T017-T021) need User Story 1's
+T010 to have run first to create a fixture assignment to act on (see
+Dependencies section below), and User Story 3 additionally depends on
+User Story 1 having assignments to report on.
 
 ---
 
@@ -223,10 +226,8 @@ reporting beyond the create-time response comes next.)
 **Goal**: An instructor sees each targeted learner's individual status
 and score for a given assignment, not a class-wide aggregate.
 
-**Independent Test**: `quickstart.md` scenario 1's per-student-view
-portion, plus User Story 3's own two acceptance scenarios (a mix of
-completed/not-started learners; distinguishing on-time completion from
-never-started past a due date).
+**Independent Test**: `quickstart.md` scenario 8 (a mixed-status
+per-student report), plus scenario 1's per-student-view portion.
 
 ### Tests for User Story 3
 
@@ -269,7 +270,7 @@ never-started past a due date).
 - [ ] T036 Update `roadmap.md`'s Milestone 8 status line to reflect
       `/speckit-implement` completion, in the same commit that
       completes it
-- [ ] T037 Run `quickstart.md`'s 7 validation scenarios end to end
+- [ ] T037 Run `quickstart.md`'s 8 validation scenarios end to end
       against a real migrated dev database
 
 ---
@@ -282,9 +283,19 @@ never-started past a due date).
 - **Foundational (Phase 2)**: Depends on Setup -- BLOCKS all user
   stories.
 - **User Story 1 (Phase 3)**: Depends on Foundational only.
-- **User Story 2 (Phase 4)**: Depends on Foundational only for its own
-  implementation tasks (T023-T028); its cancellation test (T022) also
-  depends on User Story 1's T011/T012.
+- **User Story 2 (Phase 4)**: Its *code* (T023-T028) depends on
+  Foundational only. Its *tests* (T017-T021) additionally depend on
+  User Story 1's T010 (`create_assignment()`) to have any
+  `QuizAssignment`/`QuizAssignmentTarget` row to act on -- this
+  codebase's existing convention (`test_quiz_next_question.py`,
+  `test_quiz_summary.py`) is fixture setup via the real service
+  function/route, not raw ORM inserts, so this is a genuine test-level
+  dependency, not just an implementation nicety. In practice this means
+  User Story 1's T010 (not the full T012-T016 route/UI work) is a
+  practical prerequisite for running User Story 2's test suite, even
+  though User Story 2's own *feature* is conceptually independent. Its
+  cancellation test (T022) additionally depends on User Story 1's
+  T011/T012 (the cancel endpoint).
 - **User Story 3 (Phase 5)**: Depends on Foundational (T007) and User
   Story 1 (T010, needs assignments to exist to report on).
 - **Polish (Phase 6)**: Depends on all three user stories.
