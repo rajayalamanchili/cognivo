@@ -9,8 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.db import get_db
-from src.models.real_instructor_account import RealInstructorAccount
-from src.services.auth.dependencies import current_instructor
+from src.services.auth.dependencies import InstructorAccount, current_instructor
 from src.services.content_review.resolution import (
     ResolutionAction,
     list_flagged_questions,
@@ -35,7 +34,7 @@ class ListFlaggedOut(BaseModel):
 
 @router.get("/api/content-review/flagged", response_model=ListFlaggedOut)
 def list_flagged_route(
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> ListFlaggedOut:
     entries = list_flagged_questions(db, instructor_id=instructor.instructor_id)
@@ -67,7 +66,7 @@ class ResolveOut(BaseModel):
 def resolve_route(
     question_id: uuid.UUID,
     body: ResolveIn,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> ResolveOut:
     question = resolve_flagged_question(

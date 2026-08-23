@@ -15,9 +15,17 @@ from sqlalchemy.orm import Session
 
 from src.api.errors import AuthenticationError
 from src.db import get_db
+from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.services.auth.tokens import SESSION_COOKIE_NAME, SessionClaims, verify_token
+
+# Every route that depends on `current_instructor` only ever reads
+# `.instructor_id` off the result (never `.email`/`.password_hash`), so
+# a real and a demo instructor are interchangeable at the type's actual
+# usage sites -- see tokens.py's `AccountType` docstring for why the
+# two are still distinct session-claim types rather than one.
+InstructorAccount = RealInstructorAccount | DemoInstructorProfile
 
 
 def current_session_claims(
@@ -51,10 +59,15 @@ def current_guardian(
 def current_instructor(
     claims: SessionClaims = Depends(current_session_claims),
     db: Session = Depends(get_db),
-) -> RealInstructorAccount:
-    if claims.account_type != "instructor":
-        raise AuthenticationError("instructor_session_required")
-    instructor = db.get(RealInstructorAccount, claims.account_id)
-    if instructor is None:
-        raise AuthenticationError("instructor_account_not_found")
-    return instructor
+) -> InstructorAccount:
+    if claims.account_type == "instructor":
+        instructor = db.get(RealInstructorAccount, claims.account_id)
+        if instructor is None:
+            raise AuthenticationError("instructor_account_not_found")
+        return instructor
+    if claims.account_type == "demo_instructor":
+        demo_instructor = db.get(DemoInstructorProfile, claims.account_id)
+        if demo_instructor is None:
+            raise AuthenticationError("instructor_account_not_found")
+        return demo_instructor
+    raise AuthenticationError("instructor_session_required")

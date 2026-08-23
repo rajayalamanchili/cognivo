@@ -26,6 +26,7 @@ from src.api.errors import (
 from src.api.routes import (
     auth,
     content_review,
+    demo_instructor,
     demo_learner,
     evaluation,
     instructor_dashboard,
@@ -128,3 +129,4 @@ app.include_router(learners.router)
 app.include_router(rosters.router)
 app.include_router(instructor_dashboard.router)
 app.include_router(content_review.router)
+app.include_router(demo_instructor.router)

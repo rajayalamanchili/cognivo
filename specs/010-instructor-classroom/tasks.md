@@ -292,20 +292,20 @@ extending Milestone 1's existing demo-learner pattern.
 
 ### Tests for User Story 5
 
-- [ ] T049 [P] [US5] Integration test: `GET /api/demo-instructor`
+- [X] T049 [P] [US5] Integration test: `GET /api/demo-instructor`
       requires no session cookie and resolves to the seeded
       `DemoInstructorProfile` with `is_demo: true` (quickstart scenario
       10) in `backend/tests/integration/test_demo_instructor.py`
 
 ### Implementation for User Story 5
 
-- [ ] T050 [US5] Implement `backend/scripts/seed_demo_instructor.py`,
+- [X] T050 [US5] Implement `backend/scripts/seed_demo_instructor.py`,
       mirroring `seed_demo_learner.py`'s pattern (depends on T012)
-- [ ] T051 [US5] Implement `GET /api/demo-instructor` in
+- [X] T051 [US5] Implement `GET /api/demo-instructor` in
       `backend/src/api/routes/demo_instructor.py` (depends on T012)
-- [ ] T052 [US5] Register the `demo_instructor` router in
+- [X] T052 [US5] Register the `demo_instructor` router in
       `backend/src/api/main.py`
-- [ ] T053 [P] [US5] Extend `frontend/src/app/demo/`'s existing
+- [X] T053 [P] [US5] Extend `frontend/src/app/demo/`'s existing
       demo-learner entry point with a demo-instructor path (depends on
       T051, T052)
 

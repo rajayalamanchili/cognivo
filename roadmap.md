@@ -292,9 +292,17 @@ weak-area logic, verified byte-for-byte identical to that agent's own
 endpoint) is also complete (2026-08-23). Phase 6 (User Story 4:
 content-review queue, scoped via an `Enrollment` join at query time
 rather than a denormalized snapshot, with reactivate/reject resolution
-and its own audited event type) is also complete (2026-08-23). User
-Story 5 (Phase 7, demo accounts) and Polish (Phase 8) have not
-started.
+and its own audited event type) is also complete (2026-08-23). Phase 7
+(User Story 5: seeded demo instructor) is also complete (2026-08-23) --
+extended beyond its original identity-only contract during
+`/speckit-clarify` to a fully navigable session (a new `demo_instructor`
+session-claim type resolving against `DemoInstructorProfile`), which in
+turn required relaxing `classroom_rosters.instructor_id` from a hard FK
+to `real_instructor_accounts` down to an application-enforced value
+(migration `7e686faa5e6d`), matching the same "could point at more than
+one table" precedent `RetentionRecord.account_id`/`DeletionRequest.
+target_id` already set. All five user stories are now independently
+functional; only Polish (Phase 8) remains.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

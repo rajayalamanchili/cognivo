@@ -80,7 +80,7 @@ instead of only synthetic rows.
 | Field | Type | Notes |
 |---|---|---|
 | `roster_id` | UUID, PK | |
-| `instructor_id` | FK -> `RealInstructorAccount.instructor_id`, not null | One owning instructor per roster (co-taught rosters are a future need, not required here). |
+| `instructor_id` | UUID, not null, **not a FK** (Correction below) | One owning instructor per roster (co-taught rosters are a future need, not required here). |
 | `subject_id` | FK -> `Subject.subject_id`, not null | **Fills the gap spec 009 left undetermined** -- a roster is scoped to exactly one subject (spec.md's Assumption), matching how `build_weak_area_report` and this platform's content model are already per-subject. |
 | `enrollment_mode` | enum(`open`, `closed`), not null | FR-004/FR-005/FR-006. Mutable after creation (an instructor can toggle it; no special transition logic beyond updating the column). |
 | `join_code` | string, nullable, unique | Column-nullable for schema flexibility, but populated for **every** roster regardless of mode -- see Correction below. Unique constraint added in migration `0892d285dcd8` (`uq_classroom_rosters_join_code`; Postgres UNIQUE permits multiple NULLs, so this doesn't constrain hypothetical future null cases). |
@@ -103,6 +103,20 @@ roster's code out of the `POST`/`PATCH /api/rosters` response body
 enrollment_mode: closed"`) -- the column itself is never null. A
 closed roster's code reaching its guardians is out-of-band (e.g. the
 instructor shares it directly) and out of scope for this milestone.
+
+**Correction (found during Phase 7 implementation)**: `instructor_id`
+originally read as a FK to `RealInstructorAccount.instructor_id` only.
+Phase 7's `/speckit-clarify` made the demo instructor a fully
+navigable session (`DemoInstructorProfile`, not
+`RealInstructorAccount`) rather than an identity-only lookup -- a
+roster the demo instructor creates can't satisfy a FK pointing at only
+one of the two tables an instructor identity might live in. Corrected
+design: `instructor_id` is not a FK at all (migration `7e686faa5e6d`),
+same shape as `RetentionRecord.account_id`/`DeletionRequest.target_id`
+above -- enforced at the application layer (`current_instructor` in
+`services/auth/dependencies.py` only ever returns a real or demo
+instructor's own, already-authenticated id) rather than a DB
+constraint.
 
 ### Enrollment
 

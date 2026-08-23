@@ -15,8 +15,7 @@ from src.api.routes.recommendation import (
 )
 from src.db import get_db
 from src.models.classroom_roster import ClassroomRoster
-from src.models.real_instructor_account import RealInstructorAccount
-from src.services.auth.dependencies import current_instructor
+from src.services.auth.dependencies import InstructorAccount, current_instructor
 from src.services.dashboard.aggregation import build_roster_dashboard
 
 router = APIRouter()
@@ -37,7 +36,7 @@ class DashboardOut(BaseModel):
 @router.get("/api/rosters/{roster_id}/dashboard", response_model=DashboardOut)
 def get_roster_dashboard(
     roster_id: uuid.UUID,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> DashboardOut:
     roster = db.get(ClassroomRoster, roster_id)

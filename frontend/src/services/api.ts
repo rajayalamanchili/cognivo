@@ -587,3 +587,18 @@ export function resolveFlaggedQuestion(
     body: JSON.stringify({ action }),
   });
 }
+
+// Demo entry points (spec 010 contracts/api.md "Demo entry points"
+// section). Unlike `getDemoLearner`, this also issues a session cookie
+// (`/speckit-clarify` with the user) -- calling it signs the browser in
+// as the seeded demo instructor, so the instructor pages become
+// browsable immediately afterward.
+
+export interface DemoInstructor {
+  instructor_id: string;
+  display_name: string;
+}
+
+export function getDemoInstructor(): Promise<DemoInstructor> {
+  return request<DemoInstructor>("/api/demo-instructor");
+}

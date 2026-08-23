@@ -18,9 +18,9 @@ from src.models.enrollment_request import EnrollmentRequest
 from src.models.enums import EnrollmentMode
 from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
-from src.models.real_instructor_account import RealInstructorAccount
 from src.models.subject import Subject
 from src.services.auth.dependencies import (
+    InstructorAccount,
     current_guardian,
     current_instructor,
     current_session_claims,
@@ -46,7 +46,7 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
 
 
 def _get_owned_roster(
-    db: Session, roster_id: uuid.UUID, instructor: RealInstructorAccount
+    db: Session, roster_id: uuid.UUID, instructor: InstructorAccount
 ) -> ClassroomRoster:
     roster = db.get(ClassroomRoster, roster_id)
     if roster is None:
@@ -95,7 +95,7 @@ class CreateRosterIn(BaseModel):
 @router.post("/api/rosters", response_model=RosterOut, status_code=201)
 def create_roster_route(
     body: CreateRosterIn,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> RosterOut:
     _get_validated_subject(db, body.subject_id)
@@ -116,7 +116,7 @@ class UpdateRosterIn(BaseModel):
 def update_roster_route(
     roster_id: uuid.UUID,
     body: UpdateRosterIn,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> RosterOut:
     roster = _get_owned_roster(db, roster_id, instructor)
@@ -126,7 +126,7 @@ def update_roster_route(
 
 @router.get("/api/rosters", response_model=ListRostersOut)
 def list_rosters_route(
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> ListRostersOut:
     rosters = (
@@ -188,7 +188,7 @@ class ListRequestsOut(BaseModel):
 @router.get("/api/rosters/{roster_id}/requests", response_model=ListRequestsOut)
 def list_requests_route(
     roster_id: uuid.UUID,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> ListRequestsOut:
     _get_owned_roster(db, roster_id, instructor)
@@ -222,7 +222,7 @@ class ListEnrollmentsOut(BaseModel):
 @router.get("/api/rosters/{roster_id}/enrollments", response_model=ListEnrollmentsOut)
 def list_enrollments_route(
     roster_id: uuid.UUID,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> ListEnrollmentsOut:
     """Not in the original contracts/api.md -- added while building
@@ -252,7 +252,7 @@ def _get_owned_pending_request(
     db: Session,
     roster_id: uuid.UUID,
     enrollment_request_id: uuid.UUID,
-    instructor: RealInstructorAccount,
+    instructor: InstructorAccount,
 ) -> EnrollmentRequest:
     _get_owned_roster(db, roster_id, instructor)
     request = db.get(EnrollmentRequest, enrollment_request_id)
@@ -265,7 +265,7 @@ def _get_owned_pending_request(
 def approve_request_route(
     roster_id: uuid.UUID,
     enrollment_request_id: uuid.UUID,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     request = _get_owned_pending_request(db, roster_id, enrollment_request_id, instructor)
@@ -280,7 +280,7 @@ def approve_request_route(
 def decline_request_route(
     roster_id: uuid.UUID,
     enrollment_request_id: uuid.UUID,
-    instructor: RealInstructorAccount = Depends(current_instructor),
+    instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> JSONResponse:
     request = _get_owned_pending_request(db, roster_id, enrollment_request_id, instructor)
@@ -299,7 +299,7 @@ def delete_enrollment_route(
     if roster is None:
         raise NotFoundError("unknown roster_id")
 
-    if claims.account_type == "instructor":
+    if claims.account_type in ("instructor", "demo_instructor"):
         if roster.instructor_id != claims.account_id:
             raise ForbiddenError("not_roster_owner")
     else:

@@ -218,5 +218,21 @@ instructor's roster(s) (FR-011).
 ```json
 { "instructor_id": "...", "display_name": "Demo Instructor" }
 ```
-No authentication -- same public, no-session pattern as the existing
-demo-learner endpoint. Resolves to the seeded `DemoInstructorProfile`.
+No authentication required to *call* -- same public, no-session pattern
+as the existing demo-learner endpoint. Resolves to the seeded
+`DemoInstructorProfile`.
+
+Unlike `GET /api/demo-learner`, this response also sets the session
+cookie (`/speckit-clarify` with the user, Phase 7 implementation):
+the demo instructor's rosters/dashboard/content-review are all real,
+session-gated routes (Milestone 1's learner routes predate auth
+entirely, so the demo-learner endpoint never needed to issue one) --
+without a cookie here, the demo instructor would be name-only and
+`current_instructor` would 401 on every other instructor route. The
+session claim's account type is the distinct `demo_instructor` (not
+`instructor`), so `current_instructor` resolves it against
+`DemoInstructorProfile` rather than `RealInstructorAccount`.
+`ClassroomRoster.instructor_id` is consequently not a FK to either
+table alone (migration `7e686faa5e6d`) -- same "could point at more
+than one table" shape as `RetentionRecord.account_id`/
+`DeletionRequest.target_id`, enforced at the application layer instead.

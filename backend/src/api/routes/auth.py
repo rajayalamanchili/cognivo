@@ -2,8 +2,8 @@
 "Auth" section, research.md §1-§2).
 
 Sessions are a stateless JWT in an httpOnly cookie -- register and login
-both set it the same way via `_set_session_cookie`; logout clears it.
-Guardian and instructor accounts are two separate tables with
+both set it the same way via `tokens.set_session_cookie`; logout clears
+it. Guardian and instructor accounts are two separate tables with
 independently-unique email (research.md §2), so the same email may
 register as both.
 """
@@ -20,13 +20,9 @@ from src.db import get_db
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.services.auth.passwords import hash_password, verify_password
-from src.services.auth.tokens import SESSION_COOKIE_NAME, issue_token
+from src.services.auth.tokens import SESSION_COOKIE_NAME, issue_token, set_session_cookie
 
 router = APIRouter()
-
-# Matches tokens.py's own token TTL -- the cookie shouldn't outlive the
-# JWT it carries.
-_COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 
 
 class AuthCredentialsIn(BaseModel):
@@ -45,18 +41,6 @@ class GuardianAuthOut(BaseModel):
 
 class InstructorAuthOut(BaseModel):
     instructor_id: uuid.UUID
-
-
-def _set_session_cookie(response: Response, token: str) -> None:
-    response.set_cookie(
-        SESSION_COOKIE_NAME,
-        token,
-        max_age=_COOKIE_MAX_AGE_SECONDS,
-        httponly=True,
-        secure=True,
-        samesite="lax",
-        path="/",
-    )
 
 
 @router.post("/api/auth/instructor/register", response_model=InstructorAuthOut, status_code=201)
@@ -84,7 +68,7 @@ def register_instructor(
     db.refresh(instructor)
 
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
-    _set_session_cookie(response, token)
+    set_session_cookie(response, token)
     return InstructorAuthOut(instructor_id=instructor.instructor_id)
 
 
@@ -99,7 +83,7 @@ def login_instructor(
         raise AuthenticationError("invalid_credentials")
 
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
-    _set_session_cookie(response, token)
+    set_session_cookie(response, token)
     return InstructorAuthOut(instructor_id=instructor.instructor_id)
 
 
@@ -123,7 +107,7 @@ def register_guardian(
     db.refresh(guardian)
 
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
-    _set_session_cookie(response, token)
+    set_session_cookie(response, token)
     return GuardianAuthOut(guardian_id=guardian.guardian_id)
 
 
@@ -136,7 +120,7 @@ def login_guardian(
         raise AuthenticationError("invalid_credentials")
 
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
-    _set_session_cookie(response, token)
+    set_session_cookie(response, token)
     return GuardianAuthOut(guardian_id=guardian.guardian_id)
 
 

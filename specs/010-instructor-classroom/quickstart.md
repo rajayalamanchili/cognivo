@@ -98,6 +98,15 @@ resolves to the seeded `DemoInstructorProfile`. Confirm this profile's
 `is_demo` is `true` and it's reachable without ever calling any
 `/api/auth/*` route.
 
+Confirm this endpoint also sets a session cookie (`/speckit-clarify`,
+Phase 7 implementation) -- unlike the demo-learner endpoint, the demo
+instructor needs one to reach any of its actual instructor pages.
+Using that cookie: `GET /api/rosters` -> `200` (empty list is fine,
+never an error); `POST /api/rosters` -> `201` (confirms
+`classroom_rosters.instructor_id` accepts a `DemoInstructorProfile`
+id, not only a `RealInstructorAccount` one); `GET /api/rosters/
+{roster_id}/dashboard` and `GET /api/content-review/flagged` -> `200`.
+
 ## Validation scenario 11: `check_no_real_account_path.py` still passes
 
 Run `uv run python scripts/check_no_real_account_path.py` (or the

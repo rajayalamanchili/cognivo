@@ -5,6 +5,7 @@ import DemoBadge from "@/components/DemoBadge";
 import "./globals.css";
 
 const NAV_LINKS = [
+  { href: "/demo", label: "Try Demo" },
   { href: "/placement?subject=algebra-1", label: "Placement" },
   { href: "/practice", label: "Practice" },
   { href: "/mastery", label: "Mastery" },
