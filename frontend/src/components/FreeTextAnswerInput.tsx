@@ -64,7 +64,7 @@ export default function FreeTextAnswerInput({
   return (
     <div className="flex flex-col gap-2" data-testid="free-text-answer-input">
       <textarea
-        className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+        className="rounded-lg border border-border px-3 py-2"
         rows={4}
         maxLength={MAX_LENGTH}
         value={text}
@@ -75,28 +75,28 @@ export default function FreeTextAnswerInput({
         type="button"
         onClick={handleSubmit}
         disabled={busy || text.trim() === ""}
-        className="self-start rounded bg-foreground px-4 py-2 text-sm text-background disabled:opacity-40"
+        className="self-start rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
       >
         {state === "grading-in-progress" ? "Grading…" : "Submit Answer"}
       </button>
 
       {state === "too-long" && (
-        <p className="text-sm text-red-600" data-testid="free-text-error-too-long">
+        <p className="text-sm text-error" data-testid="free-text-error-too-long">
           Your answer is too long (max {MAX_LENGTH} characters). Please shorten it and resubmit.
         </p>
       )}
       {state === "rate-limited" && (
-        <p className="text-sm text-red-600" data-testid="free-text-error-rate-limited">
+        <p className="text-sm text-error" data-testid="free-text-error-rate-limited">
           You&apos;ve submitted too many answers recently. Please wait a bit and try again.
         </p>
       )}
       {state === "moderation-rejected" && (
-        <p className="text-sm text-red-600" data-testid="free-text-error-moderation">
+        <p className="text-sm text-error" data-testid="free-text-error-moderation">
           This answer couldn&apos;t be accepted. Please revise and resubmit.
         </p>
       )}
       {state === "grading-unavailable" && (
-        <p className="text-sm text-red-600" data-testid="free-text-error-unavailable">
+        <p className="text-sm text-error" data-testid="free-text-error-unavailable">
           Grading is temporarily unavailable. Please try again shortly.
         </p>
       )}

@@ -30,14 +30,14 @@ test("guardian and instructor round trip: register, roster, join, dashboard", as
   const instructorEmail = uniqueEmail("e2e-instructor");
   const guardianEmail = uniqueEmail("e2e-guardian");
 
-  // Instructor: register, create an open roster.
+  // Instructor: register (redirects straight to rosters, same as the
+  // demo-instructor entry point), create an open roster.
   await page.goto("/instructor/register");
   await page.getByLabel("Email").fill(instructorEmail);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page.getByRole("heading", { name: "You're signed in" })).toBeVisible();
+  await expect(page).toHaveURL(/\/instructor\/rosters/);
 
-  await page.goto("/instructor/rosters");
   await page.getByRole("button", { name: "Create roster" }).click();
   await expect(page.getByTestId("roster-list")).toContainText("open");
 

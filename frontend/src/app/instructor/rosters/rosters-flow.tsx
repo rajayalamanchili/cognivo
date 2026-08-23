@@ -3,17 +3,23 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   approveRosterRequest,
+  cancelAssignment,
+  createAssignment,
   createRoster,
   declineRosterRequest,
+  getAssignmentDetail,
   getSubjects,
+  listRosterAssignments,
   listRosterEnrollments,
   listRosterRequests,
   listRosters,
   unenrollLearner,
   updateRosterEnrollmentMode,
+  type AssignmentDetail,
   type EnrolledLearner,
   type EnrollmentMode,
   type EnrollmentRequestEntry,
+  type QuizAssignmentSummary,
   type RosterSummary,
   type SubjectSummary,
 } from "@/services/api";
@@ -40,6 +46,20 @@ export default function RostersFlow() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
+  const [assignments, setAssignments] = useState<QuizAssignmentSummary[]>([]);
+  const [assignTopicIds, setAssignTopicIds] = useState("");
+  const [assignQuestionCount, setAssignQuestionCount] = useState(5);
+  const [assignDueAt, setAssignDueAt] = useState("");
+  const [assignTargetMode, setAssignTargetMode] = useState<"all" | "subset">("all");
+  const [assignSelectedLearnerIds, setAssignSelectedLearnerIds] = useState<string[]>([]);
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const [resultsAssignmentId, setResultsAssignmentId] = useState<string | null>(null);
+  const [resultsDetail, setResultsDetail] = useState<AssignmentDetail | null>(null);
+  const [resultsLoading, setResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     Promise.all([listRosters(), getSubjects()])
@@ -65,10 +85,15 @@ export default function RostersFlow() {
   const loadDetail = useCallback((rosterId: string) => {
     setDetailLoading(true);
     setDetailError(null);
-    Promise.all([listRosterRequests(rosterId), listRosterEnrollments(rosterId)])
-      .then(([requestsResponse, enrollmentsResponse]) => {
+    Promise.all([
+      listRosterRequests(rosterId),
+      listRosterEnrollments(rosterId),
+      listRosterAssignments(rosterId),
+    ])
+      .then(([requestsResponse, enrollmentsResponse, assignmentsResponse]) => {
         setRequests(requestsResponse.requests);
         setEnrollments(enrollmentsResponse.enrollments);
+        setAssignments(assignmentsResponse.assignments);
         setDetailLoading(false);
       })
       .catch((error: unknown) => {
@@ -79,7 +104,84 @@ export default function RostersFlow() {
 
   function selectRoster(rosterId: string) {
     setSelectedRosterId(rosterId);
+    setAssignTopicIds("");
+    setAssignQuestionCount(5);
+    setAssignDueAt("");
+    setAssignTargetMode("all");
+    setAssignSelectedLearnerIds([]);
+    setAssignError(null);
+    setResultsAssignmentId(null);
+    setResultsDetail(null);
+    setResultsError(null);
     loadDetail(rosterId);
+  }
+
+  function toggleAssignLearner(learnerId: string) {
+    setAssignSelectedLearnerIds((previous) =>
+      previous.includes(learnerId)
+        ? previous.filter((id) => id !== learnerId)
+        : [...previous, learnerId],
+    );
+  }
+
+  async function handleCreateAssignment(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedRosterId) return;
+    const topicIds = assignTopicIds
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0);
+    setAssigning(true);
+    setAssignError(null);
+    try {
+      await createAssignment(selectedRosterId, {
+        topicIds,
+        questionCount: assignQuestionCount,
+        dueAt: assignDueAt ? new Date(assignDueAt).toISOString() : null,
+        learnerIds: assignTargetMode === "all" ? "all" : assignSelectedLearnerIds,
+      });
+      setAssignTopicIds("");
+      setAssignQuestionCount(5);
+      setAssignDueAt("");
+      setAssignTargetMode("all");
+      setAssignSelectedLearnerIds([]);
+      loadDetail(selectedRosterId);
+    } catch (error) {
+      setAssignError(errorText(error));
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleCancelAssignment(assignmentId: string) {
+    if (!selectedRosterId) return;
+    try {
+      await cancelAssignment(selectedRosterId, assignmentId);
+      loadDetail(selectedRosterId);
+    } catch (error) {
+      setDetailError(errorText(error));
+    }
+  }
+
+  async function handleViewResults(assignmentId: string) {
+    if (!selectedRosterId) return;
+    setResultsAssignmentId(assignmentId);
+    setResultsLoading(true);
+    setResultsError(null);
+    try {
+      const detail = await getAssignmentDetail(selectedRosterId, assignmentId);
+      setResultsDetail(detail);
+    } catch (error) {
+      setResultsError(errorText(error));
+    } finally {
+      setResultsLoading(false);
+    }
+  }
+
+  function handleCloseResults() {
+    setResultsAssignmentId(null);
+    setResultsDetail(null);
+    setResultsError(null);
   }
 
   async function handleCreate(event: FormEvent) {
@@ -156,7 +258,7 @@ export default function RostersFlow() {
   if (loadError) {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {loadError}</p>
+        <p className="text-error">Something went wrong: {loadError}</p>
       </div>
     );
   }
@@ -167,7 +269,7 @@ export default function RostersFlow() {
 
       <form
         onSubmit={handleCreate}
-        className="flex flex-col gap-4 rounded border border-black/20 p-4 dark:border-white/20"
+        className="flex flex-col gap-4 rounded-lg border border-border p-4"
       >
         <h2 className="font-medium">Create a roster</h2>
         <label className="flex flex-col gap-1 text-sm">
@@ -175,7 +277,7 @@ export default function RostersFlow() {
           <select
             value={newSubjectId}
             onChange={(event) => setNewSubjectId(event.target.value)}
-            className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2"
           >
             {subjects.map((subject) => (
               <option key={subject.subject_id} value={subject.subject_id}>
@@ -205,14 +307,14 @@ export default function RostersFlow() {
           </label>
         </fieldset>
         {createError && (
-          <p className="text-sm text-red-600" data-testid="create-roster-error">
+          <p className="text-sm text-error" data-testid="create-roster-error">
             {createError}
           </p>
         )}
         <button
           type="submit"
           disabled={creating || !newSubjectId}
-          className="self-start rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+          className="self-start rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
         >
           {creating ? "Creating…" : "Create roster"}
         </button>
@@ -223,7 +325,7 @@ export default function RostersFlow() {
         {rosters.map((roster) => (
           <div
             key={roster.roster_id}
-            className="flex items-center justify-between rounded border border-black/20 px-4 py-3 dark:border-white/20"
+            className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
           >
             <div className="flex flex-col gap-1">
               <span className="font-medium">{roster.subject_id}</span>
@@ -236,7 +338,7 @@ export default function RostersFlow() {
               <button
                 type="button"
                 onClick={() => handleSetMode(roster.roster_id, roster.enrollment_mode)}
-                className="rounded border border-black/20 px-3 py-1.5 text-sm dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm"
               >
                 Show code
               </button>
@@ -248,14 +350,14 @@ export default function RostersFlow() {
                     roster.enrollment_mode === "open" ? "closed" : "open",
                   )
                 }
-                className="rounded border border-black/20 px-3 py-1.5 text-sm dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm"
               >
                 Switch to {roster.enrollment_mode === "open" ? "closed" : "open"}
               </button>
               <button
                 type="button"
                 onClick={() => selectRoster(roster.roster_id)}
-                className="rounded bg-foreground px-3 py-1.5 text-sm text-background"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground"
               >
                 Manage
               </button>
@@ -265,11 +367,11 @@ export default function RostersFlow() {
       </div>
 
       {selectedRosterId && (
-        <div className="flex flex-col gap-6 rounded border border-black/20 p-4 dark:border-white/20">
+        <div className="flex flex-col gap-6 rounded-lg border border-border p-4">
           <h2 className="font-medium">Managing roster {selectedRosterId}</h2>
           {detailLoading && <p className="text-sm">Loading&hellip;</p>}
           {detailError && (
-            <p className="text-sm text-red-600" data-testid="roster-detail-error">
+            <p className="text-sm text-error" data-testid="roster-detail-error">
               {detailError}
             </p>
           )}
@@ -287,14 +389,14 @@ export default function RostersFlow() {
                   <button
                     type="button"
                     onClick={() => handleApprove(request.enrollment_request_id)}
-                    className="rounded bg-foreground px-3 py-1 text-background"
+                    className="rounded-lg bg-primary px-3 py-1 text-primary-foreground"
                   >
                     Approve
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDecline(request.enrollment_request_id)}
-                    className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                    className="rounded-lg border border-border px-3 py-1"
                   >
                     Decline
                   </button>
@@ -312,13 +414,201 @@ export default function RostersFlow() {
                 <button
                   type="button"
                   onClick={() => handleUnenroll(learner.learner_id)}
-                  className="rounded border border-black/20 px-3 py-1 dark:border-white/20"
+                  className="rounded-lg border border-border px-3 py-1"
                 >
                   Unenroll
                 </button>
               </div>
             ))}
           </div>
+
+          <form
+            onSubmit={handleCreateAssignment}
+            data-testid="assign-quiz-form"
+            className="flex flex-col gap-3 rounded-lg border border-border p-4"
+          >
+            <h3 className="text-sm font-medium">Assign a quiz</h3>
+            <label className="flex flex-col gap-1 text-sm">
+              Topic ids (comma-separated)
+              <input
+                type="text"
+                value={assignTopicIds}
+                onChange={(event) => setAssignTopicIds(event.target.value)}
+                data-testid="assign-topic-ids"
+                className="rounded-lg border border-border px-3 py-2"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Question count
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={assignQuestionCount}
+                onChange={(event) => setAssignQuestionCount(Number(event.target.value))}
+                data-testid="assign-question-count"
+                className="rounded-lg border border-border px-3 py-2"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Due date (optional)
+              <input
+                type="datetime-local"
+                value={assignDueAt}
+                onChange={(event) => setAssignDueAt(event.target.value)}
+                data-testid="assign-due-at"
+                className="rounded-lg border border-border px-3 py-2"
+              />
+            </label>
+            <fieldset className="flex flex-col gap-2 text-sm">
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="assign_target_mode"
+                    checked={assignTargetMode === "all"}
+                    onChange={() => setAssignTargetMode("all")}
+                    data-testid="assign-target-all"
+                  />
+                  All enrolled learners
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="assign_target_mode"
+                    checked={assignTargetMode === "subset"}
+                    onChange={() => setAssignTargetMode("subset")}
+                    data-testid="assign-target-subset"
+                  />
+                  Choose learners
+                </label>
+              </div>
+              {assignTargetMode === "subset" && (
+                <div className="flex flex-col gap-1 pl-2">
+                  {enrollments.length === 0 && <p className="text-sm">No learners enrolled yet.</p>}
+                  {enrollments.map((learner) => (
+                    <label key={learner.learner_id} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={assignSelectedLearnerIds.includes(learner.learner_id)}
+                        onChange={() => toggleAssignLearner(learner.learner_id)}
+                        data-testid={`assign-learner-${learner.learner_id}`}
+                      />
+                      {learner.display_name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </fieldset>
+            {assignError && (
+              <p className="text-sm text-error" data-testid="assign-quiz-error">
+                {assignError}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={
+                assigning ||
+                assignTopicIds.trim().length === 0 ||
+                (assignTargetMode === "subset" && assignSelectedLearnerIds.length === 0)
+              }
+              className="self-start rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+            >
+              {assigning ? "Assigning…" : "Assign quiz"}
+            </button>
+          </form>
+
+          <div className="flex flex-col gap-2" data-testid="assignment-list">
+            <h3 className="text-sm font-medium">Assignments</h3>
+            {assignments.length === 0 && <p className="text-sm">No assignments yet.</p>}
+            {assignments.map((assignment) => (
+              <div
+                key={assignment.assignment_id}
+                data-testid={`assignment-${assignment.assignment_id}`}
+                className="flex items-center justify-between text-sm"
+              >
+                <span>
+                  {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
+                  {assignment.due_at && ` · due ${new Date(assignment.due_at).toLocaleString()}`}
+                  {assignment.cancelled_at && (
+                    <span data-testid={`assignment-cancelled-${assignment.assignment_id}`}>
+                      {" "}
+                      · cancelled
+                    </span>
+                  )}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleViewResults(assignment.assignment_id)}
+                    className="rounded-lg border border-border px-3 py-1"
+                  >
+                    View results
+                  </button>
+                  {!assignment.cancelled_at && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelAssignment(assignment.assignment_id)}
+                      className="rounded-lg border border-border px-3 py-1"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {resultsAssignmentId && (
+            <div
+              className="flex flex-col gap-3 rounded-lg border border-border p-4"
+              data-testid="assignment-results"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-medium">Results</h3>
+                <button
+                  type="button"
+                  onClick={handleCloseResults}
+                  className="text-sm text-muted underline"
+                >
+                  Close
+                </button>
+              </div>
+              {resultsLoading && <p className="text-sm">Loading&hellip;</p>}
+              {resultsError && (
+                <p className="text-sm text-error" data-testid="assignment-results-error">
+                  {resultsError}
+                </p>
+              )}
+              {resultsDetail && (
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr>
+                      <th className="pb-2 font-medium">Learner</th>
+                      <th className="pb-2 font-medium">Status</th>
+                      <th className="pb-2 font-medium">Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultsDetail.learners.map((learner) => (
+                      <tr
+                        key={learner.learner_id}
+                        data-testid={`assignment-result-${learner.learner_id}`}
+                      >
+                        <td className="py-1">{learner.display_name}</td>
+                        <td className="py-1">{learner.status}</td>
+                        <td className="py-1">
+                          {learner.score
+                            ? `${learner.score.correct} / ${learner.score.total}`
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

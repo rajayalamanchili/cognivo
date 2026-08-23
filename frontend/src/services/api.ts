@@ -416,6 +416,22 @@ export function logout(): Promise<void> {
   return requestVoid("/api/auth/logout", { method: "POST" });
 }
 
+export type SessionAccountType = "guardian" | "instructor" | "demo_instructor";
+
+export interface WhoAmIResponse {
+  account_type: SessionAccountType | null;
+  // Login email for a real guardian/instructor, or the seeded display
+  // name for a demo instructor -- `null` for no session.
+  identifier: string | null;
+}
+
+// Read-only session-identity check -- drives the nav's per-user-type
+// menu. Never itself an authorization decision (every route still
+// gates on its own current_guardian/current_instructor dependency).
+export function getWhoAmI(): Promise<WhoAmIResponse> {
+  return request<WhoAmIResponse>("/api/auth/whoami");
+}
+
 export interface CreateLearnerResponse {
   learner_id: string;
   guardian_id: string;
@@ -601,4 +617,125 @@ export interface DemoInstructor {
 
 export function getDemoInstructor(): Promise<DemoInstructor> {
   return request<DemoInstructor>("/api/demo-instructor");
+}
+
+// Instructor-assigned quizzes (spec 011 contracts/api.md "Assignments"
+// section, User Story 1).
+
+export interface QuizAssignment {
+  assignment_id: string;
+  roster_id: string;
+  subject_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  target_learner_ids: string[];
+}
+
+export interface QuizAssignmentSummary {
+  assignment_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+}
+
+export interface ListAssignmentsResponse {
+  assignments: QuizAssignmentSummary[];
+}
+
+export function createAssignment(
+  rosterId: string,
+  params: {
+    topicIds: string[];
+    questionCount: number;
+    dueAt: string | null;
+    learnerIds: string[] | "all";
+  },
+): Promise<QuizAssignment> {
+  return request<QuizAssignment>(`/api/rosters/${rosterId}/assignments`, {
+    method: "POST",
+    body: JSON.stringify({
+      topic_ids: params.topicIds,
+      question_count: params.questionCount,
+      due_at: params.dueAt,
+      learner_ids: params.learnerIds,
+    }),
+  });
+}
+
+export function listRosterAssignments(rosterId: string): Promise<ListAssignmentsResponse> {
+  return request<ListAssignmentsResponse>(`/api/rosters/${rosterId}/assignments`);
+}
+
+export function cancelAssignment(rosterId: string, assignmentId: string): Promise<void> {
+  return requestVoid(`/api/rosters/${rosterId}/assignments/${assignmentId}`, {
+    method: "DELETE",
+  });
+}
+
+// Instructor-assigned quizzes (guardian-facing, User Story 2).
+
+export type AssignmentStatus = "not_started" | "in_progress" | "completed" | "ended_early";
+
+export interface LearnerAssignment {
+  assignment_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  cancelled_at: string | null;
+  status: AssignmentStatus;
+}
+
+export interface ListLearnerAssignmentsResponse {
+  assignments: LearnerAssignment[];
+}
+
+export function listLearnerAssignments(
+  learnerId: string,
+): Promise<ListLearnerAssignmentsResponse> {
+  return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments`);
+}
+
+// Identical response shape to `startQuiz` (spec 005) -- reuses
+// `StartQuizResponse` (contracts/api.md).
+export function startAssignment(
+  assignmentId: string,
+  learnerId: string,
+): Promise<StartQuizResponse> {
+  return request<StartQuizResponse>(
+    `/api/assignments/${assignmentId}/learners/${learnerId}/start`,
+    { method: "POST" },
+  );
+}
+
+// Instructor-facing per-assignment results report (User Story 3).
+
+export interface AssignmentLearnerScore {
+  correct: number;
+  total: number;
+}
+
+export interface AssignmentLearnerReport {
+  learner_id: string;
+  display_name: string;
+  status: AssignmentStatus;
+  score: AssignmentLearnerScore | null;
+}
+
+export interface AssignmentDetail {
+  assignment_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  cancelled_at: string | null;
+  learners: AssignmentLearnerReport[];
+}
+
+export function getAssignmentDetail(
+  rosterId: string,
+  assignmentId: string,
+): Promise<AssignmentDetail> {
+  return request<AssignmentDetail>(`/api/rosters/${rosterId}/assignments/${assignmentId}`);
 }

@@ -25,7 +25,7 @@ type SectionPhase = "loading" | "loaded" | "error";
 // "couldn't load" state uses this same pattern rather than an
 // independently-styled variant, and none auto-retries within a page load.
 function CouldntLoad({ what }: { what: string }) {
-  return <p className="text-red-600">Couldn&rsquo;t load {what}.</p>;
+  return <p className="text-error">Couldn&rsquo;t load {what}.</p>;
 }
 
 export interface DashboardSubjectSectionProps {
@@ -107,7 +107,7 @@ export default function DashboardSubjectSection({
   return (
     <section
       data-testid={`dashboard-subject-section-${subjectId}`}
-      className="flex flex-col gap-4 rounded border border-black/10 p-6 dark:border-white/10"
+      className="flex flex-col gap-4 rounded-lg border border-border p-6"
     >
       <h2 className="text-xl font-semibold">{displayName}</h2>
       <div data-testid="dashboard-mastery-slot">

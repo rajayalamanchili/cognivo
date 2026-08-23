@@ -83,7 +83,7 @@ export default function PlacementFlow() {
   if (phase === "error") {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {errorMessage}</p>
+        <p className="text-error">Something went wrong: {errorMessage}</p>
       </div>
     );
   }
@@ -96,11 +96,11 @@ export default function PlacementFlow() {
         <div className="flex items-center gap-4">
           <Link
             href={`/practice?subject=${subjectId}`}
-            className="rounded bg-foreground px-5 py-3 text-background"
+            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
           >
             Start Practicing
           </Link>
-          <Link href={`/mastery?subject=${subjectId}`} className="text-blue-600 underline">
+          <Link href={`/mastery?subject=${subjectId}`} className="text-link underline">
             View full mastery state
           </Link>
         </div>
@@ -140,7 +140,7 @@ export default function PlacementFlow() {
             <input
               type="number"
               step="any"
-              className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+              className="rounded-lg border border-border px-3 py-2"
               value={responses[question.question_id] ?? ""}
               onChange={(event) =>
                 setResponses((prev) => ({
@@ -156,7 +156,7 @@ export default function PlacementFlow() {
         type="button"
         disabled={!allAnswered || phase === "submitting"}
         onClick={handleSubmit}
-        className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+        className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
       >
         {phase === "submitting" ? "Submitting…" : "Submit Placement"}
       </button>

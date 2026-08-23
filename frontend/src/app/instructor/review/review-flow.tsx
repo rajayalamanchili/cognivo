@@ -60,7 +60,7 @@ export default function ReviewFlow() {
   if (loadError) {
     return (
       <div className="p-8">
-        <p className="text-red-600">Something went wrong: {loadError}</p>
+        <p className="text-error">Something went wrong: {loadError}</p>
       </div>
     );
   }
@@ -69,7 +69,7 @@ export default function ReviewFlow() {
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold">Flagged questions</h1>
 
-      {resolveError && <p className="text-sm text-red-600">{resolveError}</p>}
+      {resolveError && <p className="text-sm text-error">{resolveError}</p>}
 
       {flagged.length === 0 && <p className="text-sm">Nothing to review right now.</p>}
 
@@ -77,15 +77,13 @@ export default function ReviewFlow() {
         {flagged.map((question) => (
           <div
             key={question.question_id}
-            className="flex flex-col gap-2 rounded border border-black/20 p-4 dark:border-white/20"
+            className="flex flex-col gap-2 rounded-lg border border-border p-4"
           >
             <p>{question.stem}</p>
             {question.flagged_reason && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Reason: {question.flagged_reason}
-              </p>
+              <p className="text-sm text-muted">Reason: {question.flagged_reason}</p>
             )}
-            <p className="text-sm text-zinc-500 dark:text-zinc-500">
+            <p className="text-sm text-muted dark:text-muted">
               Flagged {new Date(question.flagged_at).toLocaleString()}
             </p>
             <div className="flex gap-2">
@@ -93,7 +91,7 @@ export default function ReviewFlow() {
                 type="button"
                 disabled={resolvingId === question.question_id}
                 onClick={() => handleResolve(question.question_id, "reactivate")}
-                className="rounded bg-foreground px-3 py-1.5 text-sm text-background disabled:opacity-40"
+                className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-40"
               >
                 Reactivate
               </button>
@@ -101,7 +99,7 @@ export default function ReviewFlow() {
                 type="button"
                 disabled={resolvingId === question.question_id}
                 onClick={() => handleResolve(question.question_id, "reject")}
-                className="rounded border border-black/20 px-3 py-1.5 text-sm disabled:opacity-40 dark:border-white/20"
+                className="rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-40"
               >
                 Reject
               </button>

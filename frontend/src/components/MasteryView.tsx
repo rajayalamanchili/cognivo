@@ -13,9 +13,9 @@ const BAND_LABEL: Record<MasteryBand, string> = {
 };
 
 const BAND_CLASSES: Record<MasteryBand, string> = {
-  struggling: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
-  developing: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200",
-  mastered: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200",
+  struggling: "bg-error/15 text-error",
+  developing: "bg-warning/15 text-warning",
+  mastered: "bg-success/15 text-success",
 };
 
 export interface MasteryViewProps {
@@ -28,19 +28,21 @@ export default function MasteryView({ topics }: MasteryViewProps) {
       {topics.map((topic) => (
         <li
           key={topic.topic_id}
-          className="flex items-center justify-between rounded border border-black/10 px-4 py-3 dark:border-white/10"
+          className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
         >
           <span className="font-medium">{formatTopicId(topic.topic_id)}</span>
           {topic.status === "unknown" || topic.band === null ? (
-            <span className="rounded bg-zinc-100 px-2 py-1 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+            <span className="rounded-lg bg-muted/10 px-2 py-1 text-sm text-muted">
               Not yet assessed
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              <span className={`rounded px-2 py-1 text-sm font-medium ${BAND_CLASSES[topic.band]}`}>
+              <span
+                className={`rounded-lg px-2 py-1 text-sm font-medium ${BAND_CLASSES[topic.band]}`}
+              >
                 {BAND_LABEL[topic.band]}
               </span>
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              <span className="text-sm text-muted">
                 {topic.p_mastery !== null ? `${Math.round(topic.p_mastery * 100)}%` : ""}
               </span>
             </span>

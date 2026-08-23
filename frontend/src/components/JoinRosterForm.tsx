@@ -42,17 +42,17 @@ export default function JoinRosterForm({ learnerId }: JoinRosterFormProps) {
         placeholder="Join code"
         value={joinCode}
         onChange={(event) => setJoinCode(event.target.value)}
-        className="rounded border border-black/20 px-2 py-1 text-sm dark:border-white/20"
+        className="rounded-lg border border-border px-2 py-1 text-sm"
       />
       <button
         type="submit"
         disabled={phase === "submitting" || joinCode.trim() === ""}
-        className="rounded bg-foreground px-3 py-1 text-sm text-background disabled:opacity-40"
+        className="rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground disabled:opacity-40"
       >
         {phase === "submitting" ? "Joining…" : "Join roster"}
       </button>
       {phase === "error" && errorText && (
-        <span className="text-sm text-red-600" data-testid="join-roster-error">
+        <span className="text-sm text-error" data-testid="join-roster-error">
           {errorText}
         </span>
       )}

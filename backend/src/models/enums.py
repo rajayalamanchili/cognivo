@@ -91,6 +91,8 @@ class AssessmentEventType(enum.StrEnum):
     QUIZ_DIFFICULTY_ADJUSTED = "quiz_difficulty_adjusted"
     FREE_TEXT_SUBMISSION_REJECTED = "free_text_submission_rejected"
     CONTENT_REVIEW_RESOLVED = "content_review_resolved"
+    QUIZ_ASSIGNMENT_CREATED = "quiz_assignment_created"
+    QUIZ_ASSIGNMENT_CANCELLED = "quiz_assignment_cancelled"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required

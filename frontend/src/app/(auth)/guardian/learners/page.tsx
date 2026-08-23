@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { ApiError, createLearner } from "@/services/api";
 import JoinRosterForm from "@/components/JoinRosterForm";
+import LearnerAssignments from "@/components/LearnerAssignments";
 
 interface AddedLearner {
   learner_id: string;
@@ -50,18 +51,18 @@ export default function GuardianLearnersPage() {
             required
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
-            className="rounded border border-black/20 px-3 py-2 dark:border-white/20"
+            className="rounded-lg border border-border px-3 py-2"
           />
         </label>
         {errorText && (
-          <p className="text-sm text-red-600" data-testid="add-learner-error">
+          <p className="text-sm text-error" data-testid="add-learner-error">
             {errorText}
           </p>
         )}
         <button
           type="submit"
           disabled={submitting || displayName.trim() === ""}
-          className="rounded bg-foreground px-5 py-3 text-background disabled:opacity-40"
+          className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
         >
           {submitting ? "Adding…" : "Add learner"}
         </button>
@@ -77,6 +78,7 @@ export default function GuardianLearnersPage() {
             >
               <span>{learner.display_name} added.</span>
               <JoinRosterForm learnerId={learner.learner_id} />
+              <LearnerAssignments learnerId={learner.learner_id} />
             </li>
           ))}
         </ul>

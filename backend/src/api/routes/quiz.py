@@ -4,6 +4,12 @@
 quiz-aware extension lives in `questions.py` itself (research.md §4),
 reusing the exact same, unmodified grading/mastery-update mechanism a
 non-quiz answer already goes through.
+
+`get_quiz_next_question` gains one conditional check for spec 011
+(research.md §2): `assert_guardian_owns_assignment_session` is a no-op
+for a `QuizSession` that isn't linked to a `QuizAssignmentTarget` row,
+so this route's behavior for the pre-existing demo/capability-URL quiz
+path (this docstring's original scope) is completely unchanged.
 """
 
 import datetime
@@ -13,24 +19,25 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.agents.assessment_gen.agent import draft_to_answer_key
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
 from src.db import get_db
-from src.models.enums import QuizSessionStatus, ValidationStatus
-from src.models.generated_question import GeneratedQuestion
+from src.models.enums import QuizSessionStatus
 from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
+from src.services.auth.dependencies import optional_session_claims
+from src.services.auth.tokens import SessionClaims
 from src.services.demo_learner import get_demo_learner
 from src.services.quiz.session import (
     QuizEndedEarlyError,
-    QuizQuestionResult,
     compute_quiz_summary,
     generate_quiz_question,
+    persist_quiz_question,
     start_quiz,
 )
+from src.services.quiz_assignment.assignment import assert_guardian_owns_assignment_session
 
 router = APIRouter()
 
@@ -80,33 +87,6 @@ class QuizQuestionOut(BaseModel):
     options: list[str] | None = None
 
 
-def _persist_quiz_question(
-    db: Session,
-    *,
-    quiz_session_id: uuid.UUID,
-    learner_id: uuid.UUID,
-    subject_id: str,
-    result: QuizQuestionResult,
-) -> GeneratedQuestion:
-    now = datetime.datetime.now(datetime.UTC)
-    question = GeneratedQuestion(
-        learner_id=learner_id,
-        subject_id=subject_id,
-        topic_id=result.topic_id,
-        difficulty=result.difficulty,
-        question_type=result.question_type,
-        stem=result.draft.stem,
-        options=result.draft.options,
-        answer_key=draft_to_answer_key(result.draft),
-        validation_status=ValidationStatus.VALID,
-        shown_at=now,
-        quiz_session_id=quiz_session_id,
-    )
-    db.add(question)
-    db.flush()
-    return question
-
-
 class QuizStartIn(BaseModel):
     topic_ids: list[str]
     question_count: int
@@ -143,7 +123,7 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
         db.commit()
         return QuizStartOut(quiz_session_id=quiz.quiz_session_id, status="ended_early")
 
-    question = _persist_quiz_question(
+    question = persist_quiz_question(
         db,
         quiz_session_id=quiz.quiz_session_id,
         learner_id=learner.learner_id,
@@ -172,11 +152,14 @@ class QuizNextQuestionOut(BaseModel):
 
 @router.get("/api/quizzes/{quiz_session_id}/next-question", response_model=QuizNextQuestionOut)
 async def get_quiz_next_question(
-    quiz_session_id: uuid.UUID, db: Session = Depends(get_db)
+    quiz_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> QuizNextQuestionOut:
     quiz = db.get(QuizSession, quiz_session_id)
     if quiz is None:
         raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
+    assert_guardian_owns_assignment_session(db, quiz_session_id=quiz_session_id, claims=claims)
     if quiz.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
             f"quiz {quiz_session_id} is already {quiz.status.value} -- "
@@ -194,7 +177,7 @@ async def get_quiz_next_question(
         db.commit()
         return QuizNextQuestionOut(status="ended_early")
 
-    question = _persist_quiz_question(
+    question = persist_quiz_question(
         db,
         quiz_session_id=quiz.quiz_session_id,
         learner_id=quiz.learner_id,

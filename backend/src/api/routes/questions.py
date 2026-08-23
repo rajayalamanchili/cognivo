@@ -36,6 +36,8 @@ from src.models.subject import Subject
 from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
+from src.services.auth.dependencies import optional_session_claims
+from src.services.auth.tokens import SessionClaims
 from src.services.grading_client import guardrails
 from src.services.grading_client.client import (
     SCORE_THRESHOLD,
@@ -45,6 +47,7 @@ from src.services.grading_client.client import (
 from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.quiz.session import record_quiz_answer
+from src.services.quiz_assignment.assignment import assert_guardian_owns_assignment_session
 
 router = APIRouter()
 
@@ -220,11 +223,21 @@ async def _grade_free_text_submission(
 
 @router.post("/api/questions/{question_id}/answer", response_model=AnswerOut)
 async def answer_question(
-    question_id: uuid.UUID, body: AnswerIn, db: Session = Depends(get_db)
+    question_id: uuid.UUID,
+    body: AnswerIn,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> JSONResponse:
     question = db.get(GeneratedQuestion, question_id)
     if question is None:
         raise NotFoundError(f"unknown question_id: {question_id}")
+    # spec 011, research.md §2: a no-op unless this question's quiz
+    # session is assignment-linked -- the non-quiz and non-assigned-quiz
+    # answer paths are completely unaffected.
+    if question.quiz_session_id is not None:
+        assert_guardian_owns_assignment_session(
+            db, quiz_session_id=question.quiz_session_id, claims=claims
+        )
     if _already_answered(db, question_id):
         raise ConflictError(f"question {question_id} already answered")
     try:

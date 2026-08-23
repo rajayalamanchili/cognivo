@@ -27,13 +27,13 @@ export default function WeakAreaSection({ recommendations }: WeakAreaSectionProp
 
   return (
     <div className="flex flex-col gap-3" data-testid="weak-area-section">
-      <p data-testid="data-sufficiency-framing" className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p data-testid="data-sufficiency-framing" className="text-sm text-muted">
         {DATA_SUFFICIENCY_LABEL[data_sufficiency]}
       </p>
       {broad_review_needed && (
         <p
           data-testid="broad-review-framing"
-          className="rounded bg-amber-100 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+          className="rounded-lg bg-warning/15 px-3 py-2 text-sm text-warning"
         >
           Broad review needed across this subject.
         </p>
@@ -41,17 +41,12 @@ export default function WeakAreaSection({ recommendations }: WeakAreaSectionProp
       {weak_areas.length > 0 && (
         <ul className="flex flex-col gap-2">
           {weak_areas.map((flag) => (
-            <li
-              key={flag.topic_id}
-              className="rounded border border-black/10 px-4 py-3 dark:border-white/10"
-            >
+            <li key={flag.topic_id} className="rounded-lg border border-border px-4 py-3">
               <div className="flex items-center justify-between">
                 <span className="font-medium">{flag.display_name}</span>
-                <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                  {Math.round(flag.p_mastery * 100)}%
-                </span>
+                <span className="text-sm text-muted">{Math.round(flag.p_mastery * 100)}%</span>
               </div>
-              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+              <p className="mt-1 text-sm text-muted">
                 {REASON_LABEL[flag.next_step.reason] ?? flag.next_step.reason}: try{" "}
                 <strong>{flag.next_step.recommended_display_name}</strong>
               </p>
