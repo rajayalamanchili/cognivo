@@ -391,7 +391,13 @@ grading mechanism; the two existing quiz-continuation routes gain a
 conditional guardian-ownership check that only applies to
 assignment-linked sessions, leaving the non-assignment quiz path
 behaviorally untouched. Constitution Check passed with no violations.
-Pending `/speckit-tasks`.
+`/speckit-tasks` complete (2026-08-23): 37 tasks across Setup,
+Foundational, and three user-story phases. `/speckit-implement` has
+completed Setup, Foundational, and User Story 1 (Phases 1-3, T001-T016)
+-- an instructor can create, list, and cancel a quiz assignment against
+a chosen subset (or all) of a roster end to end; the guardian-mediated
+attempt (User Story 2) and per-student report (User Story 3) are not
+yet built.
 
 **Scope**: Extends the Adaptive Difficulty Quiz (Milestone 5) so an
 instructor can configure and assign a specific quiz (topic(s), question

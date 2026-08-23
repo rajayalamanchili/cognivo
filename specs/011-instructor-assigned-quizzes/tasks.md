@@ -76,10 +76,10 @@ creation-audit-event assertion).
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Unit test for target-list resolution (subset vs.
+- [X] T008 [P] [US1] Unit test for target-list resolution (subset vs.
       `"all"`, empty-target rejection) in `backend/tests/unit/
       test_quiz_assignment_target_resolution.py` (FR-002, FR-003)
-- [ ] T009 [P] [US1] Integration test: assignment creation (subset
+- [X] T009 [P] [US1] Integration test: assignment creation (subset
       targeting, `"all"` targeting, cross-tenant rejection, an enrolled-
       after-creation learner not retroactively targeted, invalid/
       cross-subject `topic_ids` rejected, one `QUIZ_ASSIGNMENT_CREATED`
@@ -89,7 +89,7 @@ creation-audit-event assertion).
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Implement `resolve_target_learner_ids()` and
+- [X] T010 [US1] Implement `resolve_target_learner_ids()` and
       `create_assignment()` in `backend/src/services/quiz_assignment/
       assignment.py` -- validates `topic_ids` all belong to one subject
       matching the roster's own `subject_id` (mirrors `quiz.py`'s
@@ -100,30 +100,30 @@ creation-audit-event assertion).
       `AssessmentEvent` per targeted learner via the existing
       `record_event()` (FR-001-FR-005, FR-015, research.md §1/§4/§7)
       (depends on T003, T005, T006)
-- [ ] T011 [US1] Implement `cancel_assignment()` in `backend/src/
+- [X] T011 [US1] Implement `cancel_assignment()` in `backend/src/
       services/quiz_assignment/assignment.py` -- sets `cancelled_at`,
       rejects if already cancelled, writes one `QUIZ_ASSIGNMENT_
       CANCELLED` event per target row not yet `completed` (FR-012,
       FR-015, research.md §6/§7) (depends on T010)
-- [ ] T012 [US1] Add `POST /api/rosters/{roster_id}/assignments`,
+- [X] T012 [US1] Add `POST /api/rosters/{roster_id}/assignments`,
       `GET /api/rosters/{roster_id}/assignments`, and `DELETE
       /api/rosters/{roster_id}/assignments/{assignment_id}` routes in
       `backend/src/api/routes/quiz_assignments.py`, gated by
       `current_instructor` plus an owner-only check mirroring
       `rosters.py`'s `_get_owned_roster` (contracts/api.md) (depends on
       T010, T011)
-- [ ] T013 [US1] Register the new router:
+- [X] T013 [US1] Register the new router:
       `app.include_router(quiz_assignments.router)` in
       `backend/src/api/main.py` (depends on T012)
-- [ ] T014 [P] [US1] Add `createAssignment`, `listRosterAssignments`,
+- [X] T014 [P] [US1] Add `createAssignment`, `listRosterAssignments`,
       `cancelAssignment` client functions in
       `frontend/src/services/api.ts` (contracts/api.md) (depends on
       T012)
-- [ ] T015 [US1] Extend `frontend/src/app/instructor/rosters/
+- [X] T015 [US1] Extend `frontend/src/app/instructor/rosters/
       rosters-flow.tsx` with an "assign a quiz" form (topic(s),
       question count, optional due date, subset/all learner selection)
       and a per-roster assignment list (depends on T014)
-- [ ] T016 [P] [US1] Vitest test for the assignment-creation form in
+- [X] T016 [P] [US1] Vitest test for the assignment-creation form in
       `frontend/tests/unit/rosters-flow.test.tsx` -- confirms subset/
       `"all"` targeting and empty-target validation (depends on T015)
 

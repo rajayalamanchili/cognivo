@@ -602,3 +602,59 @@ export interface DemoInstructor {
 export function getDemoInstructor(): Promise<DemoInstructor> {
   return request<DemoInstructor>("/api/demo-instructor");
 }
+
+// Instructor-assigned quizzes (spec 011 contracts/api.md "Assignments"
+// section, User Story 1).
+
+export interface QuizAssignment {
+  assignment_id: string;
+  roster_id: string;
+  subject_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  target_learner_ids: string[];
+}
+
+export interface QuizAssignmentSummary {
+  assignment_id: string;
+  topic_ids: string[];
+  question_count: number;
+  due_at: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+}
+
+export interface ListAssignmentsResponse {
+  assignments: QuizAssignmentSummary[];
+}
+
+export function createAssignment(
+  rosterId: string,
+  params: {
+    topicIds: string[];
+    questionCount: number;
+    dueAt: string | null;
+    learnerIds: string[] | "all";
+  },
+): Promise<QuizAssignment> {
+  return request<QuizAssignment>(`/api/rosters/${rosterId}/assignments`, {
+    method: "POST",
+    body: JSON.stringify({
+      topic_ids: params.topicIds,
+      question_count: params.questionCount,
+      due_at: params.dueAt,
+      learner_ids: params.learnerIds,
+    }),
+  });
+}
+
+export function listRosterAssignments(rosterId: string): Promise<ListAssignmentsResponse> {
+  return request<ListAssignmentsResponse>(`/api/rosters/${rosterId}/assignments`);
+}
+
+export function cancelAssignment(rosterId: string, assignmentId: string): Promise<void> {
+  return requestVoid(`/api/rosters/${rosterId}/assignments/${assignmentId}`, {
+    method: "DELETE",
+  });
+}
