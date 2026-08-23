@@ -13,7 +13,7 @@ every file below explicitly).
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm no new backend/frontend dependencies are required
+- [X] T001 Confirm no new backend/frontend dependencies are required
       (plan.md's Primary Dependencies: none new); create
       `backend/src/services/quiz_assignment/__init__.py`
 
@@ -25,16 +25,16 @@ every file below explicitly).
 phase is complete -- every story either creates, targets, or reports on
 these tables/enum values.
 
-- [ ] T002 Add `QUIZ_ASSIGNMENT_CREATED`/`QUIZ_ASSIGNMENT_CANCELLED` to
+- [X] T002 Add `QUIZ_ASSIGNMENT_CREATED`/`QUIZ_ASSIGNMENT_CANCELLED` to
       `AssessmentEventType` in `backend/src/models/enums.py` (FR-015,
       data-model.md's Audit events section)
-- [ ] T003 [P] Alembic migration in `backend/alembic/versions/`:
+- [X] T003 [P] Alembic migration in `backend/alembic/versions/`:
       `ALTER TYPE assessment_event_type ADD VALUE IF NOT EXISTS
       'quiz_assignment_created'` and `'quiz_assignment_cancelled'`,
       run outside any transaction that also writes a row using either
       value (exact precedent: `5a723b34fc55_content_review_resolved_
       event_type.py`) (depends on T002)
-- [ ] T004 Alembic migration in `backend/alembic/versions/`: create
+- [X] T004 Alembic migration in `backend/alembic/versions/`: create
       `quiz_assignments` (`assignment_id` PK, `roster_id` FK ->
       `classroom_rosters`, `instructor_id` FK ->
       `real_instructor_accounts`, `subject_id` FK -> `subjects`,
@@ -45,11 +45,11 @@ these tables/enum values.
       `learner_profiles`, `quiz_session_id` nullable FK ->
       `quiz_sessions`, `created_at`, `UNIQUE (assignment_id,
       learner_id)`) tables (data-model.md)
-- [ ] T005 [P] Create `backend/src/models/quiz_assignment.py`
+- [X] T005 [P] Create `backend/src/models/quiz_assignment.py`
       (data-model.md's QuizAssignment table) (depends on T004)
-- [ ] T006 [P] Create `backend/src/models/quiz_assignment_target.py`
+- [X] T006 [P] Create `backend/src/models/quiz_assignment_target.py`
       (data-model.md's QuizAssignmentTarget table) (depends on T004)
-- [ ] T007 Create `backend/src/services/quiz_assignment/status.py` --
+- [X] T007 Create `backend/src/services/quiz_assignment/status.py` --
       a pure function deriving `not_started`/`in_progress`/`completed`/
       `ended_early` from a target's `quiz_session_id`/linked
       `QuizSession.status` (data-model.md's derived-status table),
