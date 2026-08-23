@@ -72,13 +72,17 @@ def test_open_roster_creation_and_immediate_join(client, db_session, algebra_sub
     assert enrollment.authorized_by_type == AuthorizedByType.GUARDIAN
 
 
-def test_closed_roster_has_no_join_code(client, algebra_subject):
+def test_closed_roster_create_response_still_includes_its_join_code(client, algebra_subject):
+    """PR #28 review: the owning instructor must be able to learn a
+    closed roster's own code (it's the only way they could ever share
+    it with a guardian out of band) -- only a non-owner should never
+    see it, and this response is always to the owner."""
     _register_instructor(client)
     roster = client.post(
         "/api/rosters", json={"subject_id": algebra_subject.subject_id, "enrollment_mode": "closed"}
     )
     assert roster.status_code == 201, roster.text
-    assert roster.json()["join_code"] is None
+    assert roster.json()["join_code"] is not None
 
 
 def test_join_with_unknown_code_returns_404(client):

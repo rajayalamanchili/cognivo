@@ -3,12 +3,12 @@ approve creates the `Enrollment` recording the instructor as
 `authorized_by`; decline leaves the learner unenrolled (quickstart
 scenario 4, T027).
 
-A closed roster's `join_code` is deliberately hidden from the create/
-PATCH API response (contracts/api.md) but still populated in the DB
-(data-model.md's Correction, `POST /api/rosters/join` has no
-`roster_id` field to target a roster any other way) -- this test reads
-it directly via `db_session`, standing in for the out-of-band sharing a
-real deployment would use.
+A closed roster's `join_code` is populated in the DB and returned in
+the create/PATCH API response the same as an open roster's (PR #28
+review's second Correction, `data-model.md`) -- `POST /api/rosters/
+join` has no `roster_id` field, so the code is the only way to target
+a roster at all, and only the owning instructor ever sees this
+response anyway.
 
 Requires a reachable `DATABASE_URL` -- see tests/conftest.py. Skips
 otherwise.
@@ -18,7 +18,6 @@ import uuid
 
 import pytest
 
-from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
 from src.models.enrollment_request import EnrollmentRequest
 from src.models.enums import AuthorizedByType, EnrollmentDecision
@@ -66,23 +65,19 @@ def _register_guardian_with_learner(client, email="parent@example.com", display_
     return response.json()["guardian_id"], learner.json()["learner_id"]
 
 
-def _create_closed_roster_and_join_code(client, db_session, algebra_subject) -> tuple[str, str]:
+def _create_closed_roster_and_join_code(client, algebra_subject) -> tuple[str, str]:
     roster = client.post(
         "/api/rosters", json={"subject_id": algebra_subject.subject_id, "enrollment_mode": "closed"}
     )
     assert roster.status_code == 201, roster.text
-    roster_id = roster.json()["roster_id"]
-    assert roster.json()["join_code"] is None
-
-    db_session.expire_all()
-    roster_row = db_session.get(ClassroomRoster, uuid.UUID(roster_id))
-    assert roster_row is not None and roster_row.join_code is not None
-    return roster_id, roster_row.join_code
+    join_code = roster.json()["join_code"]
+    assert join_code is not None
+    return roster.json()["roster_id"], join_code
 
 
 def test_closed_roster_approve_creates_enrollment(client, db_session, algebra_subject):
     instructor_id = _register_instructor(client)
-    roster_id, join_code = _create_closed_roster_and_join_code(client, db_session, algebra_subject)
+    roster_id, join_code = _create_closed_roster_and_join_code(client, algebra_subject)
 
     client.post("/api/auth/logout")
     _, learner_id = _register_guardian_with_learner(client)
@@ -119,7 +114,7 @@ def test_closed_roster_approve_creates_enrollment(client, db_session, algebra_su
 
 def test_closed_roster_decline_leaves_learner_unenrolled(client, db_session, algebra_subject):
     _register_instructor(client)
-    roster_id, join_code = _create_closed_roster_and_join_code(client, db_session, algebra_subject)
+    roster_id, join_code = _create_closed_roster_and_join_code(client, algebra_subject)
 
     client.post("/api/auth/logout")
     _, learner_id = _register_guardian_with_learner(client)
@@ -143,7 +138,7 @@ def test_closed_roster_decline_leaves_learner_unenrolled(client, db_session, alg
 
 def test_requests_list_only_shows_pending(client, db_session, algebra_subject):
     _register_instructor(client)
-    roster_id, join_code = _create_closed_roster_and_join_code(client, db_session, algebra_subject)
+    roster_id, join_code = _create_closed_roster_and_join_code(client, algebra_subject)
 
     client.post("/api/auth/logout")
     _, learner_id = _register_guardian_with_learner(client)

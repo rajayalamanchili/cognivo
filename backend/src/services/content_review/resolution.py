@@ -42,23 +42,30 @@ class FlaggedQuestionEntry:
     flagged_at: datetime.datetime
 
 
-def _latest_flagged_at(db: Session, question_id: uuid.UUID) -> datetime.datetime:
-    """A `FLAGGED` question always has at least one `QUESTION_FLAGGED`
-    event -- the only write path setting `validation_status: flagged`
-    (`questions.py`'s `flag_question`) always records one in the same
-    transaction. The most recent one covers a question re-flagged after
-    a prior reactivate."""
-    event = (
-        db.query(AssessmentEvent)
+def _latest_flagged_at_by_question(
+    db: Session, question_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, datetime.datetime]:
+    """One query covering every question's most recent
+    `QUESTION_FLAGGED` event, instead of one query per question (PR
+    #28 review: N+1). Ordered ascending by `created_at` so each later
+    row overwrites an earlier one for the same `question_id`, leaving
+    the most recent event per key -- covers a question re-flagged
+    after a prior reactivate."""
+    if not question_ids:
+        return {}
+    rows = (
+        db.query(AssessmentEvent.question_id, AssessmentEvent.created_at)
         .filter(
-            AssessmentEvent.question_id == question_id,
+            AssessmentEvent.question_id.in_(question_ids),
             AssessmentEvent.event_type == AssessmentEventType.QUESTION_FLAGGED,
         )
-        .order_by(AssessmentEvent.created_at.desc())
-        .first()
+        .order_by(AssessmentEvent.created_at)
+        .all()
     )
-    assert event is not None, f"flagged question {question_id} has no QUESTION_FLAGGED event"
-    return event.created_at
+    latest: dict[uuid.UUID, datetime.datetime] = {}
+    for question_id, created_at in rows:
+        latest[question_id] = created_at
+    return latest
 
 
 def list_flagged_questions(db: Session, *, instructor_id: uuid.UUID) -> list[FlaggedQuestionEntry]:
@@ -74,17 +81,31 @@ def list_flagged_questions(db: Session, *, instructor_id: uuid.UUID) -> list[Fla
         .order_by(GeneratedQuestion.generated_at)
         .all()
     )
-    return [
-        FlaggedQuestionEntry(
-            question_id=question.question_id,
-            learner_id=question.learner_id,
-            roster_id=roster.roster_id,
-            stem=question.stem,
-            flagged_reason=question.flagged_reason,
-            flagged_at=_latest_flagged_at(db, question.question_id),
+    flagged_at_by_question = _latest_flagged_at_by_question(
+        db, [question.question_id for question, _ in rows]
+    )
+    entries = []
+    for question, roster in rows:
+        # A FLAGGED question always has a QUESTION_FLAGGED event in
+        # practice (the only write path setting validation_status:
+        # flagged, questions.py's flag_question, always records one in
+        # the same transaction) -- but this is a list endpoint
+        # aggregating many rows, so one row violating that invariant
+        # shouldn't 500 an instructor's entire queue (PR #28 review).
+        # generated_at is a defensible fallback: a real timestamp for
+        # this question, just not necessarily the flagging moment.
+        flagged_at = flagged_at_by_question.get(question.question_id, question.generated_at)
+        entries.append(
+            FlaggedQuestionEntry(
+                question_id=question.question_id,
+                learner_id=question.learner_id,
+                roster_id=roster.roster_id,
+                stem=question.stem,
+                flagged_reason=question.flagged_reason,
+                flagged_at=flagged_at,
+            )
         )
-        for question, roster in rows
-    ]
+    return entries
 
 
 def _question_belongs_to_instructor(

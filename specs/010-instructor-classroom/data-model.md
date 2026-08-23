@@ -96,13 +96,26 @@ mechanism that identifies which roster a join attempt targets,
 `closed` included (contracts/api.md's own join endpoint text, "For a
 closed roster's code," and quickstart.md scenario 4's "join with the
 code" both already assumed this). Corrected design: every roster gets
-a generated `join_code` at creation, open or closed; the API response
-(`_roster_out` in `api/routes/rosters.py`) is what keeps a closed
-roster's code out of the `POST`/`PATCH /api/rosters` response body
-(contracts/api.md: `"join_code" is null in the response when
-enrollment_mode: closed"`) -- the column itself is never null. A
-closed roster's code reaching its guardians is out-of-band (e.g. the
-instructor shares it directly) and out of scope for this milestone.
+a generated `join_code` at creation, open or closed; the column itself
+is never null. A closed roster's code reaching its guardians is
+out-of-band (e.g. the instructor shares it directly) and out of scope
+for this milestone.
+
+**Second correction (found during PR #28 review)**: the API-response
+half of the first correction was itself wrong. `_roster_out` (`api/
+routes/rosters.py`) originally kept nulling a closed roster's code in
+the `POST`/`PATCH /api/rosters` response body (contracts/api.md's
+original text: `"join_code" is null in the response when
+enrollment_mode: closed"`), reasoning that "self-serve code sharing is
+an open-roster feature only." That reasoning missed that the response
+is the *only* place the code is ever surfaced at all -- with it always
+null for closed rosters, the owning instructor could never learn their
+own roster's code, so they could never share it out-of-band the way
+the paragraph above assumes, making closed-roster enrollment
+unreachable through the product. Corrected again: `_roster_out` always
+returns `join_code`. Every caller (`create_roster_route`,
+`update_roster_route`) is already the roster's owner, so this is not a
+new information disclosure.
 
 **Correction (found during Phase 7 implementation)**: `instructor_id`
 originally read as a FK to `RealInstructorAccount.instructor_id` only.

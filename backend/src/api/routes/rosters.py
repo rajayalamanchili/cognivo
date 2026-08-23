@@ -76,14 +76,19 @@ class ListRostersOut(BaseModel):
 def _roster_out(roster: ClassroomRoster) -> RosterOut:
     # A closed roster's join_code is never null in the DB (it's the
     # only field POST /api/rosters/join uses to find the roster --
-    # data-model.md's Correction) but IS null in this response
-    # (contracts/api.md) -- self-serve code sharing is an open-roster
-    # feature only.
+    # data-model.md's Correction) and is always returned here too (PR
+    # #28 review, second Correction): every caller of this function is
+    # already the roster's owner (create_roster_route just created it;
+    # update_roster_route is gated by _get_owned_roster), so there's no
+    # one else this could leak to -- and nulling it unconditionally, as
+    # the original contract said, left the owning instructor with no
+    # way to ever learn a closed roster's own code, making closed-roster
+    # enrollment (FR-006) unreachable through the product entirely.
     return RosterOut(
         roster_id=roster.roster_id,
         subject_id=roster.subject_id,
         enrollment_mode=roster.enrollment_mode.value,
-        join_code=roster.join_code if roster.enrollment_mode == EnrollmentMode.OPEN else None,
+        join_code=roster.join_code,
     )
 
 

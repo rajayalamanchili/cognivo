@@ -64,7 +64,14 @@ Creates a `LearnerProfile` row with `is_demo: false`, this guardian's
 ```json
 { "roster_id": "...", "subject_id": "biology", "enrollment_mode": "open", "join_code": "BIO-7F2K" }
 ```
-`join_code` is `null` in the response when `enrollment_mode: "closed"`.
+`join_code` is always populated, `open` or `closed` (PR #28 review's
+second Correction to this contract -- see `data-model.md`). It was
+originally specified as `null` for a `closed` roster's response, but
+that left the owning instructor with no way to ever learn their own
+roster's code, since `POST /api/rosters/join` has no `roster_id`
+field and this response is the only place the code is ever surfaced.
+Every caller of this endpoint (and `PATCH` below) is already the
+roster's owner, so there's no one else this could leak to.
 
 ### `PATCH /api/rosters/{roster_id}` (instructor-authenticated, owner only)
 

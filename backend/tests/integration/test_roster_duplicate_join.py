@@ -10,7 +10,6 @@ import uuid
 
 import pytest
 
-from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment_request import EnrollmentRequest
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -52,8 +51,7 @@ def test_duplicate_closed_join_returns_existing_pending_request(
         "/api/rosters", json={"subject_id": algebra_subject.subject_id, "enrollment_mode": "closed"}
     )
     roster_id = roster.json()["roster_id"]
-    db_session.expire_all()
-    join_code = db_session.get(ClassroomRoster, uuid.UUID(roster_id)).join_code
+    join_code = roster.json()["join_code"]
 
     client.post("/api/auth/logout")
     _, learner_id = _register_guardian_with_learner(client)
