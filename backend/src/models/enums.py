@@ -48,6 +48,37 @@ class QuizSessionStatus(enum.StrEnum):
     ENDED_EARLY = "ended_early"
 
 
+class EnrollmentMode(enum.StrEnum):
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class AuthorizedByType(enum.StrEnum):
+    GUARDIAN = "guardian"
+    INSTRUCTOR = "instructor"
+
+
+class EnrollmentDecision(enum.StrEnum):
+    APPROVED = "approved"
+    DECLINED = "declined"
+
+
+class DeletionTargetType(enum.StrEnum):
+    LEARNER = "learner"
+    INSTRUCTOR = "instructor"
+    GUARDIAN = "guardian"
+
+
+class RetentionAccountType(enum.StrEnum):
+    LEARNER = "learner"
+    INSTRUCTOR = "instructor"
+
+
+class RetentionEnrollmentStatus(enum.StrEnum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
 class AssessmentEventType(enum.StrEnum):
     PLACEMENT_QUESTION_SHOWN = "placement_question_shown"
     ANSWER_SUBMITTED = "answer_submitted"

@@ -5,7 +5,7 @@ param or resolves it server-side (placement start/submit), but nothing
 in the placement flow's response ever returns one -- and
 `GET /api/learners/{learner_id}/mastery-state` requires it. With no auth
 in Milestone 1 (spec.md Assumptions, exactly one seeded
-`DemoLearnerProfile`), the frontend needs a way to discover that one
+`LearnerProfile`), the frontend needs a way to discover that one
 learner's id at all. This is the minimal endpoint that provides it.
 """
 

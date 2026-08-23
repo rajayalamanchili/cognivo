@@ -25,7 +25,7 @@ they cover, not as optional polish).
 phase is complete -- every story either creates or authenticates
 against these tables/utilities.
 
-- [ ] T003 Alembic migration in `backend/alembic/versions/`: create
+- [X] T003 Alembic migration in `backend/alembic/versions/`: create
       `real_guardian_accounts`, `real_instructor_accounts`,
       `retention_records` tables first (no FK dependencies on the
       renamed table yet); then rename `demo_learner_profiles` to
@@ -36,7 +36,7 @@ against these tables/utilities.
       `enrollments`, `enrollment_requests`, `deletion_requests`,
       `demo_instructor_profiles` tables (data-model.md's Correction,
       research.md §3)
-- [ ] T004 Rename `backend/src/models/demo_learner_profile.py` to
+- [X] T004 Rename `backend/src/models/demo_learner_profile.py` to
       `learner_profile.py` (`DemoLearnerProfile` -> `LearnerProfile`,
       add `guardian_id`/`retention_record_id` columns matching T003),
       and update every reference across `backend/src/services/
@@ -47,31 +47,31 @@ against these tables/utilities.
       `backend/tests/unit/test_check_no_real_account_path.py`,
       `backend/tests/integration/evaluation/test_synthetic_data_cleanup.py`,
       `backend/scripts/seed_demo_learner.py` (depends on T003)
-- [ ] T005 [P] Create `backend/src/models/real_guardian_account.py`
+- [X] T005 [P] Create `backend/src/models/real_guardian_account.py`
       (data-model.md) (depends on T003)
-- [ ] T006 [P] Create `backend/src/models/real_instructor_account.py`
+- [X] T006 [P] Create `backend/src/models/real_instructor_account.py`
       (depends on T003)
-- [ ] T007 [P] Create `backend/src/models/retention_record.py`
+- [X] T007 [P] Create `backend/src/models/retention_record.py`
       (depends on T003)
-- [ ] T008 [P] Create `backend/src/models/classroom_roster.py`
+- [X] T008 [P] Create `backend/src/models/classroom_roster.py`
       (includes `subject_id`, `enrollment_mode`, `join_code`) (depends
       on T003)
-- [ ] T009 [P] Create `backend/src/models/enrollment.py` (depends on
+- [X] T009 [P] Create `backend/src/models/enrollment.py` (depends on
       T003, T004)
-- [ ] T010 [P] Create `backend/src/models/enrollment_request.py`
+- [X] T010 [P] Create `backend/src/models/enrollment_request.py`
       (depends on T003, T004, T008)
-- [ ] T011 [P] Create `backend/src/models/deletion_request.py`
+- [X] T011 [P] Create `backend/src/models/deletion_request.py`
       (depends on T003)
-- [ ] T012 [P] Create `backend/src/models/demo_instructor_profile.py`
+- [X] T012 [P] Create `backend/src/models/demo_instructor_profile.py`
       (depends on T003)
-- [ ] T013 [P] Implement `backend/src/services/auth/passwords.py` --
+- [X] T013 [P] Implement `backend/src/services/auth/passwords.py` --
       `hash_password`/`verify_password` via Argon2id (research.md §1)
       (depends on T001)
-- [ ] T014 [P] Implement `backend/src/services/auth/tokens.py` --
+- [X] T014 [P] Implement `backend/src/services/auth/tokens.py` --
       `issue_token`/`verify_token` via `pyjwt`, claims include account
       type (`guardian`/`instructor`) and id (research.md §1, tech-
       stack.md) (depends on T001, T002)
-- [ ] T015 Implement `backend/src/services/auth/dependencies.py` --
+- [X] T015 Implement `backend/src/services/auth/dependencies.py` --
       FastAPI `Depends()` functions `current_guardian`/
       `current_instructor` that read and verify the session cookie via
       `tokens.py`, raising `401` if missing/invalid/wrong account type

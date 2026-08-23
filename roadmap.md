@@ -260,19 +260,22 @@ Agent's full A2A delegation (Milestone 9).
 
 ## Milestone 7: Instructor Classroom -- Auth, Rosters, Dashboard, Content Review, Real Learner Data Gate
 **Spec**: `specs/009-privacy-retention/spec.md` covers this milestone's
-privacy/retention prerequisite only (Constitution Principle VIII); the
-auth/rosters/dashboard/content-review spec proper is not yet written.
+privacy/retention prerequisite (Constitution Principle VIII, approved
+and merged); `specs/010-instructor-classroom/spec.md` is the
+auth/rosters/dashboard/content-review spec proper, gated on 009.
 **Status**: The privacy/retention gate (`009-privacy-retention`) is
 implemented (2026-08-22) -- `backend/scripts/check_no_real_account_path.py`
 CI-enforced via `backend/tests/unit/test_check_no_real_account_path.py`
 (same pytest-import wiring as `check_no_subject_conditionals.py`), plus
 a written data classification (`specs/009-privacy-retention/
 data-classification.md`) and forward-looking data model for the
-account/roster schema this milestone's own implementation will build
-against. This milestone's Definition of Done requires this gate
-approved before the rest of the work below begins -- that condition is
-now met; the auth/rosters/dashboard/content-review implementation
-itself has not started.
+account/roster schema. `010-instructor-classroom` (spec, plan, tasks)
+is approved; `/speckit-implement` is underway -- Phase 1 (Setup) and
+Phase 2 (Foundational: migration creating the 8 new tables plus the
+`demo_learner_profiles` -> `learner_profiles` rename/extension, all 8
+new SQLAlchemy models, and the Argon2id/JWT auth utilities) are
+complete (2026-08-23). User Stories 1-5 (Phases 3-7) and Polish (Phase
+8) have not started.
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's

@@ -15,9 +15,9 @@ from scripts.check_no_real_account_path import find_violations
 
 def test_no_real_account_shaped_model_exists_today():
     """T001: the current backend/src/models/ has zero violations --
-    only DemoLearnerProfile matches an account-like table name pattern
-    ('demo_learner_profiles' contains 'learner'), and it already
-    carries is_demo non-nullable (Milestone 1)."""
+    every account-shaped model (LearnerProfile, RealGuardianAccount,
+    RealInstructorAccount, DemoInstructorProfile) already carries
+    is_demo non-nullable."""
     assert find_violations() == []
 
 

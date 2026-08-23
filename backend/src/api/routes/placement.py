@@ -1,7 +1,7 @@
 """Placement endpoints (contracts/api.md, User Story 1).
 
 Neither endpoint takes a `learner_id` -- Milestone 1 has exactly one
-seeded `DemoLearnerProfile` (spec.md Assumptions: solo-learner flow, no
+seeded `LearnerProfile` (spec.md Assumptions: solo-learner flow, no
 auth/session), resolved via `services/demo_learner.get_demo_learner`.
 """
 
