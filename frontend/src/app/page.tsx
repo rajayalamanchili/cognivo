@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { enterDemoLearnerMode } from "@/lib/visitor-state";
 
 export default function Home() {
   return (
@@ -11,12 +14,14 @@ export default function Home() {
       <div className="flex gap-4">
         <Link
           href="/placement?subject=algebra-1"
+          onClick={enterDemoLearnerMode}
           className="rounded bg-foreground px-5 py-3 text-background"
         >
           Start Algebra I Placement
         </Link>
         <Link
           href="/placement?subject=biology"
+          onClick={enterDemoLearnerMode}
           className="rounded bg-foreground px-5 py-3 text-background"
         >
           Start Biology Placement

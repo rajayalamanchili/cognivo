@@ -59,14 +59,14 @@ test("assign a quiz -> guardian completes it -> instructor sees the per-student 
     const instructorEmail = uniqueEmail("e2e-assign-instructor");
     const guardianEmail = uniqueEmail("e2e-assign-guardian");
 
-    // Instructor: register, create an open roster.
+    // Instructor: register (redirects straight to rosters), create an
+    // open roster.
     await instructorPage.goto("/instructor/register");
     await instructorPage.getByLabel("Email").fill(instructorEmail);
     await instructorPage.getByLabel("Password").fill(PASSWORD);
     await instructorPage.getByRole("button", { name: "Create account" }).click();
-    await expect(instructorPage.getByRole("heading", { name: "You're signed in" })).toBeVisible();
+    await expect(instructorPage).toHaveURL(/\/instructor\/rosters/);
 
-    await instructorPage.goto("/instructor/rosters");
     await instructorPage.getByRole("button", { name: "Create roster" }).click();
     await expect(instructorPage.getByTestId("roster-list")).toContainText("open");
 

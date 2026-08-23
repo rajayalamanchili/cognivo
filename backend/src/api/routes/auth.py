@@ -21,8 +21,15 @@ from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEn
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
+from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.passwords import hash_password, verify_password
-from src.services.auth.tokens import SESSION_COOKIE_NAME, issue_token, set_session_cookie
+from src.services.auth.tokens import (
+    SESSION_COOKIE_NAME,
+    AccountType,
+    SessionClaims,
+    issue_token,
+    set_session_cookie,
+)
 
 router = APIRouter()
 
@@ -172,3 +179,16 @@ def login_guardian(
 @router.post("/api/auth/logout", status_code=204)
 def logout(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+
+
+class WhoAmIOut(BaseModel):
+    account_type: AccountType | None
+
+
+@router.get("/api/auth/whoami", response_model=WhoAmIOut)
+def whoami(claims: SessionClaims | None = Depends(optional_session_claims)) -> WhoAmIOut:
+    """Read-only session-identity check for the frontend nav (no
+    business logic gated on this -- every real authorization decision
+    still happens per-route via `current_guardian`/`current_instructor`,
+    same as before this endpoint existed)."""
+    return WhoAmIOut(account_type=claims.account_type if claims else None)

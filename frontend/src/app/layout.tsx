@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import DemoBadge from "@/components/DemoBadge";
+import Nav from "@/components/Nav";
 import "./globals.css";
-
-const NAV_LINKS = [
-  { href: "/demo", label: "Try Demo" },
-  { href: "/placement?subject=algebra-1", label: "Placement" },
-  { href: "/practice", label: "Practice" },
-  { href: "/mastery", label: "Mastery" },
-  { href: "/personalization-eval", label: "Personalization Evidence" },
-  { href: "/guardian/sign-in", label: "Guardian Sign In" },
-  { href: "/instructor/sign-in", label: "Instructor Sign In" },
-  { href: "/instructor/rosters", label: "Instructor Rosters" },
-  { href: "/instructor/dashboard", label: "Instructor Dashboard" },
-  { href: "/instructor/review", label: "Instructor Review" },
-];
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,13 +24,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
         <DemoBadge />
-        <nav className="flex flex-wrap gap-4 border-b border-zinc-200 px-8 py-3 text-sm dark:border-zinc-800">
-          {NAV_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="text-zinc-600 dark:text-zinc-400">
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <Nav />
         {children}
       </body>
     </html>

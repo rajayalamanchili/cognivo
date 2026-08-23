@@ -416,6 +416,19 @@ export function logout(): Promise<void> {
   return requestVoid("/api/auth/logout", { method: "POST" });
 }
 
+export type SessionAccountType = "guardian" | "instructor" | "demo_instructor";
+
+export interface WhoAmIResponse {
+  account_type: SessionAccountType | null;
+}
+
+// Read-only session-identity check -- drives the nav's per-user-type
+// menu. Never itself an authorization decision (every route still
+// gates on its own current_guardian/current_instructor dependency).
+export function getWhoAmI(): Promise<WhoAmIResponse> {
+  return request<WhoAmIResponse>("/api/auth/whoami");
+}
+
 export interface CreateLearnerResponse {
   learner_id: string;
   guardian_id: string;

@@ -11,6 +11,7 @@ import {
   registerInstructor,
   type AuthErrorBody,
 } from "@/services/api";
+import { exitDemoLearnerMode, notifySessionChanged } from "@/lib/visitor-state";
 
 export type AccountType = "guardian" | "instructor";
 export type AuthMode = "register" | "sign-in";
@@ -25,12 +26,11 @@ const ACCOUNT_LABEL: Record<AccountType, string> = {
   instructor: "instructor",
 };
 
-// Only a guardian has somewhere useful to land post-auth in this phase
-// (add-a-learner) -- the instructor dashboard doesn't exist until
-// Milestone 7's User Story 3, so an instructor just sees an inline
-// confirmation instead of a redirect to a page that isn't built yet.
-function successRedirect(accountType: AccountType): string | null {
-  return accountType === "guardian" ? "/guardian/learners" : null;
+// Both account types now have somewhere real to land post-auth
+// (Milestone 7's instructor rosters page exists) -- mirrors the demo
+// instructor entry point's own redirect target.
+function successRedirect(accountType: AccountType): string {
+  return accountType === "guardian" ? "/guardian/learners" : "/instructor/rosters";
 }
 
 function errorMessage(error: unknown): string {
@@ -48,7 +48,6 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
-  const [succeeded, setSucceeded] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -60,32 +59,17 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
       } else {
         await (mode === "register" ? registerInstructor : loginInstructor)(email, password);
       }
-      const redirectTo = successRedirect(accountType);
-      if (redirectTo) {
-        router.push(redirectTo);
-        return;
-      }
-      setSucceeded(true);
+      exitDemoLearnerMode();
+      notifySessionChanged();
+      router.push(successRedirect(accountType));
     } catch (error) {
       setErrorText(errorMessage(error));
-    } finally {
       setSubmitting(false);
     }
   }
 
   const otherModeHref = `/${accountType}/${mode === "register" ? "sign-in" : "register"}`;
   const otherModeLabel = mode === "register" ? "Sign in instead" : "Create an account instead";
-
-  if (succeeded) {
-    return (
-      <div className="mx-auto flex max-w-sm flex-col gap-4 p-8">
-        <h1 className="text-2xl font-semibold">You&apos;re signed in</h1>
-        <p className="text-sm">
-          Signed in as {ACCOUNT_LABEL[accountType]} <strong>{email}</strong>.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto flex max-w-sm flex-col gap-6 p-8">
