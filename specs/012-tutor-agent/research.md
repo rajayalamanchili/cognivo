@@ -247,3 +247,53 @@ contracts/api.md) rather than creating a second in-flight row.
 adding a redundant `status`/`in_progress` flag that could drift out of
 sync with `answer_text`'s own nullability -- one source of truth for
 "is this exchange done."
+
+## §9: Interrupted-stream recovery and structured delegation context
+
+Added after `/speckit-analyze` (2026-08-23, run against the completed
+plan) found two issues in the design above.
+
+**H2 -- FR-015 deadlock on an interrupted stream**: §8's original
+`answer_text IS NULL` in-flight marker has no way to distinguish
+"still streaming" from "died mid-stream without ever writing an
+answer" -- the latter would permanently block that session from ever
+accepting another question, since FR-015 would forever see an
+in-flight exchange. **Decision**: add `tutor_exchanges.failed_at`
+(nullable timestamptz), set on A2A stream failure/timeout; the FR-015
+check becomes `answer_text IS NULL AND failed_at IS NULL`
+(data-model.md). **Alternatives considered**: a TTL-based check (treat
+any exchange older than N minutes with a null answer as abandoned) --
+rejected, since it would let a slow-but-still-legitimate stream get
+falsely treated as failed near the boundary, and it doesn't actually
+fix anything for a stream that fails fast (the row would still block
+for the full TTL window for no reason); an explicit `status` enum
+column -- rejected as redundant with the simpler two-nullable-column
+signal (`answer_text`/`failed_at`), which already fully covers the
+three real states (in-flight, completed, failed) without a fourth
+column to keep in sync.
+
+**M1 -- `delegation_context`'s shape**: spec.md's "Delegation Call" Key
+Entity describes "a record of one call ... including what was asked
+and what was returned," implying one record per delegated call. §2/§3
+above describe the backend *bundling* context into the Tutor Agent's
+request but were silent on whether the persisted record keeps that
+per-call granularity or only the merged result. **Decision**:
+`delegation_context` is an ordered array of `{agent, request,
+response}` objects, one per delegated call (e.g. one entry for a
+Recommendation Agent lookup), not a single merged summary --
+satisfies US3's acceptance scenario ("inputs and outputs ... visible
+and traceable") and SC-003 literally, not just in spirit.
+**Alternatives considered**: keeping the single merged-summary shape
+(`{"weak_areas": [...]}`) -- rejected, since it can show the *outcome*
+but not "what was asked," understating what US3 promises; a separate
+`delegation_calls` table -- rejected as unnecessary normalization for
+what's already a small, exchange-scoped, append-only list with no
+independent query need of its own.
+
+**H1 -- SC-002 has no test-question set to measure against**: flagged
+separately (not a design decision, a missing build artifact). Fixed by
+adding a Polish-phase task (tasks.md T036) to author
+`specs/012-tutor-agent/eval/grounding-test-questions.md` before the
+task that verifies against it (T038) -- mirrors Milestone 3's
+personalization-eval harness precedent (a fixture checked into the
+spec directory, not generated ad hoc at verification time).

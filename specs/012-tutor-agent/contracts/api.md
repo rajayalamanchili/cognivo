@@ -51,8 +51,10 @@ a single JSON body -- the frontend reads it via the browser's streaming
 
 **Server steps before the first byte is streamed** (all synchronous,
 counted in SC-001's first-token budget):
-1. Reject if this session already has an in-flight exchange
-   (`answer_text IS NULL`) -- FR-015, cheapest check, done first.
+1. Reject if this session already has a genuinely in-flight exchange
+   (`answer_text IS NULL AND failed_at IS NULL`) -- FR-015, cheapest
+   check, done first. A previously `failed_at`-marked exchange does
+   not block this (finding H2).
 2. Rate-limit check (FR-013) -- a DB query counting this learner's
    `tutor_exchanges` in the trailing 10-minute window
    (research.md §8/data-model.md), same shape as spec 007's
@@ -101,10 +103,22 @@ rate limit/length/moderation/retrieval):
 ```
 
 **Response** `503` -- **tutor unavailable** (Tutor Agent A2A call
-failed after retry, mirroring `grading_unavailable`'s shape):
+failed after retry, mirroring `grading_unavailable`'s shape). The
+backend sets `tutor_exchanges.failed_at` on this path (data-model.md
+§`tutor_exchanges`, `/speckit-analyze` finding H2) rather than leaving
+the row's `answer_text` ambiguously `NULL` -- this is what keeps the
+session usable for the learner's next question instead of permanently
+tripping FR-015's in-flight check:
 ```json
 { "error": "tutor_unavailable" }
 ```
+
+A stream that starts successfully but is interrupted mid-response
+(client disconnect, function timeout) sets the same `failed_at` marker
+server-side once detected -- no learner-facing response for this case
+beyond the connection simply ending, since there's no request left to
+respond to; the next `POST .../messages` on that session succeeds
+normally instead of getting stuck behind a phantom in-flight exchange.
 
 **Error-state ordering**: in-flight check first (cheapest, one query
 against a row already implied by the session), then rate limit (one DB
@@ -129,6 +143,7 @@ learner's enrolled-classroom instructor (same enrollment-scoped access
 ```json
 {
   "exchange_id": "...",
+  "status": "completed",
   "question_text": "why does photosynthesis need light?",
   "answer_text": "Light provides the energy...",
   "grounded": true,
@@ -140,9 +155,21 @@ learner's enrolled-classroom instructor (same enrollment-scoped access
       "text": "..."
     }
   ],
-  "delegation_context": { "weak_areas": ["..."] }
+  "delegation_context": [
+    {
+      "agent": "recommendation",
+      "request": { "learner_id": "...", "subject_id": "biology" },
+      "response": { "weak_areas": ["cell-transport"] }
+    }
+  ]
 }
 ```
+`status` is derived, not stored: `"completed"` when `answer_text` is
+set, `"failed"` when `failed_at` is set (`/speckit-analyze` finding
+H2), `"in_progress"` when neither is set yet. `delegation_context` is
+an array of one entry per delegated call the backend made while
+producing this exchange -- empty for a question that needed no
+delegation (`/speckit-analyze` finding M1, data-model.md).
 
 ## Internal contract: backend -> Tutor Agent (A2A)
 
@@ -170,9 +197,14 @@ Agent.
   "retrieved_passages": [
     { "passage_id": "...", "topic_id": "photosynthesis", "field": "skill_summary", "text": "..." }
   ],
-  "delegation_context": { "weak_areas": ["cell-transport"] }
+  "delegation_context": [
+    { "agent": "recommendation", "request": { "learner_id": "...", "subject_id": "biology" }, "response": { "weak_areas": ["cell-transport"] } }
+  ]
 }
 ```
+Sent to `tutor-agent/` in the same structured-array shape the backend
+persists (contracts/api.md's `GET /api/tutor/exchanges/{id}` above) --
+one representation, not two.
 
 **Streamed response** (A2A `message/stream` chunks): incremental text
 deltas, terminated by a final chunk indicating completion and which

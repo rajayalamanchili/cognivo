@@ -56,7 +56,7 @@ just in application code (FR-013/FR-014/FR-015).
 | V. Every Decision Logged and Explainable | PASS | FR-007 (pedagogical audit event, reusing `assessment_events`) + FR-008 (Langfuse trace) satisfy both halves explicitly. |
 | VI. Agent Boundaries Match Deployment Boundaries | PASS | `tutor-agent/` as a new A2A service is justified by a concrete need (independent evaluability of retrieval-grounding quality, SC-002; matches the Grading Agent precedent). Sequencing/Recommendation explicitly stay local (FR-009) since neither has a stated independent-versioning/evaluation need -- avoids the "A2A by default" anti-pattern. Inbound auth (shared secret) + compensating guardrails required for `tutor-agent/`, same as Grading Agent. |
 | VII. Spec Before Code, Milestone-Gated | PASS | This plan follows an approved `spec.md`; Milestone 8's Success Criteria were met before this milestone began (`roadmap.md`). |
-| VIII. No Real Learner Data Until Privacy/Retention Specified | PASS | Access model (FR-001) reuses Milestone 8's already-approved guardian-mediated pattern plus the demo learner -- no new real-data surface or account type introduced; tutoring conversation content for a real learner falls under the same approved data-handling scope `specs/009-privacy-retention/spec.md` already covers. |
+| VIII. No Real Learner Data Until Privacy/Retention Specified | PASS | Access model (FR-001) reuses Milestone 8's already-approved guardian-mediated pattern plus the demo learner -- no new real-data surface or account type introduced. `/speckit-analyze` (2026-08-23) verified this claim rather than leaving it asserted: `specs/009-privacy-retention/data-classification.md` has been extended to cover `tutoring_sessions`/`tutor_exchanges` (finding C1). That same check surfaced a **pre-existing, not-Milestone-9-introduced** gap -- FR-004/FR-005's actual deletion-execution pathway was never implemented in Milestone 7, only the `DeletionRequest` model -- now tracked in `roadmap.md`'s new "Known gap" section rather than silently inherited. |
 | IX. Deployable and Demoable From the Start | PASS | `tutor-agent/` is stateless (research.md §2), session/exchange state is DB-backed (data-model.md), streaming uses Vercel/Next.js's native support -- no in-memory state assumed anywhere. |
 | X. Staged Release Discipline | PASS (process) | Work happens on `012-tutor-agent`, branched from `origin/staging`; PR targets `staging`, subject to the automated review gate. |
 
@@ -99,7 +99,7 @@ backend/
 │   └── api/routes/
 │       └── tutor.py                       # NEW: POST /api/tutor/sessions, .../messages, GET .../exchanges/{id}
 ├── alembic/versions/
-│   └── <hash>_tutor_agent.py              # NEW: pgvector extension, 3 new tables, new AssessmentEventType value
+│   └── <hash>_tutor_agent.py              # NEW: pgvector extension, 3 new tables (tutor_exchanges incl. failed_at), new AssessmentEventType value
 └── tests/
     ├── unit/                              # passage_search, tutor/session orchestration
     └── integration/                       # tutor.py routes, content_artifact loader extension

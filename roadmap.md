@@ -510,7 +510,46 @@ subject, get-or-create), FR-015 (a new question is rejected, not
 interleaved or queued, while the previous one is still streaming).
 `research.md`/`data-model.md`/`contracts/api.md` then refreshed to
 match (a new research.md §8, a partial-unique-index constraint, a new
-`409`/`429` response pair). `/speckit-tasks` not yet run.
+`409`/`429` response pair). `/speckit-tasks` complete (2026-08-23):
+36 tasks across Setup, Foundational, and three user-story phases.
+`/speckit-analyze` then run (2026-08-23) and found 5 issues -- 1
+CRITICAL, 2 HIGH, 2 MEDIUM -- all fixed the same day, revising the
+task count to 38: **C1** (CRITICAL, Constitution Principle VIII) --
+the two new real-learner-linked tables weren't yet reflected in
+`specs/009-privacy-retention/data-classification.md`, which is a
+living document FR-002 requires stay current; fixed directly in that
+document, which in turn surfaced a bigger, pre-existing gap (not
+introduced by this milestone) now tracked in this file's own new
+"Known gap" section above: Milestone 7's FR-004/FR-005 deletion-
+execution pathway was deferred at spec-writing time and never actually
+implemented, only its `DeletionRequest` model. **H1** (SC-002 had no
+test-question fixture to measure its 90% grounding threshold against)
+-- added T036. **H2** (FR-015's original `answer_text IS NULL`
+in-flight marker had no way to distinguish "still streaming" from "died
+mid-stream," which would have permanently blocked a session after any
+interrupted stream) -- added `tutor_exchanges.failed_at`, splitting the
+original single orchestration task into T021/T022. **M1** (spec.md's
+"Delegation Call" entity wanted per-call inputs/outputs, but
+`delegation_context` was designed as a single merged summary) --
+restructured to an array of `{agent, request, response}` records.
+**M2** (the pre-split orchestration task bundled 7 requirements into
+one unit) -- resolved by the same H2 split. Foundational (T004-T015)
+covers the data layer (3 new tables + `pgvector` extension + new
+`AssessmentEventType` value), the content-artifact loader's
+embedding-generation extension, and the standalone `tutor-agent/` A2A
+service itself (agent, guardrails, tracing) plus the backend's client
+for it -- all three user stories depend on this. User Story 1
+(T016-T027, the MVP) builds the full open-session -> ask ->
+grounded-streamed-answer loop, including FR-013/014/015's rate-limit/
+session-uniqueness/in-flight guardrails and the H2 failure-recovery
+path (deliberately scoped as US1 tasks, not Foundational, since
+they're behavior of the two endpoints US1 itself builds). User Story 2
+(T028-T030) adds real mastery/weak-area context to the same
+orchestration. User Story 3 (T031-T032) adds the inspection endpoint.
+Polish (T033-T038) covers the E2E round trip, full-suite regression
+against a real database, the subject-conditional gate, the H1 fixture,
+and live verification of SC-001/002/004. `/speckit-implement` not yet
+run.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
@@ -697,6 +736,38 @@ near-duplicate history -- caching applies to the underlying generation
 call, not to what's ultimately shown to a specific learner, so a cached
 question can still be excluded from a specific learner's next question
 if they've already seen it recently.
+
+---
+
+## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
+
+Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
+while checking whether Milestone 9's two new real-learner-linked
+tables (`tutoring_sessions`, `tutor_exchanges`) were covered by
+Milestone 7's deletion guarantee. They now are, on paper
+(`specs/009-privacy-retention/data-classification.md`, updated the
+same day) -- but tracing that guarantee back to actual code found that
+FR-004/FR-005 (`specs/009-privacy-retention/spec.md`'s "a real
+learner's or instructor's data can be deleted on request") were
+**deliberately deferred, not implemented**: spec 009's own tasks.md
+says outright "No tasks in this spec... Milestone 7 proper's own
+tasks.md is where they become implementation tasks." Checking
+`010-instructor-classroom/tasks.md` shows only T011, which creates the
+`DeletionRequest` *model* -- no endpoint or service ever executes an
+actual deletion. `grep`-ing `backend/src/` for any deletion-execution
+logic confirms this: nothing found beyond the model.
+
+This is not a Milestone 9 regression -- it predates this milestone and
+was not caught by Milestone 7's own DoD checks or "Known gaps" notes.
+It **is** a live Constitution Principle VIII gap: every real
+guardian/learner/instructor account created since Milestone 7 shipped
+has no working right-to-erasure path despite the constitution
+requiring one exist before real data is ingested at all. Needs its own
+prioritized fix -- implementing `DELETE /api/account` (or equivalent)
+against the already-modeled `DeletionRequest`/`RetentionRecord`
+entities and the now-complete `data-classification.md` -- rather than
+being rediscovered again at the next milestone that touches real
+learner data.
 
 ---
 

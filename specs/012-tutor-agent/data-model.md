@@ -65,16 +65,29 @@ append-only within a session.
 | `answer_text` | text, nullable until streaming completes | Final assembled answer; written once streaming finishes (FR-005/FR-007 need the complete text logged, not just what the learner saw live) |
 | `grounded` | boolean, not null | Whether FR-002/FR-004's retrieval step found and used at least one sufficiently relevant passage -- directly what SC-002 measures across a test set |
 | `retrieved_passage_ids` | `UUID[]` (Postgres array) | FKs into `content_passage_embeddings.passage_id`, in the order presented to the Tutor Agent -- the raw material for FR-003/US3 |
-| `delegation_context` | JSON, nullable | The mastery/weak-area (and, where applicable, grading) context the backend bundled into the Tutor Agent's request per research.md §2/§3 -- what FR-006 required and what US3 inspects to answer "why was I told this" |
+| `delegation_context` | JSON, nullable | An ordered array of `{agent, request, response}` records, one per delegated call the backend made while producing this exchange (e.g. a Recommendation Agent lookup) -- not just the bundled result. Matches spec.md's "Delegation Call" entity ("what was asked and what was returned") and US3's acceptance scenario ("inputs and outputs"), not only a summary (revised 2026-08-23 during `/speckit-analyze`, finding M1) |
+| `failed_at` | timestamptz, nullable | Set when the A2A stream to `tutor-agent/` fails or times out before completing -- distinguishes "died mid-stream" from "still streaming," closing the FR-015 deadlock `/speckit-analyze` found (finding H2, see below). Never set together with a non-null `answer_text` |
 | `created_at` | timestamptz, server default `now()` | |
 
-**In-flight concurrency (FR-015)**: `answer_text IS NULL` on a
-session's most recent `TutorExchange` row means that exchange is still
-streaming. `POST /api/tutor/sessions/{id}/messages` checks for such a
-row before creating a new one and rejects (`409`) rather than creating
-a second in-flight row for the same session (research.md §8) -- no new
-column needed; `answer_text`'s existing nullability is the single
-source of truth for "is this exchange done."
+**In-flight concurrency (FR-015)**: `answer_text IS NULL AND
+failed_at IS NULL` on a session's most recent `TutorExchange` row means
+that exchange is still genuinely streaming. `POST /api/tutor/sessions
+/{id}/messages` checks for such a row before creating a new one and
+rejects (`409`) rather than creating a second in-flight row for the
+same session (research.md §8).
+
+**Interrupted-stream recovery (revised 2026-08-23, `/speckit-analyze`
+finding H2)**: the original design used `answer_text IS NULL` alone as
+the in-flight marker -- but if a stream is interrupted (client
+disconnect, Vercel function timeout) before `answer_text` is ever
+written, that row would stay `NULL` forever, and FR-015's check would
+then reject *every future question in that session*, permanently.
+`failed_at` closes this: on any A2A stream failure/timeout, the
+backend sets `failed_at = now()` (leaving `answer_text` `NULL`) instead
+of leaving the row ambiguous. A session with only failed exchanges is
+not "in flight" and can accept a new question normally -- this also
+gives `GET /api/tutor/exchanges/{id}` (US3) an honest `"failed"` state
+to report, rather than an exchange that looks silently abandoned.
 
 ## Rate limiting (FR-013)
 
@@ -129,7 +142,10 @@ TutorExchange 1--1 AssessmentEvent           (tutor_exchange_completed)
   concurrent double-open request must fail one write and let the other
   win, never leave two active rows for the same pair (FR-014).
 - `POST /api/tutor/sessions/{id}/messages` MUST NOT create a second
-  `TutorExchange` row with `answer_text IS NULL` while one already
-  exists for that session (FR-015) -- checked immediately before
-  insert, in the same transaction, to close the race between the check
-  and the write.
+  `TutorExchange` row with `answer_text IS NULL AND failed_at IS NULL`
+  while one already exists for that session (FR-015) -- checked
+  immediately before insert, in the same transaction, to close the
+  race between the check and the write.
+- A `TutorExchange` row MUST NOT have both `answer_text` and
+  `failed_at` set -- a completed exchange and a failed one are mutually
+  exclusive outcomes.

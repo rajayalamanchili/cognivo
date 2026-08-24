@@ -129,7 +129,11 @@ produced it, independent of asking the Tutor Agent itself to explain.
   externally-reachable agent service.
 - What happens when streaming is interrupted mid-response (client
   disconnects, function execution time bound reached)? The learner must
-  not be left with a silently truncated answer presented as complete.
+  not be left with a silently truncated answer presented as complete,
+  and the interrupted exchange must not permanently block that
+  session from accepting its next question (an earlier version of
+  FR-015's mechanism had exactly this gap, found and closed via
+  `/speckit-analyze` -- see data-model.md's `failed_at` field).
 - What happens when a learner exceeds the per-window rate limit
   (FR-013)? The learner must see a clear rejection, not a silently
   dropped or endlessly-queued request.
