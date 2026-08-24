@@ -27,9 +27,9 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 **Purpose**: New `tutor-agent/` project scaffold and backend dependency/config additions.
 
-- [ ] T001 Create `tutor-agent/` project scaffold (`pyproject.toml`, `vercel.json`, `src/__init__.py`, `tests/`) mirroring `grading-agent/`'s layout exactly (plan.md Project Structure; dependencies: `a2a-sdk[http-server]`, `google-adk`, `langfuse`, `litellm`, `openinference-instrumentation-google-adk`, `uvicorn[standard]`)
-- [ ] T002 [P] Add `pgvector` to `backend/pyproject.toml` dependencies
-- [ ] T003 [P] Add new env vars to `backend/.env.example`: `TUTOR_EMBEDDING_MODEL`, `VOYAGE_API_KEY`, `TUTOR_AGENT_URL`, `TUTOR_AGENT_SHARED_SECRET`, `TUTOR_AGENT_SHARED_SECRET_NEXT`, `TUTOR_AGENT_VERCEL_BYPASS_SECRET` (research.md §1, §7)
+- [X] T001 Create `tutor-agent/` project scaffold (`pyproject.toml`, `vercel.json`, `src/__init__.py`, `tests/`) mirroring `grading-agent/`'s layout exactly (plan.md Project Structure; dependencies: `a2a-sdk[http-server]`, `google-adk`, `langfuse`, `litellm`, `openinference-instrumentation-google-adk`, `uvicorn[standard]`)
+- [X] T002 [P] Add `pgvector` to `backend/pyproject.toml` dependencies
+- [X] T003 [P] Add new env vars to `backend/.env.example`: `TUTOR_EMBEDDING_MODEL`, `VOYAGE_API_KEY`, `TUTOR_AGENT_URL`, `TUTOR_AGENT_SHARED_SECRET`, `TUTOR_AGENT_SHARED_SECRET_NEXT`, `TUTOR_AGENT_VERCEL_BYPASS_SECRET` (research.md §1, §7)
 
 ---
 
