@@ -74,3 +74,16 @@ class GradingUnavailableError(DomainError):
 
     def __init__(self):
         super().__init__("grading_unavailable")
+
+
+class TutorUnavailableError(DomainError):
+    """Maps to HTTP 503 (spec 012 contracts/api.md) -- every attempt to
+    open the Tutor Agent's A2A stream failed before any content
+    streamed back. Raised only pre-first-byte; a failure *after*
+    streaming has begun is a distinct case
+    (`tutor_agent_client.client.TutorStreamInterruptedError`) with no
+    single HTTP status left to return, since the response has already
+    started (contracts/api.md's `503` section)."""
+
+    def __init__(self):
+        super().__init__("tutor_unavailable")

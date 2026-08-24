@@ -39,18 +39,18 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T004 [P] Create `ContentPassageEmbedding` model in `backend/src/models/content_passage_embedding.py` (data-model.md)
-- [ ] T005 [P] Create `TutoringSession` model in `backend/src/models/tutoring_session.py` (data-model.md)
-- [ ] T006 [P] Create `TutorExchange` model in `backend/src/models/tutor_exchange.py`, including the nullable `failed_at` column (data-model.md, `/speckit-analyze` finding H2)
-- [ ] T007 Register the three new models in `backend/src/models/__init__.py` (depends on T004-T006)
-- [ ] T008 Add `TUTOR_EXCHANGE_COMPLETED = "tutor_exchange_completed"` to `AssessmentEventType` in `backend/src/models/enums.py` (data-model.md)
-- [ ] T009 Alembic migration in `backend/alembic/versions/<hash>_tutor_agent.py`: enable the `pgvector` extension; create `content_passage_embeddings`, `tutoring_sessions` (with the partial unique index `(learner_id, subject_id) WHERE status = 'active'`, FR-014), and `tutor_exchanges` (including `failed_at`, finding H2) tables; add the new `AssessmentEventType` enum value (depends on T004-T008)
-- [ ] T010 Extend `backend/src/services/content_artifact/loader.py`'s load pipeline to generate/upsert `ContentPassageEmbedding` rows (one per topic's `skill_definition.summary` and each `difficulty_calibration` entry) via `litellm.embedding()` against Voyage `voyage-3`, deleting rows for a superseded `content_version` (research.md §5, data-model.md) (depends on T004, T009)
-- [ ] T011 Implement the `pgvector` cosine-similarity query in `backend/src/services/retrieval/passage_search.py`, scoped to a given `subject_id` (research.md §2/§5) (depends on T004, T009)
-- [ ] T012 Implement `tutor-agent/src/agent.py`: an ADK `LlmAgent` wrapped by `to_a2a()`, with `_to_a2a_kwargs` deriving `host`/`protocol`/`port=443` from `VERCEL_BRANCH_URL`/`VERCEL_URL` (mirrors `grading-agent/src/agent.py`, research.md §7) (depends on T001)
-- [ ] T013 [P] Implement `tutor-agent/src/guardrails.py`: `X-Tutor-Agent-Secret` shared-secret auth middleware plus the compensating length-cap/moderation checks (FR-010/FR-011, mirrors `grading-agent/src/guardrails.py`) (depends on T001)
-- [ ] T014 [P] Implement `tutor-agent/src/tracing.py`: Langfuse/OpenInference ADK instrumentation with an explicit flush before the function returns (FR-008, mirrors `grading-agent/src/tracing.py`) (depends on T001)
-- [ ] T015 Implement `backend/src/services/tutor_agent_client/client.py`: an A2A streaming client that calls `tutor-agent/`'s `message/stream`, sends `X-Tutor-Agent-Secret`, and retries once on failure (mirrors `services/grading_client/client.py`) (depends on T012)
+- [X] T004 [P] Create `ContentPassageEmbedding` model in `backend/src/models/content_passage_embedding.py` (data-model.md)
+- [X] T005 [P] Create `TutoringSession` model in `backend/src/models/tutoring_session.py` (data-model.md)
+- [X] T006 [P] Create `TutorExchange` model in `backend/src/models/tutor_exchange.py`, including the nullable `failed_at` column (data-model.md, `/speckit-analyze` finding H2)
+- [X] T007 Register the three new models in `backend/src/models/__init__.py` (depends on T004-T006)
+- [X] T008 Add `TUTOR_EXCHANGE_COMPLETED = "tutor_exchange_completed"` to `AssessmentEventType` in `backend/src/models/enums.py` (data-model.md)
+- [X] T009 Alembic migration in `backend/alembic/versions/<hash>_tutor_agent.py`: enable the `pgvector` extension; create `content_passage_embeddings`, `tutoring_sessions` (with the partial unique index `(learner_id, subject_id) WHERE status = 'active'`, FR-014), and `tutor_exchanges` (including `failed_at`, finding H2) tables; add the new `AssessmentEventType` enum value (depends on T004-T008)
+- [X] T010 Extend `backend/src/services/content_artifact/loader.py`'s load pipeline to generate/upsert `ContentPassageEmbedding` rows (one per topic's `skill_definition.summary` and each `difficulty_calibration` entry) via `litellm.embedding()` against Voyage `voyage-3`, deleting rows for a superseded `content_version` (research.md §5, data-model.md) (depends on T004, T009)
+- [X] T011 Implement the `pgvector` cosine-similarity query in `backend/src/services/retrieval/passage_search.py`, scoped to a given `subject_id` (research.md §2/§5) (depends on T004, T009)
+- [X] T012 Implement `tutor-agent/src/agent.py`: an ADK `LlmAgent` wrapped by `to_a2a()`, with `_to_a2a_kwargs` deriving `host`/`protocol`/`port=443` from `VERCEL_BRANCH_URL`/`VERCEL_URL` (mirrors `grading-agent/src/agent.py`, research.md §7) (depends on T001)
+- [X] T013 [P] Implement `tutor-agent/src/guardrails.py`: `X-Tutor-Agent-Secret` shared-secret auth middleware plus the compensating length-cap/moderation checks (FR-010/FR-011, mirrors `grading-agent/src/guardrails.py`) (depends on T001)
+- [X] T014 [P] Implement `tutor-agent/src/tracing.py`: Langfuse/OpenInference ADK instrumentation with an explicit flush before the function returns (FR-008, mirrors `grading-agent/src/tracing.py`) (depends on T001)
+- [X] T015 Implement `backend/src/services/tutor_agent_client/client.py`: an A2A streaming client that calls `tutor-agent/`'s `message/stream`, sends `X-Tutor-Agent-Secret`, and retries once on failure (mirrors `services/grading_client/client.py`) (depends on T012)
 
 **Checkpoint**: Data layer, `tutor-agent/` service, and the backend's client for it all exist -- user story implementation can now begin.
 

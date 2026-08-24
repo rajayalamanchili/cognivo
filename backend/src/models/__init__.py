@@ -1,6 +1,7 @@
 from src.models.assessment_event import AssessmentEvent
 from src.models.base import Base
 from src.models.classroom_roster import ClassroomRoster
+from src.models.content_passage_embedding import ContentPassageEmbedding
 from src.models.deletion_request import DeletionRequest
 from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enrollment import Enrollment
@@ -17,11 +18,14 @@ from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
 from src.models.subject import Subject
 from src.models.topic import Topic
+from src.models.tutor_exchange import TutorExchange
+from src.models.tutoring_session import TutoringSession
 
 __all__ = [
     "AssessmentEvent",
     "Base",
     "ClassroomRoster",
+    "ContentPassageEmbedding",
     "DeletionRequest",
     "DemoInstructorProfile",
     "Enrollment",
@@ -38,4 +42,6 @@ __all__ = [
     "RetentionRecord",
     "Subject",
     "Topic",
+    "TutorExchange",
+    "TutoringSession",
 ]
