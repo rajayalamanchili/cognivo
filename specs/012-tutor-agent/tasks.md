@@ -64,21 +64,21 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Integration test for `POST /api/tutor/sessions` (create, and get-or-create per FR-014) in `backend/tests/integration/test_tutor_sessions.py`
-- [ ] T017 [P] [US1] Integration test for `POST /api/tutor/sessions/{id}/messages` covering the streamed-grounded case, the honest-non-grounded case, the `409`/`429`/`422`/`503` rejection paths, and a session recovering after a `failed_at` exchange (finding H2) in `backend/tests/integration/test_tutor_messages.py`
-- [ ] T018 [P] [US1] Unit test for `passage_search.py`'s similarity ranking in `backend/tests/unit/test_passage_search.py`
+- [X] T016 [P] [US1] Integration test for `POST /api/tutor/sessions` (create, and get-or-create per FR-014) in `backend/tests/integration/test_tutor_sessions.py`
+- [X] T017 [P] [US1] Integration test for `POST /api/tutor/sessions/{id}/messages` covering the streamed-grounded case, the honest-non-grounded case, the `409`/`429`/`422`/`503` rejection paths, and a session recovering after a `failed_at` exchange (finding H2) in `backend/tests/integration/test_tutor_messages.py`
+- [X] T018 [P] [US1] Unit test for `passage_search.py`'s similarity ranking in `backend/tests/unit/test_passage_search.py`
 
 ### Implementation for User Story 1
 
-- [ ] T019 [P] [US1] Implement `check_tutor_rate_limit` in `backend/src/services/tutor/rate_limit.py`, mirroring `services/grading_client/guardrails.py`'s `check_rate_limit` exactly (FR-013, research.md §8)
-- [ ] T020 [US1] Implement session get-or-create (`open_session`) in `backend/src/services/tutor/session.py` against the partial unique index (FR-014) (depends on T005, T009)
-- [ ] T021 [US1] Implement request assembly and the streamed call in `submit_message` (`backend/src/services/tutor/session.py`): in-flight check (FR-015) -> rate limit (T019) -> length/moderation -> `passage_search` (T011) -> bundle context -> call `tutor_agent_client` (T015) -> proxy the stream to the caller (FR-002/FR-005/FR-012) (depends on T006, T011, T015, T019, T020)
-- [ ] T022 [US1] Implement `submit_message`'s completion handling (`backend/src/services/tutor/session.py`): on stream success, persist the `TutorExchange` row (`answer_text`, `grounded`, `retrieved_passage_ids`, `delegation_context`), write the `tutor_exchange_completed` audit event, and flush the Langfuse span; on stream failure/timeout, set `failed_at` instead of leaving `answer_text` ambiguously `NULL` (FR-003/FR-004/FR-007/FR-008, closes finding H2) (depends on T021)
-- [ ] T023 [US1] Implement `POST /api/tutor/sessions` and `POST /api/tutor/sessions/{session_id}/messages` in `backend/src/api/routes/tutor.py`, guardian-mediated + demo-learner auth (FR-001) (depends on T020, T022)
-- [ ] T024 [US1] Register the `tutor` router in `backend/src/api/main.py` (depends on T023)
-- [ ] T025 [P] [US1] Implement the tutoring chat page `frontend/src/app/tutor/page.tsx` and streaming chat component `frontend/src/components/TutorChat.tsx`
-- [ ] T026 [P] [US1] Add a streaming-fetch helper for `/api/tutor/...` to `frontend/src/services/api.ts`
-- [ ] T027 [P] [US1] Unit tests for `TutorChat.tsx` in `frontend/tests/unit/tutor-chat.test.tsx`
+- [X] T019 [P] [US1] Implement `check_tutor_rate_limit` in `backend/src/services/tutor/rate_limit.py`, mirroring `services/grading_client/guardrails.py`'s `check_rate_limit` exactly (FR-013, research.md §8)
+- [X] T020 [US1] Implement session get-or-create (`open_session`) in `backend/src/services/tutor/session.py` against the partial unique index (FR-014) (depends on T005, T009)
+- [X] T021 [US1] Implement request assembly and the streamed call in `submit_message` (`backend/src/services/tutor/session.py`): in-flight check (FR-015) -> rate limit (T019) -> length/moderation -> `passage_search` (T011) -> bundle context -> call `tutor_agent_client` (T015) -> proxy the stream to the caller (FR-002/FR-005/FR-012) (depends on T006, T011, T015, T019, T020)
+- [X] T022 [US1] Implement `submit_message`'s completion handling (`backend/src/services/tutor/session.py`): on stream success, persist the `TutorExchange` row (`answer_text`, `grounded`, `retrieved_passage_ids`, `delegation_context`), write the `tutor_exchange_completed` audit event, and flush the Langfuse span; on stream failure/timeout, set `failed_at` instead of leaving `answer_text` ambiguously `NULL` (FR-003/FR-004/FR-007/FR-008, closes finding H2) (depends on T021)
+- [X] T023 [US1] Implement `POST /api/tutor/sessions` and `POST /api/tutor/sessions/{session_id}/messages` in `backend/src/api/routes/tutor.py`, guardian-mediated + demo-learner auth (FR-001) (depends on T020, T022)
+- [X] T024 [US1] Register the `tutor` router in `backend/src/api/main.py` (depends on T023)
+- [X] T025 [P] [US1] Implement the tutoring chat page `frontend/src/app/tutor/page.tsx` and streaming chat component `frontend/src/components/TutorChat.tsx`
+- [X] T026 [P] [US1] Add a streaming-fetch helper for `/api/tutor/...` to `frontend/src/services/api.ts`
+- [X] T027 [P] [US1] Unit tests for `TutorChat.tsx` in `frontend/tests/unit/tutor-chat.test.tsx`
 
 **Checkpoint**: User Story 1 is fully functional and independently testable (quickstart scenarios 1, 2, 5, 6).
 

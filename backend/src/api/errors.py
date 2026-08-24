@@ -5,6 +5,8 @@ the status-code mapping required by contracts/api.md (404/409/422 per
 endpoint) lives in exactly one place (`main.py`'s exception handlers).
 """
 
+import uuid
+
 
 class DomainError(Exception):
     def __init__(self, message: str):
@@ -74,6 +76,28 @@ class GradingUnavailableError(DomainError):
 
     def __init__(self):
         super().__init__("grading_unavailable")
+
+
+class QuestionTooLongError(DomainError):
+    """Maps to HTTP 422 (spec 012 contracts/api.md): `{"error":
+    "question_too_long", "max_length": ...}` -- the Tutor Agent's own
+    distinct error string from `TooLongError`'s `answer_too_long`
+    (different submission kind, spec 007 vs spec 012), same shape."""
+
+    def __init__(self, max_length: int):
+        super().__init__("question_too_long")
+        self.max_length = max_length
+
+
+class StillAnsweringError(DomainError):
+    """Maps to HTTP 409 (spec 012 FR-015): `{"error": "still_answering",
+    "exchange_id": "..."}` -- a distinct shape from `ConflictError`'s
+    generic `{"detail": ...}`, carrying the in-flight exchange's id so
+    the caller can identify which question is still being answered."""
+
+    def __init__(self, exchange_id: uuid.UUID):
+        super().__init__("still_answering")
+        self.exchange_id = exchange_id
 
 
 class TutorUnavailableError(DomainError):

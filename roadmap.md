@@ -548,8 +548,19 @@ they're behavior of the two endpoints US1 itself builds). User Story 2
 orchestration. User Story 3 (T031-T032) adds the inspection endpoint.
 Polish (T033-T038) covers the E2E round trip, full-suite regression
 against a real database, the subject-conditional gate, the H1 fixture,
-and live verification of SC-001/002/004. `/speckit-implement` not yet
-run.
+and live verification of SC-001/002/004. `/speckit-implement` run
+phase-by-phase starting 2026-08-24: Setup (T001-T003) and Foundational
+(T004-T015) both complete -- the latter's migration and `pgvector`
+retrieval verified end-to-end against a real, freshly-migrated dev
+database (`de54cd54219e`), not just unit-tested. User Story 1
+(T016-T027, the MVP) also complete: the full open-session ->
+ask -> grounded-streamed-answer loop, FR-013/014/015's guardrails, and
+the H2 failure-recovery path all pass their integration tests against
+that same real database (15 new tests), plus the frontend chat page/
+component (11 new Vitest tests, ESLint/Prettier/`next build` clean).
+Full backend regression re-confirmed at 308/308 passing after this
+phase (293 prior + 15 new -- SC-005 holds). User Stories 2/3 and
+Polish (T028-T038) not yet run.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this

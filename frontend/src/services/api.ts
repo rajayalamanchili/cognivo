@@ -692,9 +692,7 @@ export interface ListLearnerAssignmentsResponse {
   assignments: LearnerAssignment[];
 }
 
-export function listLearnerAssignments(
-  learnerId: string,
-): Promise<ListLearnerAssignmentsResponse> {
+export function listLearnerAssignments(learnerId: string): Promise<ListLearnerAssignmentsResponse> {
   return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments`);
 }
 
@@ -738,4 +736,96 @@ export function getAssignmentDetail(
   assignmentId: string,
 ): Promise<AssignmentDetail> {
   return request<AssignmentDetail>(`/api/rosters/${rosterId}/assignments/${assignmentId}`);
+}
+
+// Tutor Agent (spec 012, contracts/api.md) -- session open (get-or-create,
+// FR-014) and the streamed question/answer endpoint (FR-005).
+
+export interface TutorSession {
+  session_id: string;
+  subject_id: string;
+  status: string;
+}
+
+export function openTutorSession(learnerId: string, subjectId: string): Promise<TutorSession> {
+  return request<TutorSession>("/api/tutor/sessions", {
+    method: "POST",
+    body: JSON.stringify({ learner_id: learnerId, subject_id: subjectId }),
+  });
+}
+
+// The messages endpoint's four distinct rejection responses
+// (contracts/api.md) -- reuses RateLimitedBody/ModerationRejectedBody
+// verbatim (identical shape to spec 007's), adds the two new ones.
+export interface QuestionTooLongBody {
+  error: "question_too_long";
+  max_length: number;
+}
+
+export interface StillAnsweringBody {
+  error: "still_answering";
+  exchange_id: string;
+}
+
+export interface TutorUnavailableBody {
+  error: "tutor_unavailable";
+}
+
+export type TutorMessageErrorBody =
+  | QuestionTooLongBody
+  | RateLimitedBody
+  | ModerationRejectedBody
+  | StillAnsweringBody
+  | TutorUnavailableBody;
+
+// One decoded `data: {...}` line from the messages endpoint's SSE body
+// (contracts/api.md's streamed wire format) -- either an answer delta
+// or the final completion marker, never both on the same event.
+export interface TutorStreamDelta {
+  delta: string;
+}
+
+export interface TutorStreamDone {
+  done: true;
+}
+
+export type TutorStreamEvent = TutorStreamDelta | TutorStreamDone;
+
+/**
+ * Opens the streaming POST to `/api/tutor/sessions/{sessionId}/messages`
+ * and invokes `onEvent` once per decoded SSE `data:` line, in order, as
+ * they arrive -- reads the response body incrementally via the
+ * browser's native streaming `fetch` (tech-stack.md's locked streaming
+ * choice), not buffered. Rejection responses (409/429/422/503) throw
+ * `ApiError` exactly like every other endpoint (`fetchOrThrow`), before
+ * any streaming ever begins -- the backend guarantees this ordering
+ * (services/tutor/session.py's module docstring).
+ */
+export async function streamTutorMessage(
+  sessionId: string,
+  question: string,
+  onEvent: (event: TutorStreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetchOrThrow(`/api/tutor/sessions/${sessionId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+    signal,
+  });
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+    for (const chunk of chunks) {
+      if (!chunk.startsWith("data: ")) continue;
+      onEvent(JSON.parse(chunk.slice("data: ".length)) as TutorStreamEvent);
+    }
+  }
 }
