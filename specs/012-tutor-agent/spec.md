@@ -8,6 +8,15 @@
 
 **Input**: User description: "Milestone 9: Tutor Agent -- full A2A delegation, vector-grounded retrieval via pgvector, token-by-token streaming" (per `roadmap.md`'s Milestone 9 entry)
 
+## Clarifications
+
+### Session 2026-08-23
+
+- Q: How fast must the Tutor Agent's first streamed token appear, as a concrete, testable number? → A: 3 seconds (p95)
+- Q: Should the Tutor Agent conversational endpoint have its own rate limit, separate from the length/moderation checks already in scope? → A: Yes — reuse the existing per-learner rate-limit pattern already established for free-text answer submission
+- Q: Can a learner have more than one Tutoring Session open at once, or does starting a new one end any session already in progress for that learner? → A: One active session per learner per subject — reopening returns the existing active session
+- Q: If a learner sends a new question before the Tutor Agent finishes streaming its answer to the previous one, what should happen? → A: Reject the new question until the current exchange finishes streaming
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Ask the Tutor a plain-English question (Priority: P1)
@@ -121,6 +130,13 @@ produced it, independent of asking the Tutor Agent itself to explain.
 - What happens when streaming is interrupted mid-response (client
   disconnects, function execution time bound reached)? The learner must
   not be left with a silently truncated answer presented as complete.
+- What happens when a learner exceeds the per-window rate limit
+  (FR-013)? The learner must see a clear rejection, not a silently
+  dropped or endlessly-queued request.
+- What happens when a learner sends a new question while the previous
+  one is still streaming (FR-015)? The new question is rejected with a
+  clear "still answering" response, not interleaved, queued, or
+  silently cancelled.
 - What happens when the same question is asked twice in a row? (No
   near-duplicate suppression is implied here -- that's Milestone 1's
   question-generation concern, not a conversational one -- but the
@@ -190,13 +206,30 @@ produced it, independent of asking the Tutor Agent itself to explain.
   platform's own content-artifact material (already locked in
   `tech-stack.md`), consistent with the Recommendation Agent's existing
   external-resource boundary (Milestone 2).
+- **FR-013**: The system MUST rate-limit how many questions a learner
+  can submit to the Tutor Agent in a given window, reusing the same
+  per-learner rate-limit pattern already established for free-text
+  answer submission (Milestone 6) rather than a new scheme -- bounding
+  LLM cost/abuse risk on what is otherwise an unbounded freeform-text
+  surface.
+- **FR-014**: The system MUST allow at most one active Tutoring
+  Session per learner per subject -- opening a session for a subject
+  the learner already has an active session in MUST return that
+  existing session rather than creating a duplicate.
+- **FR-015**: The system MUST reject a new question submitted to a
+  Tutoring Session while a prior question's answer is still streaming,
+  with a clear "still answering" response -- MUST NOT interleave two
+  answers or silently queue/cancel the in-flight one, so at most one
+  Tutor Exchange is ever in flight per session (keeps FR-007's audit
+  trail unambiguous).
 
 ### Key Entities
 
-- **Tutoring Session**: A bounded conversation between a learner (via
-  the access model resolved in FR-001) and the Tutor Agent; groups a
-  sequence of exchanges and is the unit an instructor/engineer inspects
-  under User Story 3.
+- **Tutoring Session**: A bounded, subject-scoped conversation between
+  a learner (via the access model resolved in FR-001) and the Tutor
+  Agent; groups a sequence of exchanges and is the unit an instructor/
+  engineer inspects under User Story 3. At most one is active per
+  learner per subject at a time (FR-014).
 - **Tutor Exchange**: One question-answer turn within a Tutoring
   Session; owns its own retrieved-passage set, any delegated-agent
   call(s) and their responses, and the final streamed answer text.
@@ -213,8 +246,9 @@ produced it, independent of asking the Tutor Agent itself to explain.
 ### Measurable Outcomes
 
 - **SC-001**: A learner sees the first part of the Tutor Agent's answer
-  begin appearing within a short, bounded time of asking (streaming,
-  not a single long wait for a complete response).
+  begin appearing within 3 seconds (p95) of asking, measured end to
+  end from the question being submitted (streaming, not a single long
+  wait for a complete response).
 - **SC-002**: Across a defined set of test questions with known
   content-artifact coverage, at least 90% of answers are verified to
   cite or ground in a specific retrieved passage relevant to the

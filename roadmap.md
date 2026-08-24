@@ -483,7 +483,34 @@ evaluation need justifying an A2A split (Constitution Principle IV/VI);
 seeded demo learner, matching Milestone 8's precedent -- no new
 real-learner login surface; (3) the retrieval-grounding success
 threshold is 90% of a defined test-question set. Requirements-quality
-checklist passed clean. `/speckit-plan` not yet run.
+checklist passed clean. `/speckit-plan` complete (2026-08-23): the
+`backend` is the sole orchestrator of a tutoring turn (runs `pgvector`
+retrieval, gathers Sequencing/Recommendation context in-process, calls
+Grading only via the already-existing backend-to-Grading-Agent path
+when needed) and calls a new standalone `tutor-agent/` A2A service --
+built identically to `grading-agent/`, including its shared-secret
+auth and Vercel host/port derivation -- that streams back a grounded
+answer from exactly the context it's given, holding no database
+credentials or state of its own; this avoids a new reverse-
+authentication path (Tutor Agent calling back into the backend) that
+the codebase doesn't otherwise need. `tech-stack.md` amended with six
+new locked rows: embedding model (Voyage `voyage-3` via LiteLLM),
+passage granularity (one embedded passage per content-artifact field,
+no chunking algorithm), the orchestration split above, the A2A
+streaming transport (`a2a-sdk`'s native `message/stream`), and a 60s
+`maxDuration` (vs. Grading Agent's 30s). Constitution Check passed with
+no violations. `/speckit-clarify` then run against `spec.md` (2026-08-23,
+after this plan pass -- four more clarifications the plan's own
+research/data-model work had surfaced but hadn't yet been written back
+into the spec): SC-001's latency target formalized at 3s p95; three new
+requirements added -- FR-013 (per-learner rate limit on the Tutor
+Agent endpoint, reusing the Grading Agent's existing DB-query-based
+window), FR-014 (at most one active Tutoring Session per learner per
+subject, get-or-create), FR-015 (a new question is rejected, not
+interleaved or queued, while the previous one is still streaming).
+`research.md`/`data-model.md`/`contracts/api.md` then refreshed to
+match (a new research.md §8, a partial-unique-index constraint, a new
+`409`/`429` response pair). `/speckit-tasks` not yet run.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this

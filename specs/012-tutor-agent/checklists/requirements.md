@@ -31,8 +31,7 @@
 
 ## Notes
 
-All three clarifications resolved via `/speckit-specify` interactive
-clarification (2026-08-23):
+**`/speckit-specify` session (2026-08-23)** -- three clarifications:
 
 1. **FR-009 (delegation architecture)**: the Tutor Agent alone becomes
    a new standalone A2A service; Sequencing and Recommendation stay
@@ -43,4 +42,27 @@ clarification (2026-08-23):
 3. **SC-002 (grounding threshold)**: 90% of a defined test-question set
    must ground in a specific retrieved passage.
 
-Requirements-quality checklist passes clean. Ready for `/speckit-plan`.
+**`/speckit-clarify` session (2026-08-23, run after `/speckit-plan`)**
+-- four more clarifications, closing gaps the plan phase's research/
+data-model work surfaced but hadn't been written back into the spec
+itself:
+
+4. **SC-001 (first-token latency)**: was an un-quantified "short,
+   bounded time" -- now 3 seconds (p95), matching `research.md` §6's
+   already-decided provisional target so spec and plan agree.
+5. **FR-013 (rate limiting, new)**: the Tutor Agent's conversational
+   endpoint reuses the existing per-learner rate-limit pattern already
+   established for free-text answer submission (Milestone 6).
+6. **FR-014 (session uniqueness, new)**: at most one active Tutoring
+   Session per learner per subject; reopening returns the existing one.
+7. **FR-015 (in-flight concurrency, new)**: a new question is rejected
+   while the previous one is still streaming, never interleaved,
+   queued, or silently cancelled.
+
+Checklist re-validated against the updated spec: still 16/16 passing,
+no regressions -- the items above were checked before this session but
+against under-specified text (SC-001 in particular); they now pass
+against genuinely testable requirements. Ready for `/speckit-tasks`
+(plan.md/data-model.md/contracts/api.md were written before this
+session's four new/changed requirements -- worth a quick pass to
+confirm nothing there contradicts FR-013/014/015 before tasking).
