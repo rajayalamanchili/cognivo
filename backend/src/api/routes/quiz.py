@@ -113,7 +113,7 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
     )
 
     try:
-        with traced_request():
+        with traced_request(learner_id=learner.learner_id, session_id=quiz.quiz_session_id):
             result = await generate_quiz_question(
                 db, quiz=quiz, session_service=get_database_session_service()
             )
@@ -167,7 +167,7 @@ async def get_quiz_next_question(
         )
 
     try:
-        with traced_request():
+        with traced_request(learner_id=quiz.learner_id, session_id=quiz.quiz_session_id):
             result = await generate_quiz_question(
                 db, quiz=quiz, session_service=get_database_session_service()
             )

@@ -86,7 +86,7 @@ async def get_next_question(
             "complete placement first"
         )
 
-    with traced_request():
+    with traced_request(learner_id=learner_id):
         result = await generate_next_question(
             db,
             learner_id=learner_id,
@@ -247,7 +247,7 @@ async def answer_question(
 
     grading_result: GradingResult | None = None
     if question.question_type == QuestionType.FREE_TEXT:
-        with traced_request():
+        with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
             grading_result = await _grade_free_text_submission(
                 db, question=question, response_text=body.response
             )

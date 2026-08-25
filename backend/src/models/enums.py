@@ -79,6 +79,23 @@ class RetentionEnrollmentStatus(enum.StrEnum):
     INACTIVE = "inactive"
 
 
+class PassageField(enum.StrEnum):
+    """Which content-artifact field a `ContentPassageEmbedding` row came
+    from (spec 012 research.md §5) -- per-field tagging so a retrieved
+    passage's provenance can be shown under User Story 3's inspection
+    requirement, not just "some passage from this topic"."""
+
+    SKILL_SUMMARY = "skill_summary"
+    DIFFICULTY_EASY = "difficulty_easy"
+    DIFFICULTY_MEDIUM = "difficulty_medium"
+    DIFFICULTY_HARD = "difficulty_hard"
+
+
+class TutoringSessionStatus(enum.StrEnum):
+    ACTIVE = "active"
+    ENDED = "ended"
+
+
 class AssessmentEventType(enum.StrEnum):
     PLACEMENT_QUESTION_SHOWN = "placement_question_shown"
     ANSWER_SUBMITTED = "answer_submitted"
@@ -93,6 +110,7 @@ class AssessmentEventType(enum.StrEnum):
     CONTENT_REVIEW_RESOLVED = "content_review_resolved"
     QUIZ_ASSIGNMENT_CREATED = "quiz_assignment_created"
     QUIZ_ASSIGNMENT_CANCELLED = "quiz_assignment_cancelled"
+    TUTOR_EXCHANGE_COMPLETED = "tutor_exchange_completed"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required

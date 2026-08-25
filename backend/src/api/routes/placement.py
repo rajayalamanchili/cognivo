@@ -68,7 +68,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
 
     placement_session_id = uuid.uuid4()
 
-    with traced_request():
+    with traced_request(learner_id=learner.learner_id, session_id=placement_session_id):
         placement_questions = await generate_placement_questions(
             entry_level_topics, session_service=get_database_session_service()
         )

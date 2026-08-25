@@ -26,6 +26,7 @@ const DEMO_LEARNER_LINKS: NavLink[] = [
   { href: "/practice", label: "Practice" },
   { href: "/mastery", label: "Mastery" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/tutor", label: "Tutor" },
 ];
 
 // SC-005 (spec 003/007): always reachable, no login/demo mode required

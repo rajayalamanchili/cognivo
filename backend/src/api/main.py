@@ -19,8 +19,11 @@ from src.api.errors import (
     GradingUnavailableError,
     ModerationRejectedError,
     NotFoundError,
+    QuestionTooLongError,
     RateLimitedError,
+    StillAnsweringError,
     TooLongError,
+    TutorUnavailableError,
     UnprocessableError,
 )
 from src.api.routes import (
@@ -41,6 +44,7 @@ from src.api.routes import (
     rosters,
     sequencing_preview,
     subjects,
+    tutor,
 )
 from src.observability.tracing import configure_tracing
 
@@ -106,6 +110,26 @@ def _handle_grading_unavailable(request: Request, exc: GradingUnavailableError) 
     return JSONResponse(status_code=503, content={"error": "grading_unavailable"})
 
 
+@app.exception_handler(QuestionTooLongError)
+def _handle_question_too_long(request: Request, exc: QuestionTooLongError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422, content={"error": "question_too_long", "max_length": exc.max_length}
+    )
+
+
+@app.exception_handler(StillAnsweringError)
+def _handle_still_answering(request: Request, exc: StillAnsweringError) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"error": "still_answering", "exchange_id": str(exc.exchange_id)},
+    )
+
+
+@app.exception_handler(TutorUnavailableError)
+def _handle_tutor_unavailable(request: Request, exc: TutorUnavailableError) -> JSONResponse:
+    return JSONResponse(status_code=503, content={"error": "tutor_unavailable"})
+
+
 @app.exception_handler(Exception)
 def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled exception processing %s %s", request.method, request.url.path)
@@ -134,3 +158,4 @@ app.include_router(instructor_dashboard.router)
 app.include_router(content_review.router)
 app.include_router(demo_instructor.router)
 app.include_router(cron.router)
+app.include_router(tutor.router)

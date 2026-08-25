@@ -27,6 +27,7 @@ is a Principle VIII violation until it's added here.
 |---|---|---|---|
 | `display_name` | Direct identifier (a minor's name or chosen display name) | Life of the enrollment, +1 year post-inactivity (FR-010) | `DeletionRequest` (FR-004) or FR-010's automatic post-inactivity deletion |
 | Mastery state, assessment events, generated questions (existing tables, FK'd to `learner_id`) | Activity/behavioral data | Same as `display_name` -- deleted in the same cascade, never outliving the identity it's attached to | Same as `display_name` (FR-005's cascade) |
+| Tutoring session/exchange transcripts -- `tutoring_sessions`, `tutor_exchanges` (Milestone 9, `specs/012-tutor-agent/data-model.md`), FK'd to `learner_id`; `tutoring_sessions.guardian_id` also FK's to the guardian who opened it | Direct conversational content (a minor's own free-text questions, plus the Tutor Agent's answers) -- higher sensitivity than the existing row above, since it's freeform text rather than structured activity data | Same as `display_name` -- deleted in the same cascade, never outliving the identity it's attached to | Same as `display_name` (FR-005's cascade) -- added 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze`, per this document's own "living document" rule (line 12-15 above) |
 
 ## RealInstructorAccount
 
