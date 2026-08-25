@@ -801,6 +801,18 @@ entities and the now-complete `data-classification.md` -- rather than
 being rediscovered again at the next milestone that touches real
 learner data.
 
+**Correction, 2026-08-25** (code review on the Milestone 9 staging->main
+promotion PR): this section's own "now are, on paper" framing above was
+accurate, but `data-classification.md`'s two cascade-deletion rows
+(mastery/assessment/questions, and Milestone 9's tutoring transcripts)
+stated "Same as `display_name` (FR-005's cascade)" as if a working
+mechanism already existed, rather than a specified-but-unimplemented
+policy -- exactly the false-confidence risk this gap warns about,
+just restated as settled fact in a different document. Both rows
+reworded to explicitly say "not yet implemented" and point back here,
+rather than asserting parity with a mechanism that doesn't exist for
+any table yet.
+
 ---
 
 ## Out of current roadmap (not planned, not rejected)
