@@ -308,6 +308,13 @@ def _persist_completed_exchange(
 
 
 def _persist_failed_exchange(db: Session, *, exchange: TutorExchange) -> None:
+    # rollback() first: the caller may be here because a DB operation
+    # itself failed mid-stream (e.g. _persist_completed_exchange's
+    # flush/commit raising), which leaves the session in a state that
+    # refuses further operations until the failed transaction is
+    # cleared. A harmless no-op when the session is already clean
+    # (the TutorStreamInterruptedError path, where nothing failed).
+    db.rollback()
     exchange.failed_at = datetime.datetime.now(datetime.UTC)
     db.commit()
 
@@ -320,10 +327,18 @@ async def stream_message_response(
     {"done": true}` on success. Only ever called after `prepare_message`
     has already confirmed the Tutor Agent's stream opened successfully.
 
-    A mid-stream failure (`TutorStreamInterruptedError`) ends the
-    response with no further `data:` lines -- contracts/api.md: "no
-    learner-facing response for this case beyond the connection simply
-    ending, since there's no request left to respond to."
+    A mid-stream failure (`TutorStreamInterruptedError`, or any other
+    exception raised while iterating the stream or persisting the
+    result -- a DB error in `_persist_completed_exchange`, a bug in
+    `_process_raw_events`, anything) ends the response with no further
+    `data:` lines -- contracts/api.md: "no learner-facing response for
+    this case beyond the connection simply ending, since there's no
+    request left to respond to." Every exception type sets `failed_at`
+    before propagating, not just the one this project happened to
+    write a test for first -- otherwise the exchange stays permanently
+    `answer_text IS NULL AND failed_at IS NULL`, reproducing finding
+    H2's deadlock for whatever failure mode wasn't specifically
+    anticipated (code review finding on PR #32).
     """
     with traced_request(
         learner_id=prepared.session.learner_id, session_id=prepared.session.session_id
@@ -345,3 +360,6 @@ async def stream_message_response(
                 return
         except TutorStreamInterruptedError:
             _persist_failed_exchange(db, exchange=prepared.exchange)
+        except Exception:
+            _persist_failed_exchange(db, exchange=prepared.exchange)
+            raise

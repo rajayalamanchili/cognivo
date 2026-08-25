@@ -83,6 +83,20 @@ def patch_interrupted_stream(deltas: list[str]):
     return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
 
 
+def patch_unexpected_exception_stream(deltas: list[str]):
+    """A fake `stream_tutor_answer` that fails with an exception type
+    OTHER than `TutorStreamInterruptedError` mid-response -- PR #32
+    review finding: only that one exception type used to be caught,
+    reproducing finding H2's deadlock for any other failure mode."""
+
+    async def _fake_stream(**kwargs) -> AsyncIterator[TutorStreamEvent]:
+        for delta in deltas:
+            yield TutorAnswerDelta(text=delta)
+        raise ValueError("simulated unexpected bug")
+
+    return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
+
+
 def parse_sse_events(response_text: str) -> list[dict]:
     """Parses `data: {...}` lines out of a raw SSE response body into a
     list of decoded JSON payloads, in order."""

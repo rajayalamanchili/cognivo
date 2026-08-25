@@ -19,6 +19,7 @@ from tests.integration.tutor_helpers import (
     patch_moderation,
     patch_search_passages,
     patch_unavailable_stream,
+    patch_unexpected_exception_stream,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -210,3 +211,35 @@ def test_session_recovers_after_a_mid_stream_failure(client, db_session, session
         db_session.query(TutoringSession).filter(TutoringSession.session_id == session_id).one()
     )
     assert remaining.status.value == "active"
+
+
+def test_session_recovers_after_an_unexpected_exception_mid_stream(client, db_session, session_id):
+    """PR #32 review finding: `stream_message_response` previously only
+    caught `TutorStreamInterruptedError` -- any other exception left
+    the exchange permanently stuck `answer_text IS NULL AND failed_at
+    IS NULL`, reproducing finding H2's deadlock for an untested failure
+    mode."""
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_unexpected_exception_stream(["partial answer before the bug"]),
+    ):
+        with pytest.raises(ValueError, match="simulated unexpected bug"):
+            client.post(
+                f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+            )
+
+    exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
+    assert len(exchanges) == 1
+    assert exchanges[0].answer_text is None
+    assert exchanges[0].failed_at is not None
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
