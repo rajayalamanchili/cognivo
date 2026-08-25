@@ -14,11 +14,13 @@ from src.models.tutoring_session import TutoringSession
 from tests.integration.tutor_helpers import (
     make_passage,
     parse_sse_events,
+    patch_disconnected_stream,
     patch_grounded_stream,
     patch_interrupted_stream,
     patch_moderation,
     patch_search_passages,
     patch_unavailable_stream,
+    patch_unexpected_exception_stream,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -210,3 +212,86 @@ def test_session_recovers_after_a_mid_stream_failure(client, db_session, session
         db_session.query(TutoringSession).filter(TutoringSession.session_id == session_id).one()
     )
     assert remaining.status.value == "active"
+
+
+def test_session_recovers_after_an_unexpected_exception_mid_stream(client, db_session, session_id):
+    """PR #32 review finding: `stream_message_response` previously only
+    caught `TutorStreamInterruptedError` -- any other exception left
+    the exchange permanently stuck `answer_text IS NULL AND failed_at
+    IS NULL`, reproducing finding H2's deadlock for an untested failure
+    mode."""
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_unexpected_exception_stream(["partial answer before the bug"]),
+    ):
+        with pytest.raises(ValueError, match="simulated unexpected bug"):
+            client.post(
+                f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+            )
+
+    exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
+    assert len(exchanges) == 1
+    assert exchanges[0].answer_text is None
+    assert exchanges[0].failed_at is not None
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+def test_session_recovers_after_a_simulated_client_disconnect(client, db_session, session_id):
+    """PR #34 review finding: `except Exception` alone doesn't catch a
+    real client disconnect/Vercel timeout, which cancels the stream via
+    `asyncio.CancelledError` -- a `BaseException` subclass, not an
+    `Exception` subclass. contracts/api.md names this exact scenario as
+    one that must set `failed_at`.
+
+    Unlike the other mid-stream-failure tests, this does NOT assert
+    `pytest.raises` -- verified empirically that a `CancelledError`
+    raised inside the streaming generator is absorbed by Starlette's
+    own cancellation handling (the same machinery a *real* disconnect
+    triggers) rather than propagating to the caller. The client just
+    gets an incomplete/empty response, matching contracts/api.md's "no
+    learner-facing response for this case beyond the connection simply
+    ending" -- what actually matters is that `except BaseException` ran
+    and set `failed_at` before that absorption happens.
+    """
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_disconnected_stream(["partial answer before the disconnect"]),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+        )
+    # Can't assert "not 200" -- headers are already committed by the
+    # time the cancellation happens, so 200 is the real, expected
+    # status here (verified empirically). What must never happen is a
+    # `done` event reaching the client: that would mean a future
+    # regression turned this into a silently-truncated-but-"successful"
+    # response (PR #34 review nit) instead of the incomplete one
+    # contracts/api.md calls for.
+    events = parse_sse_events(response.text)
+    assert not any("done" in event for event in events), events
+
+    exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
+    assert len(exchanges) == 1
+    assert exchanges[0].answer_text is None
+    assert exchanges[0].failed_at is not None
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text

@@ -8,6 +8,7 @@ tests exercise the real guardrail/streaming/persistence orchestration
 without depending on any live LLM, embedding, or A2A call.
 """
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
@@ -79,6 +80,36 @@ def patch_interrupted_stream(deltas: list[str]):
         for delta in deltas:
             yield TutorAnswerDelta(text=delta)
         raise TutorStreamInterruptedError("simulated mid-stream failure")
+
+    return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
+
+
+def patch_unexpected_exception_stream(deltas: list[str]):
+    """A fake `stream_tutor_answer` that fails with an exception type
+    OTHER than `TutorStreamInterruptedError` mid-response -- PR #32
+    review finding: only that one exception type used to be caught,
+    reproducing finding H2's deadlock for any other failure mode."""
+
+    async def _fake_stream(**kwargs) -> AsyncIterator[TutorStreamEvent]:
+        for delta in deltas:
+            yield TutorAnswerDelta(text=delta)
+        raise ValueError("simulated unexpected bug")
+
+    return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
+
+
+def patch_disconnected_stream(deltas: list[str]):
+    """A fake `stream_tutor_answer` that fails with
+    `asyncio.CancelledError` mid-response -- simulates a real client
+    disconnect/Vercel function timeout (contracts/api.md names this
+    scenario explicitly). PR #34 review finding: `except Exception`
+    alone does not catch this -- `CancelledError` is a `BaseException`
+    subclass, not an `Exception` subclass."""
+
+    async def _fake_stream(**kwargs) -> AsyncIterator[TutorStreamEvent]:
+        for delta in deltas:
+            yield TutorAnswerDelta(text=delta)
+        raise asyncio.CancelledError()
 
     return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
 

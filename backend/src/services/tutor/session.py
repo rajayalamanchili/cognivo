@@ -18,6 +18,7 @@ Split into two phases, both used by `api/routes/tutor.py`:
    FR-008/FR-012, closes `/speckit-analyze` finding H2).
 """
 
+import asyncio
 import datetime
 import json
 import uuid
@@ -308,6 +309,13 @@ def _persist_completed_exchange(
 
 
 def _persist_failed_exchange(db: Session, *, exchange: TutorExchange) -> None:
+    # rollback() first: the caller may be here because a DB operation
+    # itself failed mid-stream (e.g. _persist_completed_exchange's
+    # flush/commit raising), which leaves the session in a state that
+    # refuses further operations until the failed transaction is
+    # cleared. A harmless no-op when the session is already clean
+    # (the TutorStreamInterruptedError path, where nothing failed).
+    db.rollback()
     exchange.failed_at = datetime.datetime.now(datetime.UTC)
     db.commit()
 
@@ -320,10 +328,26 @@ async def stream_message_response(
     {"done": true}` on success. Only ever called after `prepare_message`
     has already confirmed the Tutor Agent's stream opened successfully.
 
-    A mid-stream failure (`TutorStreamInterruptedError`) ends the
-    response with no further `data:` lines -- contracts/api.md: "no
-    learner-facing response for this case beyond the connection simply
-    ending, since there's no request left to respond to."
+    A mid-stream failure ends the response with no further `data:`
+    lines -- contracts/api.md: "no learner-facing response for this
+    case beyond the connection simply ending, since there's no request
+    left to respond to." This covers every way that can happen:
+    `TutorStreamInterruptedError`, any other bug (`Exception` -- a DB
+    error in `_persist_completed_exchange`, a bug in
+    `_process_raw_events`), and -- deliberately caught alongside
+    `Exception`, not folded into a single blanket `except BaseException`
+    -- a real client disconnect or Vercel function timeout, which
+    cancels this generator via `asyncio.CancelledError`/`GeneratorExit`,
+    neither of which is an `Exception` subclass (naming them explicitly
+    keeps `KeyboardInterrupt`/`SystemExit` out of this handler, PR #34
+    review nit). contracts/api.md names that disconnect/timeout case
+    explicitly as one that must set `failed_at`; code review on PR #32
+    found `TutorStreamInterruptedError` alone didn't cover other bugs,
+    and PR #34 found the resulting `except Exception`
+    still didn't cover *this* case despite claiming to. Every branch
+    sets `failed_at` before re-raising -- otherwise the exchange stays
+    permanently `answer_text IS NULL AND failed_at IS NULL`,
+    reproducing finding H2's deadlock.
     """
     with traced_request(
         learner_id=prepared.session.learner_id, session_id=prepared.session.session_id
@@ -345,3 +369,21 @@ async def stream_message_response(
                 return
         except TutorStreamInterruptedError:
             _persist_failed_exchange(db, exchange=prepared.exchange)
+        except (asyncio.CancelledError, GeneratorExit, Exception):
+            # CancelledError/GeneratorExit explicitly, not a bare
+            # `except BaseException` -- a real client disconnect or
+            # Vercel function timeout cancels this generator via one of
+            # those two (both BaseException subclasses, not Exception),
+            # and contracts/api.md names this exact scenario ("client
+            # disconnect, function timeout") as one that must set
+            # failed_at (code review finding on PR #34: `except
+            # Exception` alone still left this specific case
+            # unclosed). Deliberately narrower than `BaseException` so
+            # this doesn't also intercept KeyboardInterrupt/SystemExit,
+            # which a future reader would otherwise have to rederive
+            # was unintentional (PR #34 review nit). Always re-raised,
+            # same as the plain-Exception case -- this only ensures
+            # cleanup runs first, never swallows the cancellation/exit
+            # signal itself.
+            _persist_failed_exchange(db, exchange=prepared.exchange)
+            raise
