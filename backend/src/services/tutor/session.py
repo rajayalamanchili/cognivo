@@ -147,7 +147,14 @@ async def prepare_message(
     if len(question) > MAX_QUESTION_LENGTH:
         raise QuestionTooLongError(max_length=MAX_QUESTION_LENGTH)
 
-    allowed = await check_moderation(question, session_service=get_database_session_service())
+    # Langfuse v4 migration finding: this ADK-invoking call was
+    # previously unwrapped -- its spans had no guaranteed flush before
+    # this function (and potentially the whole Vercel Function
+    # invocation) returns, unlike every other moderation-check call
+    # site in this codebase (questions.py's is covered by its own
+    # caller's traced_request()).
+    with traced_request(learner_id=session.learner_id, session_id=session.session_id):
+        allowed = await check_moderation(question, session_service=get_database_session_service())
     if not allowed:
         raise ModerationRejectedError()
 
@@ -255,7 +262,9 @@ async def stream_message_response(
     learner-facing response for this case beyond the connection simply
     ending, since there's no request left to respond to."
     """
-    with traced_request():
+    with traced_request(
+        learner_id=prepared.session.learner_id, session_id=prepared.session.session_id
+    ):
         try:
             async for event in _chain_first(prepared.first_event, prepared.stream):
                 if isinstance(event, TutorAnswerDelta):
