@@ -228,7 +228,7 @@ async def start_assignment_attempt(
         raise ConflictError("already_attempted")
 
     try:
-        with traced_request():
+        with traced_request(learner_id=target.learner_id, session_id=quiz.quiz_session_id):
             result = await generate_quiz_question(db, quiz=quiz, session_service=session_service)
     except QuizEndedEarlyError:
         quiz.status = QuizSessionStatus.ENDED_EARLY

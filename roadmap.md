@@ -299,35 +299,44 @@ application-enforced value (migration `7e686faa5e6d`) -- same
 "could point at more than one table" shape `RetentionRecord.account_id`/
 `DeletionRequest.target_id` already had.
 
-**Known gaps, not yet closed** (found during Polish, none blocking, none
-silently worked around):
-- `DemoBadge` (`frontend/src/components/DemoBadge.tsx`) still renders
-  unconditionally in the root layout -- accurate for the demo-learner-
-  exclusive pages (`/practice`, `/mastery`, `/quiz`, `/dashboard`,
-  `/placement`; no real-learner practice UI exists yet, spec 010 never
-  built one), but now also shows "DEMO ACCOUNT" on the real guardian/
-  instructor pages this spec added, regardless of whether the signed-in
-  session is real or demo. Fixing this properly needs a session-
-  introspection endpoint (no "whoami" exists) and a frontend change to
-  make the badge conditional -- real, scoped work, not attempted here
-  since it's outside every task this spec's `tasks.md` actually lists.
+**Known gaps, found during Polish** (none blocking, none silently
+worked around; status as of the gaps themselves, updated below with
+what later closed them):
+- `DemoBadge` (`frontend/src/components/DemoBadge.tsx`) originally
+  rendered unconditionally in the root layout -- accurate for the
+  demo-learner-exclusive pages (`/practice`, `/mastery`, `/quiz`,
+  `/dashboard`, `/placement`), but also showed "DEMO ACCOUNT" on the
+  real guardian/instructor pages this spec added, regardless of
+  whether the signed-in session was real or demo. **Resolved
+  2026-08-23** on the Milestone 8 branch, before that branch's PR
+  (`f096eac`, `9f52d32`): `GET /api/auth/whoami` now exists as the
+  session-introspection endpoint this gap was waiting on, `DemoBadge`
+  is conditional on session/route (demo-instructor session or
+  demo-territory page only), and real guardian/instructor sessions get
+  an identity readout in `Nav.tsx` instead of the badge.
 - T057 (Playwright E2E, `frontend/tests/e2e/instructor-classroom-round-
-  trip.spec.ts`) is written and verified to parse/list correctly, but
-  was never executed against a live deployment -- this sandbox has
-  neither `PLAYWRIGHT_BASE_URL` nor a reachable Postgres. Its own
-  module comment documents a further, real scope boundary found while
-  writing it: "flag and resolve a question" (tasks.md's literal T057
-  wording) isn't achievable at all yet, live deployment or not --
-  every question-generating endpoint resolves the seeded demo learner
+  trip.spec.ts`) was written and verified to parse/list correctly, but
+  never executed against a live deployment -- this sandbox has neither
+  `PLAYWRIGHT_BASE_URL` nor a reachable Postgres. Its module comment
+  also documented a real scope boundary: "flag and resolve a question"
+  wasn't achievable at all yet, live deployment or not, since every
+  question-generating endpoint resolved the seeded demo learner
   internally rather than accepting an arbitrary `learner_id`, so a
-  guardian-created real learner has no path to ever generate a
-  question, and the demo learner can't be enrolled in a roster by a
-  guardian (`guardian_id` mismatch by construction).
-- T056's regression check ran clean for everything this sandbox can
+  guardian-created real learner had no path to ever generate a
+  question. **Partially resolved**: Milestone 8's guardian-mediated
+  assigned-quiz attempt flow (a guardian can start/complete a quiz on a
+  targeted real learner's behalf) closes the "no path to generate a
+  question" half. The spec itself still has not been executed against
+  a live deployment -- only updated for the Nav overhaul's selector
+  changes (`f096eac`) -- so this gap is not fully closed.
+- T056's regression check ran clean for everything this sandbox could
   execute (118 passed, 0 failed, every DB-dependent test skipping for
-  lack of a reachable `DATABASE_URL`) -- consistent throughout every
-  phase of this implementation, but not the same as having actually
-  run the full suite against a real database.
+  lack of a reachable `DATABASE_URL`), but that wasn't the same as
+  having actually run the full suite against a real database.
+  **Resolved 2026-08-23**: Milestone 8's DoD validation ran the full
+  backend suite, Milestones 1-8 included, against a real, freshly
+  migrated dev database (287/288 passing; see Milestone 8's status
+  above for the one pre-existing, unrelated failure).
 
 **Scope**: Instructor-facing classroom features -- roster management;
 an instructor dashboard aggregating the Recommendation Agent's
@@ -416,6 +425,18 @@ email instead of logging back in, and a `patch_generation` stems list
 reused across two separate mocked-generation calls that falsely
 triggered dedup-exhaustion.
 
+**Also on this branch, after M8's own DoD was confirmed** (not part of
+M8's scope proper, but shipped in the same PR): a session-aware nav
+overhaul -- `GET /api/auth/whoami`, and `Nav.tsx` replacing the old
+flat, always-visible link list with anonymous/demo-learner/guardian/
+instructor buckets -- together with a conditional `DemoBadge`, closing
+Milestone 7's "DemoBadge always renders" known gap (see that
+milestone's entry above); and a kid-friendly design-token theme system
+(semantic light/dark color tokens, Baloo 2 + Nunito type, softened
+corners) applied across the 28 components/pages that had hardcoded
+colors. Neither touches grading, mastery, or the quiz-assignment
+mechanism itself. Merged to `staging` via PR #30 (2026-08-23).
+
 **Scope**: Extends the Adaptive Difficulty Quiz (Milestone 5) so an
 instructor can configure and assign a specific quiz (topic(s), question
 count, optionally a due date) to some or all of their roster, rather
@@ -448,8 +469,119 @@ instructor-assigned quizzes work at all).
 ---
 
 ## Milestone 9: Tutor Agent -- Full A2A Delegation, Vector-Grounded Retrieval, and Streaming Responses
-**Spec**: not yet written -- do not begin until Milestone 8 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/012-tutor-agent/spec.md`
+**Status**: `/speckit-specify` complete (2026-08-23), branched
+`012-tutor-agent` from `origin/staging` (Milestone 8's DoD is met, so
+this milestone's spec was written against it). Three clarifications
+resolved interactively during `/speckit-specify` itself: (1) "Full A2A
+Delegation" means the Tutor Agent alone becomes a new standalone A2A
+service, mirroring the Grading Agent's pattern -- Sequencing and
+Recommendation stay local ADK sub-agents, reached through the
+backend's existing APIs, since neither has an independent-versioning/
+evaluation need justifying an A2A split (Constitution Principle IV/VI);
+(2) Tutor Agent access is guardian-mediated for a real learner plus the
+seeded demo learner, matching Milestone 8's precedent -- no new
+real-learner login surface; (3) the retrieval-grounding success
+threshold is 90% of a defined test-question set. Requirements-quality
+checklist passed clean. `/speckit-plan` complete (2026-08-23): the
+`backend` is the sole orchestrator of a tutoring turn (runs `pgvector`
+retrieval, gathers Sequencing/Recommendation context in-process, calls
+Grading only via the already-existing backend-to-Grading-Agent path
+when needed) and calls a new standalone `tutor-agent/` A2A service --
+built identically to `grading-agent/`, including its shared-secret
+auth and Vercel host/port derivation -- that streams back a grounded
+answer from exactly the context it's given, holding no database
+credentials or state of its own; this avoids a new reverse-
+authentication path (Tutor Agent calling back into the backend) that
+the codebase doesn't otherwise need. `tech-stack.md` amended with six
+new locked rows: embedding model (Voyage `voyage-3` via LiteLLM),
+passage granularity (one embedded passage per content-artifact field,
+no chunking algorithm), the orchestration split above, the A2A
+streaming transport (`a2a-sdk`'s native `message/stream`), and a 60s
+`maxDuration` (vs. Grading Agent's 30s). Constitution Check passed with
+no violations. `/speckit-clarify` then run against `spec.md` (2026-08-23,
+after this plan pass -- four more clarifications the plan's own
+research/data-model work had surfaced but hadn't yet been written back
+into the spec): SC-001's latency target formalized at 3s p95; three new
+requirements added -- FR-013 (per-learner rate limit on the Tutor
+Agent endpoint, reusing the Grading Agent's existing DB-query-based
+window), FR-014 (at most one active Tutoring Session per learner per
+subject, get-or-create), FR-015 (a new question is rejected, not
+interleaved or queued, while the previous one is still streaming).
+`research.md`/`data-model.md`/`contracts/api.md` then refreshed to
+match (a new research.md §8, a partial-unique-index constraint, a new
+`409`/`429` response pair). `/speckit-tasks` complete (2026-08-23):
+36 tasks across Setup, Foundational, and three user-story phases.
+`/speckit-analyze` then run (2026-08-23) and found 5 issues -- 1
+CRITICAL, 2 HIGH, 2 MEDIUM -- all fixed the same day, revising the
+task count to 38: **C1** (CRITICAL, Constitution Principle VIII) --
+the two new real-learner-linked tables weren't yet reflected in
+`specs/009-privacy-retention/data-classification.md`, which is a
+living document FR-002 requires stay current; fixed directly in that
+document, which in turn surfaced a bigger, pre-existing gap (not
+introduced by this milestone) now tracked in this file's own new
+"Known gap" section above: Milestone 7's FR-004/FR-005 deletion-
+execution pathway was deferred at spec-writing time and never actually
+implemented, only its `DeletionRequest` model. **H1** (SC-002 had no
+test-question fixture to measure its 90% grounding threshold against)
+-- added T036. **H2** (FR-015's original `answer_text IS NULL`
+in-flight marker had no way to distinguish "still streaming" from "died
+mid-stream," which would have permanently blocked a session after any
+interrupted stream) -- added `tutor_exchanges.failed_at`, splitting the
+original single orchestration task into T021/T022. **M1** (spec.md's
+"Delegation Call" entity wanted per-call inputs/outputs, but
+`delegation_context` was designed as a single merged summary) --
+restructured to an array of `{agent, request, response}` records.
+**M2** (the pre-split orchestration task bundled 7 requirements into
+one unit) -- resolved by the same H2 split. Foundational (T004-T015)
+covers the data layer (3 new tables + `pgvector` extension + new
+`AssessmentEventType` value), the content-artifact loader's
+embedding-generation extension, and the standalone `tutor-agent/` A2A
+service itself (agent, guardrails, tracing) plus the backend's client
+for it -- all three user stories depend on this. User Story 1
+(T016-T027, the MVP) builds the full open-session -> ask ->
+grounded-streamed-answer loop, including FR-013/014/015's rate-limit/
+session-uniqueness/in-flight guardrails and the H2 failure-recovery
+path (deliberately scoped as US1 tasks, not Foundational, since
+they're behavior of the two endpoints US1 itself builds). User Story 2
+(T028-T030) adds real mastery/weak-area context to the same
+orchestration. User Story 3 (T031-T032) adds the inspection endpoint.
+Polish (T033-T038) covers the E2E round trip, full-suite regression
+against a real database, the subject-conditional gate, the H1 fixture,
+and live verification of SC-001/002/004. `/speckit-implement` run
+phase-by-phase starting 2026-08-24: Setup (T001-T003) and Foundational
+(T004-T015) both complete -- the latter's migration and `pgvector`
+retrieval verified end-to-end against a real, freshly-migrated dev
+database (`de54cd54219e`), not just unit-tested. User Story 1
+(T016-T027, the MVP) also complete: the full open-session ->
+ask -> grounded-streamed-answer loop, FR-013/014/015's guardrails, and
+the H2 failure-recovery path all pass their integration tests against
+that same real database (15 new tests), plus the frontend chat page/
+component (11 new Vitest tests, ESLint/Prettier/`next build` clean).
+Full backend regression re-confirmed at 308/308 passing after this
+phase (293 prior + 15 new -- SC-005 holds). User Story 2 (T028-T030)
+complete: a deterministic keyword check (not an LLM guess, Constitution
+Principle I) routes performance-dependent questions to a real in-process
+Recommendation Agent call, and `tutor-agent/`'s instruction was
+strengthened to use that data verbatim, including the honest
+insufficient-data case -- 3 new tests. User Story 3 (T031-T032)
+complete: `GET /api/tutor/exchanges/{id}` with guardian/enrolled-
+instructor/demo-instructor auth mirroring `content_review`'s pattern
+-- 8 new tests. Polish: T034-T036 complete -- the full backend suite
+re-confirmed at **321/321** passing against a freshly-migrated real
+database (SC-005 holds through every phase), the subject-conditional
+gate passes, and a 30-question grounding fixture is checked in at
+`specs/012-tutor-agent/eval/grounding-test-questions.md` (closing
+`/speckit-analyze` finding H1). T033's Playwright spec is written
+(lint/format/`tsc --noEmit` clean) but not yet run live -- writing it
+surfaced a real gap (nothing exposed an exchange's id to any client at
+all, making User Story 3's own endpoint undiscoverable), fixed by
+adding `exchange_id` to the SSE stream's final `done` event and a
+`data-exchange-id` DOM attribute on `TutorChat.tsx`. **Known gap**:
+T033/T037/T038 all require a live stack (backend + `tutor-agent/` +
+migrated DB + real `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY`, or an actual
+Vercel deployment) this environment doesn't have -- not attempted
+without checking first, since running them spends real API credits.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
@@ -636,6 +768,38 @@ near-duplicate history -- caching applies to the underlying generation
 call, not to what's ultimately shown to a specific learner, so a cached
 question can still be excluded from a specific learner's next question
 if they've already seen it recently.
+
+---
+
+## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
+
+Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
+while checking whether Milestone 9's two new real-learner-linked
+tables (`tutoring_sessions`, `tutor_exchanges`) were covered by
+Milestone 7's deletion guarantee. They now are, on paper
+(`specs/009-privacy-retention/data-classification.md`, updated the
+same day) -- but tracing that guarantee back to actual code found that
+FR-004/FR-005 (`specs/009-privacy-retention/spec.md`'s "a real
+learner's or instructor's data can be deleted on request") were
+**deliberately deferred, not implemented**: spec 009's own tasks.md
+says outright "No tasks in this spec... Milestone 7 proper's own
+tasks.md is where they become implementation tasks." Checking
+`010-instructor-classroom/tasks.md` shows only T011, which creates the
+`DeletionRequest` *model* -- no endpoint or service ever executes an
+actual deletion. `grep`-ing `backend/src/` for any deletion-execution
+logic confirms this: nothing found beyond the model.
+
+This is not a Milestone 9 regression -- it predates this milestone and
+was not caught by Milestone 7's own DoD checks or "Known gaps" notes.
+It **is** a live Constitution Principle VIII gap: every real
+guardian/learner/instructor account created since Milestone 7 shipped
+has no working right-to-erasure path despite the constitution
+requiring one exist before real data is ingested at all. Needs its own
+prioritized fix -- implementing `DELETE /api/account` (or equivalent)
+against the already-modeled `DeletionRequest`/`RetentionRecord`
+entities and the now-complete `data-classification.md` -- rather than
+being rediscovered again at the next milestone that touches real
+learner data.
 
 ---
 

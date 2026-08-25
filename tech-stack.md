@@ -2,7 +2,7 @@
 
 **Project**: Cognivo
 **Status**: Locked for Milestone 1
-**Last amended**: 2026-08-16
+**Last amended**: 2026-08-23
 
 ## Purpose
 
@@ -117,6 +117,11 @@ obvious.
 | Vector storage | `pgvector` extension on the existing Postgres/Neon database | No new infrastructure -- the database already chosen for mastery state, sessions, and audit logs gains vector search capability as an extension rather than requiring a separate vector database service. |
 | Retrieval scope | Content-artifact material only, not third-party sources | Consistent with the Recommendation Agent's own boundary (Milestone 2) against external-resource recommendation -- retrieval stays grounded in content this platform actually owns and can vouch for. |
 | Response delivery | Token-by-token streaming via Vercel/Next.js's native `Response` streaming support (Route Handlers) | No additional service or library needed -- this is a capability of the already-locked Vercel/Next.js stack, not a new dependency. |
+| Embedding model | Voyage AI's `voyage-3`, called via LiteLLM's `embedding()` function (`TUTOR_EMBEDDING_MODEL`, `VOYAGE_API_KEY`) | Decided at Milestone 9 `/speckit-plan` time (`specs/012-tutor-agent/research.md` §1). Anthropic (this project's only configured LLM provider) has no embeddings API; Voyage is Anthropic's own recommended embeddings partner and integrates through the LiteLLM dependency already used everywhere else, avoiding a second general-purpose LLM provider account for a single-purpose need. |
+| Passage granularity | One embedded passage per content-artifact field with standalone pedagogical meaning (a topic's `skill_definition.summary`, plus each of its three `difficulty_calibration` entries) -- no chunking algorithm | `specs/012-tutor-agent/research.md` §5. Content artifacts are short, hand-authored paragraphs, not long documents; field-level granularity lets a retrieved answer's provenance be shown precisely (which field of which topic), required by that milestone's inspectability success criterion. |
+| Tutor Agent architecture | The main `backend` is the sole orchestrator (runs `pgvector` retrieval, gathers Sequencing/Recommendation context in-process, bundles it into one request); `tutor-agent/` is a new, separately-deployed, stateless A2A service (structured identically to `grading-agent/`, including its `to_a2a()` Vercel host/port/protocol derivation and shared-secret auth pattern) that composes a grounded, streamed answer from exactly the context it's given -- it holds no database credentials and makes no calls of its own. | `specs/012-tutor-agent/research.md` §2/§3/§7. Matches Grading Agent's existing "A2A service is a pure function over its input, backend is the sole data owner" shape -- avoids inventing a new reverse-authentication path (Tutor Agent calling back into the backend's session-authenticated endpoints) that this project doesn't otherwise need. A tutoring turn needing grading context is a backend-to-Grading-Agent call (an already-established path), not a new tutor-agent-to-grading-agent hop. |
+| Tutor Agent streaming transport | `a2a-sdk`'s native `message/stream` (SSE) method, proxied chunk-by-chunk through the backend's own streaming response to the frontend | `specs/012-tutor-agent/research.md` §4. Reuses the A2A protocol's own streaming support (already a dependency in both `backend` and `grading-agent`) instead of inventing a second, non-A2A streaming transport between the backend and `tutor-agent/`. |
+| Tutor Agent `maxDuration` | `60` seconds on both the backend's tutor endpoint and the `tutor-agent/` Vercel function (vs. Grading Agent's `30`) | `specs/012-tutor-agent/research.md` §6. A full streamed conversational answer plausibly runs longer than Grading Agent's single blocking call; provisional pending real measurement, same as Grading Agent's SC-006 budget was before `spec 007`'s live-latency data existed. |
 
 ## Agent orchestration
 
