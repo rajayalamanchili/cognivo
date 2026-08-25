@@ -787,6 +787,7 @@ export interface TutorStreamDelta {
 
 export interface TutorStreamDone {
   done: true;
+  exchange_id: string;
 }
 
 export type TutorStreamEvent = TutorStreamDelta | TutorStreamDone;

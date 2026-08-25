@@ -559,8 +559,29 @@ the H2 failure-recovery path all pass their integration tests against
 that same real database (15 new tests), plus the frontend chat page/
 component (11 new Vitest tests, ESLint/Prettier/`next build` clean).
 Full backend regression re-confirmed at 308/308 passing after this
-phase (293 prior + 15 new -- SC-005 holds). User Stories 2/3 and
-Polish (T028-T038) not yet run.
+phase (293 prior + 15 new -- SC-005 holds). User Story 2 (T028-T030)
+complete: a deterministic keyword check (not an LLM guess, Constitution
+Principle I) routes performance-dependent questions to a real in-process
+Recommendation Agent call, and `tutor-agent/`'s instruction was
+strengthened to use that data verbatim, including the honest
+insufficient-data case -- 3 new tests. User Story 3 (T031-T032)
+complete: `GET /api/tutor/exchanges/{id}` with guardian/enrolled-
+instructor/demo-instructor auth mirroring `content_review`'s pattern
+-- 8 new tests. Polish: T034-T036 complete -- the full backend suite
+re-confirmed at **321/321** passing against a freshly-migrated real
+database (SC-005 holds through every phase), the subject-conditional
+gate passes, and a 30-question grounding fixture is checked in at
+`specs/012-tutor-agent/eval/grounding-test-questions.md` (closing
+`/speckit-analyze` finding H1). T033's Playwright spec is written
+(lint/format/`tsc --noEmit` clean) but not yet run live -- writing it
+surfaced a real gap (nothing exposed an exchange's id to any client at
+all, making User Story 3's own endpoint undiscoverable), fixed by
+adding `exchange_id` to the SSE stream's final `done` event and a
+`data-exchange-id` DOM attribute on `TutorChat.tsx`. **Known gap**:
+T033/T037/T038 all require a live stack (backend + `tutor-agent/` +
+migrated DB + real `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY`, or an actual
+Vercel deployment) this environment doesn't have -- not attempted
+without checking first, since running them spends real API credits.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this

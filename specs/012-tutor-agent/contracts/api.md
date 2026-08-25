@@ -77,8 +77,13 @@ unmodified):
 data: {"delta": "Light"}
 data: {"delta": " provides"}
 data: {"delta": " the energy..."}
-data: {"done": true}
+data: {"done": true, "exchange_id": "..."}
 ```
+`exchange_id` on the final `done` event (added during Polish, T033 --
+without it, nothing in this response or the frontend's DOM ever
+reveals which exchange to pass to `GET /api/tutor/exchanges/{id}`
+below, making User Story 3's inspection endpoint undiscoverable from a
+real client) is this exchange's id, for that follow-up call.
 
 **Response** `409` -- **still answering** (FR-015, checked first, before
 rate limit/length/moderation/retrieval):

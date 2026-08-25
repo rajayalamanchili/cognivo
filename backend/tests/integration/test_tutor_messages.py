@@ -62,9 +62,9 @@ def test_streamed_grounded_answer_is_persisted(client, db_session, session_id):
     events = parse_sse_events(response.text)
     deltas = [e["delta"] for e in events if "delta" in e]
     assert deltas == ["Light ", "provides the energy."]
-    assert events[-1] == {"done": True}
 
     exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert events[-1] == {"done": True, "exchange_id": str(exchange.exchange_id)}
     assert exchange.answer_text == "Light provides the energy."
     assert exchange.grounded is True
     assert exchange.retrieved_passage_ids == [passage.passage_id]

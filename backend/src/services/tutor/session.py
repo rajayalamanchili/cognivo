@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from src.agents.recommendation.agent import build_weak_area_report
 from src.api.errors import (
     ModerationRejectedError,
     QuestionTooLongError,
@@ -56,6 +57,65 @@ from src.services.tutor_agent_client.client import (
 # much larger MAX_REQUEST_LENGTH compensating-control cap on the whole
 # bundled A2A payload (guardrails.py).
 MAX_QUESTION_LENGTH = 2000
+
+# FR-006: a simple, deterministic keyword check for whether a question
+# depends on the learner's own recorded performance -- Constitution
+# Principle I requires the *answer* come from the real mastery model
+# when it does, not that this routing decision itself use one (an LLM
+# call here would add cost/latency to decide something a fixed set of
+# representative phrases already covers for this milestone's scope).
+_PERFORMANCE_CONTEXT_TRIGGERS = (
+    "what should i work on",
+    "what to work on",
+    "what should i study",
+    "what do i need to improve",
+    "struggling with",
+    "am i struggling",
+    "weak area",
+    "why do i keep getting",
+    "why am i getting",
+    "why do i get",
+    "my progress",
+    "my mastery",
+    "how am i doing",
+    "next step",
+)
+
+
+def _question_needs_performance_context(question: str) -> bool:
+    lowered = question.lower()
+    return any(trigger in lowered for trigger in _PERFORMANCE_CONTEXT_TRIGGERS)
+
+
+def _build_recommendation_delegation(db: Session, session: TutoringSession) -> dict:
+    """One `{agent, request, response}` delegation-context record (FR-006,
+    `/speckit-analyze` finding M1's structured shape) -- `response` is a
+    reasonable summary of `WeakAreaReport`, not the full dataclass dump
+    (per-answer evidence citations already live in each answer's own
+    `AssessmentEvent`, not duplicated here)."""
+    report = build_weak_area_report(
+        db, learner_id=session.learner_id, subject_id=session.subject_id
+    )
+    return {
+        "agent": "recommendation",
+        "request": {"learner_id": str(session.learner_id), "subject_id": session.subject_id},
+        "response": {
+            "data_sufficiency": report.data_sufficiency,
+            "broad_review_needed": report.broad_review_needed,
+            "weak_areas": [
+                {
+                    "topic_id": flag.topic_id,
+                    "display_name": flag.display_name,
+                    "p_mastery": flag.p_mastery,
+                    "next_step_topic_id": flag.next_step.recommended_topic_id,
+                }
+                for flag in report.weak_areas
+            ],
+            "in_progress_topic_ids": list(report.in_progress_topic_ids),
+            "not_yet_assessed_topic_ids": list(report.not_yet_assessed_topic_ids),
+            "insufficient_data_topic_ids": list(report.insufficient_data_topic_ids),
+        },
+    }
 
 
 def _find_active_session(
@@ -159,10 +219,13 @@ async def prepare_message(
         raise ModerationRejectedError()
 
     retrieved = await search_passages(db, subject_id=session.subject_id, query_text=question)
-    # US2 (T029) extends this with real Recommendation/Sequencing
-    # lookups when the question needs performance context -- US1 alone
-    # never delegates, so this is always empty here.
+    # FR-006 (US2): a real in-process Recommendation Agent lookup when
+    # the question depends on the learner's own performance -- never
+    # guessed or re-derived by the Tutor Agent itself (Constitution
+    # Principle I). Empty for any question that doesn't need it.
     delegation_context: list[dict] = []
+    if _question_needs_performance_context(question):
+        delegation_context.append(_build_recommendation_delegation(db, session))
 
     exchange = TutorExchange(
         session_id=session.session_id,
@@ -274,7 +337,11 @@ async def stream_message_response(
                 _persist_completed_exchange(
                     db, session=prepared.session, exchange=prepared.exchange, result=event
                 )
-                yield _sse_line({"done": True})
+                # exchange_id: otherwise nothing in this response (or
+                # anywhere in the frontend's DOM) ever reveals which
+                # exchange this answer was -- User Story 3's inspection
+                # endpoint would be undiscoverable from a real client.
+                yield _sse_line({"done": True, "exchange_id": str(prepared.exchange.exchange_id)})
                 return
         except TutorStreamInterruptedError:
             _persist_failed_exchange(db, exchange=prepared.exchange)

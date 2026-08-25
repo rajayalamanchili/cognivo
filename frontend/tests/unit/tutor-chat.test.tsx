@@ -26,7 +26,7 @@ describe("TutorChat", () => {
     vi.mocked(api.streamTutorMessage).mockImplementation(async (_sessionId, _question, onEvent) => {
       onEvent({ delta: "Light " });
       onEvent({ delta: "provides the energy." });
-      onEvent({ done: true });
+      onEvent({ done: true, exchange_id: "ex-1" });
     });
 
     render(<TutorChat sessionId="session-1" />);
@@ -99,7 +99,7 @@ describe("TutorChat", () => {
     vi.mocked(api.streamTutorMessage).mockImplementationOnce(
       async (_sessionId, _question, onEvent) => {
         onEvent({ delta: "an answer" });
-        onEvent({ done: true });
+        onEvent({ done: true, exchange_id: "ex-1" });
       },
     );
     await userEvent.type(input, "second question");

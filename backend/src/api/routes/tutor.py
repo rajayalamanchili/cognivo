@@ -17,8 +17,12 @@ from sqlalchemy.orm import Session
 
 from src.api.errors import ForbiddenError, NotFoundError
 from src.db import get_db
+from src.models.classroom_roster import ClassroomRoster
+from src.models.content_passage_embedding import ContentPassageEmbedding
+from src.models.enrollment import Enrollment
 from src.models.learner_profile import LearnerProfile
 from src.models.subject import Subject
+from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
 from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
@@ -113,4 +117,121 @@ async def submit_message_route(
     prepared = await prepare_message(db, session=session, question=body.question)
     return StreamingResponse(
         stream_message_response(db, prepared=prepared), media_type="text/event-stream"
+    )
+
+
+def _instructor_teaches_learner(
+    db: Session, *, learner_id: uuid.UUID, subject_id: str, instructor_id: uuid.UUID
+) -> bool:
+    """Mirrors `content_review/resolution.py`'s `_question_belongs_to_instructor`
+    -- same enrollment-scoped access (real or demo instructor, both
+    resolve through `current_instructor`'s unified `.instructor_id`)."""
+    return (
+        db.query(ClassroomRoster)
+        .join(Enrollment, Enrollment.roster_id == ClassroomRoster.roster_id)
+        .filter(
+            Enrollment.learner_id == learner_id,
+            ClassroomRoster.instructor_id == instructor_id,
+            ClassroomRoster.subject_id == subject_id,
+        )
+        .first()
+        is not None
+    )
+
+
+def _authorize_exchange_inspection(
+    db: Session, *, session: TutoringSession, claims: SessionClaims | None
+) -> None:
+    """US3 auth (contracts/api.md): the owning guardian, the learner's
+    enrolled-classroom instructor, or the demo-instructor session --
+    deliberately no demo-learner no-auth carve-out here (unlike the
+    session/message endpoints' FR-001): inspection is instructor/
+    guardian-facing, not something the anonymous demo-learner UI itself
+    calls."""
+    if claims is not None and claims.account_type == "guardian":
+        if session.guardian_id == claims.account_id:
+            return
+        raise ForbiddenError("not_your_learner")
+    if claims is not None and claims.account_type in ("instructor", "demo_instructor"):
+        if _instructor_teaches_learner(
+            db,
+            learner_id=session.learner_id,
+            subject_id=session.subject_id,
+            instructor_id=claims.account_id,
+        ):
+            return
+        raise ForbiddenError("not_learner_instructor")
+    raise ForbiddenError("not_authorized")
+
+
+def _derive_exchange_status(exchange: TutorExchange) -> str:
+    """Derived, never stored (contracts/api.md) -- `answer_text`/
+    `failed_at` are mutually exclusive (data-model.md's validation
+    rules), so exactly one of the three states always applies."""
+    if exchange.answer_text is not None:
+        return "completed"
+    if exchange.failed_at is not None:
+        return "failed"
+    return "in_progress"
+
+
+class RetrievedPassageOut(BaseModel):
+    passage_id: uuid.UUID
+    topic_id: str
+    field: str
+    text: str
+
+
+class ExchangeOut(BaseModel):
+    exchange_id: uuid.UUID
+    status: str
+    question_text: str
+    answer_text: str | None
+    grounded: bool
+    retrieved_passages: list[RetrievedPassageOut]
+    delegation_context: list[dict]
+
+
+@router.get("/api/tutor/exchanges/{exchange_id}", response_model=ExchangeOut)
+def get_exchange_route(
+    exchange_id: uuid.UUID,
+    claims: SessionClaims | None = Depends(optional_session_claims),
+    db: Session = Depends(get_db),
+) -> ExchangeOut:
+    exchange = db.get(TutorExchange, exchange_id)
+    if exchange is None:
+        raise NotFoundError(f"unknown exchange_id: {exchange_id}")
+    session = db.get(TutoringSession, exchange.session_id)
+    _authorize_exchange_inspection(db, session=session, claims=claims)
+
+    # retrieved_passage_ids is already the grounded, in-order subset
+    # (data-model.md) -- fetched here, not cached on the row, since
+    # ContentPassageEmbedding.text can only get stale by a content
+    # reload superseding it (data-model.md's upsert discipline), never
+    # by this read.
+    passages_by_id = {
+        passage.passage_id: passage
+        for passage in db.query(ContentPassageEmbedding).filter(
+            ContentPassageEmbedding.passage_id.in_(exchange.retrieved_passage_ids)
+        )
+    }
+    retrieved_passages = [
+        RetrievedPassageOut(
+            passage_id=passage.passage_id,
+            topic_id=passage.topic_id,
+            field=passage.field.value,
+            text=passage.text,
+        )
+        for passage_id in exchange.retrieved_passage_ids
+        if (passage := passages_by_id.get(passage_id)) is not None
+    ]
+
+    return ExchangeOut(
+        exchange_id=exchange.exchange_id,
+        status=_derive_exchange_status(exchange),
+        question_text=exchange.question_text,
+        answer_text=exchange.answer_text,
+        grounded=exchange.grounded,
+        retrieved_passages=retrieved_passages,
+        delegation_context=exchange.delegation_context or [],
     )

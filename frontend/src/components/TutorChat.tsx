@@ -17,6 +17,7 @@ export interface TutorChatProps {
 interface ChatMessage {
   role: "learner" | "tutor";
   text: string;
+  exchangeId?: string;
 }
 
 type ErrorState =
@@ -57,11 +58,13 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
     setStreaming(true);
     try {
       await streamTutorMessage(sessionId, text, (event) => {
-        if (!("delta" in event)) return;
         setMessages((current) => {
           const next = [...current];
           const last = next[next.length - 1];
-          next[next.length - 1] = { ...last, text: last.text + event.delta };
+          next[next.length - 1] =
+            "delta" in event
+              ? { ...last, text: last.text + event.delta }
+              : { ...last, exchangeId: event.exchange_id };
           return next;
         });
       });
@@ -84,6 +87,7 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
             data-testid={
               message.role === "learner" ? "tutor-chat-learner-message" : "tutor-chat-tutor-message"
             }
+            data-exchange-id={message.exchangeId}
             className={
               message.role === "learner"
                 ? "self-end rounded-lg bg-primary px-4 py-2 text-primary-foreground"

@@ -92,12 +92,12 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 ### Tests for User Story 2
 
-- [ ] T028 [P] [US2] Integration test for a performance-dependent question (known weak area) and a brand-new learner's honest no-data response in `backend/tests/integration/test_tutor_delegation_context.py`
+- [X] T028 [P] [US2] Integration test for a performance-dependent question (known weak area) and a brand-new learner's honest no-data response in `backend/tests/integration/test_tutor_delegation_context.py`
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Extend `submit_message` (`backend/src/services/tutor/session.py`) with an in-process call to the existing Recommendation/Sequencing services when the question needs performance context, appending a `{agent, request, response}` record to `delegation_context` per call (FR-006, structured shape per finding M1) (depends on T022)
-- [ ] T030 [US2] Extend `tutor-agent/src/agent.py`'s prompt/tool wiring so the bundled `delegation_context` entries are used verbatim in the answer rather than re-derived (depends on T012)
+- [X] T029 [US2] Extend `submit_message` (`backend/src/services/tutor/session.py`) with an in-process call to the existing Recommendation/Sequencing services when the question needs performance context, appending a `{agent, request, response}` record to `delegation_context` per call (FR-006, structured shape per finding M1) (depends on T022)
+- [X] T030 [US2] Extend `tutor-agent/src/agent.py`'s prompt/tool wiring so the bundled `delegation_context` entries are used verbatim in the answer rather than re-derived (depends on T012)
 
 **Checkpoint**: User Stories 1 and 2 both work independently (quickstart scenario 3).
 
@@ -111,11 +111,11 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 ### Tests for User Story 3
 
-- [ ] T031 [P] [US3] Integration test for `GET /api/tutor/exchanges/{exchange_id}` auth (owning guardian, enrolled instructor, demo-instructor), the derived `status` field (`completed`/`failed`/`in_progress`), and the structured `delegation_context` payload shape in `backend/tests/integration/test_tutor_exchange_inspection.py`
+- [X] T031 [P] [US3] Integration test for `GET /api/tutor/exchanges/{exchange_id}` auth (owning guardian, enrolled instructor, demo-instructor), the derived `status` field (`completed`/`failed`/`in_progress`), and the structured `delegation_context` payload shape in `backend/tests/integration/test_tutor_exchange_inspection.py`
 
 ### Implementation for User Story 3
 
-- [ ] T032 [US3] Implement `GET /api/tutor/exchanges/{exchange_id}` in `backend/src/api/routes/tutor.py`, enrollment-scoped auth mirroring `content_review`'s existing pattern, deriving `status` from `answer_text`/`failed_at` (depends on T022, T024)
+- [X] T032 [US3] Implement `GET /api/tutor/exchanges/{exchange_id}` in `backend/src/api/routes/tutor.py`, enrollment-scoped auth mirroring `content_review`'s existing pattern, deriving `status` from `answer_text`/`failed_at` (depends on T022, T024)
 
 **Checkpoint**: All three user stories are independently functional (quickstart scenario 4).
 
@@ -125,12 +125,12 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 **Purpose**: End-to-end validation across all three stories, regression, and the milestone's own Success Criteria.
 
-- [ ] T033 [P] Playwright E2E `frontend/tests/e2e/tutor-round-trip.spec.ts`: open a session, ask a question, confirm a grounded streamed answer, then inspect the exchange as the instructor (quickstart scenarios 1-4)
-- [ ] T034 Run the full backend suite against a real, freshly migrated dev database; confirm SC-005 (Milestones 1-8 unmodified) and record the result in `roadmap.md`'s Milestone 9 status, following the precedent set by Milestones 7/8's own DoD confirmation
-- [ ] T035 [P] Run `check_no_subject_conditionals.py` against the new retrieval/loader code (Constitution Principle III gate)
-- [ ] T036 [P] Author a defined grounding test-question set (>=20 questions across both subjects, each with its expected topic/passage coverage) in `specs/012-tutor-agent/eval/grounding-test-questions.md` (`/speckit-analyze` finding H1 -- SC-002 has no fixture to measure against otherwise)
-- [ ] T037 [P] Verify SC-001 (3s p95 first-token latency) and SC-004 (incremental streaming) against a live Vercel deployment of both `tutor-agent/` and `backend`
-- [ ] T038 [P] Verify SC-002 (>=90% grounding rate) against T036's test-question set (depends on T036)
+- [ ] T033 [P] Playwright E2E `frontend/tests/e2e/tutor-round-trip.spec.ts`: open a session, ask a question, confirm a grounded streamed answer, then inspect the exchange as the instructor (quickstart scenarios 1-4) -- **spec written, lint/format/`tsc --noEmit` all clean, NOT yet run against a live stack** (needs backend + `tutor-agent/` + a migrated DB + real `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` all running together locally -- real API spend, not attempted without checking first). Along the way, found and fixed a real gap this spec's own "inspect the exchange" step depends on: nothing in the SSE stream or the frontend DOM ever exposed an exchange's id, so `GET /api/tutor/exchanges/{id}` was undiscoverable from any real client -- added `exchange_id` to the stream's final `done` event (contracts/api.md, `services/tutor/session.py`) and a `data-exchange-id` attribute on `TutorChat.tsx`'s tutor message bubble.
+- [X] T034 Run the full backend suite against a real, freshly migrated dev database; confirm SC-005 (Milestones 1-8 unmodified) and record the result in `roadmap.md`'s Milestone 9 status, following the precedent set by Milestones 7/8's own DoD confirmation
+- [X] T035 [P] Run `check_no_subject_conditionals.py` against the new retrieval/loader code (Constitution Principle III gate)
+- [X] T036 [P] Author a defined grounding test-question set (>=20 questions across both subjects, each with its expected topic/passage coverage) in `specs/012-tutor-agent/eval/grounding-test-questions.md` (`/speckit-analyze` finding H1 -- SC-002 has no fixture to measure against otherwise)
+- [ ] T037 [P] Verify SC-001 (3s p95 first-token latency) and SC-004 (incremental streaming) against a live Vercel deployment of both `tutor-agent/` and `backend` -- **blocked: no live Vercel deployment exists yet in this environment**
+- [ ] T038 [P] Verify SC-002 (>=90% grounding rate) against T036's test-question set (depends on T036) -- **blocked: same live-deployment dependency as T037, plus real LLM/embedding calls against every row in the new fixture**
 
 ---
 
