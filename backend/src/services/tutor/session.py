@@ -327,18 +327,24 @@ async def stream_message_response(
     {"done": true}` on success. Only ever called after `prepare_message`
     has already confirmed the Tutor Agent's stream opened successfully.
 
-    A mid-stream failure (`TutorStreamInterruptedError`, or any other
-    exception raised while iterating the stream or persisting the
-    result -- a DB error in `_persist_completed_exchange`, a bug in
-    `_process_raw_events`, anything) ends the response with no further
-    `data:` lines -- contracts/api.md: "no learner-facing response for
-    this case beyond the connection simply ending, since there's no
-    request left to respond to." Every exception type sets `failed_at`
-    before propagating, not just the one this project happened to
-    write a test for first -- otherwise the exchange stays permanently
-    `answer_text IS NULL AND failed_at IS NULL`, reproducing finding
-    H2's deadlock for whatever failure mode wasn't specifically
-    anticipated (code review finding on PR #32).
+    A mid-stream failure ends the response with no further `data:`
+    lines -- contracts/api.md: "no learner-facing response for this
+    case beyond the connection simply ending, since there's no request
+    left to respond to." This covers every way that can happen:
+    `TutorStreamInterruptedError`, any other bug (`Exception` --  a DB
+    error in `_persist_completed_exchange`, a bug in
+    `_process_raw_events`), and -- deliberately caught as
+    `BaseException`, not just `Exception` -- a real client disconnect
+    or Vercel function timeout, which cancels this generator via
+    `asyncio.CancelledError`/`GeneratorExit`, neither of which is an
+    `Exception` subclass. contracts/api.md names that disconnect/
+    timeout case explicitly as one that must set `failed_at`; code
+    review on PR #32 found `TutorStreamInterruptedError` alone didn't
+    cover other bugs, and PR #34 found the resulting `except Exception`
+    still didn't cover *this* case despite claiming to. Every branch
+    sets `failed_at` before re-raising -- otherwise the exchange stays
+    permanently `answer_text IS NULL AND failed_at IS NULL`,
+    reproducing finding H2's deadlock.
     """
     with traced_request(
         learner_id=prepared.session.learner_id, session_id=prepared.session.session_id
@@ -360,6 +366,17 @@ async def stream_message_response(
                 return
         except TutorStreamInterruptedError:
             _persist_failed_exchange(db, exchange=prepared.exchange)
-        except Exception:
+        except BaseException:
+            # BaseException, not Exception: a real client disconnect or
+            # Vercel function timeout cancels this generator via
+            # asyncio.CancelledError (or GeneratorExit if explicitly
+            # closed) -- both are BaseException subclasses, not
+            # Exception, and contracts/api.md names this exact scenario
+            # ("client disconnect, function timeout") as one that must
+            # set failed_at (code review finding on PR #34: `except
+            # Exception` alone still left this specific case
+            # unclosed). Always re-raised, same as the narrower
+            # Exception case -- this only ensures cleanup runs first,
+            # never swallows the cancellation/shutdown signal.
             _persist_failed_exchange(db, exchange=prepared.exchange)
             raise

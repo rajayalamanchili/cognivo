@@ -14,6 +14,7 @@ from src.models.tutoring_session import TutoringSession
 from tests.integration.tutor_helpers import (
     make_passage,
     parse_sse_events,
+    patch_disconnected_stream,
     patch_grounded_stream,
     patch_interrupted_stream,
     patch_moderation,
@@ -228,6 +229,46 @@ def test_session_recovers_after_an_unexpected_exception_mid_stream(client, db_se
             client.post(
                 f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
             )
+
+    exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
+    assert len(exchanges) == 1
+    assert exchanges[0].answer_text is None
+    assert exchanges[0].failed_at is not None
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+def test_session_recovers_after_a_simulated_client_disconnect(client, db_session, session_id):
+    """PR #34 review finding: `except Exception` alone doesn't catch a
+    real client disconnect/Vercel timeout, which cancels the stream via
+    `asyncio.CancelledError` -- a `BaseException` subclass, not an
+    `Exception` subclass. contracts/api.md names this exact scenario as
+    one that must set `failed_at`.
+
+    Unlike the other mid-stream-failure tests, this does NOT assert
+    `pytest.raises` -- verified empirically that a `CancelledError`
+    raised inside the streaming generator is absorbed by Starlette's
+    own cancellation handling (the same machinery a *real* disconnect
+    triggers) rather than propagating to the caller. The client just
+    gets an incomplete/empty response, matching contracts/api.md's "no
+    learner-facing response for this case beyond the connection simply
+    ending" -- what actually matters is that `except BaseException` ran
+    and set `failed_at` before that absorption happens.
+    """
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_disconnected_stream(["partial answer before the disconnect"]),
+    ):
+        client.post(f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"})
 
     exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
     assert len(exchanges) == 1
