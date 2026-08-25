@@ -268,7 +268,18 @@ def test_session_recovers_after_a_simulated_client_disconnect(client, db_session
         patch_search_passages([]),
         patch_disconnected_stream(["partial answer before the disconnect"]),
     ):
-        client.post(f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"})
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+        )
+    # Can't assert "not 200" -- headers are already committed by the
+    # time the cancellation happens, so 200 is the real, expected
+    # status here (verified empirically). What must never happen is a
+    # `done` event reaching the client: that would mean a future
+    # regression turned this into a silently-truncated-but-"successful"
+    # response (PR #34 review nit) instead of the incomplete one
+    # contracts/api.md calls for.
+    events = parse_sse_events(response.text)
+    assert not any("done" in event for event in events), events
 
     exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
     assert len(exchanges) == 1

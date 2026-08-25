@@ -22,6 +22,22 @@ retrieved and used", contracts/api.md's internal contract) -- this
 module has no `output_schema` (unlike Grading Agent) specifically so
 the model can stream free-form text via `to_a2a()`'s native support
 rather than emit one buffered structured object.
+
+**Why the prompt-injection defense stays inline here, unlike Grading
+Agent's `prompt_defense.py`** (PR #34 review nit, answered rather than
+left ambiguous): `grading-agent/src/prompt_defense.py` exists as its
+own module because its instruction is a *template* --
+`build_instruction(grading_logic_version=...)` takes a real parameter
+and gets rebuilt whenever that version bumps. `_INSTRUCTION` below has
+no parameter at all -- it is fixed and request-independent (this
+module's original design, unchanged since). Splitting a plain string
+constant into its own module would add a file with no templating logic
+to justify it; `test_agent_instruction.py` imports `_INSTRUCTION`
+directly the same way `grading-agent/tests/test_prompt_defense.py`
+imports `build_instruction`, so test coverage is equivalent either
+way. Revisit this if `_INSTRUCTION` ever gains a real parameter (e.g.
+a versioned grounding-protocol change, mirroring `GRADING_LOGIC_VERSION`)
+-- at that point the templating justification would apply here too.
 """
 
 import hmac
