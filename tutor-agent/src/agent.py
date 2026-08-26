@@ -44,9 +44,22 @@ import hmac
 import os
 from collections.abc import Sequence
 
+from a2a.server.agent_execution import RequestContext
+from google.adk.a2a.converters.part_converter import (
+    A2APartToGenAIPartConverter,
+    convert_a2a_part_to_genai_part,
+)
+from google.adk.a2a.converters.request_converter import (
+    AgentRunRequest,
+    convert_a2a_request_to_agent_run_request,
+)
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
+from google.adk.a2a.executor.config import A2aAgentExecutorConfig
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import LlmAgent
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.runners import Runner
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -250,9 +263,43 @@ class _TracingFlushMiddleware:
 _vercel_host = os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("VERCEL_URL")
 _to_a2a_kwargs = {"host": _vercel_host, "protocol": "https", "port": 443} if _vercel_host else {}
 
+
+def _streaming_request_converter(
+    request: RequestContext,
+    part_converter: A2APartToGenAIPartConverter = convert_a2a_part_to_genai_part,
+) -> AgentRunRequest:
+    """`to_a2a()`'s own default request converter builds every run with
+    google-adk's default `RunConfig` (`streaming_mode=StreamingMode.NONE`)
+    -- meaning the underlying Claude call is one blocking completion no
+    matter how the A2A transport itself streams it, silently defeating
+    this module's own "stream free-form text... rather than emit one
+    buffered structured object" design intent (module docstring above).
+
+    Confirmed live against production (roadmap.md's Milestone 9 status):
+    every exchange arrived as a single SSE chunk, and its Langfuse
+    generation span had no "time to first token" at all -- the model
+    call itself was never asked to stream. `to_a2a()` has no direct
+    `run_config` kwarg; this converter, wired in via `agent_executor_
+    factory` below, is the one hook ADK exposes to override it
+    (spec 012 FR-005/SC-004)."""
+    run_request = convert_a2a_request_to_agent_run_request(request, part_converter)
+    run_request.run_config = RunConfig(
+        custom_metadata=run_request.run_config.custom_metadata,
+        streaming_mode=StreamingMode.SSE,
+    )
+    return run_request
+
+
+def _agent_executor_factory(runner: Runner) -> A2aAgentExecutor:
+    return A2aAgentExecutor(
+        runner=runner,
+        config=A2aAgentExecutorConfig(request_converter=_streaming_request_converter),
+    )
+
+
 app = _TracingFlushMiddleware(
     _SharedSecretAuthMiddleware(
-        to_a2a(_agent, **_to_a2a_kwargs),
+        to_a2a(_agent, agent_executor_factory=_agent_executor_factory, **_to_a2a_kwargs),
         expected_secrets=(
             os.environ.get("TUTOR_AGENT_SHARED_SECRET", ""),
             os.environ.get("TUTOR_AGENT_SHARED_SECRET_NEXT", ""),
