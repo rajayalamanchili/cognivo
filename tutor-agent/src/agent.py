@@ -328,7 +328,9 @@ _rpc_url = f"{_rpc_protocol}://{_rpc_host}:{_rpc_port}/"
 # loop exists (Vercel's Python runtime and uvicorn both import this
 # module before starting one). Would raise if this module were ever
 # imported from inside an already-running loop instead (PR #36 review
-# nit).
+# nit) -- every test in this package already imports this module at
+# collection time, so a regression here fails the whole suite loudly
+# rather than silently, without needing a dedicated test of its own.
 _agent_card = asyncio.run(
     AgentCardBuilder(
         agent=_agent,

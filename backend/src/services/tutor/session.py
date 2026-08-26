@@ -193,8 +193,12 @@ async def prepare_message(
     limit (FR-013) -> length/moderation -> retrieval (FR-002/FR-012) ->
     bundle -> open the A2A stream. Raises `StillAnsweringError`/
     `RateLimitedError`/`QuestionTooLongError`/`ModerationRejectedError`/
-    `TutorUnavailableError` -- the caller (the route) must not construct
-    a `StreamingResponse` until this returns successfully.
+    `TutorUnavailableError`, or -- since opening the A2A stream can fail
+    in ways other than `TutorUnavailableError` (confirmed live, PR #36)
+    -- any other exception raised while opening it; every one of these
+    marks the just-created exchange `failed_at` first. The caller (the
+    route) must not construct a `StreamingResponse` until this returns
+    successfully.
     """
     in_flight = _in_flight_exchange(db, session_id=session.session_id)
     if in_flight is not None:
@@ -270,8 +274,16 @@ async def prepare_message(
         # response` below already catches this same breadth for a
         # mid-stream failure (PR #32/#34); this closes the same gap one
         # step earlier, before the first event is even received.
-        exchange.failed_at = datetime.datetime.now(datetime.UTC)
-        db.commit()
+        #
+        # Reuses `_persist_failed_exchange` (including its `db.rollback()`
+        # first) rather than inlining `failed_at`/`commit()` here -- PR
+        # #36 review finding: nothing between this exchange's own
+        # `db.commit()` above and this `anext()` call touches the DB
+        # today, so the rollback is a no-op here, but that's an implicit
+        # invariant a future change could silently break; calling the
+        # shared helper keeps this call site protected the same way
+        # `stream_message_response`'s own two call sites already are.
+        _persist_failed_exchange(db, exchange=exchange)
         raise
 
     return PreparedTutorMessage(
