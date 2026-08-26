@@ -49,7 +49,6 @@ from src.services.tutor_agent_client.client import (
     TutorAnswerResult,
     TutorStreamEvent,
     TutorStreamInterruptedError,
-    TutorUnavailableError,
     stream_tutor_answer,
 )
 
@@ -259,11 +258,18 @@ async def prepare_message(
         # call. A `TutorUnavailableError` here means every attempt
         # failed before any content streamed back.
         first_event = await anext(stream)
-    except TutorUnavailableError:
+    except (asyncio.CancelledError, GeneratorExit, Exception):
         # Leaving this exchange row with answer_text/failed_at both
         # NULL would be exactly finding H2's deadlock -- fail it now so
         # the session isn't permanently stuck behind a phantom in-flight
-        # exchange (FR-015).
+        # exchange (FR-015). Broad except, not just `TutorUnavailableError`:
+        # confirmed live against production that any other exception
+        # opening the stream (e.g. a malformed response from a
+        # misconfigured Tutor Agent endpoint) left the exchange orphaned
+        # exactly like finding H2's original bug -- `stream_message_
+        # response` below already catches this same breadth for a
+        # mid-stream failure (PR #32/#34); this closes the same gap one
+        # step earlier, before the first event is even received.
         exchange.failed_at = datetime.datetime.now(datetime.UTC)
         db.commit()
         raise

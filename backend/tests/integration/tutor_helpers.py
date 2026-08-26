@@ -72,6 +72,22 @@ def patch_unavailable_stream():
     return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
 
 
+def patch_unexpected_exception_opening_stream():
+    """A fake `stream_tutor_answer` that fails with an exception type
+    OTHER than `TutorUnavailableError` before any event is yielded --
+    confirmed live against production (a misconfigured Tutor Agent
+    endpoint raised something other than `TutorUnavailableError` while
+    opening the A2A stream): `prepare_message`'s `anext(stream)` call
+    used to only catch `TutorUnavailableError`, reproducing finding
+    H2's deadlock for this earlier failure point too."""
+
+    async def _fake_stream(**kwargs) -> AsyncIterator[TutorStreamEvent]:
+        raise ValueError("simulated unexpected bug opening the stream")
+        yield  # pragma: no cover -- unreachable, makes this a generator function
+
+    return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
+
+
 def patch_interrupted_stream(deltas: list[str]):
     """A fake `stream_tutor_answer` that starts streaming successfully,
     then fails mid-response (`/speckit-analyze` finding H2)."""
