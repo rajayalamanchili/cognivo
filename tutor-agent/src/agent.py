@@ -319,6 +319,12 @@ _rpc_protocol = _to_a2a_kwargs.get("protocol", "http")
 _rpc_host = _to_a2a_kwargs.get("host", "localhost")
 _rpc_port = _to_a2a_kwargs.get("port", 8000)
 _rpc_url = f"{_rpc_protocol}://{_rpc_host}:{_rpc_port}/"
+# `asyncio.run()` is safe here specifically because this only ever runs
+# once, synchronously, at cold-start module import -- before any event
+# loop exists (Vercel's Python runtime and uvicorn both import this
+# module before starting one). Would raise if this module were ever
+# imported from inside an already-running loop instead (PR #36 review
+# nit).
 _agent_card = asyncio.run(
     AgentCardBuilder(
         agent=_agent,
