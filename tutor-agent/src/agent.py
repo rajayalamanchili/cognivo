@@ -60,7 +60,7 @@ from google.adk.a2a.executor.config import A2aAgentExecutorConfig
 from google.adk.a2a.utils.agent_card_builder import AgentCardBuilder
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import LlmAgent
-from google.adk.agents.run_config import RunConfig, StreamingMode
+from google.adk.agents.run_config import StreamingMode
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
 from starlette.responses import JSONResponse
@@ -286,9 +286,13 @@ def _streaming_request_converter(
     factory` below, is the one hook ADK exposes to override it
     (spec 012 FR-005/SC-004)."""
     run_request = convert_a2a_request_to_agent_run_request(request, part_converter)
-    run_request.run_config = RunConfig(
-        custom_metadata=run_request.run_config.custom_metadata,
-        streaming_mode=StreamingMode.SSE,
+    # `.model_copy(update=...)`, not `RunConfig(custom_metadata=...)` --
+    # rebuilding from scratch would silently drop any other field a
+    # future google-adk version starts populating in its default
+    # conversion (today it's only ever `custom_metadata`, but nothing
+    # guarantees that stays true) (PR #36 review nit).
+    run_request.run_config = run_request.run_config.model_copy(
+        update={"streaming_mode": StreamingMode.SSE}
     )
     return run_request
 

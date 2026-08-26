@@ -22,7 +22,7 @@ from google.adk.a2a.converters.request_converter import AgentRunRequest  # noqa:
 from google.adk.agents.run_config import RunConfig, StreamingMode  # noqa: E402
 from google.genai import types as genai_types  # noqa: E402
 
-from src.agent import _streaming_request_converter  # noqa: E402
+from src.agent import _agent_card, _streaming_request_converter  # noqa: E402
 
 
 def test_forces_sse_streaming_mode():
@@ -46,3 +46,14 @@ def test_preserves_custom_metadata_while_forcing_streaming():
         result = _streaming_request_converter(request=object(), part_converter=object())
 
     assert result.run_config.custom_metadata == {"a2a_metadata": {"foo": "bar"}}
+
+
+def test_agent_card_advertises_streaming_support():
+    # PR #36 review finding: forcing StreamingMode.SSE alone wasn't
+    # sufficient -- AgentCardBuilder's own default AgentCapabilities()
+    # also has streaming=False, and the a2a-sdk client correctly falls
+    # back to the blocking message/send RPC when the served agent card
+    # advertises "doesn't support streaming," regardless of the
+    # RunConfig override above. This is the more load-bearing of the
+    # two fixes; nothing else in this test file exercises it.
+    assert _agent_card.capabilities.streaming is True
