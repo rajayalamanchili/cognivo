@@ -287,13 +287,58 @@ def _streaming_request_converter(
         custom_metadata=run_request.run_config.custom_metadata,
         streaming_mode=StreamingMode.SSE,
     )
+    # TEMP DEBUG (not part of the fix, will be removed before the final PR)
+    import sys as _sys
+
+    print(
+        f"STREAMDEBUG converter applied streaming_mode={run_request.run_config.streaming_mode}",
+        file=_sys.stderr,
+        flush=True,
+    )
     return run_request
 
 
+# TEMP DEBUG (not part of the fix, will be removed before the final PR):
+# instrumenting the one official extension point (ExecuteInterceptor.
+# after_event) to see, via Vercel's runtime logs, whether ADK is
+# actually producing multiple partial events server-side even though
+# the client-observed behavior is still a single chunk.
+import sys
+import time as _time
+
+_stream_debug_t0: float | None = None
+
+
+async def _log_stream_event(executor_context, a2a_event, adk_event):
+    global _stream_debug_t0
+    if _stream_debug_t0 is None:
+        _stream_debug_t0 = _time.monotonic()
+    elapsed = round(_time.monotonic() - _stream_debug_t0, 2)
+    print(
+        f"STREAMDEBUG elapsed={elapsed}s partial={getattr(adk_event, 'partial', None)} "
+        f"author={getattr(adk_event, 'author', None)} "
+        f"has_content={getattr(adk_event, 'content', None) is not None} "
+        f"a2a_event_type={type(a2a_event).__name__}",
+        file=sys.stderr,
+        flush=True,
+    )
+    return a2a_event
+
+
 def _agent_executor_factory(runner: Runner) -> A2aAgentExecutor:
+    from google.adk.a2a.executor.config import ExecuteInterceptor
+
+    print(
+        f"STREAMDEBUG factory called, run_config default streaming_mode check happens per-request",
+        file=sys.stderr,
+        flush=True,
+    )
     return A2aAgentExecutor(
         runner=runner,
-        config=A2aAgentExecutorConfig(request_converter=_streaming_request_converter),
+        config=A2aAgentExecutorConfig(
+            request_converter=_streaming_request_converter,
+            execute_interceptors=[ExecuteInterceptor(after_event=_log_stream_event)],
+        ),
     )
 
 
