@@ -40,13 +40,29 @@ a versioned grounding-protocol change, mirroring `GRADING_LOGIC_VERSION`)
 -- at that point the templating justification would apply here too.
 """
 
+import asyncio
 import hmac
 import os
 from collections.abc import Sequence
 
+from a2a.server.agent_execution import RequestContext
+from a2a.types import AgentCapabilities
+from google.adk.a2a.converters.part_converter import (
+    A2APartToGenAIPartConverter,
+    convert_a2a_part_to_genai_part,
+)
+from google.adk.a2a.converters.request_converter import (
+    AgentRunRequest,
+    convert_a2a_request_to_agent_run_request,
+)
+from google.adk.a2a.executor.a2a_agent_executor import A2aAgentExecutor
+from google.adk.a2a.executor.config import A2aAgentExecutorConfig
+from google.adk.a2a.utils.agent_card_builder import AgentCardBuilder
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
 from google.adk.agents import LlmAgent
+from google.adk.agents.run_config import StreamingMode
 from google.adk.models.lite_llm import LiteLlm
+from google.adk.runners import Runner
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -250,9 +266,88 @@ class _TracingFlushMiddleware:
 _vercel_host = os.environ.get("VERCEL_BRANCH_URL") or os.environ.get("VERCEL_URL")
 _to_a2a_kwargs = {"host": _vercel_host, "protocol": "https", "port": 443} if _vercel_host else {}
 
+
+def _streaming_request_converter(
+    request: RequestContext,
+    part_converter: A2APartToGenAIPartConverter = convert_a2a_part_to_genai_part,
+) -> AgentRunRequest:
+    """`to_a2a()`'s own default request converter builds every run with
+    google-adk's default `RunConfig` (`streaming_mode=StreamingMode.NONE`)
+    -- meaning the underlying Claude call is one blocking completion no
+    matter how the A2A transport itself streams it, silently defeating
+    this module's own "stream free-form text... rather than emit one
+    buffered structured object" design intent (module docstring above).
+
+    Confirmed live against production (roadmap.md's Milestone 9 status):
+    every exchange arrived as a single SSE chunk, and its Langfuse
+    generation span had no "time to first token" at all -- the model
+    call itself was never asked to stream. `to_a2a()` has no direct
+    `run_config` kwarg; this converter, wired in via `agent_executor_
+    factory` below, is the one hook ADK exposes to override it
+    (spec 012 FR-005/SC-004)."""
+    run_request = convert_a2a_request_to_agent_run_request(request, part_converter)
+    # `.model_copy(update=...)`, not `RunConfig(custom_metadata=...)` --
+    # rebuilding from scratch would silently drop any other field a
+    # future google-adk version starts populating in its default
+    # conversion (today it's only ever `custom_metadata`, but nothing
+    # guarantees that stays true) (PR #36 review nit).
+    run_request.run_config = run_request.run_config.model_copy(
+        update={"streaming_mode": StreamingMode.SSE}
+    )
+    return run_request
+
+
+def _agent_executor_factory(runner: Runner) -> A2aAgentExecutor:
+    return A2aAgentExecutor(
+        runner=runner,
+        config=A2aAgentExecutorConfig(request_converter=_streaming_request_converter),
+    )
+
+
+# `AgentCardBuilder`'s own default `AgentCapabilities()` has
+# `streaming=False` (a2a-sdk's own default), and `to_a2a()` never
+# overrides it when no `agent_card` is supplied -- so without this, the
+# agent card advertises "doesn't support streaming," and the a2a-sdk
+# client correctly (per A2A protocol) falls back to the blocking
+# `message/send` RPC instead of `message/stream`, no matter how
+# genuinely incremental the server-side generation is (confirmed live:
+# Vercel runtime logs showed 11 real partial ADK events over ~6s, yet
+# the client received one buffered `application/json` response because
+# it had chosen `message/send` based on this exact capability flag).
+# `to_a2a()` exposes no direct `capabilities` kwarg -- building the
+# card ourselves via the same `AgentCardBuilder` it uses internally,
+# with `streaming=True`, and passing it back in via `agent_card` is the
+# one way to override this (spec 012 FR-005/SC-004, closes the gap
+# `_streaming_request_converter` above only solved halfway).
+_rpc_protocol = _to_a2a_kwargs.get("protocol", "http")
+_rpc_host = _to_a2a_kwargs.get("host", "localhost")
+_rpc_port = _to_a2a_kwargs.get("port", 8000)
+_rpc_url = f"{_rpc_protocol}://{_rpc_host}:{_rpc_port}/"
+# `asyncio.run()` is safe here specifically because this only ever runs
+# once, synchronously, at cold-start module import -- before any event
+# loop exists (Vercel's Python runtime and uvicorn both import this
+# module before starting one). Would raise if this module were ever
+# imported from inside an already-running loop instead (PR #36 review
+# nit) -- every test in this package already imports this module at
+# collection time, so a regression here fails the whole suite loudly
+# rather than silently, without needing a dedicated test of its own.
+_agent_card = asyncio.run(
+    AgentCardBuilder(
+        agent=_agent,
+        rpc_url=_rpc_url,
+        capabilities=AgentCapabilities(streaming=True),
+    ).build()
+)
+
+
 app = _TracingFlushMiddleware(
     _SharedSecretAuthMiddleware(
-        to_a2a(_agent, **_to_a2a_kwargs),
+        to_a2a(
+            _agent,
+            agent_executor_factory=_agent_executor_factory,
+            agent_card=_agent_card,
+            **_to_a2a_kwargs,
+        ),
         expected_secrets=(
             os.environ.get("TUTOR_AGENT_SHARED_SECRET", ""),
             os.environ.get("TUTOR_AGENT_SHARED_SECRET_NEXT", ""),
