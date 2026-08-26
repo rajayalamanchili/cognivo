@@ -630,15 +630,59 @@ caught:
   13 incremental `delta` events over ~14s (previously always exactly 1
   buffered event) -- **SC-004 now holds**.
 
-**SC-001 (3s p95 first-token latency) does not yet hold**: the same
-live test's first delta arrived at 6.89s, roughly double the target --
-a real latency finding for this pipeline (guardrails + retrieval + A2A
-+ Claude), not something addressed in this pass. Left as an open
-follow-up rather than chased further this session.
+Both fixes merged to `staging` (PR #36) then promoted to `main` (PR
+#37) the same day, closing two more `/speckit-analyze`-style review
+rounds along the way (`_streaming_request_converter` now uses
+`run_config.model_copy(update=...)` instead of rebuilding `RunConfig`
+from scratch, so a future `google-adk` version populating any field
+besides `custom_metadata` in its default conversion won't be silently
+dropped; `prepare_message`'s broadened `except` now reuses
+`_persist_failed_exchange` instead of an inlined copy, so a future DB
+operation added before the `anext()` call stays protected the same way
+`stream_message_response`'s own call sites already are; a regression
+test now asserts `_agent_card.capabilities.streaming is True`, the more
+load-bearing of the two SC-004 fixes, which previously had no test
+coverage of its own).
 
-**T038 (SC-002 grounding rate) and T033 (Playwright E2E)**: not yet run
-against a deployment carrying both fixes above -- pending this
-branch's promotion through staging -> main.
+**T037 (SC-001/SC-004), run against production post-merge, full
+30-question fixture**: p95 first-token latency **4.82s** (n=30, max
+6.66s, min 3.22s) -- **SC-001 (3s target) does not hold**, a real
+latency finding for this pipeline (guardrails + retrieval + A2A +
+Claude), not addressed in this pass. **SC-004 holds cleanly: 30/30
+responses arrived as multiple incremental chunks** (previously always
+exactly 1 buffered chunk before this session's fixes). Also notable:
+every transient `500`/`429` encountered during this real 30-question
+run recovered cleanly via retry with zero orphaned exchanges -- the H2
+stream-open fix held under repeated real-world failures, not just the
+one scripted test case that originally found it.
+
+**T038 (SC-002 grounding rate), same 30-question run**: **0/30
+grounded** -- every exchange's `grounded` is `false` and
+`retrieved_passage_ids` is empty, confirmed via a direct DB read (the
+demo learner's exchanges have no owning guardian or enrolled
+instructor, so `GET /api/tutor/exchanges/{id}` itself isn't reachable
+for them -- a separate, minor demo-data gap, not investigated further
+here). This is **not** the empty-embeddings-table failure mode
+`grounding-test-questions.md` warns about -- a direct count confirmed
+`content_passage_embeddings` holds 32 rows each for `biology` and
+`algebra-1` (matching research.md §5's 4-passages-per-topic design).
+The Tutor Agent's own answer text corroborates this isn't a marker-
+parsing bug either: asked about photosynthesis (a real, embedded
+`biology` topic), it said outright "I don't have material on
+photosynthesis in this course's content yet" -- consistent with
+`search_passages()` (`backend/src/services/retrieval/passage_search.py`)
+or the query-embedding call within it returning zero results despite
+the table being populated, not with passages being offered but never
+cited. **Known gap, not investigated further this session**: root
+cause is somewhere in the retrieval path itself (a genuinely separate
+code path from both bugs fixed above, untouched by PRs #36/#37) --
+candidates include a query-embedding-model mismatch against what the
+loader used, or a silent failure inside `search_passages()`. Needs
+dedicated follow-up before SC-002 can be re-measured.
+
+**T033 (Playwright E2E)**: still not run against a live deployment --
+out of scope for this already-long live-verification pass; left for a
+dedicated follow-up alongside T038's grounding investigation.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
