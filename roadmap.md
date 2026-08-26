@@ -583,6 +583,63 @@ migrated DB + real `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY`, or an actual
 Vercel deployment) this environment doesn't have -- not attempted
 without checking first, since running them spends real API credits.
 
+**T037 live verification (2026-08-26, `014-tutor-agent-live-verification`
+branch)**: a Vercel Production deployment now existed, so T037/T038/T033
+were attempted for real. Getting there required a chain of environment
+fixes outside this repo's own files (all applied by the user, not
+tracked here per this project's no-deployment-posture-in-repo
+convention): the migration had never been run against the production
+database, several env vars (`TUTOR_AGENT_SHARED_SECRET`,
+`TUTOR_AGENT_URL`, the Vercel deployment-protection bypass secret) were
+unset or stale, and `content_passage_embeddings` had never been
+populated in production. Once unblocked, live testing surfaced and
+fixed two real bugs neither the test suite nor `/speckit-analyze` had
+caught:
+- **A second finding-H2 gap** (`backend/src/services/tutor/session.py`'s
+  `prepare_message`): the `anext(stream)` call opening the Tutor
+  Agent's A2A stream only caught `TutorUnavailableError`, not an
+  arbitrary exception -- confirmed live (a misconfigured deployment
+  raised something else while opening the stream), which left two of
+  the demo learner's exchanges permanently `answer_text IS NULL AND
+  failed_at IS NULL`, blocking their sessions. Fixed by broadening the
+  `except` to match `stream_message_response`'s own breadth
+  (`CancelledError`, `GeneratorExit`, `Exception`); regression test
+  added.
+- **SC-004 (incremental streaming) was silently never working**:
+  `tutor-agent/src/agent.py`'s `to_a2a()` call left `RunConfig` at
+  google-adk's own default (`streaming_mode=StreamingMode.NONE`), so
+  the Claude call itself was never asked to stream -- fixed via the one
+  hook ADK exposes (`agent_executor_factory` ->
+  `A2aAgentExecutorConfig.request_converter`, forcing `StreamingMode
+  .SSE`). That alone wasn't sufficient: `AgentCardBuilder`'s own
+  default `AgentCapabilities()` also has `streaming=False`, and
+  `to_a2a()` never overrides it without an explicit `agent_card` -- so
+  the served agent card advertised "doesn't support streaming," and
+  the `a2a-sdk` client correctly (per A2A protocol) fell back to the
+  blocking `message/send` RPC instead of `message/stream`, no matter
+  how genuinely incremental the server-side generation was. Root-caused
+  by temporarily instrumenting the A2A executor's one official
+  `ExecuteInterceptor.after_event` hook and reading Vercel's runtime
+  logs, which proved ADK really was producing multiple partial events
+  server-side (11 events over ~6s) despite the client still seeing one
+  buffered response -- narrowing the gap to agent-card capability
+  negotiation, not event generation. Fixed by building the card
+  ourselves via the same `AgentCardBuilder` `to_a2a()` uses internally,
+  with `streaming=True`, passed back in via `agent_card`. Confirmed live
+  against the fix's preview deployment: a real question now arrives as
+  13 incremental `delta` events over ~14s (previously always exactly 1
+  buffered event) -- **SC-004 now holds**.
+
+**SC-001 (3s p95 first-token latency) does not yet hold**: the same
+live test's first delta arrived at 6.89s, roughly double the target --
+a real latency finding for this pipeline (guardrails + retrieval + A2A
++ Claude), not something addressed in this pass. Left as an open
+follow-up rather than chased further this session.
+
+**T038 (SC-002 grounding rate) and T033 (Playwright E2E)**: not yet run
+against a deployment carrying both fixes above -- pending this
+branch's promotion through staging -> main.
+
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
 learner already struggle with?"), the Recommendation Agent, and

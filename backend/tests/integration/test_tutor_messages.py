@@ -20,6 +20,7 @@ from tests.integration.tutor_helpers import (
     patch_moderation,
     patch_search_passages,
     patch_unavailable_stream,
+    patch_unexpected_exception_opening_stream,
     patch_unexpected_exception_stream,
 )
 
@@ -226,6 +227,43 @@ def test_session_recovers_after_an_unexpected_exception_mid_stream(client, db_se
         patch_unexpected_exception_stream(["partial answer before the bug"]),
     ):
         with pytest.raises(ValueError, match="simulated unexpected bug"):
+            client.post(
+                f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+            )
+
+    exchanges = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).all()
+    assert len(exchanges) == 1
+    assert exchanges[0].answer_text is None
+    assert exchanges[0].failed_at is not None
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+def test_session_recovers_after_an_unexpected_exception_opening_the_stream(
+    client, db_session, session_id
+):
+    """Found live against production (see roadmap.md's Milestone 9
+    status): `prepare_message`'s `anext(stream)` call only caught
+    `TutorUnavailableError`, not an arbitrary exception raised while
+    opening the A2A stream (e.g. a misconfigured Tutor Agent endpoint) --
+    that left the just-created exchange permanently `answer_text IS
+    NULL AND failed_at IS NULL`, the same finding-H2 deadlock
+    `test_session_recovers_after_an_unexpected_exception_mid_stream`
+    already covers one step later."""
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_unexpected_exception_opening_stream(),
+    ):
+        with pytest.raises(ValueError, match="simulated unexpected bug opening the stream"):
             client.post(
                 f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
             )

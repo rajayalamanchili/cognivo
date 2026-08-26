@@ -49,7 +49,6 @@ from src.services.tutor_agent_client.client import (
     TutorAnswerResult,
     TutorStreamEvent,
     TutorStreamInterruptedError,
-    TutorUnavailableError,
     stream_tutor_answer,
 )
 
@@ -194,8 +193,12 @@ async def prepare_message(
     limit (FR-013) -> length/moderation -> retrieval (FR-002/FR-012) ->
     bundle -> open the A2A stream. Raises `StillAnsweringError`/
     `RateLimitedError`/`QuestionTooLongError`/`ModerationRejectedError`/
-    `TutorUnavailableError` -- the caller (the route) must not construct
-    a `StreamingResponse` until this returns successfully.
+    `TutorUnavailableError`, or -- since opening the A2A stream can fail
+    in ways other than `TutorUnavailableError` (confirmed live, PR #36)
+    -- any other exception raised while opening it; every one of these
+    marks the just-created exchange `failed_at` first. The caller (the
+    route) must not construct a `StreamingResponse` until this returns
+    successfully.
     """
     in_flight = _in_flight_exchange(db, session_id=session.session_id)
     if in_flight is not None:
@@ -259,13 +262,28 @@ async def prepare_message(
         # call. A `TutorUnavailableError` here means every attempt
         # failed before any content streamed back.
         first_event = await anext(stream)
-    except TutorUnavailableError:
+    except (asyncio.CancelledError, GeneratorExit, Exception):
         # Leaving this exchange row with answer_text/failed_at both
         # NULL would be exactly finding H2's deadlock -- fail it now so
         # the session isn't permanently stuck behind a phantom in-flight
-        # exchange (FR-015).
-        exchange.failed_at = datetime.datetime.now(datetime.UTC)
-        db.commit()
+        # exchange (FR-015). Broad except, not just `TutorUnavailableError`:
+        # confirmed live against production that any other exception
+        # opening the stream (e.g. a malformed response from a
+        # misconfigured Tutor Agent endpoint) left the exchange orphaned
+        # exactly like finding H2's original bug -- `stream_message_
+        # response` below already catches this same breadth for a
+        # mid-stream failure (PR #32/#34); this closes the same gap one
+        # step earlier, before the first event is even received.
+        #
+        # Reuses `_persist_failed_exchange` (including its `db.rollback()`
+        # first) rather than inlining `failed_at`/`commit()` here -- PR
+        # #36 review finding: nothing between this exchange's own
+        # `db.commit()` above and this `anext()` call touches the DB
+        # today, so the rollback is a no-op here, but that's an implicit
+        # invariant a future change could silently break; calling the
+        # shared helper keeps this call site protected the same way
+        # `stream_message_response`'s own two call sites already are.
+        _persist_failed_exchange(db, exchange=exchange)
         raise
 
     return PreparedTutorMessage(
