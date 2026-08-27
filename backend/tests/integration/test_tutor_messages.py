@@ -19,6 +19,7 @@ from tests.integration.tutor_helpers import (
     patch_interrupted_stream,
     patch_moderation,
     patch_search_passages,
+    patch_search_passages_failure,
     patch_unavailable_stream,
     patch_unexpected_exception_opening_stream,
     patch_unexpected_exception_stream,
@@ -169,6 +170,40 @@ def test_503_tutor_unavailable_marks_exchange_failed_not_stuck(client, db_sessio
 
     # The session is NOT stuck behind a phantom in-flight exchange
     # (finding H2) -- a fresh question on the same session succeeds.
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["all good now"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+def test_503_retrieval_failure_marks_exchange_failed_not_stuck(client, db_session, session_id):
+    """T038 grounding investigation (roadmap.md): a raw embedding-
+    provider exception (e.g. a Voyage rate-limit/billing rejection) was
+    previously left completely uncaught in `search_passages`, propagating
+    as an unhandled 500 with no `TutorExchange` row, no audit-log event,
+    no trace anywhere -- worse than finding H2's original deadlock, which
+    at least left a row behind. Now maps to the same clean `503
+    tutor_unavailable` the A2A-stream-open failure above already gets."""
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages_failure(RuntimeError("embedding provider unavailable")),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+        )
+    assert response.status_code == 503, response.text
+    assert response.json() == {"error": "tutor_unavailable"}
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.answer_text is None
+    assert exchange.failed_at is not None
+
+    # Not stuck behind a phantom in-flight exchange either.
     with (
         patch_moderation(allowed=True),
         patch_search_passages([]),

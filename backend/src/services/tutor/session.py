@@ -34,6 +34,7 @@ from src.api.errors import (
     QuestionTooLongError,
     RateLimitedError,
     StillAnsweringError,
+    TutorUnavailableError,
 )
 from src.models.enums import AssessmentEventType, TutoringSessionStatus
 from src.models.tutor_exchange import TutorExchange
@@ -193,12 +194,15 @@ async def prepare_message(
     limit (FR-013) -> length/moderation -> retrieval (FR-002/FR-012) ->
     bundle -> open the A2A stream. Raises `StillAnsweringError`/
     `RateLimitedError`/`QuestionTooLongError`/`ModerationRejectedError`/
-    `TutorUnavailableError`, or -- since opening the A2A stream can fail
-    in ways other than `TutorUnavailableError` (confirmed live, PR #36)
-    -- any other exception raised while opening it; every one of these
-    marks the just-created exchange `failed_at` first. The caller (the
-    route) must not construct a `StreamingResponse` until this returns
-    successfully.
+    `TutorUnavailableError` (raised directly if retrieval fails after
+    its own internal retries, or -- since opening the A2A stream can
+    fail in ways other than `TutorUnavailableError` too, confirmed live,
+    PR #36 -- re-raised as whatever other exception opening it actually
+    was); every one of these marks the just-created exchange `failed_at`
+    first (the exchange row itself is created before retrieval runs,
+    specifically so a retrieval failure has a row to mark). The caller
+    (the route) must not construct a `StreamingResponse` until this
+    returns successfully.
     """
     in_flight = _in_flight_exchange(db, session_id=session.session_id)
     if in_flight is not None:
@@ -222,7 +226,6 @@ async def prepare_message(
     if not allowed:
         raise ModerationRejectedError()
 
-    retrieved = await search_passages(db, subject_id=session.subject_id, query_text=question)
     # FR-006 (US2): a real in-process Recommendation Agent lookup when
     # the question depends on the learner's own performance -- never
     # guessed or re-derived by the Tutor Agent itself (Constitution
@@ -231,6 +234,13 @@ async def prepare_message(
     if _question_needs_performance_context(question):
         delegation_context.append(_build_recommendation_delegation(db, session))
 
+    # Created before retrieval (not after, as originally written) so a
+    # retrieval failure below has a row to mark failed -- otherwise it's
+    # an unhandled exception with literally no trace anywhere (found
+    # live, T038 grounding investigation, roadmap.md: a Voyage account
+    # with no payment method caps embedding calls at 3 RPM, and every
+    # 429 past that cap previously vanished as a raw 500 with no
+    # TutorExchange row, no audit-log event, nothing).
     exchange = TutorExchange(
         session_id=session.session_id,
         question_text=question,
@@ -239,6 +249,25 @@ async def prepare_message(
     db.add(exchange)
     db.commit()
     db.refresh(exchange)
+
+    try:
+        retrieved = await search_passages(db, subject_id=session.subject_id, query_text=question)
+    except (asyncio.CancelledError, GeneratorExit, Exception) as exc:
+        # Same broad-except reasoning as the A2A-stream-open path below
+        # (PR #36: any exception here, not just the one type this
+        # module happens to raise today, must not leave the exchange
+        # orphaned) -- reuses _persist_failed_exchange for the same
+        # rollback-then-fail-then-commit sequence, then raises the same
+        # TutorUnavailableError (503) contracts/api.md already defines
+        # for "the Tutor Agent couldn't be reached for this message,"
+        # which retrieval failing before the A2A call is even attempted
+        # is just an earlier instance of. `from exc`, not `from None` --
+        # keeps the real cause (e.g. the embedding provider's own
+        # exception) in the traceback Vercel logs, the only way this
+        # session's own live investigation found the Voyage rate-limit
+        # root cause in the first place.
+        _persist_failed_exchange(db, exchange=exchange)
+        raise TutorUnavailableError() from exc
 
     passage_payloads = [
         {

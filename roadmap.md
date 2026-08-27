@@ -762,6 +762,63 @@ now, only ever run locally) -- no ground-truth-eval-gate or test-
 independence-check step included, since spec 012 has no equivalent
 requirement to spec 007's FR-008/SC-003 ground-truth eval gate.
 
+**T038 re-run attempt (2026-08-27, `016-tutor-retrieval-resilience`
+branch): found the real root cause, and a real reliability gap along
+the way.** With PR #38's trace-correlation fix live on `main`, ran the
+30-question fixture for real against production -- through a disposable
+test guardian+learner (not the demo learner: `GET /api/tutor/
+exchanges/{id}` requires an owning guardian or enrolled instructor,
+which the demo learner has neither, so the documented fixture procedure
+can't actually verify grounding through it -- a separate, still-open
+minor gap). **26 of 30 requests failed with a fast (~1s) unhandled `500
+{"detail":"Internal server error"}`**; the 3 that succeeded came back
+`grounded: false` with zero retrieved passages. Pulled the actual Vercel
+function log for one failure: `search_passages()`'s embedding call was
+throwing `litellm.exceptions.APIConnectionError` wrapping a Voyage `429`
+-- **the Voyage AI account has no payment method on file, capping it at
+3 requests/minute** (Voyage's own error message states this outright).
+This is almost certainly the real root cause behind the original T038
+"0/30 grounded" finding too, not a code defect in retrieval itself: the
+one fully-correct trace found during that investigation (5 relevant
+passages, 2 correctly cited) was very likely the one request that
+happened to land inside the 3-RPM window.
+
+That failure mode also exposed a genuine gap, fixed the same session:
+`search_passages()` (`backend/src/services/retrieval/passage_search.py`)
+had no retry and `services/tutor/session.py`'s `prepare_message` created
+the `TutorExchange` row *after* calling it -- so an embedding-provider
+failure propagated as a raw unhandled 500 with **no `TutorExchange` row,
+no audit-log event, no trace of any kind**, worse than finding H2's
+original deadlock (which at least left a row behind to notice). Fixed
+by: (1) `_embed_query` now retries once with backoff (`MAX_ATTEMPTS`/
+`RETRY_BACKOFF_SECONDS`, same shape as `tutor_agent_client`/
+`grading_client`'s existing retry constants) before raising a new
+`EmbeddingUnavailableError`; (2) `prepare_message` now creates the
+exchange row *before* retrieval runs, catches any retrieval failure the
+same broad way it already catches an A2A-stream-open failure, persists
+it via the existing `_persist_failed_exchange`, and raises the same
+`TutorUnavailableError` (503) contracts/api.md already defines for "the
+Tutor Agent couldn't be reached" -- retrieval failing before the A2A
+call is even attempted is just an earlier instance of that same case.
+`contracts/api.md`'s `503` section updated to match. 2 new tests
+(`test_embed_query_retry.py`'s retry/exhaustion behavior, plus an
+integration test mirroring the existing A2A-unavailable-then-recovers
+test but for the retrieval path) -- full regression: backend 331/332
+(the 1 failure is `test_submit_placement_response_shape_and_unknown_
+topics`, a known enum-OID-cache flake unrelated to this change,
+confirmed passing in isolation), tutor-agent 22/22.
+
+**Still not done**: SC-002 itself remains unmeasured -- the account is
+staying on Voyage's free tier rather than adding a payment method, so
+the actual re-run needs to pace all 30 requests well under 3 RPM (one
+question roughly every 20-25s at minimum, plus real per-question
+latency on top -- a ~15-20 minute run), not fire them back-to-back like
+this attempt did. Also created (and not yet cleaned up -- no self-serve
+account deletion exists yet, a known gap) 3 disposable test guardian
+accounts in production during this investigation
+(`tutor-eval-*@cognivo-test.invalid`), needing direct DB removal
+whenever convenient.
+
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
 learner already struggle with?"), the Recommendation Agent, and
