@@ -1,0 +1,37 @@
+name: Tutor Agent Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [staging, main]
+    paths:
+      - "tutor-agent/**"
+      - ".github/workflows/tutor-agent-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  tutor-agent-suite:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.12"
+
+      - name: Install tutor-agent dependencies
+        working-directory: tutor-agent
+        run: uv sync
+
+      # Mirrors grading-agent-tests.yml: this project's second remote
+      # A2A service had no CI coverage of its own until this workflow
+      # existed -- every prior tutor-agent/ pytest run was local-only.
+      # No database/live-API env vars needed: this suite mocks or
+      # constructs against fixed local defaults the same way
+      # grading-agent/'s suite does (research.md §2 -- tutor-agent/
+      # holds no database credentials or state of its own).
+      - name: Run tutor-agent's own (independent) pytest suite
+        working-directory: tutor-agent
+        run: uv run pytest -q

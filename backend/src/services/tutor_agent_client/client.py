@@ -88,7 +88,7 @@ class TutorAnswerResult:
 TutorStreamEvent = TutorAnswerDelta | TutorAnswerResult
 
 
-def _build_headers() -> dict[str, str]:
+def _build_headers(*, exchange_id: UUID, session_id: UUID) -> dict[str, str]:
     # The Tutor Agent's endpoint is a public Vercel URL with none of
     # this backend's guardrails (length cap, rate limit, moderation)
     # running inside it -- it authenticates every request via this
@@ -103,13 +103,27 @@ def _build_headers() -> dict[str, str]:
     vercel_bypass_secret = os.environ.get("TUTOR_AGENT_VERCEL_BYPASS_SECRET", "")
     if vercel_bypass_secret:
         headers["x-vercel-protection-bypass"] = vercel_bypass_secret
+    # Trace-correlation only, no auth role -- tutor-agent/'s Langfuse
+    # trace previously had no link back to this TutorExchange row at
+    # all (found during the T038 grounding investigation, roadmap.md):
+    # the two could only be matched by question text + rough timestamp,
+    # which isn't reliable in a tight sequential batch. `tracing.py`'s
+    # `traced_exchange()` on the tutor-agent/ side reads these back and
+    # attaches them as trace metadata, mirroring how this backend's own
+    # `traced_request()` already tags its own spans with learner_id/
+    # session_id (Constitution Principle V).
+    headers["X-Tutor-Exchange-Id"] = str(exchange_id)
+    headers["X-Tutor-Session-Id"] = str(session_id)
     return headers
 
 
-async def _stream_once(request_payload: dict) -> AsyncIterator[StreamResponse]:
+async def _stream_once(
+    request_payload: dict, *, exchange_id: UUID, session_id: UUID
+) -> AsyncIterator[StreamResponse]:
     tutor_agent_url = os.environ["TUTOR_AGENT_URL"]
     async with httpx.AsyncClient(
-        timeout=REQUEST_TIMEOUT_SECONDS, headers=_build_headers()
+        timeout=REQUEST_TIMEOUT_SECONDS,
+        headers=_build_headers(exchange_id=exchange_id, session_id=session_id),
     ) as httpx_client:
         factory = ClientFactory(ClientConfig(streaming=True, httpx_client=httpx_client))
         client = await factory.create_from_url(tutor_agent_url)
@@ -223,11 +237,18 @@ async def stream_tutor_answer(
     subject_id: str,
     retrieved_passages: list[dict],
     delegation_context: list[dict],
+    exchange_id: UUID,
+    session_id: UUID,
 ) -> AsyncIterator[TutorStreamEvent]:
     """Streams the Tutor Agent's answer to `question`, grounded in
     `retrieved_passages` and any `delegation_context` (contracts/api.md's
     internal contract's request shape -- the same structured-array shape
     the backend persists, one representation, not two).
+
+    `exchange_id`/`session_id` are not part of the A2A request payload
+    (tutor-agent/ never touches the database and has no use for them at
+    the agent-instruction level) -- they're sent as headers purely for
+    trace correlation (`_build_headers()`'s docstring).
 
     Yields zero or more `TutorAnswerDelta` (visible answer text, in
     order) followed by exactly one `TutorAnswerResult`. Raises
@@ -246,7 +267,7 @@ async def stream_tutor_answer(
 
     last_error: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
-        raw_stream = _stream_once(request_payload)
+        raw_stream = _stream_once(request_payload, exchange_id=exchange_id, session_id=session_id)
         try:
             first_response = await anext(raw_stream)
         except _RETRIABLE_CONNECTION_ERRORS as exc:

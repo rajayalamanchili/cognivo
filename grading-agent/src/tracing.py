@@ -15,7 +15,10 @@ a response is sent, so spans must be explicitly flushed before the
 response returns rather than relying on a background exporter thread.
 """
 
-from langfuse import get_client
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+from langfuse import get_client, propagate_attributes
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 _instrumented = False
@@ -41,3 +44,32 @@ def flush_traces() -> None:
     """Force-flush all buffered spans. Called after every HTTP request
     (`_TracingFlushMiddleware` in `agent.py`), not just at shutdown."""
     get_client().flush()
+
+
+@contextmanager
+def traced_exchange(*, question_id: str | None, learner_id: str | None) -> Iterator[None]:
+    """Propagates `question_id`/`learner_id` (read from the
+    `X-Grading-Question-Id`/`X-Grading-Learner-Id` headers `grading_
+    client/client.py` sends on every call) as trace metadata, via the
+    same `propagate_attributes(metadata=...)` mechanism `backend/src/
+    observability/tracing.py`'s `traced_request()` already uses.
+
+    Without this, this service's own Langfuse trace had no link back to
+    the backend's own `question_id`/`learner_id` at all -- the same gap
+    found (and fixed the same way) in `tutor-agent/`'s copy of this
+    function during the T038 grounding investigation, roadmap.md.
+    `metadata=` (not the native `session_id=`/`user_id=` kwargs) for the
+    same reason `traced_request()`'s docstring gives -- `GoogleADK
+    Instrumentor` sets its own `session.id`/`user.id` span attributes
+    from the ADK `Runner`'s own arguments, which would silently win over
+    the native kwargs but never touches the `langfuse.trace.metadata.*`
+    namespace `metadata=` writes to.
+    """
+    if question_id is None:
+        yield
+        return
+    metadata = {"question_id": question_id}
+    if learner_id is not None:
+        metadata["learner_id"] = learner_id
+    with propagate_attributes(metadata=metadata):
+        yield

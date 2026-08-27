@@ -218,6 +218,8 @@ async def _grade_free_text_submission(
         question_stem=question.stem,
         rubric_criteria=question.answer_key["criteria"],
         learner_answer=response_text,
+        question_id=question.question_id,
+        learner_id=question.learner_id,
     )
 
 
