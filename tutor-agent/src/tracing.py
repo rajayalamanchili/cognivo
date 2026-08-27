@@ -18,7 +18,10 @@ response's connection can stay open for the whole answer duration
 (SC-001/SC-004).
 """
 
-from langfuse import get_client
+from collections.abc import Iterator
+from contextlib import contextmanager
+
+from langfuse import get_client, propagate_attributes
 from openinference.instrumentation.google_adk import GoogleADKInstrumentor
 
 _instrumented = False
@@ -44,3 +47,34 @@ def flush_traces() -> None:
     """Force-flush all buffered spans. Called after every HTTP request
     (`_TracingFlushMiddleware` in `agent.py`), not just at shutdown."""
     get_client().flush()
+
+
+@contextmanager
+def traced_exchange(*, exchange_id: str | None, session_id: str | None) -> Iterator[None]:
+    """Propagates `exchange_id`/`session_id` (read from the
+    `X-Tutor-Exchange-Id`/`X-Tutor-Session-Id` headers `tutor_agent_
+    client/client.py` sends on every call) as trace metadata, via the
+    same `propagate_attributes(metadata=...)` mechanism `backend/src/
+    observability/tracing.py`'s `traced_request()` already uses.
+
+    Without this, this service's own Langfuse trace had no link back to
+    the backend's `TutorExchange` row at all -- the two could only be
+    matched by question text + rough timestamp, which turned out
+    unreliable enough to block root-causing a real grounding failure
+    (T038 investigation, roadmap.md): a trace found this way and the
+    DB row it was assumed to correspond to had different, unrelated
+    results. `metadata=` (not the native `session_id=`/`user_id=`
+    kwargs) for the same reason `traced_request()`'s docstring gives --
+    `GoogleADKInstrumentor` sets its own `session.id`/`user.id` span
+    attributes from the ADK `Runner`'s own arguments, which would
+    silently win over the native kwargs but never touches the
+    `langfuse.trace.metadata.*` namespace `metadata=` writes to.
+    """
+    if exchange_id is None:
+        yield
+        return
+    metadata = {"exchange_id": exchange_id}
+    if session_id is not None:
+        metadata["session_id"] = session_id
+    with propagate_attributes(metadata=metadata):
+        yield

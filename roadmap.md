@@ -630,15 +630,137 @@ caught:
   13 incremental `delta` events over ~14s (previously always exactly 1
   buffered event) -- **SC-004 now holds**.
 
-**SC-001 (3s p95 first-token latency) does not yet hold**: the same
-live test's first delta arrived at 6.89s, roughly double the target --
-a real latency finding for this pipeline (guardrails + retrieval + A2A
-+ Claude), not something addressed in this pass. Left as an open
-follow-up rather than chased further this session.
+Both fixes merged to `staging` (PR #36) then promoted to `main` (PR
+#37) the same day, closing two more `/speckit-analyze`-style review
+rounds along the way (`_streaming_request_converter` now uses
+`run_config.model_copy(update=...)` instead of rebuilding `RunConfig`
+from scratch, so a future `google-adk` version populating any field
+besides `custom_metadata` in its default conversion won't be silently
+dropped; `prepare_message`'s broadened `except` now reuses
+`_persist_failed_exchange` instead of an inlined copy, so a future DB
+operation added before the `anext()` call stays protected the same way
+`stream_message_response`'s own call sites already are; a regression
+test now asserts `_agent_card.capabilities.streaming is True`, the more
+load-bearing of the two SC-004 fixes, which previously had no test
+coverage of its own).
 
-**T038 (SC-002 grounding rate) and T033 (Playwright E2E)**: not yet run
-against a deployment carrying both fixes above -- pending this
-branch's promotion through staging -> main.
+**T037 (SC-001/SC-004), run against production post-merge, full
+30-question fixture**: p95 first-token latency **4.82s** (n=30, max
+6.66s, min 3.22s) -- **SC-001 (3s target) does not hold**, a real
+latency finding for this pipeline (guardrails + retrieval + A2A +
+Claude), not addressed in this pass. **SC-004 holds cleanly: 30/30
+responses arrived as multiple incremental chunks** (previously always
+exactly 1 buffered chunk before this session's fixes). Also notable:
+every transient `500`/`429` encountered during this real 30-question
+run recovered cleanly via retry with zero orphaned exchanges -- the H2
+stream-open fix held under repeated real-world failures, not just the
+one scripted test case that originally found it.
+
+**T038 (SC-002 grounding rate), same 30-question run**: **0/30
+grounded** -- every exchange's `grounded` is `false` and
+`retrieved_passage_ids` is empty, confirmed via a direct DB read (the
+demo learner's exchanges have no owning guardian or enrolled
+instructor, so `GET /api/tutor/exchanges/{id}` itself isn't reachable
+for them -- a separate, minor demo-data gap, not investigated further
+here). This is **not** the empty-embeddings-table failure mode
+`grounding-test-questions.md` warns about -- a direct count confirmed
+`content_passage_embeddings` holds 32 rows each for `biology` and
+`algebra-1` (matching research.md §5's 4-passages-per-topic design).
+The Tutor Agent's own answer text corroborates this isn't a marker-
+parsing bug either: asked about photosynthesis (a real, embedded
+`biology` topic), it said outright "I don't have material on
+photosynthesis in this course's content yet" -- consistent with
+`search_passages()` (`backend/src/services/retrieval/passage_search.py`)
+or the query-embedding call within it returning zero results despite
+the table being populated, not with passages being offered but never
+cited. **Known gap, not investigated further this session**: root
+cause is somewhere in the retrieval path itself (a genuinely separate
+code path from both bugs fixed above, untouched by PRs #36/#37) --
+candidates include a query-embedding-model mismatch against what the
+loader used, or a silent failure inside `search_passages()`. Needs
+dedicated follow-up before SC-002 can be re-measured.
+
+**T033 (Playwright E2E)**: still not run against a live deployment --
+out of scope for this already-long live-verification pass; left for a
+dedicated follow-up alongside T038's grounding investigation.
+
+**T038 follow-up (2026-08-26, `015-tutor-agent-verification-status`
+branch): the T038 investigation itself was blocked before it could
+finish, and the blocker -- not SC-002 -- is what got fixed this
+session.** Traced one exchange from the 30-question run by matching
+question text + rough timestamp between the DB and a Langfuse trace:
+that trace showed retrieval working correctly (5 relevant passages,
+4 of them exactly the `photosynthesis` topic the question asked about)
+and the model's raw output citing 2 of them in a well-formed grounding
+footer -- directly contradicting the DB row it was matched against,
+which had `grounded=false`/`retrieved_passage_ids=[]`. Confirmed via a
+direct audit-log cross-check (`assessment_events.payload` for that
+exact `exchange_id`, written in the same transaction as `tutor_exchanges`)
+that the empty result really was what got computed at persist-time --
+not a parsing bug (independently verified: `_parse_grounded_ids` given
+that exact footer text correctly returns both IDs). The only way both
+of those can be true is that **the trace and the DB row were never the
+same request** -- `tutor_agent_client/client.py`'s A2A calls to
+`tutor-agent/` carried no correlation ID at all (only the shared secret
+and Vercel bypass headers), so `tutor-agent/`'s own Langfuse trace has
+no reliable link back to a `TutorExchange` row; question-text-plus-
+timestamp matching in a tight sequential 30-question batch isn't
+trustworthy enough to root-cause one specific failing exchange. This is
+a real gap against Constitution Principle V ("why was this marked
+wrong" must have a real, traceable answer) -- for the Tutor Agent
+specifically, that question was previously unanswerable.
+
+Fixed by propagating `exchange_id`/`session_id` as new
+`X-Tutor-Exchange-Id`/`X-Tutor-Session-Id` headers (no auth role, purely
+for correlation) from `tutor_agent_client/client.py`, read back on the
+`tutor-agent/` side by a new `_TraceCorrelationMiddleware`
+(`agent.py`) that wraps them as Langfuse trace metadata via a new
+`tracing.traced_exchange()`, mirroring the backend's own
+`traced_request()`/`propagate_attributes(metadata=...)` pattern
+exactly (same `metadata=` vs. native `session_id=`/`user_id=` kwargs
+reasoning: `GoogleADKInstrumentor` sets its own `session.id`/`user.id`
+span attributes from the ADK `Runner`'s own arguments, which would
+silently win over the native kwargs). Grading Agent had the identical
+gap (`grading_client/client.py` sent no correlation header either) and
+was fixed the same way in the same session -- `X-Grading-Question-Id`/
+`X-Grading-Learner-Id` headers, a matching `_TraceCorrelationMiddleware`
+in `grading-agent/src/agent.py`, `question_id`/`learner_id` metadata via
+`tracing.traced_exchange()` there. Backend's own in-process agents
+(Diagnostic/Sequencing/Assessment-Generation/Recommendation) were never
+affected -- `traced_request()` already links those correctly since
+they run in the same process with no A2A hop involved. 8 new unit/
+integration tests across all three projects (header-building, header-
+extraction middleware, and a real in-memory-`LangfuseSpanProcessor`
+proof that the metadata actually lands on every span, mirroring
+`backend/tests/integration/test_tracing_metadata_propagation.py`'s
+existing harness for both new copies) -- full regression re-confirmed
+green in all three: backend 328/328 (real dev DB), tutor-agent 21/21,
+grading-agent 22/22.
+
+**T038 (SC-002 grounding rate) itself is still not re-measured** -- this
+session closed the observability gap that was blocking root-causing it,
+not the grounding rate question itself. Next step: re-run the
+30-question fixture against a real deployment with these fixes in
+place, then pull each exchange's now-correctly-linked trace directly by
+`exchange_id` to see what actually happened for any exchange that ends
+up ungrounded.
+
+PR #38 review addressed two non-blocking findings (both flagged as
+low-severity: only reachable if `TUTOR_AGENT_SHARED_SECRET`/
+`GRADING_AGENT_SHARED_SECRET` itself leaks, since
+`_SharedSecretAuthMiddleware` gates everything ahead of the new
+middleware either way) -- an unvalidated correlation-header value could
+otherwise let a leaked secret inject arbitrary text into Langfuse trace
+metadata (log/trace injection). Both `_TraceCorrelationMiddleware`s now
+re-parse the header value as a UUID via a new `_parse_uuid_header()`
+helper, dropping anything that doesn't round-trip cleanly rather than
+passing it through verbatim; 2 new tests per project cover a malformed
+header value resolving to `None`. Also added `.github/workflows/
+tutor-agent-tests.yml` (mirrors `grading-agent-tests.yml`'s pattern:
+`tutor-agent/`'s own pytest suite had no CI coverage of its own until
+now, only ever run locally) -- no ground-truth-eval-gate or test-
+independence-check step included, since spec 012 has no equivalent
+requirement to spec 007's FR-008/SC-003 ground-truth eval gate.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
