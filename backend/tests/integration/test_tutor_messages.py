@@ -7,10 +7,14 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py. Skips
 otherwise.
 """
 
+import asyncio
+import uuid
+
 import pytest
 
 from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
+from src.services.tutor.session import prepare_message
 from tests.integration.tutor_helpers import (
     make_passage,
     parse_sse_events,
@@ -19,6 +23,7 @@ from tests.integration.tutor_helpers import (
     patch_interrupted_stream,
     patch_moderation,
     patch_search_passages,
+    patch_search_passages_failure,
     patch_unavailable_stream,
     patch_unexpected_exception_opening_stream,
     patch_unexpected_exception_stream,
@@ -173,6 +178,82 @@ def test_503_tutor_unavailable_marks_exchange_failed_not_stuck(client, db_sessio
         patch_moderation(allowed=True),
         patch_search_passages([]),
         patch_grounded_stream(["all good now"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+def test_503_retrieval_failure_marks_exchange_failed_not_stuck(client, db_session, session_id):
+    """T038 grounding investigation (roadmap.md): a raw embedding-
+    provider exception (e.g. a Voyage rate-limit/billing rejection) was
+    previously left completely uncaught in `search_passages`, propagating
+    as an unhandled 500 with no `TutorExchange` row, no audit-log event,
+    no trace anywhere -- worse than finding H2's original deadlock, which
+    at least left a row behind. Now maps to the same clean `503
+    tutor_unavailable` the A2A-stream-open failure above already gets."""
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages_failure(RuntimeError("embedding provider unavailable")),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "a question"}
+        )
+    assert response.status_code == 503, response.text
+    assert response.json() == {"error": "tutor_unavailable"}
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.answer_text is None
+    assert exchange.failed_at is not None
+
+    # Not stuck behind a phantom in-flight exchange either.
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["all good now"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+async def test_cancelled_retrieval_propagates_uncaught_and_marks_exchange_failed(
+    client, db_session, session_id
+):
+    """PR #40 review finding: an earlier version of the retrieval-failure
+    `except` block caught `asyncio.CancelledError`/`GeneratorExit`
+    alongside `Exception` and unconditionally converted everything into
+    `TutorUnavailableError` -- swallowing a real cancellation (client
+    disconnect / Vercel timeout while `search_passages` is in flight)
+    into a different exception type, breaking asyncio's cancellation
+    contract. Calls `prepare_message` directly (not through `client`/
+    `TestClient`) -- empirically, `TestClient`'s sync-to-async thread
+    bridge re-raises a cancellation as `concurrent.futures.CancelledError`
+    at its own `Future.result()` call site regardless of which exception
+    type this code actually re-raises, so going through it can't tell
+    this test apart from the bug it's guarding against."""
+    session = db_session.get(TutoringSession, uuid.UUID(session_id))
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages_failure(asyncio.CancelledError()),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await prepare_message(db_session, session=session, question="a question")
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.answer_text is None
+    assert exchange.failed_at is not None
+
+    # Not stuck behind a phantom in-flight exchange either -- back
+    # through the normal `client`/`TestClient` path, since this half
+    # doesn't involve cancellation.
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
     ):
         retry = client.post(
             f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}

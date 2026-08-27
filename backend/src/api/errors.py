@@ -101,8 +101,10 @@ class StillAnsweringError(DomainError):
 
 
 class TutorUnavailableError(DomainError):
-    """Maps to HTTP 503 (spec 012 contracts/api.md) -- every attempt to
-    open the Tutor Agent's A2A stream failed before any content
+    """Maps to HTTP 503 (spec 012 contracts/api.md) -- either retrieval
+    failed after its own internal retry (`services/retrieval/
+    passage_search.py`'s `EmbeddingUnavailableError`), or every attempt
+    to open the Tutor Agent's A2A stream failed, before any content
     streamed back. Raised only pre-first-byte; a failure *after*
     streaming has begun is a distinct case
     (`tutor_agent_client.client.TutorStreamInterruptedError`) with no

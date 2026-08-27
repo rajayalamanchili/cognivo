@@ -107,9 +107,10 @@ rate limit/length/moderation/retrieval):
 { "error": "moderation_rejected" }
 ```
 
-**Response** `503` -- **tutor unavailable** (Tutor Agent A2A call
-failed after retry, mirroring `grading_unavailable`'s shape). The
-backend sets `tutor_exchanges.failed_at` on this path (data-model.md
+**Response** `503` -- **tutor unavailable** (retrieval failed after its
+own internal retry, or the Tutor Agent A2A call failed after retry,
+mirroring `grading_unavailable`'s shape). The backend sets
+`tutor_exchanges.failed_at` on this path (data-model.md
 §`tutor_exchanges`, `/speckit-analyze` finding H2) rather than leaving
 the row's `answer_text` ambiguously `NULL` -- this is what keeps the
 session usable for the learner's next question instead of permanently
