@@ -23,7 +23,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.guardrails import before_model_guardrail
 from src.prompt_defense import build_instruction
-from src.tracing import configure_tracing, flush_traces
+from src.tracing import configure_tracing, flush_traces, traced_exchange
 
 APP_NAME = "cognivo-grading-agent"
 
@@ -150,6 +150,40 @@ class _SharedSecretAuthMiddleware:
         await self._app(scope, receive, send)
 
 
+class _TraceCorrelationMiddleware:
+    """Reads `X-Grading-Question-Id`/`X-Grading-Learner-Id` (set by
+    `grading_client/client.py`'s `_build_headers()`) and propagates them
+    as Langfuse trace metadata for the duration of this request via
+    `tracing.traced_exchange()` -- closes the same correlation gap
+    `tutor-agent/`'s copy of this middleware closes (`tracing.py`'s
+    `traced_exchange()` docstring has the full story: found during the
+    T038 grounding investigation, roadmap.md, and applied here too since
+    this service has the identical A2A-hop-with-no-correlation-header
+    gap).
+
+    Placed inside `_SharedSecretAuthMiddleware` (only wraps the actual
+    agent call, not the 401 path -- an unauthorized request has nothing
+    to correlate) but outside `to_a2a()`'s own app.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = dict(scope["headers"])
+        question_id = (
+            headers.get(b"x-grading-question-id", b"").decode("utf-8", errors="replace") or None
+        )
+        learner_id = (
+            headers.get(b"x-grading-learner-id", b"").decode("utf-8", errors="replace") or None
+        )
+        with traced_exchange(question_id=question_id, learner_id=learner_id):
+            await self._app(scope, receive, send)
+
+
 class _TracingFlushMiddleware:
     """Force-flushes buffered Langfuse spans after every HTTP request.
 
@@ -191,7 +225,7 @@ _to_a2a_kwargs = {"host": _vercel_host, "protocol": "https", "port": 443} if _ve
 
 app = _TracingFlushMiddleware(
     _SharedSecretAuthMiddleware(
-        to_a2a(_agent, **_to_a2a_kwargs),
+        _TraceCorrelationMiddleware(to_a2a(_agent, **_to_a2a_kwargs)),
         expected_secrets=(
             os.environ.get("GRADING_AGENT_SHARED_SECRET", ""),
             os.environ.get("GRADING_AGENT_SHARED_SECRET_NEXT", ""),

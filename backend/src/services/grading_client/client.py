@@ -12,6 +12,7 @@ the question's own rubric shape before acceptance, never trusted blindly
 import asyncio
 import json
 import os
+import uuid
 from dataclasses import dataclass
 
 import httpx
@@ -107,15 +108,7 @@ def _validate_and_parse(raw_text: str, rubric_criteria: list[dict]) -> GradingRe
     )
 
 
-async def _call_grading_agent_once(
-    *, question_stem: str, rubric_criteria: list[dict], learner_answer: str
-) -> str:
-    grading_agent_url = os.environ["GRADING_AGENT_URL"]
-    request_payload = {
-        "question_stem": question_stem,
-        "rubric": {"criteria": rubric_criteria},
-        "learner_answer": learner_answer,
-    }
+def _build_headers(*, question_id: uuid.UUID, learner_id: uuid.UUID) -> dict[str, str]:
     # The Grading Agent's endpoint is a public Vercel URL with none of
     # this backend's guardrails (length cap, rate limit, moderation)
     # running inside it -- it authenticates every request via this
@@ -133,9 +126,35 @@ async def _call_grading_agent_once(
     vercel_bypass_secret = os.environ.get("GRADING_AGENT_VERCEL_BYPASS_SECRET", "")
     if vercel_bypass_secret:
         headers["x-vercel-protection-bypass"] = vercel_bypass_secret
-    async with httpx.AsyncClient(
-        timeout=REQUEST_TIMEOUT_SECONDS, headers=headers
-    ) as httpx_client:
+    # Trace-correlation only, no auth role -- grading-agent/'s Langfuse
+    # trace previously had no link back to this backend's own
+    # `question_id`/`learner_id` at all (same gap `tutor_agent_client/
+    # client.py`'s copy of this docstring describes, found during the
+    # T038 grounding investigation, roadmap.md). grading-agent/'s
+    # `_TraceCorrelationMiddleware` reads these back and attaches them
+    # as trace metadata via `tracing.traced_exchange()`, mirroring
+    # `backend/src/observability/tracing.py`'s `traced_request()`.
+    headers["X-Grading-Question-Id"] = str(question_id)
+    headers["X-Grading-Learner-Id"] = str(learner_id)
+    return headers
+
+
+async def _call_grading_agent_once(
+    *,
+    question_stem: str,
+    rubric_criteria: list[dict],
+    learner_answer: str,
+    question_id: uuid.UUID,
+    learner_id: uuid.UUID,
+) -> str:
+    grading_agent_url = os.environ["GRADING_AGENT_URL"]
+    request_payload = {
+        "question_stem": question_stem,
+        "rubric": {"criteria": rubric_criteria},
+        "learner_answer": learner_answer,
+    }
+    headers = _build_headers(question_id=question_id, learner_id=learner_id)
+    async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, headers=headers) as httpx_client:
         factory = ClientFactory(ClientConfig(streaming=False, httpx_client=httpx_client))
         client = await factory.create_from_url(grading_agent_url)
         message = new_text_message(json.dumps(request_payload), role=Role.ROLE_USER)
@@ -155,20 +174,33 @@ async def _call_grading_agent_once(
 
 
 async def grade_free_text_answer(
-    *, question_stem: str, rubric_criteria: list[dict], learner_answer: str
+    *,
+    question_stem: str,
+    rubric_criteria: list[dict],
+    learner_answer: str,
+    question_id: uuid.UUID,
+    learner_id: uuid.UUID,
 ) -> GradingResult:
     """Calls the Grading Agent over A2A, validates its response against
     `rubric_criteria`'s shape (FR-014), and retries on any transport or
     validation failure (FR-010, research.md §7). Safe to retry
     unconditionally -- the Grading Agent is stateless (research.md §3),
     so a retry can never duplicate a write. Raises
-    `GradingUnavailableError` once every attempt is exhausted."""
+    `GradingUnavailableError` once every attempt is exhausted.
+
+    `question_id`/`learner_id` are not part of the A2A request payload
+    (grading-agent/ never touches the database and has no use for them
+    at the agent-instruction level) -- they're sent as headers purely
+    for trace correlation (`_build_headers()`'s docstring).
+    """
     last_error: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         try:
             raw_text = await _call_grading_agent_once(
                 question_stem=question_stem,
                 rubric_criteria=rubric_criteria,
+                question_id=question_id,
+                learner_id=learner_id,
                 learner_answer=learner_answer,
             )
             return _validate_and_parse(raw_text, rubric_criteria)

@@ -67,7 +67,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.guardrails import before_model_guardrail
-from src.tracing import configure_tracing, flush_traces
+from src.tracing import configure_tracing, flush_traces, traced_exchange
 
 APP_NAME = "cognivo-tutor-agent"
 
@@ -228,6 +228,41 @@ class _SharedSecretAuthMiddleware:
         await self._app(scope, receive, send)
 
 
+class _TraceCorrelationMiddleware:
+    """Reads `X-Tutor-Exchange-Id`/`X-Tutor-Session-Id` (set by
+    `tutor_agent_client/client.py`'s `_build_headers()`) and propagates
+    them as Langfuse trace metadata for the duration of this request via
+    `tracing.traced_exchange()` -- closes the correlation gap where this
+    service's own traces had no link back to the backend's
+    `TutorExchange` row at all (`tracing.py`'s `traced_exchange()`
+    docstring has the full story).
+
+    Placed inside `_SharedSecretAuthMiddleware` (only wraps the actual
+    agent call, not the 401 path -- an unauthorized request has no
+    exchange to correlate) but outside `to_a2a()`'s own app, so the
+    propagated metadata is active for the whole streamed response, the
+    same span-lifetime requirement `_TracingFlushMiddleware` below
+    already has to account for.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        headers = dict(scope["headers"])
+        exchange_id = (
+            headers.get(b"x-tutor-exchange-id", b"").decode("utf-8", errors="replace") or None
+        )
+        session_id = (
+            headers.get(b"x-tutor-session-id", b"").decode("utf-8", errors="replace") or None
+        )
+        with traced_exchange(exchange_id=exchange_id, session_id=session_id):
+            await self._app(scope, receive, send)
+
+
 class _TracingFlushMiddleware:
     """Force-flushes buffered Langfuse spans after every HTTP request.
 
@@ -342,11 +377,13 @@ _agent_card = asyncio.run(
 
 app = _TracingFlushMiddleware(
     _SharedSecretAuthMiddleware(
-        to_a2a(
-            _agent,
-            agent_executor_factory=_agent_executor_factory,
-            agent_card=_agent_card,
-            **_to_a2a_kwargs,
+        _TraceCorrelationMiddleware(
+            to_a2a(
+                _agent,
+                agent_executor_factory=_agent_executor_factory,
+                agent_card=_agent_card,
+                **_to_a2a_kwargs,
+            )
         ),
         expected_secrets=(
             os.environ.get("TUTOR_AGENT_SHARED_SECRET", ""),

@@ -254,6 +254,8 @@ async def prepare_message(
         subject_id=session.subject_id,
         retrieved_passages=passage_payloads,
         delegation_context=delegation_context,
+        exchange_id=exchange.exchange_id,
+        session_id=session.session_id,
     )
     try:
         # Forces the connection (+ retry) and the first buffered chunk

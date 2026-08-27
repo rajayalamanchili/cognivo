@@ -684,6 +684,67 @@ dedicated follow-up before SC-002 can be re-measured.
 out of scope for this already-long live-verification pass; left for a
 dedicated follow-up alongside T038's grounding investigation.
 
+**T038 follow-up (2026-08-26, `015-tutor-agent-verification-status`
+branch): the T038 investigation itself was blocked before it could
+finish, and the blocker -- not SC-002 -- is what got fixed this
+session.** Traced one exchange from the 30-question run by matching
+question text + rough timestamp between the DB and a Langfuse trace:
+that trace showed retrieval working correctly (5 relevant passages,
+4 of them exactly the `photosynthesis` topic the question asked about)
+and the model's raw output citing 2 of them in a well-formed grounding
+footer -- directly contradicting the DB row it was matched against,
+which had `grounded=false`/`retrieved_passage_ids=[]`. Confirmed via a
+direct audit-log cross-check (`assessment_events.payload` for that
+exact `exchange_id`, written in the same transaction as `tutor_exchanges`)
+that the empty result really was what got computed at persist-time --
+not a parsing bug (independently verified: `_parse_grounded_ids` given
+that exact footer text correctly returns both IDs). The only way both
+of those can be true is that **the trace and the DB row were never the
+same request** -- `tutor_agent_client/client.py`'s A2A calls to
+`tutor-agent/` carried no correlation ID at all (only the shared secret
+and Vercel bypass headers), so `tutor-agent/`'s own Langfuse trace has
+no reliable link back to a `TutorExchange` row; question-text-plus-
+timestamp matching in a tight sequential 30-question batch isn't
+trustworthy enough to root-cause one specific failing exchange. This is
+a real gap against Constitution Principle V ("why was this marked
+wrong" must have a real, traceable answer) -- for the Tutor Agent
+specifically, that question was previously unanswerable.
+
+Fixed by propagating `exchange_id`/`session_id` as new
+`X-Tutor-Exchange-Id`/`X-Tutor-Session-Id` headers (no auth role, purely
+for correlation) from `tutor_agent_client/client.py`, read back on the
+`tutor-agent/` side by a new `_TraceCorrelationMiddleware`
+(`agent.py`) that wraps them as Langfuse trace metadata via a new
+`tracing.traced_exchange()`, mirroring the backend's own
+`traced_request()`/`propagate_attributes(metadata=...)` pattern
+exactly (same `metadata=` vs. native `session_id=`/`user_id=` kwargs
+reasoning: `GoogleADKInstrumentor` sets its own `session.id`/`user.id`
+span attributes from the ADK `Runner`'s own arguments, which would
+silently win over the native kwargs). Grading Agent had the identical
+gap (`grading_client/client.py` sent no correlation header either) and
+was fixed the same way in the same session -- `X-Grading-Question-Id`/
+`X-Grading-Learner-Id` headers, a matching `_TraceCorrelationMiddleware`
+in `grading-agent/src/agent.py`, `question_id`/`learner_id` metadata via
+`tracing.traced_exchange()` there. Backend's own in-process agents
+(Diagnostic/Sequencing/Assessment-Generation/Recommendation) were never
+affected -- `traced_request()` already links those correctly since
+they run in the same process with no A2A hop involved. 8 new unit/
+integration tests across all three projects (header-building, header-
+extraction middleware, and a real in-memory-`LangfuseSpanProcessor`
+proof that the metadata actually lands on every span, mirroring
+`backend/tests/integration/test_tracing_metadata_propagation.py`'s
+existing harness for both new copies) -- full regression re-confirmed
+green in all three: backend 328/328 (real dev DB), tutor-agent 21/21,
+grading-agent 22/22.
+
+**T038 (SC-002 grounding rate) itself is still not re-measured** -- this
+session closed the observability gap that was blocking root-causing it,
+not the grounding rate question itself. Next step: re-run the
+30-question fixture against a real deployment with these fixes in
+place, then pull each exchange's now-correctly-linked trace directly by
+`exchange_id` to see what actually happened for any exchange that ends
+up ungrounded.
+
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
 learner already struggle with?"), the Recommendation Agent, and
