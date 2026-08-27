@@ -7,10 +7,14 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py. Skips
 otherwise.
 """
 
+import asyncio
+import uuid
+
 import pytest
 
 from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
+from src.services.tutor.session import prepare_message
 from tests.integration.tutor_helpers import (
     make_passage,
     parse_sse_events,
@@ -208,6 +212,48 @@ def test_503_retrieval_failure_marks_exchange_failed_not_stuck(client, db_sessio
         patch_moderation(allowed=True),
         patch_search_passages([]),
         patch_grounded_stream(["all good now"], grounded_passage_ids=[]),
+    ):
+        retry = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}
+        )
+    assert retry.status_code == 200, retry.text
+
+
+async def test_cancelled_retrieval_propagates_uncaught_and_marks_exchange_failed(
+    client, db_session, session_id
+):
+    """PR #40 review finding: an earlier version of the retrieval-failure
+    `except` block caught `asyncio.CancelledError`/`GeneratorExit`
+    alongside `Exception` and unconditionally converted everything into
+    `TutorUnavailableError` -- swallowing a real cancellation (client
+    disconnect / Vercel timeout while `search_passages` is in flight)
+    into a different exception type, breaking asyncio's cancellation
+    contract. Calls `prepare_message` directly (not through `client`/
+    `TestClient`) -- empirically, `TestClient`'s sync-to-async thread
+    bridge re-raises a cancellation as `concurrent.futures.CancelledError`
+    at its own `Future.result()` call site regardless of which exception
+    type this code actually re-raises, so going through it can't tell
+    this test apart from the bug it's guarding against."""
+    session = db_session.get(TutoringSession, uuid.UUID(session_id))
+
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages_failure(asyncio.CancelledError()),
+    ):
+        with pytest.raises(asyncio.CancelledError):
+            await prepare_message(db_session, session=session, question="a question")
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.answer_text is None
+    assert exchange.failed_at is not None
+
+    # Not stuck behind a phantom in-flight exchange either -- back
+    # through the normal `client`/`TestClient` path, since this half
+    # doesn't involve cancellation.
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["recovered answer"], grounded_passage_ids=[]),
     ):
         retry = client.post(
             f"/api/tutor/sessions/{session_id}/messages", json={"question": "try again"}

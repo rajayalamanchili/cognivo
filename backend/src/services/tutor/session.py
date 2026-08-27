@@ -252,20 +252,31 @@ async def prepare_message(
 
     try:
         retrieved = await search_passages(db, subject_id=session.subject_id, query_text=question)
-    except (asyncio.CancelledError, GeneratorExit, Exception) as exc:
-        # Same broad-except reasoning as the A2A-stream-open path below
-        # (PR #36: any exception here, not just the one type this
-        # module happens to raise today, must not leave the exchange
-        # orphaned) -- reuses _persist_failed_exchange for the same
-        # rollback-then-fail-then-commit sequence, then raises the same
-        # TutorUnavailableError (503) contracts/api.md already defines
-        # for "the Tutor Agent couldn't be reached for this message,"
-        # which retrieval failing before the A2A call is even attempted
-        # is just an earlier instance of. `from exc`, not `from None` --
-        # keeps the real cause (e.g. the embedding provider's own
-        # exception) in the traceback Vercel logs, the only way this
-        # session's own live investigation found the Voyage rate-limit
-        # root cause in the first place.
+    except (asyncio.CancelledError, GeneratorExit):
+        # PR #40 review finding: an earlier version of this block caught
+        # these alongside `Exception` and unconditionally wrapped
+        # everything in `TutorUnavailableError`, which swallowed a real
+        # cancellation (client disconnect / Vercel function timeout
+        # while `search_passages` is in flight) into a different
+        # exception type -- breaking asyncio's cancellation contract and
+        # attempting a 503 write on a connection that may already be
+        # gone. Persist the failed exchange the same as the `Exception`
+        # branch below, but always re-raise as-is here, same invariant
+        # `anext(stream)` a few lines below and `stream_message_
+        # response` already enforce ("never swallows the cancellation/
+        # exit signal itself").
+        _persist_failed_exchange(db, exchange=exchange)
+        raise
+    except Exception as exc:
+        # Any other retrieval failure (e.g. the embedding provider's own
+        # exception, exhausted after _embed_query's own retries) maps to
+        # the same TutorUnavailableError (503) contracts/api.md already
+        # defines for "the Tutor Agent couldn't be reached for this
+        # message," which retrieval failing before the A2A call is even
+        # attempted is just an earlier instance of. `from exc`, not
+        # `from None` -- keeps the real cause in the traceback Vercel
+        # logs, the only way this session's own live investigation found
+        # the Voyage rate-limit root cause in the first place.
         _persist_failed_exchange(db, exchange=exchange)
         raise TutorUnavailableError() from exc
 
