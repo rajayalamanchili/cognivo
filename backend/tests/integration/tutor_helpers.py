@@ -31,6 +31,15 @@ def patch_search_passages(passages: list[RetrievedPassage]):
     return patch("src.services.tutor.session.search_passages", new=AsyncMock(return_value=passages))
 
 
+def patch_search_passages_failure(exc: Exception):
+    """A `search_passages` that fails outright -- covers the retrieval
+    branch of `prepare_message`'s `503 tutor_unavailable` path (found
+    live, T038 grounding investigation, roadmap.md: an embedding-
+    provider failure here previously propagated as an unhandled 500
+    with no `TutorExchange` row at all, not this clean 503)."""
+    return patch("src.services.tutor.session.search_passages", new=AsyncMock(side_effect=exc))
+
+
 def make_passage(
     *,
     topic_id: str = "photosynthesis",
