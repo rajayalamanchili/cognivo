@@ -12,6 +12,7 @@ persisting it -- this module never writes to a database.
 
 import hmac
 import os
+import uuid
 from collections.abc import Sequence
 
 from google.adk.a2a.utils.agent_to_a2a import to_a2a
@@ -150,6 +151,30 @@ class _SharedSecretAuthMiddleware:
         await self._app(scope, receive, send)
 
 
+def _parse_uuid_header(headers: dict[bytes, bytes], name: bytes) -> str | None:
+    """Returns the header's value re-parsed as a UUID (canonical lower-
+    case string form), or `None` if the header is absent or not a valid
+    UUID.
+
+    PR #38 review nit: this header is only ever attacker-reachable if
+    `GRADING_AGENT_SHARED_SECRET` itself leaks (`_SharedSecretAuthMiddleware`
+    already gates everything before this runs) -- but if it does, an
+    unvalidated header value would let that leaked secret be used to
+    inject arbitrary text into Langfuse trace metadata (log/trace
+    injection), not just a fabricated-but-harmless id. Re-parsing as a
+    UUID is cheap defense-in-depth: every legitimate value
+    (`grading_client/client.py`'s `_build_headers()` always sends
+    `str(uuid.UUID)`) round-trips through this unchanged.
+    """
+    raw = headers.get(name, b"").decode("utf-8", errors="replace")
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(raw))
+    except ValueError:
+        return None
+
+
 class _TraceCorrelationMiddleware:
     """Reads `X-Grading-Question-Id`/`X-Grading-Learner-Id` (set by
     `grading_client/client.py`'s `_build_headers()`) and propagates them
@@ -174,12 +199,8 @@ class _TraceCorrelationMiddleware:
             await self._app(scope, receive, send)
             return
         headers = dict(scope["headers"])
-        question_id = (
-            headers.get(b"x-grading-question-id", b"").decode("utf-8", errors="replace") or None
-        )
-        learner_id = (
-            headers.get(b"x-grading-learner-id", b"").decode("utf-8", errors="replace") or None
-        )
+        question_id = _parse_uuid_header(headers, b"x-grading-question-id")
+        learner_id = _parse_uuid_header(headers, b"x-grading-learner-id")
         with traced_exchange(question_id=question_id, learner_id=learner_id):
             await self._app(scope, receive, send)
 

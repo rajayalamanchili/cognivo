@@ -43,6 +43,7 @@ a versioned grounding-protocol change, mirroring `GRADING_LOGIC_VERSION`)
 import asyncio
 import hmac
 import os
+import uuid
 from collections.abc import Sequence
 
 from a2a.server.agent_execution import RequestContext
@@ -228,6 +229,30 @@ class _SharedSecretAuthMiddleware:
         await self._app(scope, receive, send)
 
 
+def _parse_uuid_header(headers: dict[bytes, bytes], name: bytes) -> str | None:
+    """Returns the header's value re-parsed as a UUID (canonical lower-
+    case string form), or `None` if the header is absent or not a valid
+    UUID.
+
+    PR #38 review nit: this header is only ever attacker-reachable if
+    `TUTOR_AGENT_SHARED_SECRET` itself leaks (`_SharedSecretAuthMiddleware`
+    already gates everything before this runs) -- but if it does, an
+    unvalidated header value would let that leaked secret be used to
+    inject arbitrary text into Langfuse trace metadata (log/trace
+    injection), not just a fabricated-but-harmless id. Re-parsing as a
+    UUID is cheap defense-in-depth: every legitimate value
+    (`tutor_agent_client/client.py`'s `_build_headers()` always sends
+    `str(uuid.UUID)`) round-trips through this unchanged.
+    """
+    raw = headers.get(name, b"").decode("utf-8", errors="replace")
+    if not raw:
+        return None
+    try:
+        return str(uuid.UUID(raw))
+    except ValueError:
+        return None
+
+
 class _TraceCorrelationMiddleware:
     """Reads `X-Tutor-Exchange-Id`/`X-Tutor-Session-Id` (set by
     `tutor_agent_client/client.py`'s `_build_headers()`) and propagates
@@ -253,12 +278,8 @@ class _TraceCorrelationMiddleware:
             await self._app(scope, receive, send)
             return
         headers = dict(scope["headers"])
-        exchange_id = (
-            headers.get(b"x-tutor-exchange-id", b"").decode("utf-8", errors="replace") or None
-        )
-        session_id = (
-            headers.get(b"x-tutor-session-id", b"").decode("utf-8", errors="replace") or None
-        )
+        exchange_id = _parse_uuid_header(headers, b"x-tutor-exchange-id")
+        session_id = _parse_uuid_header(headers, b"x-tutor-session-id")
         with traced_exchange(exchange_id=exchange_id, session_id=session_id):
             await self._app(scope, receive, send)
 

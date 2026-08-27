@@ -24,6 +24,10 @@ def _http_scope(headers: list[tuple[bytes, bytes]]) -> dict:
     return {"type": "http", "headers": headers}
 
 
+_QUESTION_ID = "12345678-1234-5678-1234-567812345678"
+_LEARNER_ID = "87654321-4321-8765-4321-876543214321"
+
+
 @pytest.mark.asyncio
 async def test_extracts_question_and_learner_id_from_headers():
     calls = []
@@ -34,17 +38,15 @@ async def test_extracts_question_and_learner_id_from_headers():
     middleware = _TraceCorrelationMiddleware(fake_app)
     scope = _http_scope(
         [
-            (b"x-grading-question-id", b"question-abc-123"),
-            (b"x-grading-learner-id", b"learner-xyz"),
+            (b"x-grading-question-id", _QUESTION_ID.encode()),
+            (b"x-grading-learner-id", _LEARNER_ID.encode()),
         ]
     )
 
     with patch("src.agent.traced_exchange") as mock_traced_exchange:
         await middleware(scope, None, None)
 
-    mock_traced_exchange.assert_called_once_with(
-        question_id="question-abc-123", learner_id="learner-xyz"
-    )
+    mock_traced_exchange.assert_called_once_with(question_id=_QUESTION_ID, learner_id=_LEARNER_ID)
     assert calls == ["app called"]
 
 
@@ -55,6 +57,29 @@ async def test_missing_headers_propagate_as_none():
 
     middleware = _TraceCorrelationMiddleware(fake_app)
     scope = _http_scope([])
+
+    with patch("src.agent.traced_exchange") as mock_traced_exchange:
+        await middleware(scope, None, None)
+
+    mock_traced_exchange.assert_called_once_with(question_id=None, learner_id=None)
+
+
+@pytest.mark.asyncio
+async def test_malformed_header_values_propagate_as_none():
+    """PR #38 review nit: a header value that isn't a real UUID (e.g. a
+    leaked-secret attacker trying to inject arbitrary trace metadata)
+    must be dropped, not passed through to `traced_exchange()` verbatim."""
+
+    async def fake_app(scope, receive, send):
+        pass
+
+    middleware = _TraceCorrelationMiddleware(fake_app)
+    scope = _http_scope(
+        [
+            (b"x-grading-question-id", b"'; DROP TABLE questions; --"),
+            (b"x-grading-learner-id", b"not-a-uuid-either"),
+        ]
+    )
 
     with patch("src.agent.traced_exchange") as mock_traced_exchange:
         await middleware(scope, None, None)

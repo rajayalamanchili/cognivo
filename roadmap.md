@@ -745,6 +745,23 @@ place, then pull each exchange's now-correctly-linked trace directly by
 `exchange_id` to see what actually happened for any exchange that ends
 up ungrounded.
 
+PR #38 review addressed two non-blocking findings (both flagged as
+low-severity: only reachable if `TUTOR_AGENT_SHARED_SECRET`/
+`GRADING_AGENT_SHARED_SECRET` itself leaks, since
+`_SharedSecretAuthMiddleware` gates everything ahead of the new
+middleware either way) -- an unvalidated correlation-header value could
+otherwise let a leaked secret inject arbitrary text into Langfuse trace
+metadata (log/trace injection). Both `_TraceCorrelationMiddleware`s now
+re-parse the header value as a UUID via a new `_parse_uuid_header()`
+helper, dropping anything that doesn't round-trip cleanly rather than
+passing it through verbatim; 2 new tests per project cover a malformed
+header value resolving to `None`. Also added `.github/workflows/
+tutor-agent-tests.yml` (mirrors `grading-agent-tests.yml`'s pattern:
+`tutor-agent/`'s own pytest suite had no CI coverage of its own until
+now, only ever run locally) -- no ground-truth-eval-gate or test-
+independence-check step included, since spec 012 has no equivalent
+requirement to spec 007's FR-008/SC-003 ground-truth eval gate.
+
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this
 learner already struggle with?"), the Recommendation Agent, and
