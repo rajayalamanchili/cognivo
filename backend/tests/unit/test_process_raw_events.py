@@ -51,9 +51,14 @@ async def _events(*responses: StreamResponse) -> AsyncIterator[StreamResponse]:
         yield response
 
 
-async def _collect(raw_events, offered_passage_ids):
+async def _collect(raw_events, offered_passage_ids, exchange_id=None, session_id=None):
     events = []
-    async for event in _process_raw_events(raw_events, offered_passage_ids=offered_passage_ids):
+    async for event in _process_raw_events(
+        raw_events,
+        offered_passage_ids=offered_passage_ids,
+        exchange_id=exchange_id or uuid.uuid4(),
+        session_id=session_id or uuid.uuid4(),
+    ):
         events.append(event)
     return events
 
@@ -119,6 +124,10 @@ async def test_trailing_artifact_update_does_not_duplicate_text_or_reprocess_cit
 
 
 async def test_no_citation_call_yields_empty_grounded_ids_and_logs_a_warning(caplog):
+    # PR #45 review: the warning must identify *which* exchange hit
+    # the compliance failure, the same correlation this file's own
+    # X-Tutor-Exchange-Id/X-Tutor-Session-Id headers exist to provide.
+    exchange_id, session_id = uuid.uuid4(), uuid.uuid4()
     with caplog.at_level(logging.WARNING):
         events = await _collect(
             _events(
@@ -128,8 +137,12 @@ async def test_no_citation_call_yields_empty_grounded_ids_and_logs_a_warning(cap
                 ),
             ),
             offered_passage_ids=set(),
+            exchange_id=exchange_id,
+            session_id=session_id,
         )
     result = events[-1]
+    assert any(str(exchange_id) in record.message for record in caplog.records)
+    assert any(str(session_id) in record.message for record in caplog.records)
     assert isinstance(result, TutorAnswerResult)
     assert result.grounded_passage_ids == []
     assert any("cite_passages" in record.message for record in caplog.records)

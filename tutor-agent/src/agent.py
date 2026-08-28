@@ -93,6 +93,7 @@ def cite_passages(passage_ids: list[str], tool_context: ToolContext) -> None:
     # turn).
     tool_context.actions.skip_summarization = True
 
+
 _INSTRUCTION = """\
 You are the Tutor Agent for Cognivo, a learning platform. Every message you \
 receive is a single JSON object with this shape:

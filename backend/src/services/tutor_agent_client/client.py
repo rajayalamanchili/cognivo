@@ -193,7 +193,11 @@ def _extract_cite_passages_ids(parts: list[Part]) -> list[UUID] | None:
 
 
 async def _process_raw_events(
-    raw_events: AsyncIterator[StreamResponse], *, offered_passage_ids: set[UUID]
+    raw_events: AsyncIterator[StreamResponse],
+    *,
+    offered_passage_ids: set[UUID],
+    exchange_id: UUID,
+    session_id: UUID,
 ) -> AsyncIterator[TutorStreamEvent]:
     visible_text = ""
     cited_ids: list[UUID] | None = None
@@ -224,7 +228,12 @@ async def _process_raw_events(
         # A2A client call is never wrapped in an ADK-instrumented span
         # on the backend side, so `update_current_span()` would
         # silently no-op here (research.md §9, verified empirically).
-        logger.warning("Tutor Agent stream completed without a cite_passages tool call")
+        logger.warning(
+            "Tutor Agent stream completed without a cite_passages tool call "
+            "(exchange_id=%s, session_id=%s)",
+            exchange_id,
+            session_id,
+        )
         grounded_ids: list[UUID] = []
     else:
         # Never trust a passage_id the model didn't actually receive --
@@ -288,7 +297,10 @@ async def stream_tutor_answer(
                 yield response
 
         async for event in _process_raw_events(
-            _chain(first_response, raw_stream), offered_passage_ids=offered_passage_ids
+            _chain(first_response, raw_stream),
+            offered_passage_ids=offered_passage_ids,
+            exchange_id=exchange_id,
+            session_id=session_id,
         ):
             yield event
         return
