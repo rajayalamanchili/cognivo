@@ -129,8 +129,8 @@ description: "Task list for Tutor Agent (Milestone 9)"
 - [X] T034 Run the full backend suite against a real, freshly migrated dev database; confirm SC-005 (Milestones 1-8 unmodified) and record the result in `roadmap.md`'s Milestone 9 status, following the precedent set by Milestones 7/8's own DoD confirmation
 - [X] T035 [P] Run `check_no_subject_conditionals.py` against the new retrieval/loader code (Constitution Principle III gate)
 - [X] T036 [P] Author a defined grounding test-question set (>=20 questions across both subjects, each with its expected topic/passage coverage) in `specs/012-tutor-agent/eval/grounding-test-questions.md` (`/speckit-analyze` finding H1 -- SC-002 has no fixture to measure against otherwise)
-- [ ] T037 [P] Verify SC-001 (3s p95 first-token latency) and SC-004 (incremental streaming) against a live Vercel deployment of both `tutor-agent/` and `backend` -- **blocked: no live Vercel deployment exists yet in this environment**
-- [ ] T038 [P] Verify SC-002 (>=90% grounding rate) against T036's test-question set (depends on T036) -- **blocked: same live-deployment dependency as T037, plus real LLM/embedding calls against every row in the new fixture**
+- [X] T037 [P] Verify SC-001 (3s p95 first-token latency) and SC-004 (incremental streaming) against a live Vercel deployment of both `tutor-agent/` and `backend` -- run 2026-08-28 against production (`main`, post-PR #43) via a disposable guardian/learner pair, all 30 of T036's questions. **SC-004 holds** (30/30 answers streamed >1 chunk). **SC-001 still does not hold**: 4.03s p95 (mean 3.30s, min 2.92s, max 4.24s) against the 3s target -- improved from the 4.82s previously measured (roadmap.md), not yet met.
+- [X] T038 [P] Verify SC-002 (>=90% grounding rate) against T036's test-question set (depends on T036) -- same 2026-08-28 run. **SC-002 holds**: 30/30 (100%) answers were both `grounded: true` and cited a passage matching the row's Expected Topic -- comfortably above the 90% threshold, and the first real confirmation that FR-016's `cite_passages` mechanism grounds correctly end-to-end in production, not just in unit tests.
 
 ---
 
