@@ -470,354 +470,82 @@ instructor-assigned quizzes work at all).
 
 ## Milestone 9: Tutor Agent -- Full A2A Delegation, Vector-Grounded Retrieval, and Streaming Responses
 **Spec**: `specs/012-tutor-agent/spec.md`
-**Status**: `/speckit-specify` complete (2026-08-23), branched
-`012-tutor-agent` from `origin/staging` (Milestone 8's DoD is met, so
-this milestone's spec was written against it). Three clarifications
-resolved interactively during `/speckit-specify` itself: (1) "Full A2A
-Delegation" means the Tutor Agent alone becomes a new standalone A2A
-service, mirroring the Grading Agent's pattern -- Sequencing and
-Recommendation stay local ADK sub-agents, reached through the
-backend's existing APIs, since neither has an independent-versioning/
-evaluation need justifying an A2A split (Constitution Principle IV/VI);
-(2) Tutor Agent access is guardian-mediated for a real learner plus the
-seeded demo learner, matching Milestone 8's precedent -- no new
-real-learner login surface; (3) the retrieval-grounding success
-threshold is 90% of a defined test-question set. Requirements-quality
-checklist passed clean. `/speckit-plan` complete (2026-08-23): the
-`backend` is the sole orchestrator of a tutoring turn (runs `pgvector`
-retrieval, gathers Sequencing/Recommendation context in-process, calls
-Grading only via the already-existing backend-to-Grading-Agent path
-when needed) and calls a new standalone `tutor-agent/` A2A service --
-built identically to `grading-agent/`, including its shared-secret
-auth and Vercel host/port derivation -- that streams back a grounded
-answer from exactly the context it's given, holding no database
-credentials or state of its own; this avoids a new reverse-
-authentication path (Tutor Agent calling back into the backend) that
-the codebase doesn't otherwise need. `tech-stack.md` amended with six
-new locked rows: embedding model (Voyage `voyage-3` via LiteLLM),
-passage granularity (one embedded passage per content-artifact field,
-no chunking algorithm), the orchestration split above, the A2A
-streaming transport (`a2a-sdk`'s native `message/stream`), and a 60s
-`maxDuration` (vs. Grading Agent's 30s). Constitution Check passed with
-no violations. `/speckit-clarify` then run against `spec.md` (2026-08-23,
-after this plan pass -- four more clarifications the plan's own
-research/data-model work had surfaced but hadn't yet been written back
-into the spec): SC-001's latency target formalized at 3s p95; three new
-requirements added -- FR-013 (per-learner rate limit on the Tutor
-Agent endpoint, reusing the Grading Agent's existing DB-query-based
-window), FR-014 (at most one active Tutoring Session per learner per
-subject, get-or-create), FR-015 (a new question is rejected, not
-interleaved or queued, while the previous one is still streaming).
-`research.md`/`data-model.md`/`contracts/api.md` then refreshed to
-match (a new research.md §8, a partial-unique-index constraint, a new
-`409`/`429` response pair). `/speckit-tasks` complete (2026-08-23):
-36 tasks across Setup, Foundational, and three user-story phases.
-`/speckit-analyze` then run (2026-08-23) and found 5 issues -- 1
-CRITICAL, 2 HIGH, 2 MEDIUM -- all fixed the same day, revising the
-task count to 38: **C1** (CRITICAL, Constitution Principle VIII) --
-the two new real-learner-linked tables weren't yet reflected in
-`specs/009-privacy-retention/data-classification.md`, which is a
-living document FR-002 requires stay current; fixed directly in that
-document, which in turn surfaced a bigger, pre-existing gap (not
-introduced by this milestone) now tracked in this file's own new
-"Known gap" section above: Milestone 7's FR-004/FR-005 deletion-
-execution pathway was deferred at spec-writing time and never actually
-implemented, only its `DeletionRequest` model. **H1** (SC-002 had no
-test-question fixture to measure its 90% grounding threshold against)
--- added T036. **H2** (FR-015's original `answer_text IS NULL`
-in-flight marker had no way to distinguish "still streaming" from "died
-mid-stream," which would have permanently blocked a session after any
-interrupted stream) -- added `tutor_exchanges.failed_at`, splitting the
-original single orchestration task into T021/T022. **M1** (spec.md's
-"Delegation Call" entity wanted per-call inputs/outputs, but
-`delegation_context` was designed as a single merged summary) --
-restructured to an array of `{agent, request, response}` records.
-**M2** (the pre-split orchestration task bundled 7 requirements into
-one unit) -- resolved by the same H2 split. Foundational (T004-T015)
-covers the data layer (3 new tables + `pgvector` extension + new
-`AssessmentEventType` value), the content-artifact loader's
-embedding-generation extension, and the standalone `tutor-agent/` A2A
-service itself (agent, guardrails, tracing) plus the backend's client
-for it -- all three user stories depend on this. User Story 1
-(T016-T027, the MVP) builds the full open-session -> ask ->
-grounded-streamed-answer loop, including FR-013/014/015's rate-limit/
-session-uniqueness/in-flight guardrails and the H2 failure-recovery
-path (deliberately scoped as US1 tasks, not Foundational, since
-they're behavior of the two endpoints US1 itself builds). User Story 2
-(T028-T030) adds real mastery/weak-area context to the same
-orchestration. User Story 3 (T031-T032) adds the inspection endpoint.
-Polish (T033-T038) covers the E2E round trip, full-suite regression
-against a real database, the subject-conditional gate, the H1 fixture,
-and live verification of SC-001/002/004. `/speckit-implement` run
-phase-by-phase starting 2026-08-24: Setup (T001-T003) and Foundational
-(T004-T015) both complete -- the latter's migration and `pgvector`
-retrieval verified end-to-end against a real, freshly-migrated dev
-database (`de54cd54219e`), not just unit-tested. User Story 1
-(T016-T027, the MVP) also complete: the full open-session ->
-ask -> grounded-streamed-answer loop, FR-013/014/015's guardrails, and
-the H2 failure-recovery path all pass their integration tests against
-that same real database (15 new tests), plus the frontend chat page/
-component (11 new Vitest tests, ESLint/Prettier/`next build` clean).
-Full backend regression re-confirmed at 308/308 passing after this
-phase (293 prior + 15 new -- SC-005 holds). User Story 2 (T028-T030)
-complete: a deterministic keyword check (not an LLM guess, Constitution
-Principle I) routes performance-dependent questions to a real in-process
-Recommendation Agent call, and `tutor-agent/`'s instruction was
-strengthened to use that data verbatim, including the honest
-insufficient-data case -- 3 new tests. User Story 3 (T031-T032)
-complete: `GET /api/tutor/exchanges/{id}` with guardian/enrolled-
-instructor/demo-instructor auth mirroring `content_review`'s pattern
--- 8 new tests. Polish: T034-T036 complete -- the full backend suite
-re-confirmed at **321/321** passing against a freshly-migrated real
-database (SC-005 holds through every phase), the subject-conditional
-gate passes, and a 30-question grounding fixture is checked in at
-`specs/012-tutor-agent/eval/grounding-test-questions.md` (closing
-`/speckit-analyze` finding H1). T033's Playwright spec is written
-(lint/format/`tsc --noEmit` clean) but not yet run live -- writing it
-surfaced a real gap (nothing exposed an exchange's id to any client at
-all, making User Story 3's own endpoint undiscoverable), fixed by
-adding `exchange_id` to the SSE stream's final `done` event and a
-`data-exchange-id` DOM attribute on `TutorChat.tsx`. **Known gap**:
-T033/T037/T038 all require a live stack (backend + `tutor-agent/` +
-migrated DB + real `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY`, or an actual
-Vercel deployment) this environment doesn't have -- not attempted
-without checking first, since running them spends real API credits.
+**Status**: Spec/plan/tasks/analyze complete (2026-08-23, 38 tasks after
+`/speckit-analyze` fixed 5 issues -- notably surfacing that Milestone
+7's FR-004/FR-005 deletion-execution pathway was never actually
+implemented, tracked in this file's "Known gap" section). Key locked
+decisions: the Tutor Agent is its own standalone A2A service (mirrors
+Grading Agent) while Sequencing/Recommendation stay local sub-agents;
+access is guardian-mediated only (real learner or the demo learner, no
+new login surface); SC-002's grounding threshold is 90% against a
+checked-in test-question fixture (`specs/012-tutor-agent/eval/
+grounding-test-questions.md`); FR-013/014/015 add a per-learner rate
+limit, one-active-session-per-subject, and reject-not-queue for an
+in-flight question.
 
-**T037 live verification (2026-08-26, `014-tutor-agent-live-verification`
-branch)**: a Vercel Production deployment now existed, so T037/T038/T033
-were attempted for real. Getting there required a chain of environment
-fixes outside this repo's own files (all applied by the user, not
-tracked here per this project's no-deployment-posture-in-repo
-convention): the migration had never been run against the production
-database, several env vars (`TUTOR_AGENT_SHARED_SECRET`,
-`TUTOR_AGENT_URL`, the Vercel deployment-protection bypass secret) were
-unset or stale, and `content_passage_embeddings` had never been
-populated in production. Once unblocked, live testing surfaced and
-fixed two real bugs neither the test suite nor `/speckit-analyze` had
-caught:
-- **A second finding-H2 gap** (`backend/src/services/tutor/session.py`'s
-  `prepare_message`): the `anext(stream)` call opening the Tutor
-  Agent's A2A stream only caught `TutorUnavailableError`, not an
-  arbitrary exception -- confirmed live (a misconfigured deployment
-  raised something else while opening the stream), which left two of
-  the demo learner's exchanges permanently `answer_text IS NULL AND
-  failed_at IS NULL`, blocking their sessions. Fixed by broadening the
-  `except` to match `stream_message_response`'s own breadth
-  (`CancelledError`, `GeneratorExit`, `Exception`); regression test
-  added.
-- **SC-004 (incremental streaming) was silently never working**:
-  `tutor-agent/src/agent.py`'s `to_a2a()` call left `RunConfig` at
-  google-adk's own default (`streaming_mode=StreamingMode.NONE`), so
-  the Claude call itself was never asked to stream -- fixed via the one
-  hook ADK exposes (`agent_executor_factory` ->
-  `A2aAgentExecutorConfig.request_converter`, forcing `StreamingMode
-  .SSE`). That alone wasn't sufficient: `AgentCardBuilder`'s own
-  default `AgentCapabilities()` also has `streaming=False`, and
-  `to_a2a()` never overrides it without an explicit `agent_card` -- so
-  the served agent card advertised "doesn't support streaming," and
-  the `a2a-sdk` client correctly (per A2A protocol) fell back to the
-  blocking `message/send` RPC instead of `message/stream`, no matter
-  how genuinely incremental the server-side generation was. Root-caused
-  by temporarily instrumenting the A2A executor's one official
-  `ExecuteInterceptor.after_event` hook and reading Vercel's runtime
-  logs, which proved ADK really was producing multiple partial events
-  server-side (11 events over ~6s) despite the client still seeing one
-  buffered response -- narrowing the gap to agent-card capability
-  negotiation, not event generation. Fixed by building the card
-  ourselves via the same `AgentCardBuilder` `to_a2a()` uses internally,
-  with `streaming=True`, passed back in via `agent_card`. Confirmed live
-  against the fix's preview deployment: a real question now arrives as
-  13 incremental `delta` events over ~14s (previously always exactly 1
-  buffered event) -- **SC-004 now holds**.
+`/speckit-implement` complete (2026-08-24): all three user stories
+(streamed ask-a-question loop; Recommendation-Agent delegation for
+performance questions; `GET /api/tutor/exchanges/{id}` inspection) plus
+Polish. Full backend suite: 331/332 passing (1 known unrelated flake).
+Frontend chat UI shipped with its own Vitest coverage.
 
-Both fixes merged to `staging` (PR #36) then promoted to `main` (PR
-#37) the same day, closing two more `/speckit-analyze`-style review
-rounds along the way (`_streaming_request_converter` now uses
-`run_config.model_copy(update=...)` instead of rebuilding `RunConfig`
-from scratch, so a future `google-adk` version populating any field
-besides `custom_metadata` in its default conversion won't be silently
-dropped; `prepare_message`'s broadened `except` now reuses
-`_persist_failed_exchange` instead of an inlined copy, so a future DB
-operation added before the `anext()` call stays protected the same way
-`stream_message_response`'s own call sites already are; a regression
-test now asserts `_agent_card.capabilities.streaming is True`, the more
-load-bearing of the two SC-004 fixes, which previously had no test
-coverage of its own).
-
-**T037 (SC-001/SC-004), run against production post-merge, full
-30-question fixture**: p95 first-token latency **4.82s** (n=30, max
-6.66s, min 3.22s) -- **SC-001 (3s target) does not hold**, a real
-latency finding for this pipeline (guardrails + retrieval + A2A +
-Claude), not addressed in this pass. **SC-004 holds cleanly: 30/30
-responses arrived as multiple incremental chunks** (previously always
-exactly 1 buffered chunk before this session's fixes). Also notable:
-every transient `500`/`429` encountered during this real 30-question
-run recovered cleanly via retry with zero orphaned exchanges -- the H2
-stream-open fix held under repeated real-world failures, not just the
-one scripted test case that originally found it.
-
-**T038 (SC-002 grounding rate), same 30-question run**: **0/30
-grounded** -- every exchange's `grounded` is `false` and
-`retrieved_passage_ids` is empty, confirmed via a direct DB read (the
-demo learner's exchanges have no owning guardian or enrolled
-instructor, so `GET /api/tutor/exchanges/{id}` itself isn't reachable
-for them -- a separate, minor demo-data gap, not investigated further
-here). This is **not** the empty-embeddings-table failure mode
-`grounding-test-questions.md` warns about -- a direct count confirmed
-`content_passage_embeddings` holds 32 rows each for `biology` and
-`algebra-1` (matching research.md §5's 4-passages-per-topic design).
-The Tutor Agent's own answer text corroborates this isn't a marker-
-parsing bug either: asked about photosynthesis (a real, embedded
-`biology` topic), it said outright "I don't have material on
-photosynthesis in this course's content yet" -- consistent with
-`search_passages()` (`backend/src/services/retrieval/passage_search.py`)
-or the query-embedding call within it returning zero results despite
-the table being populated, not with passages being offered but never
-cited. **Known gap, not investigated further this session**: root
-cause is somewhere in the retrieval path itself (a genuinely separate
-code path from both bugs fixed above, untouched by PRs #36/#37) --
-candidates include a query-embedding-model mismatch against what the
-loader used, or a silent failure inside `search_passages()`. Needs
-dedicated follow-up before SC-002 can be re-measured.
-
-**T033 (Playwright E2E)**: still not run against a live deployment --
-out of scope for this already-long live-verification pass; left for a
-dedicated follow-up alongside T038's grounding investigation.
-
-**T038 follow-up (2026-08-26, `015-tutor-agent-verification-status`
-branch): the T038 investigation itself was blocked before it could
-finish, and the blocker -- not SC-002 -- is what got fixed this
-session.** Traced one exchange from the 30-question run by matching
-question text + rough timestamp between the DB and a Langfuse trace:
-that trace showed retrieval working correctly (5 relevant passages,
-4 of them exactly the `photosynthesis` topic the question asked about)
-and the model's raw output citing 2 of them in a well-formed grounding
-footer -- directly contradicting the DB row it was matched against,
-which had `grounded=false`/`retrieved_passage_ids=[]`. Confirmed via a
-direct audit-log cross-check (`assessment_events.payload` for that
-exact `exchange_id`, written in the same transaction as `tutor_exchanges`)
-that the empty result really was what got computed at persist-time --
-not a parsing bug (independently verified: `_parse_grounded_ids` given
-that exact footer text correctly returns both IDs). The only way both
-of those can be true is that **the trace and the DB row were never the
-same request** -- `tutor_agent_client/client.py`'s A2A calls to
-`tutor-agent/` carried no correlation ID at all (only the shared secret
-and Vercel bypass headers), so `tutor-agent/`'s own Langfuse trace has
-no reliable link back to a `TutorExchange` row; question-text-plus-
-timestamp matching in a tight sequential 30-question batch isn't
-trustworthy enough to root-cause one specific failing exchange. This is
-a real gap against Constitution Principle V ("why was this marked
-wrong" must have a real, traceable answer) -- for the Tutor Agent
-specifically, that question was previously unanswerable.
-
-Fixed by propagating `exchange_id`/`session_id` as new
-`X-Tutor-Exchange-Id`/`X-Tutor-Session-Id` headers (no auth role, purely
-for correlation) from `tutor_agent_client/client.py`, read back on the
-`tutor-agent/` side by a new `_TraceCorrelationMiddleware`
-(`agent.py`) that wraps them as Langfuse trace metadata via a new
-`tracing.traced_exchange()`, mirroring the backend's own
-`traced_request()`/`propagate_attributes(metadata=...)` pattern
-exactly (same `metadata=` vs. native `session_id=`/`user_id=` kwargs
-reasoning: `GoogleADKInstrumentor` sets its own `session.id`/`user.id`
-span attributes from the ADK `Runner`'s own arguments, which would
-silently win over the native kwargs). Grading Agent had the identical
-gap (`grading_client/client.py` sent no correlation header either) and
-was fixed the same way in the same session -- `X-Grading-Question-Id`/
-`X-Grading-Learner-Id` headers, a matching `_TraceCorrelationMiddleware`
-in `grading-agent/src/agent.py`, `question_id`/`learner_id` metadata via
-`tracing.traced_exchange()` there. Backend's own in-process agents
-(Diagnostic/Sequencing/Assessment-Generation/Recommendation) were never
-affected -- `traced_request()` already links those correctly since
-they run in the same process with no A2A hop involved. 8 new unit/
-integration tests across all three projects (header-building, header-
-extraction middleware, and a real in-memory-`LangfuseSpanProcessor`
-proof that the metadata actually lands on every span, mirroring
-`backend/tests/integration/test_tracing_metadata_propagation.py`'s
-existing harness for both new copies) -- full regression re-confirmed
-green in all three: backend 328/328 (real dev DB), tutor-agent 21/21,
-grading-agent 22/22.
-
-**T038 (SC-002 grounding rate) itself is still not re-measured** -- this
-session closed the observability gap that was blocking root-causing it,
-not the grounding rate question itself. Next step: re-run the
-30-question fixture against a real deployment with these fixes in
-place, then pull each exchange's now-correctly-linked trace directly by
-`exchange_id` to see what actually happened for any exchange that ends
-up ungrounded.
-
-PR #38 review addressed two non-blocking findings (both flagged as
-low-severity: only reachable if `TUTOR_AGENT_SHARED_SECRET`/
-`GRADING_AGENT_SHARED_SECRET` itself leaks, since
-`_SharedSecretAuthMiddleware` gates everything ahead of the new
-middleware either way) -- an unvalidated correlation-header value could
-otherwise let a leaked secret inject arbitrary text into Langfuse trace
-metadata (log/trace injection). Both `_TraceCorrelationMiddleware`s now
-re-parse the header value as a UUID via a new `_parse_uuid_header()`
-helper, dropping anything that doesn't round-trip cleanly rather than
-passing it through verbatim; 2 new tests per project cover a malformed
-header value resolving to `None`. Also added `.github/workflows/
-tutor-agent-tests.yml` (mirrors `grading-agent-tests.yml`'s pattern:
-`tutor-agent/`'s own pytest suite had no CI coverage of its own until
-now, only ever run locally) -- no ground-truth-eval-gate or test-
-independence-check step included, since spec 012 has no equivalent
-requirement to spec 007's FR-008/SC-003 ground-truth eval gate.
-
-**T038 re-run attempt (2026-08-27, `016-tutor-retrieval-resilience`
-branch): found the real root cause, and a real reliability gap along
-the way.** With PR #38's trace-correlation fix live on `main`, ran the
-30-question fixture for real against production -- through a disposable
-test guardian+learner (not the demo learner: `GET /api/tutor/
-exchanges/{id}` requires an owning guardian or enrolled instructor,
-which the demo learner has neither, so the documented fixture procedure
-can't actually verify grounding through it -- a separate, still-open
-minor gap). **26 of 30 requests failed with a fast (~1s) unhandled `500
-{"detail":"Internal server error"}`**; the 3 that succeeded came back
-`grounded: false` with zero retrieved passages. Pulled the actual Vercel
-function log for one failure: `search_passages()`'s embedding call was
-throwing `litellm.exceptions.APIConnectionError` wrapping a Voyage `429`
--- **the Voyage AI account has no payment method on file, capping it at
-3 requests/minute** (Voyage's own error message states this outright).
-This is almost certainly the real root cause behind the original T038
-"0/30 grounded" finding too, not a code defect in retrieval itself: the
-one fully-correct trace found during that investigation (5 relevant
-passages, 2 correctly cited) was very likely the one request that
-happened to land inside the 3-RPM window.
-
-That failure mode also exposed a genuine gap, fixed the same session:
-`search_passages()` (`backend/src/services/retrieval/passage_search.py`)
-had no retry and `services/tutor/session.py`'s `prepare_message` created
-the `TutorExchange` row *after* calling it -- so an embedding-provider
-failure propagated as a raw unhandled 500 with **no `TutorExchange` row,
-no audit-log event, no trace of any kind**, worse than finding H2's
-original deadlock (which at least left a row behind to notice). Fixed
-by: (1) `_embed_query` now retries once with backoff (`MAX_ATTEMPTS`/
-`RETRY_BACKOFF_SECONDS`, same shape as `tutor_agent_client`/
-`grading_client`'s existing retry constants) before raising a new
-`EmbeddingUnavailableError`; (2) `prepare_message` now creates the
-exchange row *before* retrieval runs, catches any retrieval failure the
-same broad way it already catches an A2A-stream-open failure, persists
-it via the existing `_persist_failed_exchange`, and raises the same
-`TutorUnavailableError` (503) contracts/api.md already defines for "the
-Tutor Agent couldn't be reached" -- retrieval failing before the A2A
-call is even attempted is just an earlier instance of that same case.
-`contracts/api.md`'s `503` section updated to match. 2 new tests
-(`test_embed_query_retry.py`'s retry/exhaustion behavior, plus an
-integration test mirroring the existing A2A-unavailable-then-recovers
-test but for the retrieval path) -- full regression: backend 331/332
-(the 1 failure is `test_submit_placement_response_shape_and_unknown_
-topics`, a known enum-OID-cache flake unrelated to this change,
-confirmed passing in isolation), tutor-agent 22/22.
-
-**Still not done**: SC-002 itself remains unmeasured -- the account is
-staying on Voyage's free tier rather than adding a payment method, so
-the actual re-run needs to pace all 30 requests well under 3 RPM (one
-question roughly every 20-25s at minimum, plus real per-question
-latency on top -- a ~15-20 minute run), not fire them back-to-back like
-this attempt did. Also created (and not yet cleaned up -- no self-serve
-account deletion exists yet, a known gap) 3 disposable test guardian
-accounts in production during this investigation
-(`tutor-eval-*@cognivo-test.invalid`), needing direct DB removal
-whenever convenient.
+**Live-verification findings (T033/T037/T038)** -- these require a real
+deployment and real API spend, so they ran across several follow-up
+branches (013-017) after the main implementation, each finding and
+fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
+- Two bugs fixed via PR #36: an A2A-stream-open failure could raise
+  something other than `TutorUnavailableError` and orphan the exchange
+  (a second finding-H2-shaped gap); and SC-004 (incremental streaming)
+  was silently never working because the served agent card advertised
+  `streaming=false`, so the A2A client fell back to blocking calls.
+  **SC-004 now confirmed holding** (13 incremental chunks/answer).
+- **SC-001 (3s p95 latency) does not hold** -- measured 4.82s p95
+  against production. Real finding, not yet addressed.
+- **T038 (SC-002 grounding rate) took three root-cause passes**:
+  1. A `TutorExchange` row couldn't be reliably linked to its own
+     Langfuse trace (no correlation ID on the A2A call), blocking
+     investigation. Fixed via PR #38: `X-Tutor-Exchange-Id`/
+     `X-Tutor-Session-Id` correlation headers (same gap/fix applied to
+     Grading Agent).
+  2. 26/30 requests then failed with unhandled 500s. Real cause: the
+     Voyage AI account had no payment method on file, capping
+     embeddings at 3 req/min -- not a code defect, but it exposed a
+     real reliability gap (an embedding failure had no retry and left
+     no `TutorExchange` row, no audit event, nothing). Fixed via PR
+     #40: retry-then-503 with the exchange row now created before
+     retrieval runs, so a failure is always persisted.
+  3. With the Voyage limit no longer binding, 0/30 grounded again but
+     with zero errors -- and the answers themselves were clearly
+     well-grounded in real content. Real cause:
+     `tutor_agent_client/client.py`'s `_parse_grounded_ids()` did a
+     strict `json.loads()` on the model's raw grounding footer and
+     silently returned `[]` on any formatting deviation (a markdown
+     code fence, trailing prose, a leading label) -- all plausible LLM
+     output, not a protocol violation. Fixed via PR #42
+     (`017-tutor-t038-grounding-verification`) -- through five review
+     rounds, each closing one more way freeform LLM prose could be
+     mistaken for the real citation array: a first regex-based extract
+     gave way to bracket-balanced scanning, then to scanning *every*
+     `[` in the footer (not just the first balanced pair) for one that
+     actually parses as a list of UUID-shaped strings, then to treating
+     an unbalanced starting bracket (e.g. half-open interval notation
+     like `[0, 5)`) as skippable rather than fatal, then to preferring
+     a non-empty match over a vacuously-valid empty one found earlier
+     in the text. 13 new unit tests cover every deviation found across
+     all five rounds -- this function had no coverage at all before
+     this PR.
+  - **SC-002 itself is still unmeasured** -- next step is one more live
+    30-question run once this fix reaches production, keeping the
+    disposable test guardian's password this time so the
+    exchange-inspection endpoint stays usable for spot-checking
+    afterward.
+- **T033 (Playwright E2E)**: spec written, lint/typecheck clean, still
+  never run against a live deployment.
+- **Process notes**: disposable test guardian accounts created for
+  these runs are cleaned up via direct DB deletion afterward (no
+  self-serve deletion exists yet); the demo learner can't be used for
+  T038's fixture at all since it has no owning guardian, so `GET
+  /api/tutor/exchanges/{id}` is unreachable for it.
 
 **Scope**: The conversational Tutor Agent, answering plain-English
 questions and delegating to the Sequencing Agent ("what does this

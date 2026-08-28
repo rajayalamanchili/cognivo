@@ -156,19 +156,109 @@ def _response_text_and_state(response: StreamResponse) -> tuple[str, int | None]
     return "", None
 
 
+# Found live (T038 grounding investigation, roadmap.md): a strict
+# `json.loads(footer_text.strip())` silently returned `[]` on any
+# deviation from a bare JSON array (code fence, trailing prose, a
+# leading label) -- plausible LLM formatting, not a protocol violation.
+# Two narrower fixes (PR #42 review, two rounds) each reproduced the
+# same failure via a different trigger: a greedy `\[.*\]` regex swallowed
+# trailing prose containing its own bracket (e.g. interval notation like
+# `[0, 1]`) into one invalid JSON blob; a bracket-balanced version that
+# stopped at the *first* balanced pair then mistook a *leading* bracketed
+# aside (e.g. "Sources for the interval [0, 5]: [...]") for the array,
+# since `[0, 5]` is itself valid JSON. `_extract_grounded_id_candidates()`
+# instead walks every `[` in order and returns the first bracket-balanced
+# candidate that actually parses as a list of UUID-shaped strings (or
+# `[]`) -- a bracket-containing aside anywhere in the footer, before or
+# after the real array, fails that check and is skipped in favor of the
+# next `[`.
+def _matching_bracket_end(text: str, start: int) -> int | None:
+    """Index of the `]` that balances the `[` at `start`, tracking
+    (JSON) string literals so a bracket inside a quoted string doesn't
+    unbalance the count. `None` if `start` is never balanced."""
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return i
+    return None
+
+
+def _all_uuid_shaped(items: list) -> bool:
+    for item in items:
+        try:
+            UUID(str(item))
+        except (ValueError, AttributeError, TypeError):
+            return False
+    return True
+
+
+def _extract_grounded_id_candidates(text: str) -> list | None:
+    # An empty-list candidate (`[]`) is *vacuously* UUID-shaped -- valid
+    # on its own, but not preferred over a real, non-empty citation
+    # array appearing later in the same footer (PR #42 review, round 5:
+    # an incidental empty-bracket aside before the real array, e.g. "No
+    # citations here: []. Sources: [...]", would otherwise be accepted
+    # immediately and the real array never even reached). Remembered as
+    # a fallback and only returned if no non-empty candidate ever turns
+    # up.
+    fallback: list | None = None
+    search_from = 0
+    while True:
+        start = text.find("[", search_from)
+        if start == -1:
+            return fallback
+        end = _matching_bracket_end(text, start)
+        if end is None:
+            # This `[` never balances -- e.g. half-open interval
+            # notation like `[0, 5)`, which pairs `[` with `)`, not `]`
+            # (PR #42 review, round 4). That doesn't mean *no* array
+            # exists in `text`: it only means starting from *this* `[`
+            # can't find one, since every subsequent `[`/`]` in the rest
+            # of the string gets folded into this same unresolved depth
+            # count. Skip past just this one bracket and keep scanning,
+            # the same way an unqualifying-but-balanced candidate is
+            # skipped below -- giving up here would reproduce the exact
+            # "silently persisted as ungrounded" failure this whole
+            # function exists to prevent.
+            search_from = start + 1
+            continue
+        try:
+            parsed = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, list) and _all_uuid_shaped(parsed):
+            if parsed:
+                return parsed
+            if fallback is None:
+                fallback = parsed
+        search_from = start + 1
+
+
 def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> list[UUID]:
-    try:
-        raw_ids = json.loads(footer_text.strip())
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(raw_ids, list):
+    raw_ids = _extract_grounded_id_candidates(footer_text)
+    if raw_ids is None:
         return []
     grounded_ids: list[UUID] = []
     for raw_id in raw_ids:
-        try:
-            passage_id = UUID(str(raw_id))
-        except ValueError:
-            continue
+        # Already confirmed UUID-shaped by `_extract_grounded_id_candidates`.
+        passage_id = UUID(str(raw_id))
         # Never trust a passage_id the model didn't actually receive --
         # a fabricated/stale ID is dropped, not persisted as grounded.
         if passage_id in offered_passage_ids:
