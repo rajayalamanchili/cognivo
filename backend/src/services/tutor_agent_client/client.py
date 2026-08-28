@@ -228,8 +228,12 @@ async def _process_raw_events(
         # A2A client call is never wrapped in an ADK-instrumented span
         # on the backend side, so `update_current_span()` would
         # silently no-op here (research.md §9, verified empirically).
+        # `cited_ids is None` covers both "no cite_passages call at
+        # all" and "a call arrived but its args were malformed" --
+        # `_extract_cite_passages_ids` returns `None` for both, so the
+        # message below doesn't claim which one happened.
         logger.warning(
-            "Tutor Agent stream completed without a cite_passages tool call "
+            "Tutor Agent stream completed with no valid cite_passages tool call "
             "(exchange_id=%s, session_id=%s)",
             exchange_id,
             session_id,
