@@ -552,6 +552,22 @@ fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
      `_extract_grounded_id_candidates`, `_parse_grounded_ids`) are
      deleted, not merely superseded in place. Full backend (343/343)
      and Tutor Agent (26/26) suites pass with the new mechanism.
+     **Accepted deploy-skew risk** (PR #45 review): this is a breaking
+     wire-protocol change across two independently-deployed Vercel
+     projects (`tutor-agent/` and `backend`), with no dual-format
+     fallback. If `backend`'s deploy ever completed meaningfully
+     before `tutor-agent/`'s own, learners would briefly see the old
+     `===GROUNDED_PASSAGE_IDS===` marker and its raw JSON leak into
+     answer text. Accepted rather than fixed with defensive
+     dual-format parsing: all three Vercel projects (`cognivo`,
+     `cognivo-grader`, `cognivo-tutor`) build from the same git push
+     in parallel (confirmed via this PR's own Vercel deployment
+     comments), so the real window is Vercel's own build-time skew --
+     seconds to low minutes, not a manually-staged rollout -- and it
+     self-corrects on the next deploy with no data corruption or crash
+     either way. Reintroducing dual-format text parsing to cover that
+     narrow a window would undo the reliability gain this whole fix
+     exists to deliver.
   - **SC-002 itself is still unmeasured** -- next step is one more live
     30-question run once this fix reaches production, keeping the
     disposable test guardian's password this time so the
