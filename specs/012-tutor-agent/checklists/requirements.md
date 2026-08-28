@@ -66,3 +66,31 @@ against genuinely testable requirements. Ready for `/speckit-tasks`
 (plan.md/data-model.md/contracts/api.md were written before this
 session's four new/changed requirements -- worth a quick pass to
 confirm nothing there contradicts FR-013/014/015 before tasking).
+
+**`/speckit-clarify` session (2026-08-28, branch
+`019-tutor-grounding-structured-output`)** -- three clarifications,
+prompted by three consecutive PR-review rounds (PRs #42/#44) each
+finding a new way the shipped implementation's heuristic parsing of a
+bracket-delimited array embedded in the streamed answer text picked
+the wrong array or dropped real citations:
+
+8. **FR-016 (grounding channel, new)**: the citation signal moves to a
+   structurally separate channel from the answer text -- a dedicated
+   terminal tool/function call (e.g. `cite_passages`), not embedded in
+   the same prose and parsed back out afterward; MUST NOT loop back to
+   the model for a second turn/billed call.
+9. **SC-001/SC-004 (latency scope)**: the citation tool call happens
+   after the answer text finishes streaming and is explicitly excluded
+   from both latency measurements.
+10. **Edge Cases (citation-call failure, new)**: a missing/malformed
+    citation call after the answer text already streamed persists
+    `grounded = false` with an empty passage list and keeps the
+    already-streamed text as-is -- no retry, no learner-visible error,
+    no retroactive failure marking.
+
+Checklist re-validated against the updated spec: still 16/16 passing,
+no regressions. `contracts/api.md`'s "Internal contract: backend ->
+Tutor Agent (A2A)" section and `backend/src/services/
+tutor_agent_client/client.py`'s heuristic parser both predate FR-016
+and will need a `/speckit-plan` pass to bring them in line before
+`/speckit-tasks`.

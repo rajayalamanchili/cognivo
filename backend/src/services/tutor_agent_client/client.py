@@ -17,6 +17,7 @@ already started reading).
 
 import asyncio
 import json
+import logging
 import os
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -25,15 +26,13 @@ from uuid import UUID
 import httpx
 from a2a.client import ClientConfig, ClientFactory
 from a2a.client.errors import A2AClientError
-from a2a.helpers import get_message_text, new_text_message
-from a2a.types import Role, SendMessageRequest, StreamResponse, TaskState
+from a2a.helpers import new_text_message
+from a2a.types import Part, Role, SendMessageRequest, StreamResponse, TaskState
+from google.protobuf.json_format import MessageToDict
 
 from src.api.errors import TutorUnavailableError
 
-# MUST match `tutor-agent/src/agent.py`'s copy of this literal exactly
-# -- duplicated, not imported, since `tutor-agent/` and `backend` are
-# genuinely separate deployable units (research.md §2).
-GROUNDING_MARKER = "===GROUNDED_PASSAGE_IDS==="
+logger = logging.getLogger(__name__)
 
 # `maxDuration: 60` on both the backend's tutor endpoint and the
 # tutor-agent/ Vercel function (research.md §6) -- a full streamed
@@ -66,8 +65,8 @@ class TutorStreamInterruptedError(Exception):
 @dataclass(frozen=True)
 class TutorAnswerDelta:
     """One incremental chunk of the Tutor Agent's visible answer text
-    (FR-005), already stripped of `GROUNDING_MARKER` and its trailing
-    JSON footer."""
+    (FR-005) -- text content only, the `cite_passages` tool call
+    (FR-016) never appears in this stream."""
 
     text: str
 
@@ -133,101 +132,121 @@ async def _stream_once(
             yield response
 
 
-def _response_text_and_state(response: StreamResponse) -> tuple[str, int | None]:
-    """The incremental delta text this response carries, plus its task
-    state if it's a status update -- `None` state means "not a
-    terminal signal, keep streaming".
+def _response_parts_and_state(response: StreamResponse) -> tuple[list[Part], int | None]:
+    """The parts this response's status-update message carries, plus
+    its task state -- `None` state means "not a terminal signal, keep
+    streaming".
 
-    Only `status_update`-typed responses carry genuinely new delta text
-    for a `to_a2a()`-streamed ADK agent -- the final `artifact_update`
+    Only `status_update`-typed responses carry genuinely new parts for
+    a `to_a2a()`-streamed ADK agent -- the final `artifact_update`
     event `A2aAgentExecutor` publishes duplicates the *last*
-    `status_update`'s text verbatim as a protocol-required task result,
-    rather than carrying new content (google-adk's
+    `status_update`'s parts verbatim as a protocol-required task
+    result, rather than carrying new content (google-adk's
     `TaskResultAggregator` tracks only the most recent status message,
-    not an accumulated one). Treating every response type as "append
-    this text" would double-count that final chunk.
+    not an accumulated one). Treating every response type as "new
+    parts" would double-yield the final text chunk and re-process the
+    citation call a second time.
     """
     if response.HasField("status_update"):
         status = response.status_update.status
-        text = get_message_text(status.message) if status.HasField("message") else ""
-        return text, status.state
+        parts = list(status.message.parts) if status.HasField("message") else []
+        return parts, status.state
     if response.HasField("task") and response.task.status.state == TaskState.TASK_STATE_FAILED:
-        return "", TaskState.TASK_STATE_FAILED
-    return "", None
+        return [], TaskState.TASK_STATE_FAILED
+    return [], None
 
 
-def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> list[UUID]:
+def _is_uuid_shaped(item: object) -> bool:
     try:
-        raw_ids = json.loads(footer_text.strip())
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(raw_ids, list):
-        return []
-    grounded_ids: list[UUID] = []
-    for raw_id in raw_ids:
-        try:
-            passage_id = UUID(str(raw_id))
-        except ValueError:
+        UUID(str(item))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
+
+
+def _extract_cite_passages_ids(parts: list[Part]) -> list[UUID] | None:
+    """The `cite_passages` tool call's `passage_ids` argument, read
+    from the A2A `DataPart` `google-adk` converts a terminal
+    `function_call` into (FR-016, research.md §9) -- `None` if `parts`
+    carries no such call at all, or the call arrived with malformed
+    arguments (`args`/`passage_ids` not the expected shape -- a
+    provider error mangling the tool call, spec.md's Edge Cases).
+    Any non-UUID-shaped entry within an otherwise-valid list is
+    dropped individually, the same defensive tolerance the pre-FR-016
+    text-parsing code always had for a stray non-UUID element, rather
+    than discarding the whole call.
+    """
+    for part in parts:
+        if not part.HasField("data"):
             continue
-        # Never trust a passage_id the model didn't actually receive --
-        # a fabricated/stale ID is dropped, not persisted as grounded.
-        if passage_id in offered_passage_ids:
-            grounded_ids.append(passage_id)
-    return grounded_ids
+        data = MessageToDict(part.data)
+        if not isinstance(data, dict) or data.get("name") != "cite_passages":
+            continue
+        metadata = MessageToDict(part.metadata) if part.HasField("metadata") else {}
+        if metadata.get("adk_type") != "function_call":
+            continue
+        args = data.get("args")
+        if not isinstance(args, dict):
+            continue
+        raw_ids = args.get("passage_ids", [])
+        if not isinstance(raw_ids, list):
+            continue
+        return [UUID(str(raw_id)) for raw_id in raw_ids if _is_uuid_shaped(raw_id)]
+    return None
 
 
 async def _process_raw_events(
-    raw_events: AsyncIterator[StreamResponse], *, offered_passage_ids: set[UUID]
+    raw_events: AsyncIterator[StreamResponse],
+    *,
+    offered_passage_ids: set[UUID],
+    exchange_id: UUID,
+    session_id: UUID,
 ) -> AsyncIterator[TutorStreamEvent]:
     visible_text = ""
-    buffer = ""
-    footer_buffer: str | None = None
-    marker_hold_len = len(GROUNDING_MARKER) - 1
+    cited_ids: list[UUID] | None = None
 
     async for response in raw_events:
-        text, state = _response_text_and_state(response)
+        parts, state = _response_parts_and_state(response)
 
         if state == TaskState.TASK_STATE_FAILED:
             raise TutorStreamInterruptedError("Tutor Agent reported a failed task state")
 
-        if not text:
+        if not parts:
             continue
 
-        if footer_buffer is not None:
-            footer_buffer += text
-            continue
+        text = "".join(part.text for part in parts if part.HasField("text"))
+        if text:
+            visible_text += text
+            yield TutorAnswerDelta(text=text)
 
-        buffer += text
-        if GROUNDING_MARKER in buffer:
-            before, _, after = buffer.partition(GROUNDING_MARKER)
-            if before:
-                visible_text += before
-                yield TutorAnswerDelta(text=before)
-            buffer = ""
-            footer_buffer = after
-            continue
+        call_ids = _extract_cite_passages_ids(parts)
+        if call_ids is not None:
+            cited_ids = call_ids
 
-        # Flush everything except a trailing window long enough to
-        # still contain a marker split across two chunk boundaries.
-        safe_len = max(0, len(buffer) - marker_hold_len)
-        if safe_len > 0:
-            flushable, buffer = buffer[:safe_len], buffer[safe_len:]
-            visible_text += flushable
-            yield TutorAnswerDelta(text=flushable)
+    if cited_ids is None:
+        # A compliance failure, not a transport error -- the stream
+        # itself completed successfully, so this is not a
+        # `TutorStreamInterruptedError`/`failed_at` case (spec.md Edge
+        # Cases). Plain logging, not a Langfuse span attribute: this
+        # A2A client call is never wrapped in an ADK-instrumented span
+        # on the backend side, so `update_current_span()` would
+        # silently no-op here (research.md §9, verified empirically).
+        # `cited_ids is None` covers both "no cite_passages call at
+        # all" and "a call arrived but its args were malformed" --
+        # `_extract_cite_passages_ids` returns `None` for both, so the
+        # message below doesn't claim which one happened.
+        logger.warning(
+            "Tutor Agent stream completed with no valid cite_passages tool call "
+            "(exchange_id=%s, session_id=%s)",
+            exchange_id,
+            session_id,
+        )
+        grounded_ids: list[UUID] = []
+    else:
+        # Never trust a passage_id the model didn't actually receive --
+        # a fabricated/stale ID is dropped, not persisted as grounded.
+        grounded_ids = [passage_id for passage_id in cited_ids if passage_id in offered_passage_ids]
 
-    # Stream ended with `buffer` still non-empty only if the marker was
-    # never found at all (the model didn't follow the grounding
-    # protocol) -- if it was found, `buffer` was already cleared above
-    # and any remaining text lives in `footer_buffer` instead. Flush
-    # what's left as visible text and fail safe to "not grounded"
-    # rather than guessing.
-    if buffer:
-        visible_text += buffer
-        yield TutorAnswerDelta(text=buffer)
-
-    grounded_ids = (
-        _parse_grounded_ids(footer_buffer, offered_passage_ids) if footer_buffer is not None else []
-    )
     yield TutorAnswerResult(answer_text=visible_text, grounded_passage_ids=grounded_ids)
 
 
@@ -285,7 +304,10 @@ async def stream_tutor_answer(
                 yield response
 
         async for event in _process_raw_events(
-            _chain(first_response, raw_stream), offered_passage_ids=offered_passage_ids
+            _chain(first_response, raw_stream),
+            offered_passage_ids=offered_passage_ids,
+            exchange_id=exchange_id,
+            session_id=session_id,
         ):
             yield event
         return

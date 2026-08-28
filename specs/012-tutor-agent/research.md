@@ -235,6 +235,122 @@ existing preference for DB-level uniqueness constraints over
 application-only checks (e.g. `classroom_rosters.join_code`'s unique
 constraint, migration `0892d285dcd8`).
 
+## §9: FR-016 -- structurally separate grounding channel
+
+Added after `/speckit-clarify` on `spec.md` (2026-08-28, branch
+`019-tutor-grounding-structured-output`), prompted by three consecutive
+PR-review rounds (PRs #42/#44, see `roadmap.md`'s Milestone 9 section)
+each finding a new way `tutor_agent_client/client.py`'s heuristic
+parsing of `GROUNDING_MARKER` + a trailing JSON array embedded in the
+same streamed text the learner reads could pick the wrong array or
+drop real citations -- a bug class inherent to parsing structured data
+back out of freeform generation, not fixable by one more scoring
+heuristic.
+
+**Decision**: Replace the marker+JSON-in-text protocol with a
+dedicated ADK `FunctionTool`, `cite_passages(passage_ids: list[str])`,
+that `tutor-agent/src/agent.py`'s `LlmAgent` calls as the terminal
+action of the same generation that produced the answer text. The tool
+implementation sets `tool_context.actions.skip_summarization = True`
+and returns no content of its own (its only purpose is to carry
+structured arguments). `google-adk`'s A2A layer converts a
+`function_call` content part to an A2A `DataPart` (not a `TextPart`),
+tagged with metadata `adk_type: "function_call"`
+(`google/adk/a2a/converters/part_converter.py`,
+`A2A_DATA_PART_METADATA_TYPE_FUNCTION_CALL`) and carrying
+`{"name": "cite_passages", "args": {"passage_ids": [...]}, "id": "..."}`
+as its `data`. `tutor_agent_client/client.py` reads each streamed
+message's parts directly (not through `get_message_text`, which
+already only joins `TextPart`s and silently ignores `DataPart`s --
+confirmed via `a2a.helpers.get_text_parts`'s source): forward `TextPart`
+content to the learner as today, and read the `cite_passages`
+`DataPart`'s `args.passage_ids` as the grounded-ID list, filtered
+against `offered_passage_ids` exactly as `_parse_grounded_ids` already
+does. `_extract_grounded_id_candidates`/`_candidate_score`/
+`_looks_like_grounded_array` and `GROUNDING_MARKER` (both copies, in
+`client.py` and `agent.py`) are deleted entirely -- no bracket-scanning
+of any kind remains.
+
+**No second LLM call**: confirmed by reading `google-adk`'s installed
+source, not assumed. `Event.is_final_response()`
+(`google/adk/events/event.py`) returns `True` whenever
+`actions.skip_summarization` is set, regardless of whether the event
+carries a function call/response. `BaseLlmFlow.run_async()`
+(`google/adk/flows/llm_flows/base_llm_flow.py`) loops calling the model
+again only `while` the last event is not yet a final response --
+so the tool-response event with `skip_summarization = True` ends the
+loop immediately after the one generation that already produced both
+the answer text and the tool call, in the same streamed response. This
+is the same mechanism ADK's own built-in `exit_loop` tool
+(`google/adk/tools/exit_loop_tool.py`) uses to end a loop without a
+further model turn -- not a novel pattern invented for this feature.
+
+**Timing**: because `cite_passages` is the model's last content block
+in one generation (Anthropic's streaming interleaves a trailing
+`tool_use` block after preceding text blocks within a single message,
+already how Claude's function-calling works), the citation signal
+necessarily arrives after the answer text has fully streamed --
+directly realizing the SC-001/SC-004 clarification that the citation
+step is excluded from both latency measurements.
+
+**Failure handling**: if the model's generation ends without calling
+`cite_passages` at all (a compliance failure, not a transport error --
+the stream itself completed), `client.py` yields a `TutorAnswerResult`
+with `grounded_passage_ids = []`, matching the Edge Cases clarification
+-- the already-streamed answer text is never touched, and this is not
+treated as a `TutorStreamInterruptedError`/`failed_at` case, since the
+stream did complete. "Logged for observability" (spec.md Edge Cases)
+means `tutor_agent_client/client.py` emits a standard
+`logging.getLogger(__name__).warning(...)` when this is detected --
+**not** a Langfuse span attribute via `update_current_span()`, despite
+`/speckit-analyze` (2026-08-28) originally recommending exactly that
+for finding U2. Verified empirically during implementation (branch
+`019-tutor-grounding-structured-output`) and corrected before shipping:
+`stream_tutor_answer`'s A2A call is a plain `httpx`/`a2a-sdk` client
+call, never wrapped in a `GoogleADKInstrumentor`-instrumented span on
+the backend side (only `tutor-agent/`'s own ADK `Runner` invocation is
+instrumented, and that's a separate process); `services/tutor/
+session.py`'s `traced_request()` only propagates trace *metadata* to
+spans other calls create (its own docstring), it does not create a
+span itself. Confirmed directly: calling `update_current_span()` with
+no active span context logs an internal "No active span" warning and
+silently drops the metadata -- exactly the "anomaly logged" claim
+this clarification exists to guarantee would have quietly failed.
+Standard logging has no such precondition and is always captured by
+Vercel's function logs, so it's the mechanism that actually satisfies
+the Edge Cases requirement rather than merely appearing to (this is
+an LLM compliance anomaly to debug, not a learner-facing pedagogical
+decision, so FR-007's audit log is still the wrong fit either way).
+
+**Rationale**: Moves grounding from "hope the model formats a JSON
+array correctly inside freeform prose, then heuristically guess which
+bracketed span is the real one" to "read a distinct, typed part of the
+protocol response" -- the provider's tool-use mechanism guarantees
+schema-valid arguments (Anthropic validates `cite_passages`' JSON
+Schema before the tool call is ever emitted), so there is no longer a
+freeform-formatting surface to parse defensively at all. This directly
+serves FR-003/SC-002's reliability and closes the exact bug class the
+last three PR reviews kept finding new instances of.
+
+**Alternatives considered**:
+- Keep text-embedded, but require a single mandatory sentinel line
+  with nothing else on it (spec.md's Option C) -- rejected: still
+  relies on the model formatting a bare JSON array correctly in
+  freeform text with no provider-level schema guarantee; narrows the
+  bug surface but doesn't eliminate it, and this codebase has already
+  spent three PRs narrowing that exact surface.
+- A2A `DataPart` populated by the model's own free-generated JSON,
+  without a tool call (spec.md's Option B) -- rejected: still
+  free-generated text the model could format wrong (missing a schema
+  guarantee), just relocated to a different part type; the tool-call
+  mechanism gets the structural separation *and* the schema guarantee
+  in one step, so there's no reason to take only the weaker half.
+- A real agentic tool-loop (tool executes, result fed back, model
+  continues) -- rejected by FR-016 itself: doubles the billed LLM calls
+  per exchange for a tool that has no actual side effect to execute:
+  the `skip_summarization` terminal-tool pattern gets the structured
+  output without paying for a second generation.
+
 **FR-015 (in-flight concurrency) decision**: No new column --
 `tutor_exchanges.answer_text` is already nullable until streaming
 completes (data-model.md), so "is there an in-flight exchange in this
