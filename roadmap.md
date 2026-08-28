@@ -568,11 +568,17 @@ fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
      either way. Reintroducing dual-format text parsing to cover that
      narrow a window would undo the reliability gain this whole fix
      exists to deliver.
-  - **SC-002 itself is still unmeasured** -- next step is one more live
-    30-question run once this fix reaches production, keeping the
-    disposable test guardian's password this time so the
-    exchange-inspection endpoint stays usable for spot-checking
-    afterward.
+  - **SC-002/SC-001/SC-004 measured live 2026-08-28** (T037/T038,
+    post-PR #43): all 30 of T036's questions run against production
+    via a disposable guardian/learner pair. **SC-002 holds**: 30/30
+    (100%) grounded and cited a passage matching the row's Expected
+    Topic -- comfortably above the 90% threshold, and the first real
+    confirmation that FR-016's `cite_passages` mechanism grounds
+    correctly end-to-end in production. **SC-004 continues to hold**
+    (30/30 answers streamed >1 chunk). **SC-001 still does not hold**:
+    4.03s p95 (mean 3.30s, min 2.92s, max 4.24s) against the 3s
+    target -- improved from the previously measured 4.82s, but not yet
+    met; a real, not-yet-addressed finding, same as before.
 - **T033 (Playwright E2E)**: spec written, lint/typecheck clean, still
   never run against a live deployment.
 - **Process notes**: disposable test guardian accounts created for
