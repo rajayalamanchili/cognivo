@@ -521,15 +521,16 @@ fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
      strict `json.loads()` on the model's raw grounding footer and
      silently returned `[]` on any formatting deviation (a markdown
      code fence, trailing prose, a leading label) -- all plausible LLM
-     output, not a protocol violation. Fixed across PRs #42/#44
-     (seven total review rounds spanning both PRs -- see git history
-     for the individual findings): `_extract_grounded_id_candidates()`
-     now walks every bracket-balanced `[...]` in the footer, scores
-     each non-empty one by how much of it is UUID-shaped, and returns
-     the best-scoring candidate (fully clean beats mixed, mixed beats
-     none); `_parse_grounded_ids()` then filters that candidate
+     output, not a protocol violation. Fixed across PRs #42/#44 (eight
+     total review rounds spanning both PRs -- see git history for the
+     individual findings): `_extract_grounded_id_candidates()` now
+     walks every bracket-balanced `[...]` in the footer, scores each
+     non-empty one by `(count UUID-shaped, fraction UUID-shaped)`
+     count-first, and returns the best-scoring candidate -- a larger
+     mostly-clean array beats a small coincidentally-clean one, which
+     beats none; `_parse_grounded_ids()` then filters that candidate
      element-by-element, dropping only invalid entries rather than the
-     whole array. 15 unit tests cover the formatting and scoring edge
+     whole array. 16 unit tests cover the formatting and scoring edge
      cases found so far -- this code path had no coverage at all
      before PR #42.
   - **SC-002 itself is still unmeasured** -- next step is one more live

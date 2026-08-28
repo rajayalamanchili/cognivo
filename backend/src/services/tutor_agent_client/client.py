@@ -208,12 +208,17 @@ def _is_uuid_shaped(item: object) -> bool:
     return True
 
 
-def _candidate_score(items: list) -> tuple[float, int] | None:
+def _candidate_score(items: list) -> tuple[int, float] | None:
     """Rank a candidate array by how much it looks like a real citation
-    list: `(fraction UUID-shaped, count UUID-shaped)`, so a fully-clean
-    array always beats a mixed one regardless of length, and among two
-    equally-clean arrays the larger one wins. `None` if `items` has no
-    UUID-shaped element at all -- not a candidate.
+    list: `(count UUID-shaped, fraction UUID-shaped)`, count-first, so
+    a larger array with one stray non-UUID element still beats a small
+    coincidentally-clean one (PR #44 review, round 8 -- a fraction-first
+    key made a real 5-id array with one hallucinated placeholder, e.g.
+    `(0.833, 5)`, lose to an unrelated single clean id scoring `(1.0,
+    1)`, silently dropping the real citations and reintroducing the
+    exact failure round 6 exists to tolerate). Fraction only breaks
+    ties between candidates with the same UUID-shaped count. `None` if
+    `items` has no UUID-shaped element at all -- not a candidate.
 
     Requiring only *at least one* UUID-shaped element (rather than
     every element) matters because a real citation array with one
@@ -226,7 +231,7 @@ def _candidate_score(items: list) -> tuple[float, int] | None:
     uuid_count = sum(1 for item in items if _is_uuid_shaped(item))
     if uuid_count == 0:
         return None
-    return (uuid_count / len(items), uuid_count)
+    return (uuid_count, uuid_count / len(items))
 
 
 def _extract_grounded_id_candidates(text: str) -> list | None:
@@ -240,7 +245,7 @@ def _extract_grounded_id_candidates(text: str) -> list | None:
     # up.
     fallback: list | None = None
     best: list | None = None
-    best_score: tuple[float, int] | None = None
+    best_score: tuple[int, float] | None = None
     search_from = 0
     while True:
         start = text.find("[", search_from)

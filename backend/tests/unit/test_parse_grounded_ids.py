@@ -15,6 +15,7 @@ reproducing the same failure via bracket-containing prose before/after
 the real array (see the tests below named for those cases).
 """
 
+import json
 import uuid
 
 from src.services.tutor_agent_client.client import _parse_grounded_ids
@@ -78,6 +79,20 @@ def test_prefers_purer_array_over_earlier_mixed_one():
     coincidental = uuid.uuid4()
     footer = f'See [0, 5, "{coincidental}"]: ["{real_a}", "{real_b}"]'
     assert _parse_grounded_ids(footer, {real_a, real_b, coincidental}) == [real_a, real_b]
+
+
+def test_prefers_larger_mostly_clean_array_over_small_clean_one():
+    """PR #44 review, round 8: scoring candidates fraction-first meant a
+    real 5-id array with one stray non-UUID placeholder (fraction 5/6)
+    lost to an unrelated single coincidentally UUID-shaped token
+    elsewhere in the footer (fraction 1/1) -- reintroducing exactly the
+    failure round 6 exists to tolerate. Count-shaped elements must be
+    compared first so the larger real array always wins."""
+    real_ids = [uuid.uuid4() for _ in range(5)]
+    coincidental = uuid.uuid4()
+    real_array = json.dumps([str(i) for i in real_ids] + ["n/a"])
+    footer = f'Unrelated aside: ["{coincidental}"]. Sources: {real_array}'
+    assert _parse_grounded_ids(footer, {*real_ids, coincidental}) == real_ids
 
 
 def test_no_array_at_all_returns_empty():
