@@ -212,12 +212,28 @@ Sent to `tutor-agent/` in the same structured-array shape the backend
 persists (contracts/api.md's `GET /api/tutor/exchanges/{id}` above) --
 one representation, not two.
 
-**Streamed response** (A2A `message/stream` chunks): incremental text
-deltas, terminated by a final chunk indicating completion and which
-`retrieved_passages` (by `passage_id`) the answer actually grounded in
--- this is what the backend persists as `TutorExchange.grounded`/
-`retrieved_passage_ids` is filtered down to (a passage can be *offered*
-without being *used*; only used ones count for SC-002).
+**Streamed response** (A2A `message/stream` chunks, FR-016,
+research.md §9): incremental `TextPart` deltas carrying the learner-
+visible answer, followed by exactly one `DataPart` -- the model's
+terminal `cite_passages(passage_ids: list[str])` tool call, converted
+by `google-adk`'s A2A layer into a `DataPart` tagged with metadata
+`adk_type: "function_call"` and `data.name == "cite_passages"` -- never
+embedded as text inside the same message. `data.args.passage_ids` is
+what the backend persists as `TutorExchange.retrieved_passage_ids`
+(filtered against the request's own `retrieved_passages`, since a
+passage can be *offered* without being *used*; only used ones count
+for SC-002); `grounded` is `true` iff that filtered list is non-empty.
+If the stream completes without a `cite_passages` `DataPart` at all
+(a model compliance gap, not a transport failure), the backend
+persists `grounded = false` with an empty list and keeps the
+already-streamed answer text as-is -- not a `503`/`failed_at` case,
+since the stream itself succeeded (spec.md Edge Cases). The tool call
+is the terminal action of the same generation that produced the answer
+text (`skip_summarization`, research.md §9) -- it does not trigger a
+second call to the model, and because it is emitted after the model's
+text content blocks, it always arrives after the answer has finished
+streaming (excluded from SC-001/SC-004's timing, per `/speckit-clarify`
+2026-08-28).
 
 **Tracing**: the outbound A2A call is wrapped in the existing
 Langfuse/OpenInference ADK instrumentation, spans flushed before the

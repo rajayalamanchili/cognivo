@@ -21,7 +21,12 @@ grounding and delegation can be reconstructed after the fact. A
 session is get-or-create per learner/subject, only one exchange may be
 in flight per session at a time, and the conversational endpoint is
 rate-limited per learner -- all three enforced at the data layer, not
-just in application code (FR-013/FR-014/FR-015).
+just in application code (FR-013/FR-014/FR-015). Which passages an
+answer actually grounded in is communicated via a dedicated terminal
+tool call (`cite_passages`), structurally separate from the streamed
+answer text -- not parsed back out of it (FR-016, research.md §9),
+replacing the marker+JSON-in-text protocol PRs #42/#44 found unreliable
+after shipping.
 
 ## Technical Context
 
@@ -53,7 +58,7 @@ just in application code (FR-013/FR-014/FR-015).
 | II. Generated Content Graded Against a Rubric | PASS (N/A-adjacent) | This milestone introduces no new grading logic; where grading context is needed (research.md §3), the backend reuses the existing Grading Agent path unchanged. |
 | III. One Engine, Many Subjects | PASS | Retrieval/embedding generation operates generically over the content-artifact schema (research.md §5) -- no subject-id-keyed conditional; verified by the existing `check_no_subject_conditionals.py` gate at implementation time. |
 | IV. Multi-Agent Boundaries Reflect Real Responsibility | PASS | Tutor Agent owns a distinct responsibility (grounded conversational generation + streaming) with its own success criterion (SC-002's grounding rate) genuinely different from Sequencing/Recommendation/Grading's. Delegation is inspectable per User Story 3/FR-007, not a black box. |
-| V. Every Decision Logged and Explainable | PASS | FR-007 (pedagogical audit event, reusing `assessment_events`) + FR-008 (Langfuse trace) satisfy both halves explicitly. |
+| V. Every Decision Logged and Explainable | PASS | FR-007 (pedagogical audit event, reusing `assessment_events`) + FR-008 (Langfuse trace) satisfy both halves explicitly. FR-016 (research.md §9) makes the grounding signal itself more reliably explainable: a schema-validated tool call, not a heuristically-parsed text footer. |
 | VI. Agent Boundaries Match Deployment Boundaries | PASS | `tutor-agent/` as a new A2A service is justified by a concrete need (independent evaluability of retrieval-grounding quality, SC-002; matches the Grading Agent precedent). Sequencing/Recommendation explicitly stay local (FR-009) since neither has a stated independent-versioning/evaluation need -- avoids the "A2A by default" anti-pattern. Inbound auth (shared secret) + compensating guardrails required for `tutor-agent/`, same as Grading Agent. |
 | VII. Spec Before Code, Milestone-Gated | PASS | This plan follows an approved `spec.md`; Milestone 8's Success Criteria were met before this milestone began (`roadmap.md`). |
 | VIII. No Real Learner Data Until Privacy/Retention Specified | PASS | Access model (FR-001) reuses Milestone 8's already-approved guardian-mediated pattern plus the demo learner -- no new real-data surface or account type introduced. `/speckit-analyze` (2026-08-23) verified this claim rather than leaving it asserted: `specs/009-privacy-retention/data-classification.md` has been extended to cover `tutoring_sessions`/`tutor_exchanges` (finding C1). That same check surfaced a **pre-existing, not-Milestone-9-introduced** gap -- FR-004/FR-005's actual deletion-execution pathway was never implemented in Milestone 7, only the `DeletionRequest` model -- now tracked in `roadmap.md`'s new "Known gap" section rather than silently inherited. |
@@ -95,7 +100,7 @@ backend/
 │   │   │   ├── session.py                 # NEW: orchestrates a turn (research.md §2), enforces FR-014/FR-015
 │   │   │   └── rate_limit.py              # NEW: FR-013, mirrors grading_client/guardrails.py's check_rate_limit
 │   │   └── tutor_agent_client/
-│   │       └── client.py                  # NEW: A2A client, mirrors services/grading_client/client.py
+│   │       └── client.py                  # NEW: A2A client, mirrors services/grading_client/client.py; reads TextPart deltas + the cite_passages DataPart directly (FR-016) -- no text-footer parsing
 │   └── api/routes/
 │       └── tutor.py                       # NEW: POST /api/tutor/sessions, .../messages, GET .../exchanges/{id}
 ├── alembic/versions/
@@ -108,7 +113,7 @@ tutor-agent/                                # NEW, mirrors grading-agent/ layout
 ├── pyproject.toml
 ├── vercel.json
 ├── src/
-│   ├── agent.py                            # ADK agent + to_a2a(), _to_a2a_kwargs (mirrors grading-agent)
+│   ├── agent.py                            # ADK agent + to_a2a(), _to_a2a_kwargs (mirrors grading-agent); cite_passages FunctionTool, terminal via skip_summarization (FR-016, research.md §9)
 │   ├── guardrails.py                       # length cap + moderation compensating control
 │   └── tracing.py
 └── tests/

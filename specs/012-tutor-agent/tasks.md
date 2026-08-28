@@ -134,6 +134,24 @@ description: "Task list for Tutor Agent (Milestone 9)"
 
 ---
 
+## Phase 7: FR-016 -- Structural Grounding Channel
+
+**Purpose**: Replace the marker+JSON-in-text grounding protocol (found
+unreliable across three PR-review rounds, PRs #42/#44) with a
+structurally separate `cite_passages` tool call, per `/speckit-clarify`
+(2026-08-28) and `/speckit-plan`'s research.md §9. Not a new user
+story -- this changes *how* User Story 1's existing grounding signal
+(FR-003) is transported, not what it claims to a learner.
+
+- [ ] T039 [P] In `tutor-agent/src/agent.py`: add a `cite_passages(passage_ids: list[str])` `FunctionTool` whose implementation sets `tool_context.actions.skip_summarization = True` and returns no content; register it via `LlmAgent(tools=[cite_passages_tool], ...)` in `_build_agent`; remove `GROUNDING_MARKER` and its instruction paragraph from `_INSTRUCTION`, replacing it with an instruction to call `cite_passages` as the final step of the same generation; update the module docstring's "Grounding protocol" paragraph to describe the tool call instead of the marker (research.md §9).
+- [ ] T040 [P] New unit test `tutor-agent/tests/test_cite_passages_tool.py`: the tool sets `skip_summarization` on its `ToolContext`; `_INSTRUCTION` no longer contains `GROUNDING_MARKER` and does instruct the model to call `cite_passages`.
+- [ ] T041 [P] Rewrite `backend/src/services/tutor_agent_client/client.py`: delete `GROUNDING_MARKER`, `_matching_bracket_end`, `_candidate_score`, `_extract_grounded_id_candidates`; replace `_response_text_and_state(response) -> tuple[str, int | None]` with `_response_parts_and_state(response) -> tuple[list[Part], int | None]` that returns the status-update message's raw `parts` (or `[]` for a response that carries none) plus its task state -- preserving the existing status_update-only / artifact_update-dedup rule *unchanged* (the function being replaced only ever treated `status_update` as carrying genuinely new content because the final `artifact_update` duplicates the last `status_update`'s text verbatim; that rule must still hold for parts, not just text, `/speckit-analyze` finding U1). Add `_extract_cite_passages_ids(parts: list[Part]) -> list[UUID] | None` that scans for a `DataPart` tagged `adk_type: "function_call"` with `data.name == "cite_passages"` and returns `data.args.passage_ids` (dropping any non-UUID-shaped entry, same defensive tolerance the old code had). Rewrite `_process_raw_events` to yield a `TutorAnswerDelta` per `TextPart`'s text and use `_extract_cite_passages_ids` (filtered against `offered_passage_ids`) for the final `TutorAnswerResult`. If the stream completes with no `cite_passages` call found, set a `missing_citation_call: true` attribute on the exchange's existing Langfuse span before returning `grounded_passage_ids = []` (research.md §9, `/speckit-analyze` finding U2). `TutorAnswerDelta`/`TutorAnswerResult` and every other module (`services/tutor/session.py`, `tests/integration/tutor_helpers.py`) are unaffected -- they consume this module's public shape, not its internals.
+- [ ] T042 [P] Replace `backend/tests/unit/test_parse_grounded_ids.py` with `backend/tests/unit/test_extract_cite_passages_ids.py`: unit-test `_extract_cite_passages_ids` directly -- passage-id filtering against `offered_passage_ids`, a fabricated/stale id still dropped, and a `None`/no-`DataPart` input returning `None`. Delete the bracket-scanning/candidate-scoring tests -- that behavior no longer exists.
+- [ ] T043 [P] New unit test `backend/tests/unit/test_process_raw_events.py`: drive `_process_raw_events` with a synthetic multi-chunk `StreamResponse` sequence covering (a) multiple `TextPart`s split across separate `status_update` chunks, (b) a `TextPart` and the `cite_passages` `DataPart` arriving in the *same* `status_update` message, (c) a final `artifact_update` response duplicating the last `status_update`'s text/parts (must not double-yield deltas or re-scan for the citation call), and (d) no `cite_passages` call at all -- asserting `grounded_passage_ids == []` and that the T041 Langfuse span attribute is set (`/speckit-analyze` finding C1: the old test file only ever covered the marker-parsing helper in isolation, never this aggregation loop).
+- [ ] T044 Run the full backend (`backend/`) and Tutor Agent (`tutor-agent/`) suites; confirm no regression in `tests/integration/test_tutor_*.py` (unaffected by construction, T041's note); record FR-016 as shipped in `roadmap.md`'s Milestone 9 status, following T034's precedent.
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -144,6 +162,7 @@ description: "Task list for Tutor Agent (Milestone 9)"
 - **User Story 2 (Phase 4)**: Depends on Foundational; its two tasks (T029/T030) also depend on User Story 1's T022/T012 already existing (it extends, not duplicates, US1's orchestration and agent) -- not independent of US1's code, though its own test/behavior is independently verifiable once US1 is in place.
 - **User Story 3 (Phase 5)**: Depends on Foundational; T032 depends on US1's T022 (the data it reads) and T024 (the router it registers into).
 - **Polish (Phase 6)**: Depends on all three user stories being complete. T038 additionally depends on T036.
+- **FR-016 (Phase 7)**: Independent of Phases 3-6's completion status (it only touches the grounding-signal transport, not orchestration) but shipped after Polish since it was clarified/planned after the original implementation was live. T040 depends on T039 (same file's tool); T042 and T043 both depend on T041 (same file's extraction function and rewritten aggregation loop); T044 depends on all five.
 
 ### Within Each User Story
 
@@ -159,6 +178,7 @@ description: "Task list for Tutor Agent (Milestone 9)"
 - T025-T027 (frontend) can run in parallel with each other and with T019 (rate limit) once their respective dependencies land.
 - US2 and US3 cannot start their implementation tasks until US1's T022/T012/T024 exist, but their own test tasks (T028, T031) can be written in parallel with US1's late-stage implementation.
 - T036 (fixture) can be authored any time after Foundational -- doesn't depend on any user story's implementation, only on the content artifacts already existing.
+- T039 (`tutor-agent/`) and T041 (`backend/`) can run in parallel -- different projects, each independently implementing its own half of the wire contract research.md §9 already fixed; T040 (depends only on T039) and T042/T043 (both depend only on T041) can all run in parallel with each other once their respective implementation task lands.
 
 ---
 
@@ -218,3 +238,5 @@ Task: "Add streaming-fetch helper to frontend/src/services/api.ts"
 - Commit after each task or logical group, per this repo's own convention (see recent `quiz-assignment`/`instructor-classroom` commit history).
 - Stop at any checkpoint to validate a story independently before continuing.
 - This project's Principle-VIII deletion-execution gap (`roadmap.md`'s new "Known gap" section) is explicitly **not** a task in this file -- it predates Milestone 9 and belongs to whichever milestone picks up `specs/009-privacy-retention/spec.md`'s deferred FR-004/FR-005, not to a feature that only extends the set of tables that gap already applies to.
+- Phase 7 (FR-016) was scoped by reading the actual call sites, not assumed: `backend/tests/integration/tutor_helpers.py` mocks at the `stream_tutor_answer`/`TutorAnswerDelta`/`TutorAnswerResult` boundary, not the raw A2A response -- so integration tests and `services/tutor/session.py` need no changes at all; the rewrite is contained to `tutor_agent_client/client.py`'s raw-parsing internals, `tutor-agent/src/agent.py`, and their direct unit tests.
+- T041's `_response_parts_and_state`/`_extract_cite_passages_ids` split (`/speckit-analyze` finding U1) and T043's dedicated `_process_raw_events` test (finding C1) exist because the pre-Phase-7 code's `_response_text_and_state` collapsed a response straight to flattened text, discarding the raw parts a `DataPart`-based design needs -- and because that same function's status_update/artifact_update dedup rule (its own docstring: skipping this double-counts the final chunk) had no dedicated test at all before Phase 7, only incidental coverage via `_extract_grounded_id_candidates`'s marker-based tests, which T042 replaces with narrower, function-scoped ones.
