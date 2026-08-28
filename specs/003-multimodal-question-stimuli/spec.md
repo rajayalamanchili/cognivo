@@ -4,12 +4,20 @@
 
 **Created**: 2026-08-14
 
-**Status**: Draft -- pending `/speckit-clarify`
+**Status**: Draft
 
 **Input**: User description: "Image-based question stimuli: content
 artifacts can bundle images as question context, assessment generation
 can produce structured questions that display them, grading stays
 deterministic and unchanged"
+
+## Clarifications
+
+### Session 2026-08-28
+
+- Q: How should image assets be stored and served? (FR-005) → A: Static files bundled inside each subject's content-artifact directory, served as Next.js static assets (git-versioned, no new service).
+- Q: What's the actual maximum file size for an image asset? (FR-002 / SC-003) → A: 1 MB per image.
+- Q: Which image file formats are allowed for an image asset? (FR-002) → A: PNG, JPEG, and SVG.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -129,10 +137,13 @@ question renders correctly end to end against the live deployment.
   doesn't exist? (Must fail content-artifact validation at load time,
   the same as any other structural problem with the artifact -- never
   discovered only when a learner happens to be served that question.)
-- What happens if an image asset exceeds a defined size limit (relevant
-  given Vercel's function bundle size limits)? (Content-artifact
-  validation must enforce and report a size limit at load time, not let
-  an oversized asset risk deployment failures discovered later.)
+- What happens if an image asset exceeds 1 MB? (Content-artifact
+  validation must enforce and report this limit at load time, not let
+  an oversized asset risk deployment or page-load issues discovered
+  later.)
+- What happens if an image asset is not a PNG, JPEG, or SVG file?
+  (Content-artifact validation must reject it at load time, the same
+  as a missing or oversized asset.)
 - What happens if two different subjects reference the same image asset
   (e.g. a generic diagram reused across subjects)? (Duplicate references
   are acceptable in this milestone -- a shared/deduplicated asset
@@ -150,12 +161,12 @@ question renders correctly end to end against the live deployment.
 ### Functional Requirements
 
 - **FR-001**: The content-artifact schema MUST support an optional image
-  asset reference per topic, stored as a served asset (URL or static
-  path), never as inline base64 data embedded in the topic-graph
-  document itself.
+  asset reference per topic, stored as a static file bundled inside
+  that subject's own content-artifact directory (see FR-005), never as
+  inline base64 data embedded in the topic-graph document itself.
 - **FR-002**: Content-artifact validation MUST fail at load time (not at
-  question-display time) if a referenced image asset is missing or
-  exceeds a defined size limit.
+  question-display time) if a referenced image asset is missing,
+  exceeds 1 MB, or is not a PNG, JPEG, or SVG file.
 - **FR-003**: Every image asset definition MUST include a required,
   non-empty alt-text/description field; content-artifact validation MUST
   reject a definition missing one.
@@ -165,10 +176,12 @@ question renders correctly end to end against the live deployment.
   unchanged, deterministic answer-key comparison -- this milestone
   introduces no new grading logic (Constitution Principle II is
   unaffected, not extended).
-- **FR-005**: Image assets MUST be served in a way compatible with
-  Vercel's stateless, ephemeral serverless execution model (e.g. Vercel
-  Blob storage or static Next.js assets) -- never assumed to be written
-  to or read from a local filesystem at runtime.
+- **FR-005**: Image assets MUST be static files bundled inside their
+  subject's own content-artifact directory (git-versioned alongside
+  that subject's topic graph), served as static Next.js assets --
+  never written to or read from a local filesystem at runtime, and
+  never requiring an external storage service (e.g. Vercel Blob) or
+  upload step.
 - **FR-006**: The extensibility check established in Milestone 1 MUST be
   extended to verify image-based questions work correctly for at least
   two subjects with zero engine-code changes beyond each subject's own
@@ -181,9 +194,10 @@ question renders correctly end to end against the live deployment.
 
 ### Key Entities *(include if feature involves data)*
 
-- **ImageAsset**: a stored image reference (URL or static path)
-  associated with a topic, its required alt-text/description, and size
-  metadata used for load-time validation.
+- **ImageAsset**: a static file path (relative to its subject's own
+  content-artifact directory) associated with a topic, its required
+  alt-text/description, and size metadata used for load-time
+  validation.
 - **GeneratedQuestion** (extended from Milestone 1): now optionally
   includes a reference to an `ImageAsset` -- the question's answer key
   and grading behavior are otherwise unchanged from Milestone 1's
@@ -201,9 +215,9 @@ question renders correctly end to end against the live deployment.
 - **SC-002**: 100% of image-based questions in the test suite include
   non-empty alt text, verified by an automated check that rejects any
   without it.
-- **SC-003**: A content artifact referencing a missing or oversized
-  image asset fails validation at load time, verified by a specific
-  test.
+- **SC-003**: A content artifact referencing a missing image asset, one
+  exceeding 1 MB, or one that isn't a PNG, JPEG, or SVG file, fails
+  validation at load time, verified by a specific test.
 - **SC-004**: Image-based questions work correctly for at least two
   subjects with zero engine-code changes beyond each subject's own
   content artifact, verified by the extended extensibility check.
