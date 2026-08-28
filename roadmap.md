@@ -521,10 +521,19 @@ fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
      strict `json.loads()` on the model's raw grounding footer and
      silently returned `[]` on any formatting deviation (a markdown
      code fence, trailing prose, a leading label) -- all plausible LLM
-     output, not a protocol violation. Fixed (branch
-     `017-tutor-t038-grounding-verification`, not yet merged) by
-     extracting the `[...]` substring before parsing; added the unit
-     coverage this function never had.
+     output, not a protocol violation. Fixed via PR #42
+     (`017-tutor-t038-grounding-verification`) -- through five review
+     rounds, each closing one more way freeform LLM prose could be
+     mistaken for the real citation array: a first regex-based extract
+     gave way to bracket-balanced scanning, then to scanning *every*
+     `[` in the footer (not just the first balanced pair) for one that
+     actually parses as a list of UUID-shaped strings, then to treating
+     an unbalanced starting bracket (e.g. half-open interval notation
+     like `[0, 5)`) as skippable rather than fatal, then to preferring
+     a non-empty match over a vacuously-valid empty one found earlier
+     in the text. 13 new unit tests cover every deviation found across
+     all five rounds -- this function had no coverage at all before
+     this PR.
   - **SC-002 itself is still unmeasured** -- next step is one more live
     30-question run once this fix reaches production, keeping the
     disposable test guardian's password this time so the
