@@ -66,6 +66,20 @@ def test_tolerates_one_non_uuid_placeholder_among_real_ids():
     assert _parse_grounded_ids(footer, {offered}) == [offered]
 
 
+def test_prefers_purer_array_over_earlier_mixed_one():
+    """PR #44 review, round 7: picking the *first* candidate with at
+    least one UUID-shaped element (rather than the best-scoring one
+    across the whole footer) meant a leading bracketed aside containing
+    one coincidentally UUID-shaped token, mixed with ordinary numbers,
+    would be accepted before the real, purer citation array later in
+    the text was ever reached -- silently dropping the real citations.
+    The fully UUID-shaped array must win regardless of position."""
+    real_a, real_b = uuid.uuid4(), uuid.uuid4()
+    coincidental = uuid.uuid4()
+    footer = f'See [0, 5, "{coincidental}"]: ["{real_a}", "{real_b}"]'
+    assert _parse_grounded_ids(footer, {real_a, real_b, coincidental}) == [real_a, real_b]
+
+
 def test_no_array_at_all_returns_empty():
     assert _parse_grounded_ids("I used the course material to answer.", {uuid.uuid4()}) == []
 

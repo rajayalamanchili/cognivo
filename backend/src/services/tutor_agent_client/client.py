@@ -208,39 +208,44 @@ def _is_uuid_shaped(item: object) -> bool:
     return True
 
 
-def _looks_like_grounded_array(items: list) -> bool:
-    """True if `items` is empty or *at least one* element is
-    UUID-shaped -- not that *every* element is (PR #43 review, round
-    6). Requiring all elements meant a real citation array with one
+def _candidate_score(items: list) -> tuple[float, int] | None:
+    """Rank a candidate array by how much it looks like a real citation
+    list: `(fraction UUID-shaped, count UUID-shaped)`, so a fully-clean
+    array always beats a mixed one regardless of length, and among two
+    equally-clean arrays the larger one wins. `None` if `items` has no
+    UUID-shaped element at all -- not a candidate.
+
+    Requiring only *at least one* UUID-shaped element (rather than
+    every element) matters because a real citation array with one
     stray non-UUID element (e.g. a hallucinated "n/a" placeholder)
-    was rejected outright, discarding genuine citations along with it
-    -- the exact failure mode this whole function exists to prevent,
-    just via a new trigger. `_parse_grounded_ids` below still filters
-    per-element (dropping only the invalid one), restoring the
-    per-element tolerance the pre-fix code always had; this check only
-    needs to tell a real ID array apart from unrelated bracketed prose
-    (interval notation, footnote markers, etc.), which "contains at
-    least one real UUID-shaped string" already does reliably."""
+    must not be rejected outright (PR #43 review, round 6);
+    `_parse_grounded_ids` below still filters per-element, dropping
+    only the invalid one."""
     if not items:
-        return True
-    return any(_is_uuid_shaped(item) for item in items)
+        return None
+    uuid_count = sum(1 for item in items if _is_uuid_shaped(item))
+    if uuid_count == 0:
+        return None
+    return (uuid_count / len(items), uuid_count)
 
 
 def _extract_grounded_id_candidates(text: str) -> list | None:
-    # An empty-list candidate (`[]`) is *vacuously* UUID-shaped -- valid
-    # on its own, but not preferred over a real, non-empty citation
-    # array appearing later in the same footer (PR #42 review, round 5:
-    # an incidental empty-bracket aside before the real array, e.g. "No
+    # An empty-list candidate (`[]`) is *vacuously* valid -- but not
+    # preferred over a real, non-empty citation array appearing
+    # anywhere else in the same footer (PR #42 review, round 5: an
+    # incidental empty-bracket aside before the real array, e.g. "No
     # citations here: []. Sources: [...]", would otherwise be accepted
     # immediately and the real array never even reached). Remembered as
     # a fallback and only returned if no non-empty candidate ever turns
     # up.
     fallback: list | None = None
+    best: list | None = None
+    best_score: tuple[float, int] | None = None
     search_from = 0
     while True:
         start = text.find("[", search_from)
         if start == -1:
-            return fallback
+            return best if best is not None else fallback
         end = _matching_bracket_end(text, start)
         if end is None:
             # This `[` never balances -- e.g. half-open interval
@@ -260,11 +265,26 @@ def _extract_grounded_id_candidates(text: str) -> list | None:
             parsed = json.loads(text[start : end + 1])
         except json.JSONDecodeError:
             parsed = None
-        if isinstance(parsed, list) and _looks_like_grounded_array(parsed):
-            if parsed:
-                return parsed
-            if fallback is None:
-                fallback = parsed
+        if isinstance(parsed, list):
+            if not parsed:
+                if fallback is None:
+                    fallback = parsed
+            else:
+                # Score every non-empty candidate found anywhere in the
+                # footer and keep the best one, rather than returning
+                # the first that merely qualifies (PR #44 review, round
+                # 7): a leading bracketed aside that happens to contain
+                # one coincidentally UUID-shaped token (e.g. mixed with
+                # ordinary numbers) would otherwise be accepted before
+                # the real, purer citation array later in the text is
+                # ever reached -- the same silent under-grounding
+                # failure this whole function exists to prevent, just
+                # via a mixed-leading-array trigger instead of an
+                # all-non-UUID one.
+                score = _candidate_score(parsed)
+                if score is not None and (best_score is None or score > best_score):
+                    best_score = score
+                    best = parsed
         search_from = start + 1
 
 
