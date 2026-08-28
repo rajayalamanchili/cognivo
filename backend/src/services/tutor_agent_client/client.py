@@ -160,19 +160,22 @@ def _response_text_and_state(response: StreamResponse) -> tuple[str, int | None]
 # `json.loads(footer_text.strip())` silently returned `[]` on any
 # deviation from a bare JSON array (code fence, trailing prose, a
 # leading label) -- plausible LLM formatting, not a protocol violation.
-# A first fix (a greedy `\[.*\]` regex, PR #42 review) turned out to
-# have the same failure mode via a different trigger: it spans from the
-# *first* `[` to the *last* `]` in the whole footer, so trailing prose
-# containing its own brackets (e.g. interval notation like `[0, 1]`,
-# very plausible from an algebra tutor) swallows both into one invalid
-# JSON blob. `_extract_json_array()` instead finds the first *balanced*
-# `[...]` substring (bracket-depth tracking that ignores brackets inside
-# quoted strings), so trailing bracket-containing prose can't extend the
-# match past the array's own closing `]`.
-def _extract_json_array(text: str) -> str | None:
-    start = text.find("[")
-    if start == -1:
-        return None
+# Two narrower fixes (PR #42 review, two rounds) each reproduced the
+# same failure via a different trigger: a greedy `\[.*\]` regex swallowed
+# trailing prose containing its own bracket (e.g. interval notation like
+# `[0, 1]`) into one invalid JSON blob; a bracket-balanced version that
+# stopped at the *first* balanced pair then mistook a *leading* bracketed
+# aside (e.g. "Sources for the interval [0, 5]: [...]") for the array,
+# since `[0, 5]` is itself valid JSON. `_extract_grounded_id_candidates()`
+# instead walks every `[` in order and returns the first bracket-balanced
+# candidate that actually parses as a list of UUID-shaped strings (or
+# `[]`) -- a bracket-containing aside anywhere in the footer, before or
+# after the real array, fails that check and is skipped in favor of the
+# next `[`.
+def _matching_bracket_end(text: str, start: int) -> int | None:
+    """Index of the `]` that balances the `[` at `start`, tracking
+    (JSON) string literals so a bracket inside a quoted string doesn't
+    unbalance the count. `None` if `start` is never balanced."""
     depth = 0
     in_string = False
     escape = False
@@ -193,26 +196,45 @@ def _extract_json_array(text: str) -> str | None:
         elif ch == "]":
             depth -= 1
             if depth == 0:
-                return text[start : i + 1]
+                return i
     return None
 
 
+def _all_uuid_shaped(items: list) -> bool:
+    for item in items:
+        try:
+            UUID(str(item))
+        except (ValueError, AttributeError, TypeError):
+            return False
+    return True
+
+
+def _extract_grounded_id_candidates(text: str) -> list | None:
+    search_from = 0
+    while True:
+        start = text.find("[", search_from)
+        if start == -1:
+            return None
+        end = _matching_bracket_end(text, start)
+        if end is None:
+            return None
+        try:
+            parsed = json.loads(text[start : end + 1])
+        except json.JSONDecodeError:
+            parsed = None
+        if isinstance(parsed, list) and _all_uuid_shaped(parsed):
+            return parsed
+        search_from = start + 1
+
+
 def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> list[UUID]:
-    array_text = _extract_json_array(footer_text)
-    if array_text is None:
-        return []
-    try:
-        raw_ids = json.loads(array_text)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(raw_ids, list):
+    raw_ids = _extract_grounded_id_candidates(footer_text)
+    if raw_ids is None:
         return []
     grounded_ids: list[UUID] = []
     for raw_id in raw_ids:
-        try:
-            passage_id = UUID(str(raw_id))
-        except ValueError:
-            continue
+        # Already confirmed UUID-shaped by `_extract_grounded_id_candidates`.
+        passage_id = UUID(str(raw_id))
         # Never trust a passage_id the model didn't actually receive --
         # a fabricated/stale ID is dropped, not persisted as grounded.
         if passage_id in offered_passage_ids:
