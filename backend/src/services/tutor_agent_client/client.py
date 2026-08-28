@@ -17,6 +17,7 @@ already started reading).
 
 import asyncio
 import json
+import logging
 import os
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -25,15 +26,13 @@ from uuid import UUID
 import httpx
 from a2a.client import ClientConfig, ClientFactory
 from a2a.client.errors import A2AClientError
-from a2a.helpers import get_message_text, new_text_message
-from a2a.types import Role, SendMessageRequest, StreamResponse, TaskState
+from a2a.helpers import new_text_message
+from a2a.types import Part, Role, SendMessageRequest, StreamResponse, TaskState
+from google.protobuf.json_format import MessageToDict
 
 from src.api.errors import TutorUnavailableError
 
-# MUST match `tutor-agent/src/agent.py`'s copy of this literal exactly
-# -- duplicated, not imported, since `tutor-agent/` and `backend` are
-# genuinely separate deployable units (research.md §2).
-GROUNDING_MARKER = "===GROUNDED_PASSAGE_IDS==="
+logger = logging.getLogger(__name__)
 
 # `maxDuration: 60` on both the backend's tutor endpoint and the
 # tutor-agent/ Vercel function (research.md §6) -- a full streamed
@@ -66,8 +65,8 @@ class TutorStreamInterruptedError(Exception):
 @dataclass(frozen=True)
 class TutorAnswerDelta:
     """One incremental chunk of the Tutor Agent's visible answer text
-    (FR-005), already stripped of `GROUNDING_MARKER` and its trailing
-    JSON footer."""
+    (FR-005) -- text content only, the `cite_passages` tool call
+    (FR-016) never appears in this stream."""
 
     text: str
 
@@ -133,71 +132,28 @@ async def _stream_once(
             yield response
 
 
-def _response_text_and_state(response: StreamResponse) -> tuple[str, int | None]:
-    """The incremental delta text this response carries, plus its task
-    state if it's a status update -- `None` state means "not a
-    terminal signal, keep streaming".
+def _response_parts_and_state(response: StreamResponse) -> tuple[list[Part], int | None]:
+    """The parts this response's status-update message carries, plus
+    its task state -- `None` state means "not a terminal signal, keep
+    streaming".
 
-    Only `status_update`-typed responses carry genuinely new delta text
-    for a `to_a2a()`-streamed ADK agent -- the final `artifact_update`
+    Only `status_update`-typed responses carry genuinely new parts for
+    a `to_a2a()`-streamed ADK agent -- the final `artifact_update`
     event `A2aAgentExecutor` publishes duplicates the *last*
-    `status_update`'s text verbatim as a protocol-required task result,
-    rather than carrying new content (google-adk's
+    `status_update`'s parts verbatim as a protocol-required task
+    result, rather than carrying new content (google-adk's
     `TaskResultAggregator` tracks only the most recent status message,
-    not an accumulated one). Treating every response type as "append
-    this text" would double-count that final chunk.
+    not an accumulated one). Treating every response type as "new
+    parts" would double-yield the final text chunk and re-process the
+    citation call a second time.
     """
     if response.HasField("status_update"):
         status = response.status_update.status
-        text = get_message_text(status.message) if status.HasField("message") else ""
-        return text, status.state
+        parts = list(status.message.parts) if status.HasField("message") else []
+        return parts, status.state
     if response.HasField("task") and response.task.status.state == TaskState.TASK_STATE_FAILED:
-        return "", TaskState.TASK_STATE_FAILED
-    return "", None
-
-
-# Found live (T038 grounding investigation, roadmap.md): a strict
-# `json.loads(footer_text.strip())` silently returned `[]` on any
-# deviation from a bare JSON array (code fence, trailing prose, a
-# leading label) -- plausible LLM formatting, not a protocol violation.
-# Two narrower fixes (PR #42 review, two rounds) each reproduced the
-# same failure via a different trigger: a greedy `\[.*\]` regex swallowed
-# trailing prose containing its own bracket (e.g. interval notation like
-# `[0, 1]`) into one invalid JSON blob; a bracket-balanced version that
-# stopped at the *first* balanced pair then mistook a *leading* bracketed
-# aside (e.g. "Sources for the interval [0, 5]: [...]") for the array,
-# since `[0, 5]` is itself valid JSON. `_extract_grounded_id_candidates()`
-# instead walks every `[` in order and returns the first bracket-balanced
-# candidate that actually parses as a list of UUID-shaped strings (or
-# `[]`) -- a bracket-containing aside anywhere in the footer, before or
-# after the real array, fails that check and is skipped in favor of the
-# next `[`.
-def _matching_bracket_end(text: str, start: int) -> int | None:
-    """Index of the `]` that balances the `[` at `start`, tracking
-    (JSON) string literals so a bracket inside a quoted string doesn't
-    unbalance the count. `None` if `start` is never balanced."""
-    depth = 0
-    in_string = False
-    escape = False
-    for i in range(start, len(text)):
-        ch = text[i]
-        if in_string:
-            if escape:
-                escape = False
-            elif ch == "\\":
-                escape = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-        elif ch == "[":
-            depth += 1
-        elif ch == "]":
-            depth -= 1
-            if depth == 0:
-                return i
-    return None
+        return [], TaskState.TASK_STATE_FAILED
+    return [], None
 
 
 def _is_uuid_shaped(item: object) -> bool:
@@ -208,164 +164,89 @@ def _is_uuid_shaped(item: object) -> bool:
     return True
 
 
-def _candidate_score(items: list) -> tuple[int, float] | None:
-    """Rank a candidate array by how much it looks like a real citation
-    list: `(count UUID-shaped, fraction UUID-shaped)`, count-first, so
-    a larger array with one stray non-UUID element still beats a small
-    coincidentally-clean one (PR #44 review, round 8 -- a fraction-first
-    key made a real 5-id array with one hallucinated placeholder, e.g.
-    `(0.833, 5)`, lose to an unrelated single clean id scoring `(1.0,
-    1)`, silently dropping the real citations and reintroducing the
-    exact failure round 6 exists to tolerate). Fraction only breaks
-    ties between candidates with the same UUID-shaped count. `None` if
-    `items` has no UUID-shaped element at all -- not a candidate.
-
-    Requiring only *at least one* UUID-shaped element (rather than
-    every element) matters because a real citation array with one
-    stray non-UUID element (e.g. a hallucinated "n/a" placeholder)
-    must not be rejected outright (PR #43 review, round 6);
-    `_parse_grounded_ids` below still filters per-element, dropping
-    only the invalid one."""
-    if not items:
-        return None
-    uuid_count = sum(1 for item in items if _is_uuid_shaped(item))
-    if uuid_count == 0:
-        return None
-    return (uuid_count, uuid_count / len(items))
-
-
-def _extract_grounded_id_candidates(text: str) -> list | None:
-    # An empty-list candidate (`[]`) is *vacuously* valid -- but not
-    # preferred over a real, non-empty citation array appearing
-    # anywhere else in the same footer (PR #42 review, round 5: an
-    # incidental empty-bracket aside before the real array, e.g. "No
-    # citations here: []. Sources: [...]", would otherwise be accepted
-    # immediately and the real array never even reached). Remembered as
-    # a fallback and only returned if no non-empty candidate ever turns
-    # up.
-    fallback: list | None = None
-    best: list | None = None
-    best_score: tuple[int, float] | None = None
-    search_from = 0
-    while True:
-        start = text.find("[", search_from)
-        if start == -1:
-            return best if best is not None else fallback
-        end = _matching_bracket_end(text, start)
-        if end is None:
-            # This `[` never balances -- e.g. half-open interval
-            # notation like `[0, 5)`, which pairs `[` with `)`, not `]`
-            # (PR #42 review, round 4). That doesn't mean *no* array
-            # exists in `text`: it only means starting from *this* `[`
-            # can't find one, since every subsequent `[`/`]` in the rest
-            # of the string gets folded into this same unresolved depth
-            # count. Skip past just this one bracket and keep scanning,
-            # the same way an unqualifying-but-balanced candidate is
-            # skipped below -- giving up here would reproduce the exact
-            # "silently persisted as ungrounded" failure this whole
-            # function exists to prevent.
-            search_from = start + 1
+def _extract_cite_passages_ids(parts: list[Part]) -> list[UUID] | None:
+    """The `cite_passages` tool call's `passage_ids` argument, read
+    from the A2A `DataPart` `google-adk` converts a terminal
+    `function_call` into (FR-016, research.md §9) -- `None` if `parts`
+    carries no such call at all, or the call arrived with malformed
+    arguments (`args`/`passage_ids` not the expected shape -- a
+    provider error mangling the tool call, spec.md's Edge Cases).
+    Any non-UUID-shaped entry within an otherwise-valid list is
+    dropped individually, the same defensive tolerance the pre-FR-016
+    text-parsing code always had for a stray non-UUID element, rather
+    than discarding the whole call.
+    """
+    for part in parts:
+        if not part.HasField("data"):
             continue
-        try:
-            parsed = json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            parsed = None
-        if isinstance(parsed, list):
-            if not parsed:
-                if fallback is None:
-                    fallback = parsed
-            else:
-                # Score every non-empty candidate found anywhere in the
-                # footer and keep the best one, rather than returning
-                # the first that merely qualifies (PR #44 review, round
-                # 7): a leading bracketed aside that happens to contain
-                # one coincidentally UUID-shaped token (e.g. mixed with
-                # ordinary numbers) would otherwise be accepted before
-                # the real, purer citation array later in the text is
-                # ever reached -- the same silent under-grounding
-                # failure this whole function exists to prevent, just
-                # via a mixed-leading-array trigger instead of an
-                # all-non-UUID one.
-                score = _candidate_score(parsed)
-                if score is not None and (best_score is None or score > best_score):
-                    best_score = score
-                    best = parsed
-        search_from = start + 1
-
-
-def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> list[UUID]:
-    raw_ids = _extract_grounded_id_candidates(footer_text)
-    if raw_ids is None:
-        return []
-    grounded_ids: list[UUID] = []
-    for raw_id in raw_ids:
-        # `_extract_grounded_id_candidates` only confirms *at least one*
-        # element is UUID-shaped, not every element (PR #43 review,
-        # round 6) -- so a stray non-UUID element (e.g. a hallucinated
-        # "n/a") is dropped individually here, the same tolerance the
-        # pre-fix code always had, rather than voiding the whole array.
-        if not _is_uuid_shaped(raw_id):
+        data = MessageToDict(part.data)
+        if not isinstance(data, dict) or data.get("name") != "cite_passages":
             continue
-        passage_id = UUID(str(raw_id))
-        # Never trust a passage_id the model didn't actually receive --
-        # a fabricated/stale ID is dropped, not persisted as grounded.
-        if passage_id in offered_passage_ids:
-            grounded_ids.append(passage_id)
-    return grounded_ids
+        metadata = MessageToDict(part.metadata) if part.HasField("metadata") else {}
+        if metadata.get("adk_type") != "function_call":
+            continue
+        args = data.get("args")
+        if not isinstance(args, dict):
+            continue
+        raw_ids = args.get("passage_ids", [])
+        if not isinstance(raw_ids, list):
+            continue
+        return [UUID(str(raw_id)) for raw_id in raw_ids if _is_uuid_shaped(raw_id)]
+    return None
 
 
 async def _process_raw_events(
-    raw_events: AsyncIterator[StreamResponse], *, offered_passage_ids: set[UUID]
+    raw_events: AsyncIterator[StreamResponse],
+    *,
+    offered_passage_ids: set[UUID],
+    exchange_id: UUID,
+    session_id: UUID,
 ) -> AsyncIterator[TutorStreamEvent]:
     visible_text = ""
-    buffer = ""
-    footer_buffer: str | None = None
-    marker_hold_len = len(GROUNDING_MARKER) - 1
+    cited_ids: list[UUID] | None = None
 
     async for response in raw_events:
-        text, state = _response_text_and_state(response)
+        parts, state = _response_parts_and_state(response)
 
         if state == TaskState.TASK_STATE_FAILED:
             raise TutorStreamInterruptedError("Tutor Agent reported a failed task state")
 
-        if not text:
+        if not parts:
             continue
 
-        if footer_buffer is not None:
-            footer_buffer += text
-            continue
+        text = "".join(part.text for part in parts if part.HasField("text"))
+        if text:
+            visible_text += text
+            yield TutorAnswerDelta(text=text)
 
-        buffer += text
-        if GROUNDING_MARKER in buffer:
-            before, _, after = buffer.partition(GROUNDING_MARKER)
-            if before:
-                visible_text += before
-                yield TutorAnswerDelta(text=before)
-            buffer = ""
-            footer_buffer = after
-            continue
+        call_ids = _extract_cite_passages_ids(parts)
+        if call_ids is not None:
+            cited_ids = call_ids
 
-        # Flush everything except a trailing window long enough to
-        # still contain a marker split across two chunk boundaries.
-        safe_len = max(0, len(buffer) - marker_hold_len)
-        if safe_len > 0:
-            flushable, buffer = buffer[:safe_len], buffer[safe_len:]
-            visible_text += flushable
-            yield TutorAnswerDelta(text=flushable)
+    if cited_ids is None:
+        # A compliance failure, not a transport error -- the stream
+        # itself completed successfully, so this is not a
+        # `TutorStreamInterruptedError`/`failed_at` case (spec.md Edge
+        # Cases). Plain logging, not a Langfuse span attribute: this
+        # A2A client call is never wrapped in an ADK-instrumented span
+        # on the backend side, so `update_current_span()` would
+        # silently no-op here (research.md §9, verified empirically).
+        # `cited_ids is None` covers both "no cite_passages call at
+        # all" and "a call arrived but its args were malformed" --
+        # `_extract_cite_passages_ids` returns `None` for both, so the
+        # message below doesn't claim which one happened.
+        logger.warning(
+            "Tutor Agent stream completed with no valid cite_passages tool call "
+            "(exchange_id=%s, session_id=%s)",
+            exchange_id,
+            session_id,
+        )
+        grounded_ids: list[UUID] = []
+    else:
+        # Never trust a passage_id the model didn't actually receive --
+        # a fabricated/stale ID is dropped, not persisted as grounded.
+        grounded_ids = [passage_id for passage_id in cited_ids if passage_id in offered_passage_ids]
 
-    # Stream ended with `buffer` still non-empty only if the marker was
-    # never found at all (the model didn't follow the grounding
-    # protocol) -- if it was found, `buffer` was already cleared above
-    # and any remaining text lives in `footer_buffer` instead. Flush
-    # what's left as visible text and fail safe to "not grounded"
-    # rather than guessing.
-    if buffer:
-        visible_text += buffer
-        yield TutorAnswerDelta(text=buffer)
-
-    grounded_ids = (
-        _parse_grounded_ids(footer_buffer, offered_passage_ids) if footer_buffer is not None else []
-    )
     yield TutorAnswerResult(answer_text=visible_text, grounded_passage_ids=grounded_ids)
 
 
@@ -423,7 +304,10 @@ async def stream_tutor_answer(
                 yield response
 
         async for event in _process_raw_events(
-            _chain(first_response, raw_stream), offered_passage_ids=offered_passage_ids
+            _chain(first_response, raw_stream),
+            offered_passage_ids=offered_passage_ids,
+            exchange_id=exchange_id,
+            session_id=session_id,
         ):
             yield event
         return

@@ -17,6 +17,12 @@
 - Q: Can a learner have more than one Tutoring Session open at once, or does starting a new one end any session already in progress for that learner? → A: One active session per learner per subject — reopening returns the existing active session
 - Q: If a learner sends a new question before the Tutor Agent finishes streaming its answer to the previous one, what should happen? → A: Reject the new question until the current exchange finishes streaming
 
+### Session 2026-08-28
+
+- Q: Should the grounding/citation signal move to a channel structurally separate from the answer text the learner sees, instead of being embedded in the same streamed prose and parsed back out afterward? → A: Yes -- a dedicated terminal tool/function call (e.g. `cite_passages`) whose arguments are the passage-ID list, ending that generation there with no loop-back to the model for a further turn, so this does not add a second billed LLM call per exchange.
+- Q: Does the grounding-citation tool call happen strictly after the full answer text has finished streaming (outside SC-001/SC-004's timing), or must it complete within those same latency budgets? → A: After the answer text finishes streaming; SC-001/SC-004 measure only the text portion and exclude the citation step.
+- Q: If the model fails to produce a valid citation tool call at all after the answer text has already streamed successfully, what should happen? → A: Persist `grounded = false` with an empty passage list, keep the already-streamed answer text as-is, log the anomaly -- no retry, no learner-visible error, no retroactive failure marking.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Ask the Tutor a plain-English question (Priority: P1)
@@ -146,6 +152,15 @@ produced it, independent of asking the Tutor Agent itself to explain.
   question-generation concern, not a conversational one -- but the
   second answer should still be independently grounded, not just
   repeated verbatim from a cache with no re-verification.)
+- What happens when the model fails to produce a valid FR-016 citation
+  tool call (missing, malformed arguments, or a provider error on that
+  step) after the answer text has already streamed successfully? The
+  exchange is persisted with `grounded = false` and an empty passage
+  list, the already-streamed answer text is kept as-is, and the
+  anomaly is logged for observability -- MUST NOT retry the citation
+  step as a second LLM call (FR-016 rules that out for cost) and MUST
+  NOT retroactively mark the exchange failed once the learner has
+  already received the answer text.
 
 ## Requirements *(mandatory)*
 
@@ -226,6 +241,16 @@ produced it, independent of asking the Tutor Agent itself to explain.
   answers or silently queue/cancel the in-flight one, so at most one
   Tutor Exchange is ever in flight per session (keeps FR-007's audit
   trail unambiguous).
+- **FR-016**: The Tutor Agent MUST communicate which retrieved passages
+  an answer actually grounded in (FR-003) through a channel
+  structurally separate from the streamed answer text -- MUST NOT
+  embed that signal in the same prose the learner reads and recover it
+  by parsing that text afterward. This MUST be a dedicated tool/
+  function call (e.g. `cite_passages`) whose arguments are the
+  passage-ID list, configured as a terminal action within the same
+  generation that produced the answer -- MUST NOT loop back to the
+  model for a further turn, so this does not add a second billed LLM
+  call per exchange.
 
 ### Key Entities
 
@@ -252,7 +277,10 @@ produced it, independent of asking the Tutor Agent itself to explain.
 - **SC-001**: A learner sees the first part of the Tutor Agent's answer
   begin appearing within 3 seconds (p95) of asking, measured end to
   end from the question being submitted (streaming, not a single long
-  wait for a complete response).
+  wait for a complete response). FR-016's citation tool call happens
+  after the answer text finishes streaming and is excluded from this
+  measurement -- it is not part of what the learner waits on for the
+  answer itself to begin or finish rendering.
 - **SC-002**: Across a defined set of test questions with known
   content-artifact coverage, at least 90% of answers are verified to
   cite or ground in a specific retrieved passage relevant to the
@@ -262,7 +290,9 @@ produced it, independent of asking the Tutor Agent itself to explain.
   calls (if any) fed the final answer, without asking the Tutor Agent
   itself to explain.
 - **SC-004**: Streaming is verified to render incrementally against the
-  live Vercel deployment (not only local development).
+  live Vercel deployment (not only local development). The trailing
+  FR-016 citation tool call is not itself a rendered chunk and is not
+  part of what this incremental-rendering check verifies.
 - **SC-005**: Milestones 1-8's full test suites still pass unmodified.
 
 ## Assumptions
