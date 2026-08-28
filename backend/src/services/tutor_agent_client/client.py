@@ -182,7 +182,10 @@ def _extract_cite_passages_ids(parts: list[Part]) -> list[UUID] | None:
         metadata = MessageToDict(part.metadata) if part.HasField("metadata") else {}
         if metadata.get("adk_type") != "function_call":
             continue
-        raw_ids = data.get("args", {}).get("passage_ids", [])
+        args = data.get("args")
+        if not isinstance(args, dict):
+            continue
+        raw_ids = args.get("passage_ids", [])
         if not isinstance(raw_ids, list):
             continue
         return [UUID(str(raw_id)) for raw_id in raw_ids if _is_uuid_shaped(raw_id)]

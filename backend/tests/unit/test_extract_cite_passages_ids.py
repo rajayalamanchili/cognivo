@@ -70,6 +70,24 @@ def test_ignores_a_data_part_with_a_different_function_name():
     assert _extract_cite_passages_ids(parts) is None
 
 
+def test_returns_none_when_args_is_not_a_dict():
+    # PR #45 review: a `cite_passages` call whose `args` decodes to
+    # something other than an object (e.g. a provider error mangling
+    # the tool-call arguments, spec.md's "malformed arguments" edge
+    # case) must not crash `.get("passage_ids", [])` on a non-dict.
+    for malformed_args in (None, [], "oops"):
+        parts = [
+            Part(
+                data=ParseDict(
+                    {"name": "cite_passages", "args": malformed_args, "id": "call-1"},
+                    struct_pb2.Value(),
+                ),
+                metadata=ParseDict({"adk_type": "function_call"}, struct_pb2.Struct()),
+            )
+        ]
+        assert _extract_cite_passages_ids(parts) is None
+
+
 def test_ignores_a_data_part_missing_the_function_call_metadata_tag():
     # A `data` Part whose payload happens to look like a citation call
     # but isn't tagged `adk_type: function_call` (e.g. some other
