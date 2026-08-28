@@ -57,3 +57,23 @@ def test_no_array_at_all_returns_empty():
 
 def test_malformed_json_inside_brackets_returns_empty():
     assert _parse_grounded_ids("[not valid json]", {uuid.uuid4()}) == []
+
+
+def test_tolerates_trailing_prose_containing_brackets():
+    """PR #42 review finding: a first fix (a greedy `\\[.*\\]` regex)
+    spanned from the first `[` to the *last* `]` in the whole footer --
+    trailing prose with its own brackets (e.g. interval notation, very
+    plausible from an algebra tutor) would swallow both into one invalid
+    JSON blob, reproducing this same bug via a different trigger.
+    `_extract_json_array()`'s bracket-depth tracking must stop at the
+    array's own closing `]`, not the last `]` in the string."""
+    passage_id = uuid.uuid4()
+    footer = f'["{passage_id}"]\nSee the interval [0, 1] for the domain.'
+    assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
+
+
+def test_tolerates_multiple_ids_with_trailing_bracketed_prose():
+    first = uuid.uuid4()
+    second = uuid.uuid4()
+    footer = f'["{first}", "{second}"]\nThe inequality flips for x in [-3, 3].'
+    assert _parse_grounded_ids(footer, {first, second}) == [first, second]

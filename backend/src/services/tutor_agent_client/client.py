@@ -18,7 +18,6 @@ already started reading).
 import asyncio
 import json
 import os
-import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import UUID
@@ -157,30 +156,53 @@ def _response_text_and_state(response: StreamResponse) -> tuple[str, int | None]
     return "", None
 
 
-# Found live (T038 grounding investigation, roadmap.md, 2026-08-27): a
-# real production run against `-INSTRUCTION`'s exact wording still came
-# back 0/30 grounded, but every answer's actual content showed real
-# passages had been offered and used (e.g. citing the fixture's own
-# "-3 + 7" example verbatim) -- the model just doesn't reliably emit a
-# *bare* JSON array for the footer despite being told to "output
-# nothing after that JSON array." A quick repro confirmed a strict
-# `json.loads(footer_text.strip())` silently returns `[]` (not an
-# exception surfaced anywhere) for any of: a ```json ...``` code fence,
-# trailing punctuation/prose after the array, or a leading label before
-# it -- all plausible, undramatic LLM formatting choices, not the model
-# ignoring the protocol outright. Extracting the first `[...]`
-# substring before parsing tolerates all of those without weakening the
-# fabricated-ID check below (still fails safe to `[]` on genuinely
-# malformed output, e.g. no array at all).
-_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+# Found live (T038 grounding investigation, roadmap.md): a strict
+# `json.loads(footer_text.strip())` silently returned `[]` on any
+# deviation from a bare JSON array (code fence, trailing prose, a
+# leading label) -- plausible LLM formatting, not a protocol violation.
+# A first fix (a greedy `\[.*\]` regex, PR #42 review) turned out to
+# have the same failure mode via a different trigger: it spans from the
+# *first* `[` to the *last* `]` in the whole footer, so trailing prose
+# containing its own brackets (e.g. interval notation like `[0, 1]`,
+# very plausible from an algebra tutor) swallows both into one invalid
+# JSON blob. `_extract_json_array()` instead finds the first *balanced*
+# `[...]` substring (bracket-depth tracking that ignores brackets inside
+# quoted strings), so trailing bracket-containing prose can't extend the
+# match past the array's own closing `]`.
+def _extract_json_array(text: str) -> str | None:
+    start = text.find("[")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
 
 
 def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> list[UUID]:
-    match = _JSON_ARRAY_RE.search(footer_text)
-    if match is None:
+    array_text = _extract_json_array(footer_text)
+    if array_text is None:
         return []
     try:
-        raw_ids = json.loads(match.group(0))
+        raw_ids = json.loads(array_text)
     except json.JSONDecodeError:
         return []
     if not isinstance(raw_ids, list):
