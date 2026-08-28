@@ -300,12 +300,27 @@ with `grounded_passage_ids = []`, matching the Edge Cases clarification
 -- the already-streamed answer text is never touched, and this is not
 treated as a `TutorStreamInterruptedError`/`failed_at` case, since the
 stream did complete. "Logged for observability" (spec.md Edge Cases)
-means a `missing_citation_call: true` attribute set on the exchange's
-existing FR-008 Langfuse span before it flushes -- extending the trace
-this codebase already emits per exchange, not a new logging mechanism
-or a pedagogical-audit-log (FR-007) event, since this is an LLM
-compliance anomaly to debug, not a learner-facing pedagogical decision
-(`/speckit-analyze` finding U2, 2026-08-28).
+means `tutor_agent_client/client.py` emits a standard
+`logging.getLogger(__name__).warning(...)` when this is detected --
+**not** a Langfuse span attribute via `update_current_span()`, despite
+`/speckit-analyze` (2026-08-28) originally recommending exactly that
+for finding U2. Verified empirically during implementation (branch
+`019-tutor-grounding-structured-output`) and corrected before shipping:
+`stream_tutor_answer`'s A2A call is a plain `httpx`/`a2a-sdk` client
+call, never wrapped in a `GoogleADKInstrumentor`-instrumented span on
+the backend side (only `tutor-agent/`'s own ADK `Runner` invocation is
+instrumented, and that's a separate process); `services/tutor/
+session.py`'s `traced_request()` only propagates trace *metadata* to
+spans other calls create (its own docstring), it does not create a
+span itself. Confirmed directly: calling `update_current_span()` with
+no active span context logs an internal "No active span" warning and
+silently drops the metadata -- exactly the "anomaly logged" claim
+this clarification exists to guarantee would have quietly failed.
+Standard logging has no such precondition and is always captured by
+Vercel's function logs, so it's the mechanism that actually satisfies
+the Edge Cases requirement rather than merely appearing to (this is
+an LLM compliance anomaly to debug, not a learner-facing pedagogical
+decision, so FR-007's audit log is still the wrong fit either way).
 
 **Rationale**: Moves grounding from "hope the model formats a JSON
 array correctly inside freeform prose, then heuristically guess which

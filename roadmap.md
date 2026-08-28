@@ -533,6 +533,25 @@ fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
      whole array. 16 unit tests cover the formatting and scoring edge
      cases found so far -- this code path had no coverage at all
      before PR #42.
+  4. **Superseded entirely (2026-08-28, branch
+     `019-tutor-grounding-structured-output`, FR-016)**: a third
+     straight PR-review round on the scoring heuristic (this time
+     against the round-8 fix itself) found yet another way candidate
+     scoring could pick the wrong array -- a tie-break at equal
+     UUID-shaped count. Rather than add a ninth scoring dimension,
+     `/speckit-clarify` moved the grounding signal to a structurally
+     separate channel instead of parsing it back out of the streamed
+     answer text at all: `tutor-agent/src/agent.py`'s `LlmAgent` now
+     calls a terminal `cite_passages` tool (`skip_summarization`,
+     confirmed via `google-adk`'s own source to add no second LLM
+     call, research.md §9) instead of appending a marker+JSON footer;
+     `tutor_agent_client/client.py` reads the resulting A2A `DataPart`
+     directly. `GROUNDING_MARKER` and every bracket-scanning/
+     candidate-scoring function from the paragraph above
+     (`_matching_bracket_end`, `_candidate_score`,
+     `_extract_grounded_id_candidates`, `_parse_grounded_ids`) are
+     deleted, not merely superseded in place. Full backend (343/343)
+     and Tutor Agent (26/26) suites pass with the new mechanism.
   - **SC-002 itself is still unmeasured** -- next step is one more live
     30-question run once this fix reaches production, keeping the
     disposable test guardian's password this time so the
