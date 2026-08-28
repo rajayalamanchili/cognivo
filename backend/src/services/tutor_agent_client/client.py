@@ -168,8 +168,11 @@ def _extract_cite_passages_ids(parts: list[Part]) -> list[UUID] | None:
     """The `cite_passages` tool call's `passage_ids` argument, read
     from the A2A `DataPart` `google-adk` converts a terminal
     `function_call` into (FR-016, research.md §9) -- `None` if `parts`
-    carries no such call at all. Any non-UUID-shaped entry is dropped
-    individually, the same defensive tolerance the pre-FR-016
+    carries no such call at all, or the call arrived with malformed
+    arguments (`args`/`passage_ids` not the expected shape -- a
+    provider error mangling the tool call, spec.md's Edge Cases).
+    Any non-UUID-shaped entry within an otherwise-valid list is
+    dropped individually, the same defensive tolerance the pre-FR-016
     text-parsing code always had for a stray non-UUID element, rather
     than discarding the whole call.
     """
