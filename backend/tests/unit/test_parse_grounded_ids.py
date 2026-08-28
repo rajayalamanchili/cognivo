@@ -55,6 +55,17 @@ def test_drops_fabricated_or_stale_ids():
     assert _parse_grounded_ids(footer, {offered}) == [offered]
 
 
+def test_tolerates_one_non_uuid_placeholder_among_real_ids():
+    """PR #43 review, round 6: rejecting the whole array if *any*
+    element isn't UUID-shaped (rather than dropping just that element)
+    would silently discard a real citation array over one stray
+    hallucinated placeholder like "n/a" -- the pre-fix code always
+    tolerated invalid individual elements, and this restores that."""
+    offered = uuid.uuid4()
+    footer = f'["{offered}", "n/a"]'
+    assert _parse_grounded_ids(footer, {offered}) == [offered]
+
+
 def test_no_array_at_all_returns_empty():
     assert _parse_grounded_ids("I used the course material to answer.", {uuid.uuid4()}) == []
 

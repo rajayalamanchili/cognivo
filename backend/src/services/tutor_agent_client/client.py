@@ -200,13 +200,30 @@ def _matching_bracket_end(text: str, start: int) -> int | None:
     return None
 
 
-def _all_uuid_shaped(items: list) -> bool:
-    for item in items:
-        try:
-            UUID(str(item))
-        except (ValueError, AttributeError, TypeError):
-            return False
+def _is_uuid_shaped(item: object) -> bool:
+    try:
+        UUID(str(item))
+    except (ValueError, AttributeError, TypeError):
+        return False
     return True
+
+
+def _looks_like_grounded_array(items: list) -> bool:
+    """True if `items` is empty or *at least one* element is
+    UUID-shaped -- not that *every* element is (PR #43 review, round
+    6). Requiring all elements meant a real citation array with one
+    stray non-UUID element (e.g. a hallucinated "n/a" placeholder)
+    was rejected outright, discarding genuine citations along with it
+    -- the exact failure mode this whole function exists to prevent,
+    just via a new trigger. `_parse_grounded_ids` below still filters
+    per-element (dropping only the invalid one), restoring the
+    per-element tolerance the pre-fix code always had; this check only
+    needs to tell a real ID array apart from unrelated bracketed prose
+    (interval notation, footnote markers, etc.), which "contains at
+    least one real UUID-shaped string" already does reliably."""
+    if not items:
+        return True
+    return any(_is_uuid_shaped(item) for item in items)
 
 
 def _extract_grounded_id_candidates(text: str) -> list | None:
@@ -243,7 +260,7 @@ def _extract_grounded_id_candidates(text: str) -> list | None:
             parsed = json.loads(text[start : end + 1])
         except json.JSONDecodeError:
             parsed = None
-        if isinstance(parsed, list) and _all_uuid_shaped(parsed):
+        if isinstance(parsed, list) and _looks_like_grounded_array(parsed):
             if parsed:
                 return parsed
             if fallback is None:
@@ -257,7 +274,13 @@ def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> lis
         return []
     grounded_ids: list[UUID] = []
     for raw_id in raw_ids:
-        # Already confirmed UUID-shaped by `_extract_grounded_id_candidates`.
+        # `_extract_grounded_id_candidates` only confirms *at least one*
+        # element is UUID-shaped, not every element (PR #43 review,
+        # round 6) -- so a stray non-UUID element (e.g. a hallucinated
+        # "n/a") is dropped individually here, the same tolerance the
+        # pre-fix code always had, rather than voiding the whole array.
+        if not _is_uuid_shaped(raw_id):
+            continue
         passage_id = UUID(str(raw_id))
         # Never trust a passage_id the model didn't actually receive --
         # a fabricated/stale ID is dropped, not persisted as grounded.

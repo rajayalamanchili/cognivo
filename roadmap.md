@@ -534,6 +534,17 @@ fixing a real bug `/speckit-analyze` and the test suite couldn't catch:
      in the text. 13 new unit tests cover every deviation found across
      all five rounds -- this function had no coverage at all before
      this PR.
+  4. **Round six**, caught by the automated review on PR #43 (the
+     `staging` -> `main` promotion of PR #42, not a new bug found live):
+     the array-selection check required *every* element to be
+     UUID-shaped, so one stray non-UUID element (e.g. a hallucinated
+     `"n/a"`) rejected an otherwise-real citation array outright --
+     reintroducing the same silent-ungrounded failure mode via a new
+     trigger. Fixed on `018-tutor-grounding-per-element-tolerance`:
+     array *selection* now only requires *at least one* UUID-shaped
+     element, while `_parse_grounded_ids` filters individual elements
+     as before, restoring the per-element tolerance the pre-fix code
+     always had.
   - **SC-002 itself is still unmeasured** -- next step is one more live
     30-question run once this fix reaches production, keeping the
     disposable test guardian's password this time so the
