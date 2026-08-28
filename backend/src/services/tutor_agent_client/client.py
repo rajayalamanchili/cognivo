@@ -18,6 +18,7 @@ already started reading).
 import asyncio
 import json
 import os
+import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from uuid import UUID
@@ -156,9 +157,30 @@ def _response_text_and_state(response: StreamResponse) -> tuple[str, int | None]
     return "", None
 
 
+# Found live (T038 grounding investigation, roadmap.md, 2026-08-27): a
+# real production run against `-INSTRUCTION`'s exact wording still came
+# back 0/30 grounded, but every answer's actual content showed real
+# passages had been offered and used (e.g. citing the fixture's own
+# "-3 + 7" example verbatim) -- the model just doesn't reliably emit a
+# *bare* JSON array for the footer despite being told to "output
+# nothing after that JSON array." A quick repro confirmed a strict
+# `json.loads(footer_text.strip())` silently returns `[]` (not an
+# exception surfaced anywhere) for any of: a ```json ...``` code fence,
+# trailing punctuation/prose after the array, or a leading label before
+# it -- all plausible, undramatic LLM formatting choices, not the model
+# ignoring the protocol outright. Extracting the first `[...]`
+# substring before parsing tolerates all of those without weakening the
+# fabricated-ID check below (still fails safe to `[]` on genuinely
+# malformed output, e.g. no array at all).
+_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+
+
 def _parse_grounded_ids(footer_text: str, offered_passage_ids: set[UUID]) -> list[UUID]:
+    match = _JSON_ARRAY_RE.search(footer_text)
+    if match is None:
+        return []
     try:
-        raw_ids = json.loads(footer_text.strip())
+        raw_ids = json.loads(match.group(0))
     except json.JSONDecodeError:
         return []
     if not isinstance(raw_ids, list):

@@ -1,0 +1,59 @@
+"""Unit test: `tutor_agent_client/client.py`'s `_parse_grounded_ids()`
+tolerates common LLM footer-formatting deviations.
+
+Found during the T038 grounding investigation (roadmap.md, 2026-08-27):
+a live 30-question run against production came back 0/30 grounded even
+though the answers themselves showed real passages had clearly been
+offered and used -- a strict `json.loads(footer_text.strip())` silently
+returned `[]` for any footer that wasn't a *bare* JSON array (a code
+fence, trailing prose, a leading label), with no exception surfaced
+anywhere to explain why. This test file didn't exist before this fix --
+`_parse_grounded_ids` had no unit coverage of its own at all.
+"""
+
+import uuid
+
+from src.services.tutor_agent_client.client import _parse_grounded_ids
+
+
+def test_parses_bare_json_array():
+    passage_id = uuid.uuid4()
+    result = _parse_grounded_ids(f'["{passage_id}"]', {passage_id})
+    assert result == [passage_id]
+
+
+def test_tolerates_markdown_code_fence():
+    passage_id = uuid.uuid4()
+    footer = f'```json\n["{passage_id}"]\n```'
+    assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
+
+
+def test_tolerates_trailing_prose():
+    passage_id = uuid.uuid4()
+    footer = f'["{passage_id}"]\nThat passage covers this topic.'
+    assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
+
+
+def test_tolerates_leading_label():
+    passage_id = uuid.uuid4()
+    footer = f'Grounded passages: ["{passage_id}"]'
+    assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
+
+
+def test_empty_array_means_not_grounded():
+    assert _parse_grounded_ids("[]", {uuid.uuid4()}) == []
+
+
+def test_drops_fabricated_or_stale_ids():
+    offered = uuid.uuid4()
+    fabricated = uuid.uuid4()
+    footer = f'["{offered}", "{fabricated}"]'
+    assert _parse_grounded_ids(footer, {offered}) == [offered]
+
+
+def test_no_array_at_all_returns_empty():
+    assert _parse_grounded_ids("I used the course material to answer.", {uuid.uuid4()}) == []
+
+
+def test_malformed_json_inside_brackets_returns_empty():
+    assert _parse_grounded_ids("[not valid json]", {uuid.uuid4()}) == []
