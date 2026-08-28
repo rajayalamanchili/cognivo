@@ -210,11 +210,20 @@ def _all_uuid_shaped(items: list) -> bool:
 
 
 def _extract_grounded_id_candidates(text: str) -> list | None:
+    # An empty-list candidate (`[]`) is *vacuously* UUID-shaped -- valid
+    # on its own, but not preferred over a real, non-empty citation
+    # array appearing later in the same footer (PR #42 review, round 5:
+    # an incidental empty-bracket aside before the real array, e.g. "No
+    # citations here: []. Sources: [...]", would otherwise be accepted
+    # immediately and the real array never even reached). Remembered as
+    # a fallback and only returned if no non-empty candidate ever turns
+    # up.
+    fallback: list | None = None
     search_from = 0
     while True:
         start = text.find("[", search_from)
         if start == -1:
-            return None
+            return fallback
         end = _matching_bracket_end(text, start)
         if end is None:
             # This `[` never balances -- e.g. half-open interval
@@ -235,7 +244,10 @@ def _extract_grounded_id_candidates(text: str) -> list | None:
         except json.JSONDecodeError:
             parsed = None
         if isinstance(parsed, list) and _all_uuid_shaped(parsed):
-            return parsed
+            if parsed:
+                return parsed
+            if fallback is None:
+                fallback = parsed
         search_from = start + 1
 
 

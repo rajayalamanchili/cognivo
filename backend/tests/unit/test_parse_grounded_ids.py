@@ -93,6 +93,17 @@ def test_tolerates_leading_prose_containing_brackets():
     assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
 
 
+def test_prefers_nonempty_array_over_leading_empty_bracket_aside():
+    """PR #42 review, fifth round: `_all_uuid_shaped([])` is vacuously
+    true, so an incidental empty-bracket aside before the real array
+    (e.g. "No citations here: []. Sources: [...]") would otherwise be
+    accepted immediately as "the" grounding array, never even reaching
+    the real, non-empty one later in the same footer."""
+    passage_id = uuid.uuid4()
+    footer = f'No citations here: []. Sources: ["{passage_id}"]'
+    assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
+
+
 def test_tolerates_leading_unbalanced_half_open_interval():
     """PR #42 review, fourth round: half-open interval notation like
     `[0, 5)` pairs `[` with `)`, not `]` -- the bracket-depth scanner
