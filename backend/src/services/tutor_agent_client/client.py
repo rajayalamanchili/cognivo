@@ -217,7 +217,19 @@ def _extract_grounded_id_candidates(text: str) -> list | None:
             return None
         end = _matching_bracket_end(text, start)
         if end is None:
-            return None
+            # This `[` never balances -- e.g. half-open interval
+            # notation like `[0, 5)`, which pairs `[` with `)`, not `]`
+            # (PR #42 review, round 4). That doesn't mean *no* array
+            # exists in `text`: it only means starting from *this* `[`
+            # can't find one, since every subsequent `[`/`]` in the rest
+            # of the string gets folded into this same unresolved depth
+            # count. Skip past just this one bracket and keep scanning,
+            # the same way an unqualifying-but-balanced candidate is
+            # skipped below -- giving up here would reproduce the exact
+            # "silently persisted as ungrounded" failure this whole
+            # function exists to prevent.
+            search_from = start + 1
+            continue
         try:
             parsed = json.loads(text[start : end + 1])
         except json.JSONDecodeError:

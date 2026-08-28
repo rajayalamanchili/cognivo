@@ -91,3 +91,16 @@ def test_tolerates_leading_prose_containing_brackets():
     passage_id = uuid.uuid4()
     footer = f'Sources for the interval [0, 5]: ["{passage_id}"]'
     assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
+
+
+def test_tolerates_leading_unbalanced_half_open_interval():
+    """PR #42 review, fourth round: half-open interval notation like
+    `[0, 5)` pairs `[` with `)`, not `]` -- the bracket-depth scanner
+    starting from that `[` never finds a balancing `]` (every later
+    `[`/`]`, including the real array's, gets folded into the same
+    unresolved count), so it must give up on *that* `[` specifically
+    and keep scanning for the next one rather than returning `None`
+    for the whole footer."""
+    passage_id = uuid.uuid4()
+    footer = f'The domain is [0, 5) for this function: ["{passage_id}"]'
+    assert _parse_grounded_ids(footer, {passage_id}) == [passage_id]
