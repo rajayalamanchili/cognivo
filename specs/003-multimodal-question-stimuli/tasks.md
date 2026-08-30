@@ -24,8 +24,8 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **Purpose**: Confirm this feature needs no new dependency, and keep the build-time sync target out of git
 
-- [ ] T001 [P] Confirm no new dependency is required in `backend/pyproject.toml` or `frontend/package.json` (research.md §1/§2 -- image validation is extension/`Path.stat()` checks, no imaging library; the sync script uses only Node's built-in `fs`/`path`)
-- [ ] T002 [P] Add `frontend/public/content-images/` to `.gitignore` (research.md §1 -- a build-time sync target copied from `backend/content/*/images/`, never itself git-tracked)
+- [X] T001 [P] Confirm no new dependency is required in `backend/pyproject.toml` or `frontend/package.json` (research.md §1/§2 -- image validation is extension/`Path.stat()` checks, no imaging library; the sync script uses only Node's built-in `fs`/`path`)
+- [X] T002 [P] Add `frontend/public/content-images/` to `.gitignore` (research.md §1 -- a build-time sync target copied from `backend/content/*/images/`, never itself git-tracked)
 
 ---
 
@@ -35,15 +35,15 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Extend `ValidatedTopic` with an optional `image_asset: dict | None` field and add schema-only validation (a mapping with a non-empty `filename` and an `alt_text` that is non-empty after `.strip()`, FR-003) to `validate_content_artifact()` in `backend/src/services/content_artifact/validator.py` per data-model.md -- no filesystem access in this file, preserving its existing pure-validation contract
-- [ ] T004 [P] Add nullable `image_asset: Mapped[dict | None]` JSON column to `Topic` in `backend/src/models/topic.py` per data-model.md
-- [ ] T005 [P] Add nullable `image_url: Mapped[str | None]` and `image_alt_text: Mapped[str | None]` Text columns to `GeneratedQuestion` in `backend/src/models/generated_question.py` per data-model.md
-- [ ] T006 Extend `load_content_artifact_file()` with filesystem-level image checks (file exists under `<artifact_dir>/images/`, size <= 1,048,576 bytes, extension in `.png`/`.jpg`/`.jpeg`/`.svg`, case-insensitive, all raising `ContentArtifactValidationError`, FR-002) and extend `persist_content_artifact()` to persist `Topic.image_asset`, in `backend/src/services/content_artifact/loader.py` per data-model.md (depends on T003, T004)
-- [ ] T007 Alembic migration: add `topics.image_asset` (JSON, nullable) and `generated_questions.image_url`/`generated_questions.image_alt_text` (Text, nullable) columns in `backend/alembic/versions/` (depends on T004, T005)
-- [ ] T008 [P] Implement `content_image_url(subject_id: str, filename: str) -> str` in `backend/src/services/content_artifact/image_asset.py` per research.md §1/§5 (`f"/content-images/{subject_id}/{filename}"`)
-- [ ] T009 [P] Implement `frontend/scripts/sync-content-images.mjs` -- `fs.cpSync(..., {recursive: true})` copying every `backend/content/<subject>/images/` directory into `frontend/public/content-images/<subject>/`, failing loudly (non-zero exit) if `backend/content/` isn't reachable from the frontend build context (research.md §1's flagged risk) rather than silently skipping
-- [ ] T010 Wire `predev`/`prebuild` npm scripts invoking `node scripts/sync-content-images.mjs` in `frontend/package.json` (depends on T009) -- `dev`/`build` themselves stay untouched; npm runs the pre-hooks automatically
-- [ ] T011 [P] Unit test: `load_content_artifact_file()` rejects a content artifact whose `image_asset.filename` doesn't exist under `images/`, one exceeding 1 MB, and one with a `.gif` extension -- each with a specific `ContentArtifactValidationError` message and no partial DB write (FR-002, SC-003, spec.md Edge Cases) in `backend/tests/unit/test_content_artifact_image_validation.py` (depends on T006)
+- [X] T003 [P] Extend `ValidatedTopic` with an optional `image_asset: dict | None` field and add schema-only validation (a mapping with a non-empty `filename` and an `alt_text` that is non-empty after `.strip()`, FR-003) to `validate_content_artifact()` in `backend/src/services/content_artifact/validator.py` per data-model.md -- no filesystem access in this file, preserving its existing pure-validation contract
+- [X] T004 [P] Add nullable `image_asset: Mapped[dict | None]` JSON column to `Topic` in `backend/src/models/topic.py` per data-model.md
+- [X] T005 [P] Add nullable `image_url: Mapped[str | None]` and `image_alt_text: Mapped[str | None]` Text columns to `GeneratedQuestion` in `backend/src/models/generated_question.py` per data-model.md
+- [X] T006 Extend `load_content_artifact_file()` with filesystem-level image checks (file exists under `<artifact_dir>/images/`, size <= 1,048,576 bytes, extension in `.png`/`.jpg`/`.jpeg`/`.svg`, case-insensitive, all raising `ContentArtifactValidationError`, FR-002) and extend `persist_content_artifact()` to persist `Topic.image_asset`, in `backend/src/services/content_artifact/loader.py` per data-model.md (depends on T003, T004)
+- [X] T007 Alembic migration: add `topics.image_asset` (JSON, nullable) and `generated_questions.image_url`/`generated_questions.image_alt_text` (Text, nullable) columns in `backend/alembic/versions/` (depends on T004, T005)
+- [X] T008 [P] Implement `content_image_url(subject_id: str, filename: str) -> str` in `backend/src/services/content_artifact/image_asset.py` per research.md §1/§5 (`f"/content-images/{subject_id}/{filename}"`)
+- [X] T009 [P] Implement `frontend/scripts/sync-content-images.mjs` -- `fs.cpSync(..., {recursive: true})` copying every `backend/content/<subject>/images/` directory into `frontend/public/content-images/<subject>/`, failing loudly (non-zero exit) if `backend/content/` isn't reachable from the frontend build context (research.md §1's flagged risk) rather than silently skipping
+- [X] T010 Wire `predev`/`prebuild` npm scripts invoking `node scripts/sync-content-images.mjs` in `frontend/package.json` (depends on T009) -- `dev`/`build` themselves stay untouched; npm runs the pre-hooks automatically
+- [X] T011 [P] Unit test: `load_content_artifact_file()` rejects a content artifact whose `image_asset.filename` doesn't exist under `images/`, one exceeding 1 MB, and one with a `.gif` extension -- each with a specific `ContentArtifactValidationError` message and no partial DB write (FR-002, SC-003, spec.md Edge Cases) in `backend/tests/unit/test_content_artifact_image_validation.py` (depends on T006)
 
 **Checkpoint**: Schema, validation, and the image-serving pipeline are ready. No learner-visible behavior yet -- that starts at User Story 1.
 
