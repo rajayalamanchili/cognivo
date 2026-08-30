@@ -29,9 +29,12 @@ this milestone.
 Validation rules (`validate_content_artifact`, schema-only):
 - If `image_asset` is present, it MUST be a mapping.
 - `filename` MUST be a non-empty string.
-- `alt_text` MUST be a non-empty string (FR-003) -- missing or empty
-  fails validation at load time, same error class
+- `alt_text` MUST be non-empty *after stripping leading/trailing
+  whitespace* (`alt_text.strip()`, FR-003) -- missing, empty, or
+  whitespace-only fails validation at load time, same error class
   (`ContentArtifactValidationError`) as every other schema violation.
+  The stored value is the original (unstripped) string; only the
+  presence check is whitespace-insensitive.
 
 Validation rules (`services/content_artifact/loader.py::load_content_artifact_file`,
 filesystem-touching, run immediately after schema validation succeeds):
@@ -60,7 +63,9 @@ behavior).
 | `image_url` | `Text`, nullable | e.g. `/content-images/algebra-1/slope-intercept-diagram.png`. Snapshotted from `Topic.image_asset` at generation time (research.md §5) -- stable even if the content artifact is later reloaded. `NULL` for a text-only question. |
 | `image_alt_text` | `Text`, nullable | Snapshotted alongside `image_url`. Always non-`NULL` when `image_url` is non-`NULL`, and vice versa -- the two are set/unset together, never independently. |
 
-Same migration as `Topic.image_asset` above adds both columns.
+Same migration as `Topic.image_asset` above adds both columns -- same
+no-backfill treatment: nullable, existing (pre-Milestone-10) rows
+default to `NULL`, unchanged text-only behavior.
 
 **Grading**: `answer_key`, `validation_status`, and every column
 `services/mastery/grading.py::grade_answer` reads are completely

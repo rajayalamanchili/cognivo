@@ -35,7 +35,7 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T003 [P] Extend `ValidatedTopic` with an optional `image_asset: dict | None` field and add schema-only validation (a mapping with non-empty `filename`/`alt_text` strings, FR-003) to `validate_content_artifact()` in `backend/src/services/content_artifact/validator.py` per data-model.md -- no filesystem access in this file, preserving its existing pure-validation contract
+- [ ] T003 [P] Extend `ValidatedTopic` with an optional `image_asset: dict | None` field and add schema-only validation (a mapping with a non-empty `filename` and an `alt_text` that is non-empty after `.strip()`, FR-003) to `validate_content_artifact()` in `backend/src/services/content_artifact/validator.py` per data-model.md -- no filesystem access in this file, preserving its existing pure-validation contract
 - [ ] T004 [P] Add nullable `image_asset: Mapped[dict | None]` JSON column to `Topic` in `backend/src/models/topic.py` per data-model.md
 - [ ] T005 [P] Add nullable `image_url: Mapped[str | None]` and `image_alt_text: Mapped[str | None]` Text columns to `GeneratedQuestion` in `backend/src/models/generated_question.py` per data-model.md
 - [ ] T006 Extend `load_content_artifact_file()` with filesystem-level image checks (file exists under `<artifact_dir>/images/`, size <= 1,048,576 bytes, extension in `.png`/`.jpg`/`.jpeg`/`.svg`, case-insensitive, all raising `ContentArtifactValidationError`, FR-002) and extend `persist_content_artifact()` to persist `Topic.image_asset`, in `backend/src/services/content_artifact/loader.py` per data-model.md (depends on T003, T004)

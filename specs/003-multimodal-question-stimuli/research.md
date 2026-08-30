@@ -57,6 +57,39 @@ sync script will fail loudly at build time (missing source directory)
 rather than silently ship a broken image -- to be confirmed the first
 time this milestone actually deploys, the same way Milestone 6 and 9
 each discovered a real Vercel-specific gap only at live-deploy time.
+**Fallback if the risk materializes**: add a GitHub Actions step (or a
+Vercel "Ignored Build Step"/build command override) that runs the sync
+script against the full checkout *before* Vercel's own per-service
+build starts, rather than relying on the frontend Service's build
+context to see a sibling directory -- this is the same class of fix
+already used elsewhere in this project (`deploy_migrate.sh` running as
+an explicit deploy step rather than assumed build-time behavior). No
+architecture change would be needed, only where the existing sync
+script is invoked from.
+
+**Build-step ordering precision** (closing a documentation gap, no
+new mechanism): Vercel's Next.js framework preset invokes the
+project's own `build` script (i.e. the equivalent of `npm run build`),
+not a raw `next build` that would bypass npm's lifecycle hooks -- this
+is documented Vercel/Next.js framework-detection behavior, not an
+assumption specific to this project. Since npm always runs a `pre<script>`
+hook automatically before the named script (a guarantee of npm itself,
+not something this project's config could accidentally disable), `predev`/`prebuild`
+firing before `dev`/`build` holds on every environment this project
+deploys to (local, per-PR preview, staging, production) without any
+per-environment configuration of its own.
+
+**Build-time vs. runtime boundary** (FR-005): "build time" here means
+the Next.js build step that produces the frontend's static output
+(including copying `public/` into that output); "runtime" means a
+Vercel Function handling an actual learner-facing HTTP request. The
+sync script runs only during the former; once built, an image request
+is served directly from Next.js's pre-built static output (effectively
+CDN-served), with no code path in either service reading
+`backend/content` -- or any filesystem -- while serving a request.
+This is mechanically true by construction (the sync script isn't
+imported or called from any request-handling code in either service),
+not merely an intent.
 
 ## 2. Image format/size validation: extension check, not content sniffing
 

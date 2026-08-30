@@ -144,11 +144,36 @@ question renders correctly end to end against the live deployment.
 - What happens if an image asset is not a PNG, JPEG, or SVG file?
   (Content-artifact validation must reject it at load time, the same
   as a missing or oversized asset.)
+- Does allowing SVG (an XML format that can embed `<script>` content)
+  introduce a script-execution risk? (No new validation is required:
+  every image asset is rendered via a plain `<img>` tag, never inlined
+  as `<svg>` markup or injected via `dangerouslySetInnerHTML` -- an
+  `<img>`-loaded SVG is treated by every browser as non-scriptable
+  "image mode," so embedded script content never executes. This is a
+  property of how images are rendered, not something content-artifact
+  validation needs to separately scan for.)
+- What happens if two topics -- in the same subject or different ones --
+  reference an identically-named image file but supply different
+  alt-text? (No conflict: alt-text is authored per topic, not derived
+  from the file, so this is simply two topics each describing the same
+  underlying image in whatever way fits their own question. See Key
+  Entities.)
 - What happens if two different subjects reference the same image asset
   (e.g. a generic diagram reused across subjects)? (Duplicate references
   are acceptable in this milestone -- a shared/deduplicated asset
   library is a possible future optimization, not required now; see
-  Assumptions.)
+  Assumptions. This requires zero subject-aware logic: each subject's
+  images live under its own directory and are served under its own
+  `/content-images/<subject_id>/...` URL path, so an identical filename
+  reused in two subjects' own directories never collides.)
+- What happens if an image fails to load for a learner in production
+  (a transient network failure, or a deploy where the image sync step
+  didn't run)? (No new fallback behavior is needed: a standard `<img>`
+  element with its required `alt` text (FR-003) already shows a
+  browser's native broken-image indicator together with the alt text
+  when the image itself fails to load -- the same required field that
+  serves screen-reader accessibility also serves as the load-failure
+  fallback.)
 - What happens if the Assessment-Generation Agent is asked for a
   question on a topic where every existing image asset has already been
   shown to this learner recently? (Already covered by Milestone 1's
@@ -163,25 +188,32 @@ question renders correctly end to end against the live deployment.
 ### Functional Requirements
 
 - **FR-001**: The content-artifact schema MUST support an optional image
-  asset reference per topic, stored as a static file bundled inside
-  that subject's own content-artifact directory (see FR-005), never as
+  asset reference per topic, stored as a static file under that
+  subject's own content-artifact directory (in an `images/`
+  subdirectory alongside its `subject.yaml`, see FR-005), never as
   inline base64 data embedded in the topic-graph document itself.
 - **FR-002**: Content-artifact validation MUST fail at load time (not at
   question-display time) if a referenced image asset is missing,
-  exceeds 1 MB, or is not a PNG, JPEG, or SVG file.
-- **FR-003**: Every image asset definition MUST include a required,
-  non-empty alt-text/description field; content-artifact validation MUST
-  reject a definition missing one.
+  exceeds 1 MB (1,048,576 bytes), or is not a PNG, JPEG, or SVG file.
+- **FR-003**: Every image asset definition MUST include a required
+  alt-text/description field that is non-empty after trimming
+  whitespace (a value consisting only of spaces/tabs does not satisfy
+  this); content-artifact validation MUST reject a definition missing
+  one. This is a syntactic floor, not a content-quality bar -- whether
+  the text actually describes the image is a content-authoring/review
+  concern, not something validation mechanically checks.
 - **FR-004**: The Assessment-Generation Agent MUST be able to produce a
-  structured (multiple-choice or numeric) question that includes a
-  reference to a topic's bundled image asset, with grading remaining an
-  unchanged, deterministic answer-key comparison -- this milestone
-  introduces no new grading logic (Constitution Principle II is
-  unaffected, not extended).
+  structured (multiple-choice or numeric) question whose stem is
+  phrased with the topic's bundled image asset in mind (e.g. referring
+  to "the diagram below"), not merely a generic stem with an unrelated
+  image attached, with grading remaining an unchanged, deterministic
+  answer-key comparison -- this milestone introduces no new grading
+  logic (Constitution Principle II is unaffected, not extended).
 - **FR-005**: Image assets MUST be static files bundled inside their
   subject's own content-artifact directory (git-versioned alongside
   that subject's topic graph), served as static Next.js assets --
-  never written to or read from a local filesystem at runtime, and
+  built into the frontend's static output ahead of time, never read
+  from a local filesystem while handling a learner-facing request, and
   never requiring an external storage service (e.g. Vercel Blob) or
   upload step.
 - **FR-006**: The extensibility check established in Milestone 1 MUST be
@@ -200,11 +232,26 @@ question renders correctly end to end against the live deployment.
   content-artifact directory) associated with a topic, plus its
   required alt-text/description. File size is checked against the 1 MB
   limit (FR-002) at load time from the file itself -- it is not a
-  stored attribute of the persisted ImageAsset.
+  stored attribute of the persisted ImageAsset. Alt-text is an
+  attribute of the *topic's use of the image*, not of the file itself:
+  two topics (in the same or different subjects) may reference an
+  identically-named image file while each supplying its own alt-text,
+  with no conflict -- there is exactly one ImageAsset per topic, never
+  a shared record keyed by filename. If a topic's alt-text is edited
+  and the content artifact reloaded, only questions generated *after*
+  the reload get the new text; a question already shown to a learner
+  keeps the alt-text (and image reference) it was generated with,
+  exactly as Milestone 1 already treats a question's `stem` as fixed at
+  generation time.
 - **GeneratedQuestion** (extended from Milestone 1): now optionally
   includes a reference to an `ImageAsset` -- the question's answer key
   and grading behavior are otherwise unchanged from Milestone 1's
-  definition.
+  definition. This reference (an image URL plus its alt-text) is
+  represented identically across every endpoint that returns a
+  generated question (next-question, quiz start, quiz next-question) --
+  no endpoint-specific divergence is intended, and the two fields are
+  always either both present or both absent together, never one
+  without the other.
 
 ## Success Criteria *(mandatory)*
 
@@ -226,7 +273,10 @@ question renders correctly end to end against the live deployment.
   content artifact, verified by the extended extensibility check.
 - **SC-005**: An image-based question renders correctly end to end
   against the live Vercel deployment, verified by an extension of
-  Milestone 1's post-deploy smoke test.
+  Milestone 1's post-deploy smoke test with an objective, automatable
+  pass condition: an HTTP `GET` of the question's returned `image_url`
+  against the live deployment returns `200` with image content --
+  not a subjective/visual judgment call.
 
 ## Assumptions
 
@@ -261,3 +311,9 @@ question renders correctly end to end against the live deployment.
   sequenced after all of them on the roadmap because it extends platform
   capability breadth rather than deepening the core personalization
   thesis those milestones establish.
+- Placement questions (produced by the Diagnostic Agent, Milestone 1)
+  never carry an image -- this milestone touches only the
+  Assessment-Generation Agent's question-returning endpoints
+  (next-question, quiz start, quiz next-question), and placement's own
+  question shape is intentionally left unmodified, not merely
+  unaddressed.
