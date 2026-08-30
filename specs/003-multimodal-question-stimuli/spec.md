@@ -151,10 +151,12 @@ question renders correctly end to end against the live deployment.
   Assumptions.)
 - What happens if the Assessment-Generation Agent is asked for a
   question on a topic where every existing image asset has already been
-  shown to this learner recently? (Falls under the same near-duplicate
-  avoidance principle as Milestone 1's FR-008 for text questions --
-  image—question pairings should be treated as part of what "avoid
-  near-duplication" checks against.)
+  shown to this learner recently? (Already covered by Milestone 1's
+  FR-008 stem-similarity check, unmodified: a topic's image asset is
+  fixed and never varies independently of its stem (see Assumptions),
+  so avoiding a near-duplicate stem for that topic already avoids
+  re-showing a near-duplicate image+question pairing. No new
+  dedup logic is introduced by this milestone.)
 
 ## Requirements *(mandatory)*
 
@@ -195,9 +197,10 @@ question renders correctly end to end against the live deployment.
 ### Key Entities *(include if feature involves data)*
 
 - **ImageAsset**: a static file path (relative to its subject's own
-  content-artifact directory) associated with a topic, its required
-  alt-text/description, and size metadata used for load-time
-  validation.
+  content-artifact directory) associated with a topic, plus its
+  required alt-text/description. File size is checked against the 1 MB
+  limit (FR-002) at load time from the file itself -- it is not a
+  stored attribute of the persisted ImageAsset.
 - **GeneratedQuestion** (extended from Milestone 1): now optionally
   includes a reference to an `ImageAsset` -- the question's answer key
   and grading behavior are otherwise unchanged from Milestone 1's
@@ -242,6 +245,12 @@ question renders correctly end to end against the live deployment.
   images is a separate, higher-risk future capability (the correctness
   of an AI-generated diagram is much harder to validate than reusing a
   vetted, pre-supplied one) deliberately not included here.
+- Whether a topic has an image, and which one, is a fixed per-topic
+  content-authoring choice, not randomized per question generation:
+  every question generated for an image-bearing topic includes that
+  topic's image, and a topic with no image asset is always text-only.
+  This keeps FR-008's existing near-duplicate check (see Edge Cases)
+  sufficient without any image-aware extension to it.
 - Duplicate image assets referenced across multiple subjects are
   acceptable in this milestone; a shared, deduplicated asset library is
   a possible future optimization, not required now.

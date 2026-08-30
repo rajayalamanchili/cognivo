@@ -630,9 +630,16 @@ directly on structured content-artifact data and don't need it).
 
 ## Milestone 10: Multimodal Question Stimuli -- Image-Based Questions
 **Spec**: `specs/003-multimodal-question-stimuli/spec.md`
-**Status**: Spec clarified (2026-08-28: image storage locked to static
-files bundled per subject's content-artifact directory, 1 MB size
-cap, PNG/JPEG/SVG only), pending `/speckit-plan`.
+**Status**: `/speckit-plan` (2026-08-30: image serving locked to a
+build-time sync from `backend/content/<subject>/images/` into
+`frontend/public/content-images/`, no new dependency in either
+service), `/speckit-tasks` (34 tasks across four user stories), and
+`/speckit-checklist` (`checklists/readiness.md`, 22 requirements-
+quality items) all complete. `/speckit-analyze` found zero CRITICAL
+issues and five MEDIUM/LOW findings, all resolved directly in
+`spec.md`/`tasks.md` the same day (a spec/plan wording reconciliation
+on the near-duplicate-check edge case, a Foundational task-ordering
+fix, and a new regression task for FR-007). Pending `/speckit-implement`.
 
 **Scope**: Content artifacts can bundle images as question context
 (with required alt-text for accessibility); the Assessment-Generation
