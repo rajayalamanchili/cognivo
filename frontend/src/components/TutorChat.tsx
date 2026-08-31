@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ComponentPropsWithoutRef } from "react";
+import ReactMarkdown from "react-markdown";
 import { ApiError, streamTutorMessage, type TutorMessageErrorBody } from "@/services/api";
 
 // Owns its own message list and streaming lifecycle (mirrors
@@ -29,6 +30,29 @@ type ErrorState =
   | "tutor-unavailable";
 
 const MAX_LENGTH = 2000;
+
+// No @tailwindcss/typography plugin is installed, and Tailwind's
+// preflight reset strips default heading/list margins -- so markdown
+// elements need their own minimal spacing here rather than relying on
+// browser or "prose" defaults.
+const MARKDOWN_COMPONENTS = {
+  p: (props: ComponentPropsWithoutRef<"p">) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: (props: ComponentPropsWithoutRef<"ul">) => (
+    <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...props} />
+  ),
+  ol: (props: ComponentPropsWithoutRef<"ol">) => (
+    <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...props} />
+  ),
+  strong: (props: ComponentPropsWithoutRef<"strong">) => (
+    <strong className="font-semibold" {...props} />
+  ),
+  code: (props: ComponentPropsWithoutRef<"code">) => (
+    <code className="rounded bg-border/40 px-1 py-0.5 text-xs" {...props} />
+  ),
+  a: (props: ComponentPropsWithoutRef<"a">) => (
+    <a className="underline" target="_blank" rel="noopener noreferrer" {...props} />
+  ),
+};
 
 function stateFromError(error: unknown): ErrorState {
   if (error instanceof ApiError && error.body && typeof error.body === "object") {
@@ -94,7 +118,11 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
                 : "self-start rounded-lg border border-border px-4 py-2"
             }
           >
-            {message.text || (streaming && index === messages.length - 1 ? "…" : "")}
+            {message.role === "tutor" && message.text ? (
+              <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
+            ) : (
+              message.text || (streaming && index === messages.length - 1 ? "…" : "")
+            )}
           </div>
         ))}
       </div>
