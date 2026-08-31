@@ -2,7 +2,7 @@
 
 **Project**: Cognivo
 **Status**: Locked for Milestone 1
-**Last amended**: 2026-08-23
+**Last amended**: 2026-08-31
 
 ## Purpose
 
@@ -190,10 +190,20 @@ obvious.
 | Question-quality check (SC-003) | Automated validation step run against every generated question before display, plus an offline batch-eval script for regression testing | Distinct from the display-time validation (FR-007) -- this is the automated *test* that the validation logic itself keeps working. |
 | Deployment smoke test | An automated check that the live Vercel deployment's placement-through-first-question flow works end to end, run after every deploy | Directly verifies Constitution Principle IX -- "deployable" is claimed only once this passes, not merely once `vercel deploy` exits successfully. |
 
+## Misconception classifier (Milestone 11)
+
+| Concern | Choice | Rationale |
+|---|---|---|
+| Classifier approach | Voyage AI `voyage-3` embedding (already locked for the Tutor Agent, Milestone 9) of a learner's incorrect free-text answer, fed into a small per-subject `scikit-learn` (new dependency) classifier trained offline on this project's own accumulated grading data | `specs/013-misconception-classifier/research.md` §1. Anthropic's Claude API has no general-purpose fine-tuning endpoint available to this project; adopting a second LLM provider purely to fine-tune one narrow classifier would contradict this project's consistent single-LLM-provider pattern. Reusing the already-locked embedding call and adding one boring, standard ML library is the genuinely "lightweight, trained classifier" roadmap.md's Milestone 11 scope asks for. |
+| Baseline for accuracy comparison | A prompted-only ADK `LlmAgent` call (`LiteLlm`, Claude Haiku default), structurally identical to `grading-agent/src/guardrails.py`'s existing moderation-check pattern | `research.md` §2. Reuses an existing classification-call shape rather than inventing a second one; this is the "not fine-tuned" comparison point FR-007/SC-001 require. |
+| Where classification runs | A new Vercel Cron job (`/api/cron/classify-misconceptions`), never inline in the Recommendation Agent's request path | `research.md` §3. Matches this file's Deployment-target section: no persistent background process exists on Vercel, and an inline classification call would turn an optional enrichment into a new hard, request-blocking dependency. |
+| Classification storage | A new `AssessmentEventType` value (`misconception_classified`), zero new tables | `research.md` §4. Matches the same "extend the existing append-only audit log" precedent Milestones 2 and 6 already established, rather than a new materialized table with no incremental-update need. |
+| Trained model artifact storage | A versioned file checked into the repo per subject (`backend/misconception_models/<subject_id>/<version>/classifier.joblib`), bundled with the deployed function -- no database blob column, no external model-hosting service | `research.md` §8. Mirrors this file's existing Content-schema row (content artifacts are bundled with the deployed function for the same reason). |
+| Misconception taxonomy | Authored per subject inside `subject.yaml` (a new optional `misconceptions` field), never engine code | `research.md` §9. Direct application of Constitution Principle III, same as every other subject-specific field already in that schema. |
+
 ## Explicitly not yet decided (do not pre-select)
 
 - The Grading Agent's language and deployment shape -- Milestone 6 decision, once free-text grading's concrete needs are clear.
-- Fine-tuning approach and base model for the misconception classifier -- Milestone 11 decision, made once Milestone 6's accumulated grading data is actually available to inspect.
 - Prompt-versioning storage mechanism (a dedicated table, a file-based store, or a third-party prompt-management tool) -- Milestone 12 decision.
 - Semantic-caching layer (in-database via Postgres, or a dedicated cache like Redis/Upstash) -- Milestone 13 decision, made once Milestone 9's actual call volume is known well enough to size the cache correctly.
 - Whether Fluid Compute (for longer execution windows) is needed -- revisit if any agent call's typical latency approaches the default execution limit.
@@ -223,4 +233,12 @@ Argon2id password hashing + a stateless JWT-in-httpOnly-cookie
 session, rejecting both a DB-backed session table and a third-party
 auth provider; resolves the "Instructor auth/identity approach"
 item this file previously listed as not yet decided; see
-`specs/010-instructor-classroom/research.md` §1)
+`specs/010-instructor-classroom/research.md` §1); 2.1.0 -- Amended
+2026-08-31 (Milestone 11 `/speckit-plan`: locked the misconception
+classifier as Voyage `voyage-3` embeddings + a per-subject `scikit-learn`
+classifier trained offline, evaluated against a prompted-only Claude
+Haiku baseline, classified via a new Vercel Cron job and stored as a
+new `AssessmentEventType` value rather than a new table; resolves the
+"Fine-tuning approach and base model for the misconception classifier"
+item this file previously listed as not yet decided; see
+`specs/013-misconception-classifier/research.md`)

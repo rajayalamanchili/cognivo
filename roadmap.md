@@ -686,8 +686,20 @@ shared/deduplicated image asset libraries across subjects.
 ---
 
 ## Milestone 11: Fine-Tuned Misconception Classifier
-**Spec**: not yet written -- do not begin until Milestone 10 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/013-misconception-classifier/spec.md`
+**Status**: `/speckit-specify` complete (2026-08-31) -- Milestone 10's
+DoD is met, so this milestone's spec was written against it. Zero
+`NEEDS CLARIFICATION` markers; requirements-quality checklist passed on
+first pass. `/speckit-plan` complete (2026-08-31): locks the classifier
+as Voyage `voyage-3` embeddings + a per-subject `scikit-learn`
+classifier trained offline (no Claude fine-tuning API exists for this
+project to use), evaluated honestly against a prompted-only Claude
+Haiku baseline, classified via a new Vercel Cron job (never inline in
+the Recommendation Agent's request path) and stored as one new
+`AssessmentEventType` value (`misconception_classified`) rather than a
+new table -- zero new tables, zero new agents, zero new A2A services.
+Constitution Check passed with no violations; `tech-stack.md` amended
+(v2.1.0) to lock these choices. Next: `/speckit-tasks`.
 
 **Scope**: Using the (question, learner free-text answer, expected
 grade) data accumulated since Milestone 6, fine-tune a lightweight
