@@ -79,12 +79,19 @@ No field renamed or removed. One new optional field added:
 
 ## New (not persisted as a row): `MisconceptionEnrichment`
 
+spec.md's Key Entities section calls this the display-ready, read-time
+view of a Misconception Classification attached to a `WeakAreaFlag` --
+distinct from the persisted `misconception_classified` event above (the
+decision record), the same way `WeakAreaFlag` itself is a read-time
+composition over persisted `AssessmentEvent`/`MasteryState` rows rather
+than a decision record of its own.
+
 | Field | Type | Notes |
 |---|---|---|
 | `misconception_id` | string | From the subject's content-artifact taxonomy. |
 | `description` | string | Denormalized from the content artifact for a self-contained display. |
 | `confidence` | float | From the classifier run that produced it. |
-| `evidence` | list of `EvidenceCitation` | Reuses spec 002's existing `EvidenceCitation` shape (`event_id`, `question_id`, `question_stem`, `answer_correct`, `created_at`) -- FR-004's cited-evidence requirement, same citation shape learners already see for a plain weak-area flag. |
+| `evidence` | list of `EvidenceCitation` | **Reuses spec 002's `EvidenceCitation` type exactly** -- all seven fields (`event_id`, `question_id`, `question_stem`, `answer_correct`, `prior_p_mastery`, `posterior_p_mastery`, `created_at`), not a subset. `prior_p_mastery`/`posterior_p_mastery` are populated from that same `ANSWER_SUBMITTED` event's paired `mastery_updated` event, exactly as spec 002's own `EvidenceCitation` construction already does -- no new citation type, no null-padding of fields that type expects. |
 
 ## Entity relationship summary
 

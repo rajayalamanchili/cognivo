@@ -39,3 +39,18 @@ project's existing patterns (mastery-band thresholds as config,
 Recommendation Agent's existing non-blocking enrichment shape, and
 content-artifact-authored subject knowledge per Principle III), and are
 recorded in spec.md's Assumptions section rather than left underspecified.
+
+**`/speckit-analyze` pass (2026-08-31)**: 8 findings (0 CRITICAL, 3 HIGH,
+3 MEDIUM, 2 LOW), all remediated the same day -- FR-001's "no new data
+collection mechanism" reworded to acknowledge the hand-labeling step
+it actually requires; `MisconceptionEnrichment`/`Misconception
+Classification` naming clarified as read-time-view-vs-decision-record
+across spec.md and data-model.md; `MisconceptionEnrichment.evidence`
+clarified as reusing spec 002's full `EvidenceCitation` type (not a
+narrower subset); tasks.md's T024 now names the real frontend file
+(`WeakAreaSection.tsx`, not a guess); T013 now asserts taxonomy
+membership (FR-003); T016/T020 now cover the cron route's success
+response shape (`classified_count`); T004 notes the structural proof
+for FR-009; spec.md's US2 wording corrected from "classifier service"
+to the actual scheduled-job architecture. See git history for the
+full before/after diff.

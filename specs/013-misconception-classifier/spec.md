@@ -52,8 +52,9 @@ it, without changing any other field the report already produces.
 ### User Story 2 - Recommendation Agent works with no classifier at all (Priority: P2)
 
 A subject has no misconception taxonomy authored yet, or the classifier
-has not been trained for that subject, or the classifier service is
-simply unavailable. The Recommendation Agent (Milestone 2) must keep
+has not been trained for that subject, or the scheduled classification
+job hasn't produced a result yet (or failed) for a given learner/topic.
+The Recommendation Agent (Milestone 2) must keep
 producing its existing weak-area report exactly as it does today --
 this enrichment is optional, never a new hard dependency.
 
@@ -62,8 +63,8 @@ graceful degradation. An optional enrichment that can silently break the
 agent it enriches would be worse than not building it at all.
 
 **Independent Test**: Request a weak-area report for a subject/learner
-with the classifier unavailable (untrained, no taxonomy, or the
-classifier call itself fails) and confirm the report is produced with
+with no classification result available (untrained, no taxonomy, or the
+classification job itself failed for that pair) and confirm the report is produced with
 the same fields, same evidence, and same next-step suggestions Milestone
 2 already guarantees -- no error surfaced, no missing report, no
 degraded latency-sensitive behavior.
@@ -75,7 +76,8 @@ degraded latency-sensitive behavior.
    that subject, **Then** the report is generated with no misconception
    labels anywhere and no error.
 2. **Given** the classifier is trained and taxonomy exists but the
-   classifier call itself fails or times out, **When** a weak-area report
+   scheduled classification job itself fails or times out for a given
+   learner/topic pair, **When** a weak-area report
    is requested, **Then** the report still completes successfully using
    only Milestone 2's existing logic.
 
@@ -143,11 +145,14 @@ wins.
 
 ### Functional Requirements
 
-- **FR-001**: The classifier's training and evaluation data MUST be
-  derived from free-text grading records (question, learner's submitted
-  answer, rubric criteria met/missed, and the resulting correctness)
-  already accumulated since free-text grading exists -- no new data
-  collection mechanism.
+- **FR-001**: The classifier's training and evaluation data MUST reuse
+  the question/answer text already accumulated in free-text grading
+  records -- no new mechanism for *collecting* answers. Because no
+  existing record carries a misconception label (that dimension has
+  never been captured by anything before this milestone), the label
+  itself MUST be hand-authored against that existing question/answer
+  text, not collected passively -- this hand-labeling step is the one
+  new, deliberately small authoring task this milestone introduces.
 - **FR-002**: Each subject's misconception taxonomy (the specific,
   named patterns that can be detected for that subject, e.g.
   "consistently confuses X with Y") MUST be authored inside that
@@ -196,9 +201,12 @@ wins.
   answer, expected grade, expected misconception label) examples used
   to measure classifier accuracy against a prompted-only baseline.
 - **Weak-Area Flag** *(existing, extended)*: The Recommendation Agent's
-  per-topic flag from Milestone 2, gaining one new optional field for a
-  cited Misconception Classification -- no existing field changes shape
-  or meaning.
+  per-topic flag from Milestone 2, gaining one new optional field --
+  a **Misconception Enrichment** -- carrying the display-ready form of
+  the most recent matching Misconception Classification (its pattern,
+  description, confidence, and cited evidence) for that flag's topic.
+  The enrichment is a read-time view over a Misconception Classification,
+  not a separate decision -- no existing field changes shape or meaning.
 
 ## Success Criteria *(mandatory)*
 

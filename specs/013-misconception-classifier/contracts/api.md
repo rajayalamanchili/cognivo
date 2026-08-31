@@ -31,6 +31,8 @@ shape):
             "question_id": "uuid",
             "question_stem": "Which variable did you change in this experiment?",
             "answer_correct": false,
+            "prior_p_mastery": 0.35,
+            "posterior_p_mastery": 0.28,
             "created_at": "2026-08-30T09:00:00Z"
           }
         ]

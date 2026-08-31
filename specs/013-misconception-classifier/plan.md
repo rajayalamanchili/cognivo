@@ -178,9 +178,10 @@ backend/
 frontend/
 ├── src/
 │   └── components/
-│       └── WeakAreaCard.tsx                # (or equivalent existing component) + renders
-│                                              # misconception.description/evidence when present,
-│                                              # unchanged when null
+│       └── WeakAreaSection.tsx             # + renders misconception.description/evidence
+│                                              # when present, unchanged when null (existing
+│                                              # component; already renders flag.topic_id/
+│                                              # p_mastery/next_step from RecommendationsResponse)
 └── tests/
     └── (unit test files added at /speckit-tasks time)
 
