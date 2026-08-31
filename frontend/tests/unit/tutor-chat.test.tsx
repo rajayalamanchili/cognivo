@@ -48,6 +48,22 @@ describe("TutorChat", () => {
     );
   });
 
+  it("renders markdown in the tutor's answer instead of literal syntax", async () => {
+    vi.mocked(api.streamTutorMessage).mockImplementation(async (_sessionId, _question, onEvent) => {
+      onEvent({ delta: "Key points:\n\n- **Photosynthesis** needs light\n- It produces oxygen" });
+      onEvent({ done: true, exchange_id: "ex-2" });
+    });
+
+    render(<TutorChat sessionId="session-1" />);
+    await userEvent.type(screen.getByPlaceholderText(/ask the tutor/i), "how does it work?");
+    await userEvent.click(screen.getByRole("button", { name: /ask/i }));
+
+    const tutorMessage = await screen.findByTestId("tutor-chat-tutor-message");
+    await waitFor(() => expect(tutorMessage.querySelector("ul")).not.toBeNull());
+    expect(tutorMessage.querySelector("strong")).toHaveTextContent("Photosynthesis");
+    expect(tutorMessage.querySelectorAll("li")).toHaveLength(2);
+  });
+
   it("disables the input and submit button while a stream is in flight", async () => {
     let resolveStream: () => void = () => {};
     vi.mocked(api.streamTutorMessage).mockImplementation(
