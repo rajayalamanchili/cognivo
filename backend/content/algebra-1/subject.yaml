@@ -113,3 +113,12 @@ topics:
       easy: "A system where one equation is already solved for a variable."
       medium: "A system solvable by straightforward elimination with matching coefficients."
       hard: "A system requiring scaling one or both equations before elimination."
+    # Milestone 10 (spec 003): this topic's first preferred_question_type
+    # is multiple_choice, satisfying FR-004's structured-question
+    # requirement for image-bearing topics.
+    image_asset:
+      filename: systems-of-equations-graph.svg
+      alt_text: >-
+        A coordinate plane showing two intersecting lines, y = x + 1 and
+        y = -x + 5, crossing at the point (2, 3), which is the system's
+        solution.

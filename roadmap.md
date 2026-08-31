@@ -630,7 +630,27 @@ directly on structured content-artifact data and don't need it).
 
 ## Milestone 10: Multimodal Question Stimuli -- Image-Based Questions
 **Spec**: `specs/003-multimodal-question-stimuli/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: Complete (2026-08-31): all four user stories built and
+verified -- image-bearing questions display and grade identically to
+text-only ones (US1), the capability is proven domain-agnostic across
+algebra-1 and biology with zero engine-code changes (US2), missing/
+blank alt-text is rejected at content-artifact load time (US3), and
+the live `staging` deployment serves a real Assessment-Generation
+Agent-produced image-based question end to end (US4, PR #48 merged).
+Regression check: Milestones 1-9's full backend (352 tests) and
+frontend (62 tests) suites both pass -- one pre-existing contract test
+needed updating for the new (intentional) `image_url`/`image_alt_text`
+response fields. Two things surfaced against staging: the
+content-artifact reload needed an explicit manual run against
+staging's DB, which is expected (it's always been a manual step, not
+an automated one) -- but the schema migration also required a manual
+re-trigger, which is **not** expected: tech-stack.md's "Migrations per
+environment" row commits `staging`/`main` to running `alembic upgrade
+head` via an automated Vercel build/deploy hook. That the hook didn't
+visibly apply the migration on this deploy is an unresolved automation
+gap, not a one-off -- **follow-up needed**: root-cause why the deploy
+hook didn't fire/apply as designed before the next migration ships to
+`staging` or `main`, rather than relying on a repeat manual re-trigger.
 
 **Scope**: Content artifacts can bundle images as question context
 (with required alt-text for accessibility); the Assessment-Generation

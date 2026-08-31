@@ -113,6 +113,8 @@ describe("LearnerAssignments", () => {
         question_type: "multiple_choice",
         stem: "What is 2 + 2?",
         options: ["3", "4", "5", "6"],
+        image_url: null,
+        image_alt_text: null,
       },
     });
 

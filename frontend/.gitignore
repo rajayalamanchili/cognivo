@@ -17,6 +17,11 @@
 /.next/
 /out/
 
+# multimodal question stimuli (spec 003): build-time sync target
+# copied from backend/content/*/images/, never itself git-tracked
+# (research.md §1)
+/public/content-images/
+
 # production
 /build
 

@@ -66,6 +66,8 @@ class NextQuestionOut(BaseModel):
     question_type: str
     stem: str
     options: list[str] | None = None
+    image_url: str | None = None
+    image_alt_text: str | None = None
 
 
 @router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
@@ -103,6 +105,8 @@ async def get_next_question(
         question_type=result.question_type,
         stem=result.draft.stem,
         options=result.draft.options,
+        image_url=result.image_url,
+        image_alt_text=result.image_alt_text,
         answer_key=draft_to_answer_key(result.draft),
         validation_status=ValidationStatus.VALID,
         shown_at=now,
@@ -137,6 +141,8 @@ async def get_next_question(
         question_type=result.question_type.value,
         stem=result.draft.stem,
         options=result.draft.options,
+        image_url=result.image_url,
+        image_alt_text=result.image_alt_text,
     )
 
 

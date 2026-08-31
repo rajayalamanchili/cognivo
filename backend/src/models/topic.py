@@ -30,5 +30,6 @@ class Topic(Base):
     is_entry_level: Mapped[bool] = mapped_column(Boolean, nullable=False)
     skill_definition: Mapped[dict] = mapped_column(JSON, nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    image_asset: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     subject: Mapped["Subject"] = relationship(back_populates="topics")

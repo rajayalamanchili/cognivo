@@ -84,7 +84,7 @@ Topic skill: {skill_summary}
 Requested question type: {question_type}
 Requested difficulty: {difficulty}
 Difficulty guidance for this topic/difficulty: {difficulty_guidance}
-
+{image_section}
 Rules:
 - Generate a brand-new question. Do not reuse a well-known textbook example verbatim.
 - If question_type is "multiple_choice": provide exactly 4 plausible options in \
@@ -115,6 +115,7 @@ def _build_instruction(
     difficulty: DifficultyBand,
     difficulty_guidance: str,
     avoid_stems: Sequence[str],
+    image_alt_text: str | None = None,
 ) -> str:
     avoid_section = ""
     if avoid_stems:
@@ -123,6 +124,16 @@ def _build_instruction(
             "\nDo not generate a question that duplicates or closely resembles any "
             f"of these previously used questions on this topic:\n{joined}\n"
         )
+    image_section = ""
+    if image_alt_text:
+        image_section = (
+            "\nThis question will be displayed to the learner together with an "
+            f"image (you will not see the image itself). Description of the image: "
+            f"{image_alt_text}\nWrite the question stem so it reads naturally "
+            'alongside that image (e.g. referring to "the diagram below" or "the '
+            'graph shown"), not a generic stem that merely happens to have an '
+            "unrelated image attached.\n"
+        )
     return _INSTRUCTION_TEMPLATE.format(
         topic_display_name=topic_display_name,
         skill_summary=skill_summary,
@@ -130,6 +141,7 @@ def _build_instruction(
         difficulty=difficulty.value,
         difficulty_guidance=difficulty_guidance,
         avoid_section=avoid_section,
+        image_section=image_section,
     )
 
 
@@ -201,6 +213,7 @@ async def generate_question(
     avoid_stems: Sequence[str] = (),
     model_name: str | None = None,
     max_attempts: int = 3,
+    image_alt_text: str | None = None,
 ) -> GeneratedQuestionDraft:
     """Generates and validates one structured question (FR-007).
 
@@ -208,6 +221,14 @@ async def generate_question(
     invalid draft (e.g. `correct_index` outside `options`) MUST NOT be
     returned to the caller, since the caller sets `shown_at` on the
     assumption this function only ever returns a valid question.
+
+    `image_alt_text`, when set, tells the model an image will be shown
+    alongside this question (spec 003 FR-004, research.md §3) -- the
+    model never sees the image itself, only its alt-text description,
+    and is asked to phrase the stem so it reads naturally next to it.
+    The image reference itself (URL + alt text) is attached by the
+    caller from the topic's own content-artifact data, never by the
+    model.
     """
     resolved_model_name = model_name or os.environ["ASSESSMENT_GEN_MODEL"]
     instruction = _build_instruction(
@@ -217,6 +238,7 @@ async def generate_question(
         difficulty=difficulty,
         difficulty_guidance=difficulty_guidance,
         avoid_stems=avoid_stems,
+        image_alt_text=image_alt_text,
     )
     agent = _build_agent(resolved_model_name, instruction)
 

@@ -34,6 +34,7 @@ from src.models.generated_question import GeneratedQuestion
 from src.models.quiz_session import QuizSession
 from src.models.topic import Topic
 from src.services.audit_log.writer import record_event
+from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import is_near_duplicate, recent_stems_for_topic
 from src.services.quiz.difficulty import (
     current_difficulty_for_topic,
@@ -124,6 +125,8 @@ class QuizQuestionResult:
     question_type: QuestionType
     difficulty: DifficultyBand
     draft: GeneratedQuestionDraft
+    image_url: str | None = None
+    image_alt_text: str | None = None
 
 
 async def generate_quiz_question(
@@ -162,6 +165,12 @@ async def generate_quiz_question(
         limit=quiz.question_count,
     )
 
+    image_url: str | None = None
+    image_alt_text: str | None = None
+    if topic.image_asset is not None:
+        image_url = content_image_url(quiz.subject_id, topic.image_asset["filename"])
+        image_alt_text = topic.image_asset["alt_text"]
+
     for _ in range(max_dedup_attempts):
         draft = await generate_question(
             topic_display_name=topic.display_name,
@@ -171,10 +180,16 @@ async def generate_quiz_question(
             question_type=question_type,
             session_service=session_service,
             avoid_stems=recent_stems,
+            image_alt_text=image_alt_text,
         )
         if not is_near_duplicate(draft.stem, recent_stems):
             return QuizQuestionResult(
-                topic_id=topic_id, question_type=question_type, difficulty=difficulty, draft=draft
+                topic_id=topic_id,
+                question_type=question_type,
+                difficulty=difficulty,
+                draft=draft,
+                image_url=image_url,
+                image_alt_text=image_alt_text,
             )
 
     raise QuizEndedEarlyError(
@@ -208,6 +223,8 @@ def persist_quiz_question(
         question_type=result.question_type,
         stem=result.draft.stem,
         options=result.draft.options,
+        image_url=result.image_url,
+        image_alt_text=result.image_alt_text,
         answer_key=draft_to_answer_key(result.draft),
         validation_status=ValidationStatus.VALID,
         shown_at=now,
