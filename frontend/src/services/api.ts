@@ -117,6 +117,8 @@ export interface NextQuestion {
   question_type: QuestionType;
   stem: string;
   options: string[] | null;
+  image_url: string | null;
+  image_alt_text: string | null;
 }
 
 export interface AnswerResult {

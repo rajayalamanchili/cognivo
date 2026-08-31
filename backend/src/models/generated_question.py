@@ -38,6 +38,8 @@ class GeneratedQuestion(Base):
     )
     stem: Mapped[str] = mapped_column(Text, nullable=False)
     options: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_alt_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     answer_key: Mapped[dict] = mapped_column(JSON, nullable=False)
     validation_status: Mapped[ValidationStatus] = mapped_column(
         Enum(ValidationStatus, name="validation_status", values_callable=enum_values),

@@ -74,6 +74,15 @@ topics:
       easy: "Determine the genotype ratio of a monohybrid cross between two heterozygotes, e.g. Aa x Aa."
       medium: "Determine the phenotype ratio of a monohybrid cross involving incomplete dominance."
       hard: "Determine a phenotype ratio from a dihybrid cross, e.g. AaBb x AaBb."
+    # Milestone 10 (spec 003, US2): proves the image-asset capability is
+    # domain-agnostic (FR-006/SC-004) -- zero engine-code changes, only
+    # this content artifact's own directory.
+    image_asset:
+      filename: punnett-square-Aa-x-Aa.svg
+      alt_text: >-
+        A 2x2 Punnett square for a cross between two Aa parents, with
+        A and a alleles labeled on each axis and the four offspring
+        genotypes AA, Aa, Aa, and aa filled in the grid cells.
 
   - topic_id: dna-replication-and-protein-synthesis
     display_name: DNA Replication and Protein Synthesis

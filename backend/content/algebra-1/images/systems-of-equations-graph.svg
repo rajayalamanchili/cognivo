@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300" role="img" aria-label="A coordinate plane showing two intersecting lines crossing at the point (2, 3)">
+  <rect width="300" height="300" fill="#ffffff" />
+  <!-- axes -->
+  <line x1="20" y1="270" x2="280" y2="270" stroke="#333333" stroke-width="2" />
+  <line x1="40" y1="20" x2="40" y2="290" stroke="#333333" stroke-width="2" />
+  <!-- line 1: y = x + 1 -->
+  <line x1="40" y1="240" x2="240" y2="40" stroke="#2563eb" stroke-width="3" />
+  <!-- line 2: y = -x + 5 -->
+  <line x1="40" y1="40" x2="240" y2="240" stroke="#dc2626" stroke-width="3" />
+  <!-- intersection point (2, 3) -->
+  <circle cx="140" cy="140" r="6" fill="#16a34a" />
+  <text x="150" y="130" font-size="14" fill="#16a34a">(2, 3)</text>
+</svg>

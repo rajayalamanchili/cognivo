@@ -630,7 +630,18 @@ directly on structured content-artifact data and don't need it).
 
 ## Milestone 10: Multimodal Question Stimuli -- Image-Based Questions
 **Spec**: `specs/003-multimodal-question-stimuli/spec.md`
-**Status**: Spec drafted, pending `/speckit-clarify` and `/speckit-plan`.
+**Status**: Implementation complete (2026-08-31): all four user stories
+built and verified -- image-bearing questions display and grade
+identically to text-only ones (US1), the capability is proven
+domain-agnostic across algebra-1 and biology with zero engine-code
+changes (US2), missing/blank alt-text is rejected at content-artifact
+load time (US3), and the deployment smoke test checks the live
+build-time image-sync pipeline directly (US4). Regression check:
+Milestones 1-9's full backend (352 tests) and frontend (62 tests)
+suites both pass -- one pre-existing contract test needed updating for
+the new (intentional) `image_url`/`image_alt_text` response fields.
+PR open against `staging`; live Vercel deployment verification
+(quickstart.md step 7) is pending that merge and deploy.
 
 **Scope**: Content artifacts can bundle images as question context
 (with required alt-text for accessibility); the Assessment-Generation

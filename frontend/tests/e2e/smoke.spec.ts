@@ -59,3 +59,22 @@ test("demo badge, placement, and first follow-up question all work end to end", 
     page.getByRole("heading", { name: /Correct!|Not quite\./ }),
   ).toBeVisible({ timeout: 30_000 });
 });
+
+test("an image-bearing topic's image_url resolves against the live deployment", async ({
+  request,
+}) => {
+  // Directly checks the live deployment's build-time image-sync
+  // pipeline (research.md §1's flagged risk, SC-005) rather than
+  // driving the practice flow to organically land on this topic: the
+  // Sequencing Agent only selects systems-of-linear-equations once its
+  // prerequisites are mastered, which the shared demo learner's actual
+  // mastery state doesn't control run-to-run -- backend/tests/integration/
+  // test_next_question_image.py already covers "the API response's
+  // image_url is exactly this value" with a deterministic mastery
+  // fixture. `content_image_url()` (image_asset.py) makes this URL a
+  // fixed, known value regardless of which learner/run reaches it, so
+  // hitting it directly is equivalent to fetching the same URL a real
+  // question response would return.
+  const response = await request.get("/content-images/algebra-1/systems-of-equations-graph.svg");
+  expect(response.status()).toBe(200);
+});

@@ -19,6 +19,7 @@ from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.services.content_artifact.validator import (
+    ContentArtifactValidationError,
     ValidatedContentArtifact,
     ValidatedTopic,
     validate_content_artifact,
@@ -33,11 +34,52 @@ _DIFFICULTY_BAND_FIELDS = (
     ("hard", PassageField.DIFFICULTY_HARD),
 )
 
+# FR-002/data-model.md: 1 MB, and the three formats spec.md's
+# clarification session locked -- extension-based, not a content sniff
+# (research.md §2: image assets are authored/trusted content, the same
+# trust tier as the YAML topic graph itself).
+_MAX_IMAGE_BYTES = 1_048_576
+_ALLOWED_IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".svg")
+
+
+def _validate_image_asset_file(subject_id: str, topic_id: str, artifact_dir: Path, image_asset: dict) -> None:
+    """Filesystem-level checks (FR-002) for one topic's `image_asset` --
+    the missing-file/oversized/wrong-format checks `validator.py`
+    deliberately can't do itself (data-model.md)."""
+    filename = image_asset["filename"]
+    image_path = artifact_dir / "images" / filename
+    if not image_path.is_file():
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' image_asset.filename "
+            f"'{filename}' does not exist under {artifact_dir / 'images'}"
+        )
+    size = image_path.stat().st_size
+    if size > _MAX_IMAGE_BYTES:
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' image asset '{filename}' "
+            f"is {size} bytes, exceeding the {_MAX_IMAGE_BYTES}-byte (1 MB) limit"
+        )
+    if image_path.suffix.lower() not in _ALLOWED_IMAGE_EXTENSIONS:
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' image asset '{filename}' "
+            f"has an unsupported extension; must be one of {_ALLOWED_IMAGE_EXTENSIONS}"
+        )
+
 
 def load_content_artifact_file(path: str | Path) -> ValidatedContentArtifact:
-    """Parse and validate a content artifact YAML file without touching the DB."""
-    raw = yaml.safe_load(Path(path).read_text())
-    return validate_content_artifact(raw)
+    """Parse and validate a content artifact YAML file, including its
+    referenced image assets' filesystem-level checks (FR-002) -- this
+    function touches the filesystem (reading the YAML file and any
+    referenced images), unlike the pure `validate_content_artifact`."""
+    artifact_path = Path(path)
+    raw = yaml.safe_load(artifact_path.read_text())
+    artifact = validate_content_artifact(raw)
+    for topic in artifact.topics:
+        if topic.image_asset is not None:
+            _validate_image_asset_file(
+                artifact.subject_id, topic.topic_id, artifact_path.parent, topic.image_asset
+            )
+    return artifact
 
 
 def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) -> Subject:
@@ -92,6 +134,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
             row.is_entry_level = topic.is_entry_level
             row.skill_definition = skill_definition
             row.order_index = topic.order_index
+            row.image_asset = topic.image_asset
         else:
             db.add(
                 Topic(
@@ -101,6 +144,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
                     is_entry_level=topic.is_entry_level,
                     skill_definition=skill_definition,
                     order_index=topic.order_index,
+                    image_asset=topic.image_asset,
                 )
             )
     db.flush()

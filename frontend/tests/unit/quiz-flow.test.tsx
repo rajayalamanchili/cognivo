@@ -29,6 +29,8 @@ const question = {
   question_type: "multiple_choice" as const,
   stem: "2 + 2?",
   options: ["3", "4", "5", "6"],
+  image_url: null,
+  image_alt_text: null,
 };
 
 async function renderAndStartQuiz() {

@@ -25,6 +25,7 @@ class ValidatedTopic:
     is_entry_level: bool
     order_index: int
     difficulty_calibration: dict
+    image_asset: dict | None
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,8 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         prerequisites = tuple(raw_topic.get("prerequisites") or [])
         difficulty_calibration = raw_topic.get("difficulty_calibration") or {}
         _validate_difficulty_calibration(subject_id, topic_id, difficulty_calibration)
+        image_asset = raw_topic.get("image_asset")
+        _validate_image_asset(subject_id, topic_id, image_asset)
 
         topic_ids.append(topic_id)
         prereqs_by_topic[topic_id] = prerequisites
@@ -92,6 +95,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             "prerequisites": prerequisites,
             "order_index": index,
             "difficulty_calibration": difficulty_calibration,
+            "image_asset": image_asset,
         }
 
     topic_id_set = set(topic_ids)
@@ -118,6 +122,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             is_entry_level=len(t["prerequisites"]) == 0,
             order_index=t["order_index"],
             difficulty_calibration=t["difficulty_calibration"],
+            image_asset=t["image_asset"],
         )
         for t in normalized_by_topic.values()
     )
@@ -148,6 +153,31 @@ def _validate_difficulty_calibration(subject_id: str, topic_id: str, calibration
         raise ContentArtifactValidationError(
             f"subject '{subject_id}': topic '{topic_id}' has unknown difficulty band(s) "
             f"{sorted(unknown_bands)}; must be a subset of {_VALID_DIFFICULTY_BANDS}"
+        )
+
+
+def _validate_image_asset(subject_id: str, topic_id: str, image_asset: object) -> None:
+    """Schema-only check for an optional per-topic `image_asset` (FR-001/
+    FR-003) -- no filesystem access here; missing-file/oversized/wrong-
+    format checks are filesystem-touching and live in
+    `services/content_artifact/loader.py` instead (data-model.md)."""
+    if image_asset is None:
+        return
+    if not isinstance(image_asset, dict):
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' image_asset must be a mapping"
+        )
+    filename = image_asset.get("filename")
+    if not isinstance(filename, str) or not filename:
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' image_asset.filename "
+            "must be a non-empty string"
+        )
+    alt_text = image_asset.get("alt_text")
+    if not isinstance(alt_text, str) or not alt_text.strip():
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' image_asset.alt_text "
+            "must be a non-empty string (FR-003)"
         )
 
 
