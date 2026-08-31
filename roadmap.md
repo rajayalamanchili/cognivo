@@ -640,11 +640,17 @@ Agent-produced image-based question end to end (US4, PR #48 merged).
 Regression check: Milestones 1-9's full backend (352 tests) and
 frontend (62 tests) suites both pass -- one pre-existing contract test
 needed updating for the new (intentional) `image_url`/`image_alt_text`
-response fields. Two deploy-process gaps surfaced against staging and
-were fixed (the schema migration and the content-artifact reload each
-needed an explicit run against staging's DB, per this project's
-existing per-environment migration practice) -- no production code
-changed as a result.
+response fields. Two things surfaced against staging: the
+content-artifact reload needed an explicit manual run against
+staging's DB, which is expected (it's always been a manual step, not
+an automated one) -- but the schema migration also required a manual
+re-trigger, which is **not** expected: tech-stack.md's "Migrations per
+environment" row commits `staging`/`main` to running `alembic upgrade
+head` via an automated Vercel build/deploy hook. That the hook didn't
+visibly apply the migration on this deploy is an unresolved automation
+gap, not a one-off -- **follow-up needed**: root-cause why the deploy
+hook didn't fire/apply as designed before the next migration ships to
+`staging` or `main`, rather than relying on a repeat manual re-trigger.
 
 **Scope**: Content artifacts can bundle images as question context
 (with required alt-text for accessibility); the Assessment-Generation

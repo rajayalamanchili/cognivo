@@ -136,12 +136,14 @@ Assessment-Generation-Agent-produced question for algebra-1's
 (HTTP 200, correct `image/svg+xml` content-type), the model's stem
 naturally referenced "the diagram below," grading via
 `POST .../answer` was unaffected, and biology's image asset also
-resolved live. Two deploy-process gaps surfaced and were fixed
-(neither is new production code): the migration and the
-content-artifact reload both needed to be run explicitly against
-staging's database, matching this project's existing "migrations per
-environment" practice (tech-stack.md) rather than being implicit in
-the Vercel build itself.
+resolved live. Two things surfaced (neither is new production code):
+the content-artifact reload needed an explicit manual run against
+staging's database, which is expected (always a manual step); the
+schema migration also needed a manual re-trigger, which is *not*
+expected -- tech-stack.md commits `staging`/`main` to an automated
+migration deploy hook, so why it didn't apply on this deploy is an
+open follow-up (roadmap.md's Milestone 10 status), not something
+resolved here.
 
 ---
 
