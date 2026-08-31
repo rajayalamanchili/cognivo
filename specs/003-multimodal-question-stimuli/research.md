@@ -67,6 +67,16 @@ an explicit deploy step rather than assumed build-time behavior). No
 architecture change would be needed, only where the existing sync
 script is invoked from.
 
+**Resolved (2026-08-31, staging deploy)**: the risk did not
+materialize. Vercel's `root: "frontend/"` Service build checks out the
+full monorepo -- `../backend/content` was visible to
+`sync-content-images.mjs` at build time, and both
+`content-images/algebra-1/systems-of-equations-graph.svg` and
+`content-images/biology/punnett-square-Aa-x-Aa.svg` served correctly
+(HTTP 200, correct `content-type: image/svg+xml`) from the live
+staging deployment, including as the `image_url` on a real
+Assessment-Generation Agent-produced question. No fallback needed.
+
 **Build-step ordering precision** (closing a documentation gap, no
 new mechanism): Vercel's Next.js framework preset invokes the
 project's own `build` script (i.e. the equivalent of `npm run build`),
