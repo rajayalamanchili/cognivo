@@ -168,9 +168,11 @@ persistent, unmissable "DEMO ACCOUNT" badge in the UI — never reachable
 via the real sign-up flow, and reset to a known-good state on a
 schedule. Real guardian/learner/instructor accounts are only permitted
 because a dedicated privacy/retention spec (data classification,
-retention, deletion) was approved first, per Constitution Principle
-VIII — that gate, not an afterthought, is what real accounts operate
-under today.
+access control) was approved first, per Constitution Principle VIII —
+that gate, not an afterthought, is what real accounts operate under
+today. **Known gap**: a real account's own right-to-erasure path isn't
+implemented yet (a `DeletionRequest` model exists, but nothing executes
+an actual deletion) — see `roadmap.md`'s "Known gap" section.
 
 ## How this project is built
 

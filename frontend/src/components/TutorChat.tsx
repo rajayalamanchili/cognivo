@@ -50,7 +50,7 @@ const MARKDOWN_COMPONENTS = {
     <code className="rounded bg-border/40 px-1 py-0.5 text-xs" {...props} />
   ),
   a: (props: ComponentPropsWithoutRef<"a">) => (
-    <a className="underline" target="_blank" rel="noreferrer" {...props} />
+    <a className="underline" target="_blank" rel="noopener noreferrer" {...props} />
   ),
 };
 
