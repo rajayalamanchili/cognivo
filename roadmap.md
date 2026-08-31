@@ -918,12 +918,32 @@ any table yet.
   Milestone 7's content-review workflow ownership), not a privacy/
   retention matter. Needs its own scoping pass whenever Milestone 7
   proper or the content-review workflow is picked up.
+- Tutor Agent answer-shielding during practice/assessment. Raised
+  2026-08-31: a learner can currently open the Tutor Agent in parallel
+  with an unanswered practice question and ask it directly, getting an
+  answer that defeats the mastery model's diagnostic value. Prevention
+  looks tractable -- give the Tutor Agent visibility into the learner's
+  currently-open/unanswered question(s) and instruct it to decline a
+  direct final answer to anything matching closely, offering a Socratic
+  hint instead (a context-passing + system-prompt change to the
+  existing agent, not a new agent boundary or a blanket access block).
+  Deliberately **not** pursuing detection of external LLM tool use
+  (e.g. inferring from answer style/timing that a learner pasted a
+  question into ChatGPT) -- unreliable and false-positive-prone, and a
+  false cheating accusation against a real K-12 learner is a worse
+  outcome than an occasional missed instance, especially given this
+  project's own heightened bar around real-minor data (Constitution
+  Principle VIII). Needs its own `/speckit-clarify` on exactly how
+  "currently open/unanswered question" is matched before a spec is
+  written, whenever this is picked up.
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
 
-**Version**: 3.1.0 -- 2026-08-16, Milestone 1 marked complete (deployed
+**Version**: 3.2.0 -- 2026-08-31, added "Tutor Agent answer-shielding
+during practice/assessment" to Out of current roadmap (flagged, not
+scoped); 3.1.0 -- 2026-08-16, Milestone 1 marked complete (deployed
 and verified live on Vercel); 3.0.0 (2026-08-15, added Milestones 8
 (Instructor-Assigned Quizzes), 11 (Fine-Tuned Misconception Classifier),
 12 (Prompt Versioning and Regression Testing), and 13 (Semantic
