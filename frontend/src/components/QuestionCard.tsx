@@ -45,6 +45,21 @@ export default function QuestionCard({
     <fieldset className="flex flex-col gap-3" disabled={disabled} data-testid="question-card">
       <legend className="font-medium">{question.stem}</legend>
 
+      {question.image_url ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- deliberately
+              a plain <img>, not next/image: SVG is an allowed content format
+              (research.md §2) and next/image's optimizer doesn't handle SVG by
+              default, plus this is a static asset synced ahead of time, not one
+              that benefits from next/image's runtime resizing/optimization. */}
+          <img
+            src={question.image_url}
+            alt={question.image_alt_text ?? ""}
+            className="max-w-full rounded-lg border border-border"
+          />
+        </>
+      ) : null}
+
       {question.question_type === "multiple_choice" && question.options ? (
         <div className="flex flex-col gap-2">
           {question.options.map((option, index) => (

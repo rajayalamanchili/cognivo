@@ -63,15 +63,15 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 ### Implementation for User Story 1
 
-- [ ] T015 [US1] Add an optional `image_alt_text: str | None = None` parameter to `generate_question()` plus one added instruction-template paragraph telling the model an image will be shown and to phrase the stem accordingly, in `backend/src/agents/assessment_gen/agent.py` per research.md §3 (depends on T003)
-- [ ] T016 [US1] Extend `NextQuestionResult` with `image_url: str | None`/`image_alt_text: str | None`, computed from `topic.image_asset` via `content_image_url()` and passed into `generate_question()`, in `backend/src/agents/sequencing/agent.py` (depends on T008, T015)
-- [ ] T017 [US1] Extend `QuizQuestionResult` the same way in `generate_quiz_question()`, and copy `image_url`/`image_alt_text` onto the persisted row in `persist_quiz_question()`, in `backend/src/services/quiz/session.py` (depends on T008, T015)
-- [ ] T018 [US1] Extend `NextQuestionOut` and the inline `GeneratedQuestion(...)` construction in `get_next_question()` to set/return `image_url`/`image_alt_text` in `backend/src/api/routes/questions.py` (depends on T016)
-- [ ] T019 [US1] Extend `QuizQuestionOut` (shared by `POST /api/quizzes` and `GET /api/quizzes/{id}/next-question`) to include `image_url`/`image_alt_text` in `backend/src/api/routes/quiz.py` (depends on T017)
-- [ ] T020 [P] [US1] Extend the `NextQuestion` interface with `image_url: string | null`/`image_alt_text: string | null` in `frontend/src/services/api.ts` per contracts/api.md
-- [ ] T021 [US1] Render `<img src={question.image_url} alt={question.image_alt_text ?? ""} />` above the stem when `image_url` is set in `frontend/src/components/QuestionCard.tsx` (depends on T020, T014)
-- [ ] T022 [US1] Add an `image_asset` entry (`filename`, `alt_text`) to one topic in `backend/content/algebra-1/subject.yaml`, with a real image file under `backend/content/algebra-1/images/` (depends on T006, T007)
-- [ ] T023 [US1] Reload the algebra-1 content artifact via `backend/scripts/load_content_artifact.py` and confirm it validates and persists `Topic.image_asset` (depends on T022)
+- [X] T015 [US1] Add an optional `image_alt_text: str | None = None` parameter to `generate_question()` plus one added instruction-template paragraph telling the model an image will be shown and to phrase the stem accordingly, in `backend/src/agents/assessment_gen/agent.py` per research.md §3 (depends on T003)
+- [X] T016 [US1] Extend `NextQuestionResult` with `image_url: str | None`/`image_alt_text: str | None`, computed from `topic.image_asset` via `content_image_url()` and passed into `generate_question()`, in `backend/src/agents/sequencing/agent.py` (depends on T008, T015)
+- [X] T017 [US1] Extend `QuizQuestionResult` the same way in `generate_quiz_question()`, and copy `image_url`/`image_alt_text` onto the persisted row in `persist_quiz_question()`, in `backend/src/services/quiz/session.py` (depends on T008, T015)
+- [X] T018 [US1] Extend `NextQuestionOut` and the inline `GeneratedQuestion(...)` construction in `get_next_question()` to set/return `image_url`/`image_alt_text` in `backend/src/api/routes/questions.py` (depends on T016)
+- [X] T019 [US1] Extend `QuizQuestionOut` (shared by `POST /api/quizzes` and `GET /api/quizzes/{id}/next-question`) to include `image_url`/`image_alt_text` in `backend/src/api/routes/quiz.py` (depends on T017)
+- [X] T020 [P] [US1] Extend the `NextQuestion` interface with `image_url: string | null`/`image_alt_text: string | null` in `frontend/src/services/api.ts` per contracts/api.md
+- [X] T021 [US1] Render `<img src={question.image_url} alt={question.image_alt_text ?? ""} />` above the stem when `image_url` is set in `frontend/src/components/QuestionCard.tsx` (depends on T020, T014)
+- [X] T022 [US1] Add an `image_asset` entry (`filename`, `alt_text`) to one topic in `backend/content/algebra-1/subject.yaml`, with a real image file under `backend/content/algebra-1/images/` (depends on T006, T007)
+- [X] T023 [US1] Reload the algebra-1 content artifact via `backend/scripts/load_content_artifact.py` and confirm it validates and persists `Topic.image_asset` (depends on T022)
 
 **Checkpoint**: User Story 1 is independently functional and demoable -- an image-bearing algebra-1 question displays its image and grades identically to a text-only one.
 

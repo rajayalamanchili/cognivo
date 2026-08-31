@@ -24,6 +24,7 @@ from src.models.enums import DifficultyBand, QuestionType
 from src.models.mastery_state import MasteryState
 from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.topic import Topic
+from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import (
     DEFAULT_LOOKBACK,
     is_near_duplicate,
@@ -243,6 +244,8 @@ class NextQuestionResult:
     selection: NextTopicSelection
     question_type: QuestionType
     draft: GeneratedQuestionDraft
+    image_url: str | None = None
+    image_alt_text: str | None = None
 
 
 async def generate_next_question(
@@ -269,6 +272,12 @@ async def generate_next_question(
         limit=dedup_lookback,
     )
 
+    image_url: str | None = None
+    image_alt_text: str | None = None
+    if topic.image_asset is not None:
+        image_url = content_image_url(subject_id, topic.image_asset["filename"])
+        image_alt_text = topic.image_asset["alt_text"]
+
     draft: GeneratedQuestionDraft | None = None
     for _ in range(max_dedup_attempts):
         draft = await generate_question(
@@ -279,8 +288,15 @@ async def generate_next_question(
             question_type=question_type,
             session_service=session_service,
             avoid_stems=recent_stems,
+            image_alt_text=image_alt_text,
         )
         if not is_near_duplicate(draft.stem, recent_stems):
             break
 
-    return NextQuestionResult(selection=selection, question_type=question_type, draft=draft)
+    return NextQuestionResult(
+        selection=selection,
+        question_type=question_type,
+        draft=draft,
+        image_url=image_url,
+        image_alt_text=image_alt_text,
+    )

@@ -85,6 +85,8 @@ class QuizQuestionOut(BaseModel):
     question_type: str
     stem: str
     options: list[str] | None = None
+    image_url: str | None = None
+    image_alt_text: str | None = None
 
 
 class QuizStartIn(BaseModel):
@@ -141,6 +143,8 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
             question_type=result.question_type.value,
             stem=result.draft.stem,
             options=result.draft.options,
+            image_url=result.image_url,
+            image_alt_text=result.image_alt_text,
         ),
     )
 
@@ -194,6 +198,8 @@ async def get_quiz_next_question(
             question_type=result.question_type.value,
             stem=result.draft.stem,
             options=result.draft.options,
+            image_url=result.image_url,
+            image_alt_text=result.image_alt_text,
         ),
     )
 
