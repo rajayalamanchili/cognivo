@@ -57,9 +57,9 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 ### Tests for User Story 1
 
-- [ ] T012 [P] [US1] Integration test: `GET /api/learners/{learner_id}/next-question` for an image-bearing topic returns non-null `image_url`/`image_alt_text` (and the referenced file exists once synced); for a topic with no `image_asset` both are `null` (User Story 1 Acceptance Scenarios 1 & 3) in `backend/tests/integration/test_next_question_image.py` -- exercises the algebra-1 image-bearing topic added in T022/T023 (`conftest.py`'s `algebra_subject` fixture loads the real `content/algebra-1/subject.yaml`, not a synthetic fixture); write this test first per TDD, expect it to fail with "no image-bearing topic found" until T022/T023 land, same as it fails on missing implementation until T015-T019 land
-- [ ] T013 [P] [US1] Integration test: `POST /api/questions/{question_id}/answer` for an image-based question produces the exact same response shape and grading outcome as a text-only question of the same `question_type` -- no new fields, no new error cases, same deterministic answer-key comparison (User Story 1 Acceptance Scenario 2, FR-004, SC-001) in `backend/tests/integration/test_answer_image_question_grading_unchanged.py` -- same T022/T023 content dependency as T012
-- [ ] T014 [P] [US1] Frontend unit test: `QuestionCard` renders an `<img>` with the given `alt` text when `question.image_url` is set, and renders nothing extra when it's `null` in `frontend/tests/unit/question-card-image.test.tsx`
+- [X] T012 [P] [US1] Integration test: `GET /api/learners/{learner_id}/next-question` for an image-bearing topic returns non-null `image_url`/`image_alt_text` (and the referenced file exists once synced); for a topic with no `image_asset` both are `null` (User Story 1 Acceptance Scenarios 1 & 3) in `backend/tests/integration/test_next_question_image.py` -- exercises the algebra-1 image-bearing topic added in T022/T023 (`conftest.py`'s `algebra_subject` fixture loads the real `content/algebra-1/subject.yaml`, not a synthetic fixture); write this test first per TDD, expect it to fail with "no image-bearing topic found" until T022/T023 land, same as it fails on missing implementation until T015-T019 land
+- [X] T013 [P] [US1] Integration test: `POST /api/questions/{question_id}/answer` for an image-based question produces the exact same response shape and grading outcome as a text-only question of the same `question_type` -- no new fields, no new error cases, same deterministic answer-key comparison (User Story 1 Acceptance Scenario 2, FR-004, SC-001) in `backend/tests/integration/test_answer_image_question_grading_unchanged.py` -- same T022/T023 content dependency as T012
+- [X] T014 [P] [US1] Frontend unit test: `QuestionCard` renders an `<img>` with the given `alt` text when `question.image_url` is set, and renders nothing extra when it's `null` in `frontend/tests/unit/question-card-image.test.tsx`
 
 ### Implementation for User Story 1
 
@@ -83,10 +83,10 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **Independent Test**: Add an image asset to a second subject's content artifact, with zero edits to any file outside that artifact's own directory, and confirm image-based question generation works correctly for it.
 
-- [ ] T024 [US2] Add an `image_asset` entry to one topic in `backend/content/biology/subject.yaml`, with a real image file under `backend/content/biology/images/` (depends on Phase 3 complete)
-- [ ] T025 [US2] Reload the biology content artifact via `backend/scripts/load_content_artifact.py` and confirm it validates and persists `Topic.image_asset` (depends on T024)
-- [ ] T026 [US2] Extend `backend/tests/integration/test_second_subject.py` to request a question for biology's image-bearing topic and assert `image_url`/`image_alt_text` are present and grading behaves identically to algebra-1's image-based question (FR-006, SC-004) (depends on T025)
-- [ ] T027 [US2] Run `backend/scripts/check_no_subject_conditionals.py` and confirm this feature introduced zero subject-id-keyed conditionals (FR-006) (depends on T026)
+- [X] T024 [US2] Add an `image_asset` entry to one topic in `backend/content/biology/subject.yaml`, with a real image file under `backend/content/biology/images/` (depends on Phase 3 complete)
+- [X] T025 [US2] Reload the biology content artifact via `backend/scripts/load_content_artifact.py` and confirm it validates and persists `Topic.image_asset` (depends on T024)
+- [X] T026 [US2] Extend `backend/tests/integration/test_second_subject.py` to request a question for biology's image-bearing topic and assert `image_url`/`image_alt_text` are present and grading behaves identically to algebra-1's image-based question (FR-006, SC-004) (depends on T025)
+- [X] T027 [US2] Run `backend/scripts/check_no_subject_conditionals.py` and confirm this feature introduced zero subject-id-keyed conditionals (FR-006) (depends on T026)
 
 **Checkpoint**: The capability is proven domain-agnostic across two subjects with zero engine-code changes -- both P1 stories requiring new engine code are now complete.
 
@@ -98,7 +98,7 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **Independent Test**: Attempt to define a content artifact's image asset without an alt-text/description field and confirm content-artifact validation rejects it at load time.
 
-- [ ] T028 [US3] Unit test: a content artifact whose `image_asset` entry omits (or blanks) `alt_text` fails `validate_content_artifact()`/`load_content_artifact_file()` with `ContentArtifactValidationError`, and `Subject.validated_at` is never set (FR-003, SC-002) in `backend/tests/unit/test_content_artifact_image_alt_text_required.py` (depends on T003, T006)
+- [X] T028 [US3] Unit test: a content artifact whose `image_asset` entry omits (or blanks) `alt_text` fails `validate_content_artifact()`/`load_content_artifact_file()` with `ContentArtifactValidationError`, and `Subject.validated_at` is never set (FR-003, SC-002) in `backend/tests/unit/test_content_artifact_image_alt_text_required.py` (depends on T003, T006)
 
 **Checkpoint**: All three P1 stories are independently verified -- display+grading (US1), domain-agnosticism (US2), and accessibility enforcement (US3).
 
