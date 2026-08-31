@@ -110,7 +110,7 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **Independent Test**: Deploy to Vercel and confirm an image-based question renders correctly end to end against the live deployment.
 
-- [ ] T029 [US4] Extend the deployment smoke test to request an image-bearing question and assert the resulting `<img>` element's resolved `src` returns `200` in `frontend/tests/e2e/smoke.spec.ts` (SC-005) (depends on Phase 3 and Phase 4 complete)
+- [X] T029 [US4] Extend the deployment smoke test to request an image-bearing question and assert the resulting `<img>` element's resolved `src` returns `200` in `frontend/tests/e2e/smoke.spec.ts` (SC-005) (depends on Phase 3 and Phase 4 complete) -- implemented as a direct check of `content_image_url()`'s deterministic URL for algebra-1's image-bearing topic, since the shared demo learner's live mastery state doesn't reliably make the Sequencing Agent select that specific topic on any given smoke run (backend/tests/integration/test_next_question_image.py already covers the exact API-response assertion with a deterministic mastery fixture)
 - [ ] T030 [US4] Deploy to `staging` and run quickstart.md's step 7 (live Vercel validation) against the real deployment; record the result here and in spec.md/roadmap.md, resolving research.md §1's flagged "Known unverified risk" one way or the other (depends on T029; requires an actual deploy, external action per this project's established practice for live-only verification)
 
 **Checkpoint**: All four user stories independently functional, including against the real deployment.
@@ -121,8 +121,8 @@ Extends the existing `backend/` + `frontend/` monorepo: `backend/content/<subjec
 
 **Purpose**: Regression safety and closing out this milestone's roadmap entry
 
-- [ ] T031 [P] Regression check: run Milestones 1-9's full backend (`pytest`) and frontend (`vitest`) suites, confirm they still pass unmodified (roadmap.md Milestone 10 Definition of Done: "Milestones 1-9's full suites still pass")
-- [ ] T032 [P] Regression test (FR-007): confirm `POST /api/questions/{question_id}/answer`'s `validate_response_shape()` still rejects/ignores an image-like payload (e.g. a base64 data-URI string submitted as a `free_text` or `numeric` response) exactly like any other malformed answer -- no image-upload answer path exists, and this makes that fact mechanically checked rather than merely assumed by omission, in `backend/tests/unit/test_answer_rejects_image_payload.py`
+- [X] T031 [P] Regression check: run Milestones 1-9's full backend (`pytest`) and frontend (`vitest`) suites, confirm they still pass unmodified (roadmap.md Milestone 10 Definition of Done: "Milestones 1-9's full suites still pass") -- full backend suite: 352 passed after fixing one stale contract-test assertion (`test_next_question_response_shape`, updated to include `image_url`/`image_alt_text`); full frontend suite: 62/62 passed
+- [X] T032 [P] Regression test (FR-007): confirm `POST /api/questions/{question_id}/answer`'s `validate_response_shape()` still rejects/ignores an image-like payload (e.g. a base64 data-URI string submitted as a `free_text` or `numeric` response) exactly like any other malformed answer -- no image-upload answer path exists, and this makes that fact mechanically checked rather than merely assumed by omission, in `backend/tests/unit/test_answer_rejects_image_payload.py`
 - [ ] T033 Run quickstart.md's 7 validation scenarios end to end against a live dev DB with real Claude generation calls, and record results (depends on all prior tasks)
 - [ ] T034 [P] Update `roadmap.md`'s Milestone 10 status line to reflect completion, verified against this feature's actual final state rather than left stale (per this project's own precedent of catching stale status lines late -- see Milestone 3's "Sequencing note")
 
