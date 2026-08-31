@@ -129,6 +129,20 @@ question renders correctly end to end against the live deployment.
    correctly -- verified by extending Milestone 1's post-deploy smoke
    test (SC-007) to cover an image-based question.
 
+**Verified (2026-08-31, staging)**: confirmed against the real
+deployed `staging` URL after PR #48's merge. A live,
+Assessment-Generation-Agent-produced question for algebra-1's
+`systems-of-linear-equations` topic returned a resolving `image_url`
+(HTTP 200, correct `image/svg+xml` content-type), the model's stem
+naturally referenced "the diagram below," grading via
+`POST .../answer` was unaffected, and biology's image asset also
+resolved live. Two deploy-process gaps surfaced and were fixed
+(neither is new production code): the migration and the
+content-artifact reload both needed to be run explicitly against
+staging's database, matching this project's existing "migrations per
+environment" practice (tech-stack.md) rather than being implicit in
+the Vercel build itself.
+
 ---
 
 ### Edge Cases
