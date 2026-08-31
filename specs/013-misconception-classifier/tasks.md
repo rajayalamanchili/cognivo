@@ -27,11 +27,11 @@ Single deployable unit touched: the existing `backend/` project (plus one additi
 
 **Purpose**: New dependency and package scaffolding, before any schema or code change.
 
-- [ ] T001 [P] Add `scikit-learn` as a backend dependency in `backend/pyproject.toml` (research.md §1) -- the only new dependency this feature introduces
-- [ ] T002 [P] Scaffold `backend/src/services/misconception/__init__.py` per `plan.md`'s Project Structure
-- [ ] T003 [P] Create the `backend/misconception_models/` directory (with a `.gitkeep` or README stub) as the checked-in location trained artifacts will be written to (research.md §8) -- empty until T019
+- [X] T001 [P] Add `scikit-learn` as a backend dependency in `backend/pyproject.toml` (research.md §1) -- the only new dependency this feature introduces. Added via `uv add scikit-learn` (resolved `>=1.9.0`, pulling in `numpy`/`scipy`/`joblib` transitively -- `joblib` is what T018 uses for artifact serialization).
+- [X] T002 [P] Scaffold `backend/src/services/misconception/__init__.py` per `plan.md`'s Project Structure. Empty file, matching the existing `services/grading_client/`/`services/tutor_agent_client/` convention.
+- [X] T003 [P] Create the `backend/misconception_models/` directory (with a `.gitkeep` or README stub) as the checked-in location trained artifacts will be written to (research.md §8) -- empty until T019. `.gitkeep`, matching `backend/evaluation/reports/.gitkeep`'s existing precedent.
 
-**Checkpoint**: Dependency and package skeleton exist.
+**Checkpoint**: Dependency and package skeleton exist. **Done 2026-08-31**: `uv add scikit-learn` succeeds, `import sklearn`/`import src.services.misconception` both clean, full regression suite unaffected (see Phase 6 T032 for the eventual full run).
 
 ---
 
