@@ -52,12 +52,20 @@ class NextStepSuggestionOut(BaseModel):
     prerequisite_chain: list[str]
 
 
+class MisconceptionEnrichmentOut(BaseModel):
+    misconception_id: str
+    description: str
+    confidence: float
+    evidence: list[EvidenceCitationOut]
+
+
 class WeakAreaFlagOut(BaseModel):
     topic_id: str
     display_name: str
     p_mastery: float
     evidence: list[EvidenceCitationOut]
     next_step: NextStepSuggestionOut
+    misconception: MisconceptionEnrichmentOut | None = None
 
 
 class RecommendationsResponse(BaseModel):
@@ -68,6 +76,21 @@ class RecommendationsResponse(BaseModel):
     in_progress_topic_ids: list[str]
     not_yet_assessed_topic_ids: list[str]
     insufficient_data_topic_ids: list[str]
+
+
+def _evidence_citations_out(citations) -> list[EvidenceCitationOut]:
+    return [
+        EvidenceCitationOut(
+            event_id=citation.event_id,
+            question_id=citation.question_id,
+            question_stem=citation.question_stem,
+            answer_correct=citation.answer_correct,
+            prior_p_mastery=citation.prior_p_mastery,
+            posterior_p_mastery=citation.posterior_p_mastery,
+            created_at=citation.created_at.isoformat(),
+        )
+        for citation in citations
+    ]
 
 
 def recommendations_response_from_report(report: WeakAreaReport) -> RecommendationsResponse:
@@ -86,23 +109,22 @@ def recommendations_response_from_report(report: WeakAreaReport) -> Recommendati
                 topic_id=flag.topic_id,
                 display_name=flag.display_name,
                 p_mastery=flag.p_mastery,
-                evidence=[
-                    EvidenceCitationOut(
-                        event_id=citation.event_id,
-                        question_id=citation.question_id,
-                        question_stem=citation.question_stem,
-                        answer_correct=citation.answer_correct,
-                        prior_p_mastery=citation.prior_p_mastery,
-                        posterior_p_mastery=citation.posterior_p_mastery,
-                        created_at=citation.created_at.isoformat(),
-                    )
-                    for citation in flag.evidence
-                ],
+                evidence=_evidence_citations_out(flag.evidence),
                 next_step=NextStepSuggestionOut(
                     recommended_topic_id=flag.next_step.recommended_topic_id,
                     recommended_display_name=flag.next_step.recommended_display_name,
                     reason=flag.next_step.reason.value,
                     prerequisite_chain=flag.next_step.prerequisite_chain,
+                ),
+                misconception=(
+                    MisconceptionEnrichmentOut(
+                        misconception_id=flag.misconception.misconception_id,
+                        description=flag.misconception.description,
+                        confidence=flag.misconception.confidence,
+                        evidence=_evidence_citations_out(flag.misconception.evidence),
+                    )
+                    if flag.misconception is not None
+                    else None
                 ),
             )
             for flag in report.weak_areas

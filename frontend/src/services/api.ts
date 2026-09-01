@@ -78,12 +78,20 @@ export interface NextStepSuggestion {
   prerequisite_chain: string[];
 }
 
+export interface MisconceptionEnrichment {
+  misconception_id: string;
+  description: string;
+  confidence: number;
+  evidence: EvidenceCitation[];
+}
+
 export interface WeakAreaFlag {
   topic_id: string;
   display_name: string;
   p_mastery: number;
   evidence: EvidenceCitation[];
   next_step: NextStepSuggestion;
+  misconception: MisconceptionEnrichment | null;
 }
 
 export interface RecommendationsResponse {

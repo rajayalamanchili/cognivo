@@ -26,6 +26,7 @@ class ValidatedTopic:
     order_index: int
     difficulty_calibration: dict
     image_asset: dict | None
+    misconceptions: tuple[dict, ...]
 
 
 @dataclass(frozen=True)
@@ -68,6 +69,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
     topic_ids: list[str] = []
     prereqs_by_topic: dict[str, tuple[str, ...]] = {}
     normalized_by_topic: dict[str, dict] = {}
+    seen_misconception_ids: set[str] = set()
 
     for index, raw_topic in enumerate(raw_topics):
         _require_fields(
@@ -85,6 +87,9 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         _validate_difficulty_calibration(subject_id, topic_id, difficulty_calibration)
         image_asset = raw_topic.get("image_asset")
         _validate_image_asset(subject_id, topic_id, image_asset)
+        misconceptions = _validate_misconceptions(
+            subject_id, topic_id, raw_topic.get("misconceptions"), seen_misconception_ids
+        )
 
         topic_ids.append(topic_id)
         prereqs_by_topic[topic_id] = prerequisites
@@ -96,6 +101,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             "order_index": index,
             "difficulty_calibration": difficulty_calibration,
             "image_asset": image_asset,
+            "misconceptions": misconceptions,
         }
 
     topic_id_set = set(topic_ids)
@@ -123,6 +129,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             order_index=t["order_index"],
             difficulty_calibration=t["difficulty_calibration"],
             image_asset=t["image_asset"],
+            misconceptions=t["misconceptions"],
         )
         for t in normalized_by_topic.values()
     )
@@ -179,6 +186,57 @@ def _validate_image_asset(subject_id: str, topic_id: str, image_asset: object) -
             f"subject '{subject_id}': topic '{topic_id}' image_asset.alt_text "
             "must be a non-empty string (FR-003)"
         )
+
+
+def _validate_misconceptions(
+    subject_id: str, topic_id: str, misconceptions: object, seen_ids: set[str]
+) -> tuple[dict, ...]:
+    """Schema-only check for an optional per-topic `misconceptions` list
+    (spec 013 FR-002) -- a subject/topic defining none is valid (spec
+    013's edge case); Principle III requires this taxonomy live here,
+    in the content artifact, never as an engine-level hardcoded list.
+
+    `seen_ids` is shared across every topic in the subject (populated by
+    the caller's loop): the misconception classifier trains one model per
+    `subject_id`, combining every topic's ground truth into a single label
+    space, so `misconception_id` must be unique subject-wide, not just
+    within one topic -- a collision across topics would silently conflate
+    two different error patterns under one label.
+    """
+    if misconceptions is None:
+        return ()
+    if not isinstance(misconceptions, list):
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' misconceptions must be a list"
+        )
+    validated: list[dict] = []
+    for entry in misconceptions:
+        if not isinstance(entry, dict):
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' misconceptions entries "
+                "must be mappings"
+            )
+        misconception_id = entry.get("misconception_id")
+        if not isinstance(misconception_id, str) or not misconception_id:
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' misconceptions entry "
+                "missing a non-empty 'misconception_id'"
+            )
+        if misconception_id in seen_ids:
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': duplicate misconception_id "
+                f"'{misconception_id}' (topic '{topic_id}'); misconception_id must be "
+                "unique across the whole subject, not just within one topic"
+            )
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' misconception "
+                f"'{misconception_id}' missing a non-empty 'description'"
+            )
+        seen_ids.add(misconception_id)
+        validated.append({"misconception_id": misconception_id, "description": description})
+    return tuple(validated)
 
 
 def _check_acyclic(subject_id: str, prereqs_by_topic: dict[str, tuple[str, ...]]) -> None:

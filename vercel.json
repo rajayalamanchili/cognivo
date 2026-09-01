@@ -16,6 +16,7 @@
     { "source": "/(.*)", "destination": { "service": "frontend" } }
   ],
   "crons": [
-    { "path": "/api/cron/reset-demo-data", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/reset-demo-data", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/classify-misconceptions", "schedule": "0 7 * * *" }
   ]
 }

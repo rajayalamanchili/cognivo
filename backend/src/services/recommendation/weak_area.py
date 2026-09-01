@@ -88,6 +88,19 @@ class FlaggedWeakArea:
 
 
 @dataclass(frozen=True)
+class MisconceptionEnrichment:
+    """spec 013's read-time view of the most recent matching
+    Misconception Classification for one `WeakAreaFlag` -- distinct
+    from the persisted `misconception_classified` event itself
+    (data-model.md's naming clarification)."""
+
+    misconception_id: str
+    description: str
+    confidence: float
+    evidence: list[EvidenceCitation]
+
+
+@dataclass(frozen=True)
 class WeakAreaClassification:
     subject_id: str
     data_sufficiency: str  # "confident" | "insufficient_data"
@@ -96,6 +109,27 @@ class WeakAreaClassification:
     in_progress_topic_ids: list[str]
     not_yet_assessed_topic_ids: list[str]
     insufficient_data_topic_ids: list[str]
+
+
+def _evidence_citations_from_rows(
+    rows: list[tuple[AssessmentEvent, GeneratedQuestion]],
+) -> list[EvidenceCitation]:
+    """Builds `EvidenceCitation` objects from `(mastery_updated event,
+    question)` pairs -- shared by `_build_evidence` (every qualifying
+    event for a topic) and `get_misconception_enrichment` (spec 013,
+    only the events a classification specifically cited)."""
+    return [
+        EvidenceCitation(
+            event_id=event.event_id,
+            question_id=question.question_id,
+            question_stem=question.stem,
+            answer_correct=event.payload["answer_correct"],
+            prior_p_mastery=event.payload.get("prior_p_mastery"),
+            posterior_p_mastery=event.payload["posterior_p_mastery"],
+            created_at=event.created_at,
+        )
+        for event, question in rows
+    ]
 
 
 def _build_evidence(
@@ -116,18 +150,72 @@ def _build_evidence(
         .order_by(AssessmentEvent.created_at)
         .all()
     )
-    return [
-        EvidenceCitation(
-            event_id=event.event_id,
-            question_id=question.question_id,
-            question_stem=question.stem,
-            answer_correct=event.payload["answer_correct"],
-            prior_p_mastery=event.payload.get("prior_p_mastery"),
-            posterior_p_mastery=event.payload["posterior_p_mastery"],
-            created_at=event.created_at,
+    return _evidence_citations_from_rows(rows)
+
+
+def get_misconception_enrichment(
+    db: Session, *, learner_id: uuid.UUID, subject_id: str, topic_id: str
+) -> "MisconceptionEnrichment | None":
+    """Reads the most recent `misconception_classified` event for this
+    learner/topic, if any, and builds the display-ready
+    `MisconceptionEnrichment` (spec 013 FR-006's graceful degradation:
+    `None` whenever no such event exists -- no taxonomy authored, no
+    trained classifier yet, or evidence/confidence below threshold at
+    classification time). A plain DB read -- never a live classifier or
+    LLM call (research.md §3), mirroring `suggest_next_step`'s own
+    independent-DB-orchestration style."""
+    event = (
+        db.query(AssessmentEvent)
+        .filter(
+            AssessmentEvent.learner_id == learner_id,
+            AssessmentEvent.subject_id == subject_id,
+            AssessmentEvent.topic_id == topic_id,
+            AssessmentEvent.event_type == AssessmentEventType.MISCONCEPTION_CLASSIFIED,
         )
-        for event, question in rows
+        .order_by(AssessmentEvent.created_at.desc())
+        .first()
+    )
+    if event is None:
+        return None
+
+    cited_event_ids = [uuid.UUID(raw_id) for raw_id in event.payload["cited_event_ids"]]
+    cited_question_ids = [
+        row.question_id
+        for row in db.query(AssessmentEvent.question_id).filter(
+            AssessmentEvent.event_id.in_(cited_event_ids)
+        )
     ]
+    rows = (
+        db.query(AssessmentEvent, GeneratedQuestion)
+        .join(GeneratedQuestion, AssessmentEvent.question_id == GeneratedQuestion.question_id)
+        .filter(
+            AssessmentEvent.learner_id == learner_id,
+            AssessmentEvent.subject_id == subject_id,
+            AssessmentEvent.topic_id == topic_id,
+            AssessmentEvent.event_type == AssessmentEventType.MASTERY_UPDATED,
+            AssessmentEvent.question_id.in_(cited_question_ids),
+        )
+        .order_by(AssessmentEvent.created_at)
+        .all()
+    )
+    evidence = _evidence_citations_from_rows(rows)
+
+    topic = db.query(Topic).filter(Topic.subject_id == subject_id, Topic.topic_id == topic_id).one()
+    description = next(
+        (
+            m["description"]
+            for m in topic.skill_definition.get("misconceptions", [])
+            if m["misconception_id"] == event.payload["misconception_id"]
+        ),
+        event.payload["misconception_id"],
+    )
+
+    return MisconceptionEnrichment(
+        misconception_id=event.payload["misconception_id"],
+        description=description,
+        confidence=event.payload["confidence"],
+        evidence=evidence,
+    )
 
 
 def classify_topics(

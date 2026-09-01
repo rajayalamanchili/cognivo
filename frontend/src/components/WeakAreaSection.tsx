@@ -50,6 +50,19 @@ export default function WeakAreaSection({ recommendations }: WeakAreaSectionProp
                 {REASON_LABEL[flag.next_step.reason] ?? flag.next_step.reason}: try{" "}
                 <strong>{flag.next_step.recommended_display_name}</strong>
               </p>
+              {flag.misconception && (
+                <p
+                  data-testid="misconception-enrichment"
+                  className="mt-2 rounded-lg bg-muted/10 px-3 py-2 text-sm"
+                >
+                  Likely misconception: <strong>{flag.misconception.description}</strong>
+                  <span className="text-muted">
+                    {" "}
+                    (based on {flag.misconception.evidence.length} answer
+                    {flag.misconception.evidence.length === 1 ? "" : "s"})
+                  </span>
+                </p>
+              )}
             </li>
           ))}
         </ul>
