@@ -172,25 +172,30 @@ def classify_learner_topic(
 
 
 def _last_answer_at_by_pair(db: Session) -> dict[tuple[uuid.UUID, str, str], object]:
-    rows = (
-        db.query(
-            AssessmentEvent.learner_id,
-            AssessmentEvent.subject_id,
-            AssessmentEvent.topic_id,
-            func.max(AssessmentEvent.created_at),
-        )
+    """Latest *qualifying* free-text `ANSWER_SUBMITTED` event's
+    `created_at` per pair -- filtered to incorrect answers in Python
+    (mirrors `_qualifying_events`'s own `payload.get("correct") is
+    False` filter, since that's the only evidence a classification can
+    ever be based on) so a subsequent *correct* answer, which changes
+    nothing `classify_learner_topic` would see, cannot advance the
+    watermark and trigger a duplicate re-classification."""
+    events = (
+        db.query(AssessmentEvent)
         .join(GeneratedQuestion, AssessmentEvent.question_id == GeneratedQuestion.question_id)
         .filter(
             AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
             GeneratedQuestion.question_type == QuestionType.FREE_TEXT,
         )
-        .group_by(AssessmentEvent.learner_id, AssessmentEvent.subject_id, AssessmentEvent.topic_id)
         .all()
     )
-    return {
-        (learner_id, subject_id, topic_id): last_at
-        for learner_id, subject_id, topic_id, last_at in rows
-    }
+    last_at: dict[tuple[uuid.UUID, str, str], object] = {}
+    for event in events:
+        if event.payload.get("correct") is not False:
+            continue
+        key = (event.learner_id, event.subject_id, event.topic_id)
+        if key not in last_at or event.created_at > last_at[key]:
+            last_at[key] = event.created_at
+    return last_at
 
 
 def _last_classified_at_by_pair(db: Session) -> dict[tuple[uuid.UUID, str, str], object]:
