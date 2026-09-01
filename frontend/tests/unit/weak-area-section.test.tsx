@@ -23,6 +23,7 @@ const baseResponse: RecommendationsResponse = {
         reason: "prerequisite_gap",
         prerequisite_chain: ["linear-equations", "order-of-operations"],
       },
+      misconception: null,
     },
   ],
   in_progress_topic_ids: [],
@@ -56,5 +57,40 @@ describe("WeakAreaSection", () => {
   it("does not show the broad-review framing when the agent has not flagged it", () => {
     render(<WeakAreaSection recommendations={baseResponse} />);
     expect(screen.queryByTestId("broad-review-framing")).not.toBeInTheDocument();
+  });
+
+  it("renders a cited misconception when present, unchanged when null", () => {
+    const { rerender } = render(<WeakAreaSection recommendations={baseResponse} />);
+    expect(screen.queryByTestId("misconception-enrichment")).not.toBeInTheDocument();
+
+    const withMisconception: RecommendationsResponse = {
+      ...baseResponse,
+      weak_areas: [
+        {
+          ...baseResponse.weak_areas[0],
+          misconception: {
+            misconception_id: "swaps-slope-and-y-intercept",
+            description: "Consistently swaps which value is the slope and which is the y-intercept.",
+            confidence: 0.82,
+            evidence: [
+              {
+                event_id: "e1",
+                question_id: "q1",
+                question_stem: "What is the slope?",
+                answer_correct: false,
+                prior_p_mastery: 0.3,
+                posterior_p_mastery: 0.23,
+                created_at: "2026-08-30T09:00:00Z",
+              },
+            ],
+          },
+        },
+      ],
+    };
+    rerender(<WeakAreaSection recommendations={withMisconception} />);
+    expect(screen.getByTestId("misconception-enrichment")).toHaveTextContent(
+      "Consistently swaps which value is the slope and which is the y-intercept.",
+    );
+    expect(screen.getByTestId("misconception-enrichment")).toHaveTextContent("1 answer");
   });
 });

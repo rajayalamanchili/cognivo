@@ -100,6 +100,15 @@ topics:
       easy: "Identify the slope and y-intercept of an equation already in y = mx + b form."
       medium: "Determine whether a given point lies on the line described by an equation."
       hard: "Convert an equation from standard form to slope-intercept form, then identify slope."
+    misconceptions:
+      - misconception_id: swaps-slope-and-y-intercept
+        description: >-
+          Consistently swaps which value in y = mx + b is the slope and
+          which is the y-intercept (e.g. reports b as the slope).
+      - misconception_id: treats-y-intercept-as-x-value
+        description: >-
+          Treats the y-intercept as an x-coordinate, plotting or
+          reporting the line's starting point on the wrong axis.
 
   - topic_id: systems-of-linear-equations
     display_name: Systems of Linear Equations

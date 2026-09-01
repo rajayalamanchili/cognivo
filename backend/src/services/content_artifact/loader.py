@@ -127,6 +127,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
         skill_definition = {
             "skill": topic.skill_definition,
             "difficulty_calibration": topic.difficulty_calibration,
+            "misconceptions": list(topic.misconceptions),
         }
         row = existing_topics.get(topic.topic_id)
         if row is not None:
