@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import joblib
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.models.assessment_event import AssessmentEvent
@@ -170,31 +171,68 @@ def classify_learner_topic(
     )
 
 
-def run_classification_batch(db: Session) -> int:
-    """Scans every `(learner_id, subject_id, topic_id)` with at least
-    one free-text `ANSWER_SUBMITTED` event and (re)classifies each --
-    called by the scheduled cron route (`api/routes/cron.py`), never
-    inline in a request (research.md §3). Nothing here tracks
-    incremental state between runs (no "since last run" cursor) --
-    every qualifying pair is re-evaluated on each scheduled run,
-    consistent with this project's stateless-between-invocations
-    design; `classify_learner_topic`'s own thresholds make this cheap
-    to re-run (a pair below the evidence/confidence bar stays a no-op).
-    Returns the number of pairs that actually produced a new
-    `misconception_classified` event this run, not the number scanned.
-    """
-    pairs = (
-        db.query(AssessmentEvent.learner_id, AssessmentEvent.subject_id, AssessmentEvent.topic_id)
+def _last_answer_at_by_pair(db: Session) -> dict[tuple[uuid.UUID, str, str], object]:
+    rows = (
+        db.query(
+            AssessmentEvent.learner_id,
+            AssessmentEvent.subject_id,
+            AssessmentEvent.topic_id,
+            func.max(AssessmentEvent.created_at),
+        )
         .join(GeneratedQuestion, AssessmentEvent.question_id == GeneratedQuestion.question_id)
         .filter(
             AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
             GeneratedQuestion.question_type == QuestionType.FREE_TEXT,
         )
-        .distinct()
+        .group_by(AssessmentEvent.learner_id, AssessmentEvent.subject_id, AssessmentEvent.topic_id)
         .all()
     )
+    return {
+        (learner_id, subject_id, topic_id): last_at
+        for learner_id, subject_id, topic_id, last_at in rows
+    }
+
+
+def _last_classified_at_by_pair(db: Session) -> dict[tuple[uuid.UUID, str, str], object]:
+    rows = (
+        db.query(
+            AssessmentEvent.learner_id,
+            AssessmentEvent.subject_id,
+            AssessmentEvent.topic_id,
+            func.max(AssessmentEvent.created_at),
+        )
+        .filter(AssessmentEvent.event_type == AssessmentEventType.MISCONCEPTION_CLASSIFIED)
+        .group_by(AssessmentEvent.learner_id, AssessmentEvent.subject_id, AssessmentEvent.topic_id)
+        .all()
+    )
+    return {
+        (learner_id, subject_id, topic_id): last_at
+        for learner_id, subject_id, topic_id, last_at in rows
+    }
+
+
+def run_classification_batch(db: Session) -> int:
+    """Scans `(learner_id, subject_id, topic_id)` pairs with newly-
+    qualifying free-text evidence since the last run and (re)classifies
+    each -- called by the scheduled cron route (`api/routes/cron.py`),
+    never inline in a request (research.md §3). The watermark is the
+    existing `misconception_classified` event's own `created_at` per
+    pair (no new column/table) -- a pair with no free-text answer newer
+    than its last classification is skipped: nothing new to say, so
+    re-embedding its whole history and writing a duplicate event would
+    be pure waste. A pair never classified before always runs (subject
+    to `classify_learner_topic`'s own evidence/confidence thresholds).
+    Returns the number of pairs that actually produced a new
+    `misconception_classified` event this run, not the number scanned.
+    """
+    last_answer_at = _last_answer_at_by_pair(db)
+    last_classified_at = _last_classified_at_by_pair(db)
+
     classified_count = 0
-    for learner_id, subject_id, topic_id in pairs:
+    for (learner_id, subject_id, topic_id), answered_at in last_answer_at.items():
+        classified_at = last_classified_at.get((learner_id, subject_id, topic_id))
+        if classified_at is not None and answered_at <= classified_at:
+            continue  # no new evidence since the last run
         try:
             event = classify_learner_topic(
                 db, learner_id=learner_id, subject_id=subject_id, topic_id=topic_id
