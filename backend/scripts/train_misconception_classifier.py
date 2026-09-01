@@ -44,6 +44,16 @@ def _load_rows() -> list[dict]:
         return [json.loads(line) for line in f if line.strip()]
 
 
+def fit_classifier(embeddings: list[list[float]], labels: list[str]) -> LogisticRegression:
+    """The one place `LogisticRegression` is constructed and fit --
+    shared with `check_misconception_classifier_eval.py`'s leave-one-out
+    cross-validation (T031 correction) so both scripts train on
+    identically-configured models."""
+    model = LogisticRegression(max_iter=1000)
+    model.fit(embeddings, labels)
+    return model
+
+
 def train_all_subjects() -> dict[str, Path]:
     """Trains one classifier per `subject_id` present in the ground
     truth fixture, writing each to
@@ -59,8 +69,7 @@ def train_all_subjects() -> dict[str, Path]:
         ]
         labels = [row["expected_misconception_id"] or NONE_LABEL for row in subject_rows]
 
-        model = LogisticRegression(max_iter=1000)
-        model.fit(embeddings, labels)
+        model = fit_classifier(embeddings, labels)
 
         output_dir = MODELS_DIR / subject_id / CLASSIFIER_VERSION
         output_dir.mkdir(parents=True, exist_ok=True)

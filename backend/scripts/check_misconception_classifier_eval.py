@@ -7,25 +7,32 @@ comparison be recorded even when the fine-tuned classifier loses.
 Exit code is non-zero ONLY on a crash or malformed fixture -- never
 merely because the classifier scores below the baseline.
 
+Classifier accuracy is measured via leave-one-out cross-validation, not
+by scoring the shipped `classifier.joblib` against its own training
+data (T031 correction, post-review 2026-09-01): with only 7 rows per
+subject there's no volume for a real held-out split, but reusing
+training rows for scoring is leakage -- it reports training-fit
+accuracy, not a genuine generalization estimate, and isn't comparable
+to the baseline's honest zero-shot number. For each row, a classifier
+is fit on every *other* row for that subject and scored on the one held
+out, so every prediction comes from a model that never saw that
+example. The shipped artifact (trained on all rows, for production use)
+is untouched by this script.
+
 Usage: uv run python scripts/check_misconception_classifier_eval.py [path/to/ground_truth.jsonl]
 """
 
 import asyncio
 import json
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import joblib  # noqa: E402
-
+from scripts.train_misconception_classifier import fit_classifier  # noqa: E402
 from src.services.content_artifact.loader import load_content_artifact_file  # noqa: E402
 from src.services.misconception.baseline import NONE_LABEL, classify_baseline  # noqa: E402
-from src.services.misconception.classify import (  # noqa: E402
-    CLASSIFIER_VERSION,
-    ClassifierUnavailableError,
-    _MODELS_DIR,
-)
 from src.services.misconception.embed import embed_answer  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -63,6 +70,24 @@ def _predict_classifier(model, embedding: list[float]) -> str:
     return str(model.classes_[probabilities.argmax()])
 
 
+def _leave_one_out_pairs(
+    subject_rows: list[dict], embedding_by_row_id: dict[str, list[float]]
+) -> list[tuple[str, str]]:
+    """Scores every row in `subject_rows` with a classifier fit on that
+    subject's *other* rows only -- no row is ever scored by a model that
+    trained on it, so this cannot leak."""
+    pairs: list[tuple[str, str]] = []
+    for held_out in subject_rows:
+        train_rows = [r for r in subject_rows if r["id"] != held_out["id"]]
+        train_embeddings = [embedding_by_row_id[r["id"]] for r in train_rows]
+        train_labels = [r["expected_misconception_id"] or NONE_LABEL for r in train_rows]
+        model = fit_classifier(train_embeddings, train_labels)
+        expected = held_out["expected_misconception_id"] or NONE_LABEL
+        predicted = _predict_classifier(model, embedding_by_row_id[held_out["id"]])
+        pairs.append((expected, predicted))
+    return pairs
+
+
 async def _run(ground_truth_path: Path) -> int:
     rows = _load_rows(ground_truth_path)
     if not rows:
@@ -70,29 +95,37 @@ async def _run(ground_truth_path: Path) -> int:
         return 1
 
     taxonomy_by_topic = _taxonomy_by_subject_and_topic()
-    models: dict[str, object] = {}
+    rows_by_subject: dict[str, list[dict]] = defaultdict(list)
+    for row in rows:
+        rows_by_subject[row["subject_id"]].append(row)
+
     classifier_pairs: list[tuple[str, str]] = []
     baseline_pairs: list[tuple[str, str]] = []
     errors: list[str] = []
+    embedding_by_row_id: dict[str, list[float]] = {}
+
+    for row in rows:
+        try:
+            embedding_by_row_id[row["id"]] = embed_answer(row["question"], row["learner_answer"])
+        except Exception as exc:  # noqa: BLE001 -- any failure here fails the whole run
+            errors.append(f"{row['id']}: embedding failed -- {exc}")
+
+    if not errors:
+        for subject_id, subject_rows in sorted(rows_by_subject.items()):
+            if len(subject_rows) < 2:
+                errors.append(
+                    f"{subject_id}: only {len(subject_rows)} ground-truth row(s) -- "
+                    "leave-one-out cross-validation needs at least 2 per subject"
+                )
+                continue
+            try:
+                classifier_pairs.extend(_leave_one_out_pairs(subject_rows, embedding_by_row_id))
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"{subject_id}: leave-one-out classifier failed -- {exc}")
 
     for row in rows:
         expected = row["expected_misconception_id"] or NONE_LABEL
-        subject_id, topic_id = row["subject_id"], row["topic_id"]
-        row_taxonomy = taxonomy_by_topic.get((subject_id, topic_id), [])
-
-        try:
-            if subject_id not in models:
-                model_path = _MODELS_DIR / subject_id / CLASSIFIER_VERSION / "classifier.joblib"
-                if not model_path.is_file():
-                    raise ClassifierUnavailableError(
-                        f"no trained classifier for subject '{subject_id}'"
-                    )
-                models[subject_id] = joblib.load(model_path)
-            embedding = embed_answer(row["question"], row["learner_answer"])
-            classifier_pairs.append((expected, _predict_classifier(models[subject_id], embedding)))
-        except Exception as exc:  # noqa: BLE001 -- any failure here fails the whole run
-            errors.append(f"{row['id']}: classifier failed -- {exc}")
-
+        row_taxonomy = taxonomy_by_topic.get((row["subject_id"], row["topic_id"]), [])
         try:
             baseline_predicted = await classify_baseline(
                 row["question"], row["learner_answer"], row_taxonomy
@@ -111,7 +144,7 @@ async def _run(ground_truth_path: Path) -> int:
     baseline_accuracy = compute_accuracy(baseline_pairs)
 
     print(f"misconception_classifier_eval: n={len(rows)}")
-    print(f"  fine-tuned classifier accuracy: {classifier_accuracy:.0%}")
+    print(f"  fine-tuned classifier accuracy (leave-one-out): {classifier_accuracy:.0%}")
     print(f"  prompted-only baseline accuracy: {baseline_accuracy:.0%}")
     if classifier_accuracy >= baseline_accuracy:
         print("  OK: the fine-tuned classifier meets or beats the baseline")

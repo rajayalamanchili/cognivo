@@ -185,21 +185,39 @@ reviewable, checked-in file rather than an opaque live-data pull.
 
 **Decision**: A new `backend/scripts/check_misconception_classifier_eval.py`,
 structurally mirroring `check_grading_agent_eval.py`: runs both the
-trained classifier and the prompted-only baseline (§2) against
+classifier and the prompted-only baseline (§2) against
 `misconception_ground_truth.jsonl`, computes accuracy for each, and
 writes both numbers to a report. Unlike the grading eval gate, this
 script's exit code is **never** non-zero merely because the classifier
 scores below the baseline -- FR-007/SC-001 require the comparison to be
 recorded honestly, not to pass a bar. The script only fails (non-zero)
 if it cannot produce a comparison at all (e.g., a crash, a malformed
-fixture, or a missing model artifact) -- the measurement itself is the
-gate, not a specific accuracy floor.
+fixture, or fewer than 2 ground-truth rows for a subject) -- the
+measurement itself is the gate, not a specific accuracy floor.
+
+The classifier side of the comparison is measured via **leave-one-out
+cross-validation**, not by scoring the shipped `classifier.joblib`
+against its own training data (corrected post-review, 2026-09-01 --
+the original implementation did exactly that, which is train/
+validation leakage: it reports training-fit accuracy, not a genuine
+generalization estimate, and isn't comparable to the baseline's honest
+zero-shot number). With only 7 rows per subject there's no volume for
+a real held-out split -- LOOCV is the standard way to get an unbiased
+generalization estimate from a dataset that small without discarding
+any of it. For each row, a fresh classifier is fit (via
+`train_misconception_classifier.py`'s now-shared `fit_classifier()`)
+on every *other* row for that subject and scored on the held-out one,
+so no prediction ever comes from a model that saw that example during
+training. The shipped artifact -- trained on all rows, for production
+use -- is untouched by this script.
 
 **Rationale**: Directly implements spec.md's FR-007 ("reported even
 when the fine-tuned classifier does not outperform the baseline") --
 gating merge on "classifier must win" would create an incentive to
 hide or discard an honest negative result, exactly what that
-requirement exists to prevent.
+requirement exists to prevent. That same honesty requirement is what
+the leakage violated: an inflated, non-generalizing number is its own
+kind of hidden negative result.
 
 ## §8. Model artifact storage
 

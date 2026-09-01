@@ -712,11 +712,18 @@ A2A services. `tech-stack.md` amended (v2.1.0) to lock these choices.
 
 **Real, honestly-reported findings from live validation** (all expected
 consequences of a 7-example-per-subject training set, not defects):
-the trained classifier's accuracy against the hand-labeled validation
-set is **79%**, against the prompted-only baseline's **93%** -- the
-classifier does not beat the baseline (`check_misconception_classifier_
-eval.py`, run for real with live Voyage/Claude Haiku calls, exit code
-`0` as designed, FR-007). Separately, live end-to-end validation
+the trained classifier's accuracy, measured via leave-one-out
+cross-validation against the hand-labeled fixture, is **29%**, against
+the prompted-only baseline's **93%** -- the classifier does not beat
+the baseline (`check_misconception_classifier_eval.py`, run for real
+with live Voyage/Claude Haiku calls, exit code `0` as designed,
+FR-007). **Corrected post-review (2026-09-01)** from an initially
+reported 79%: that number was train/validation leakage -- it scored
+the shipped classifier against the exact same rows it was trained on.
+With only 7 rows/subject there's no volume for a real held-out split,
+so the eval script now uses leave-one-out cross-validation instead
+(research.md §7); the 29% is the honest number. Separately, live
+end-to-end validation
 (quickstart.md, real trained artifacts, real embeddings, a disposable
 test learner) found the real classifier's confidence on realistic wrong
 answers tops out at 0.46 against the locked `0.6` confidence threshold
