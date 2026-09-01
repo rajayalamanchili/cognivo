@@ -56,7 +56,7 @@ def test_missing_artifact_for_one_subject_does_not_block_others(
         probabilities_per_row=[[0.9, 0.1]] * 3,
     )
 
-    def _load_classifier_side_effect(subject_id):
+    def _load_classifier_side_effect(subject_id, cache=None):
         if subject_id == "algebra-1":
             raise ClassifierUnavailableError("no trained classifier for subject 'algebra-1'")
         return fake_biology_model

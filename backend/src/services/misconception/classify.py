@@ -44,6 +44,14 @@ _MODELS_DIR = Path(__file__).resolve().parents[3] / "misconception_models"
 # job-run time, never persisted per-classification.
 CONFIDENCE_THRESHOLD = float(os.environ.get("MISCONCEPTION_CONFIDENCE_THRESHOLD", "0.6"))
 
+# research.md §3: bounds one run's worst-case duration inside the shared
+# 30s Vercel `maxDuration` (tech-stack.md) -- tunable without a code
+# change for the same reason as the threshold above. Pairs beyond the
+# cap are left for a later run: the watermark (`_last_answer_at_by_pair`)
+# means nothing is lost, just deferred, and oldest-evidence-first
+# ordering means a backlog drains instead of starving.
+MAX_PAIRS_PER_RUN = int(os.environ.get("MISCONCEPTION_MAX_PAIRS_PER_RUN", "20"))
+
 
 class ClassifierUnavailableError(Exception):
     """No trained artifact exists yet for this subject (research.md §3:
@@ -78,11 +86,21 @@ def select_classification(
     return MisconceptionResult(misconception_id=best_id, confidence=best_confidence)
 
 
-def _load_classifier(subject_id: str):
+def _load_classifier(subject_id: str, cache: dict[str, object] | None = None):
+    """`cache`, when given, is shared across every pair in one
+    `run_classification_batch` run -- avoids re-deserializing the same
+    subject's `classifier.joblib` from disk once per pair (harmless per
+    call, but avoidable I/O on a path already budget-constrained by the
+    cron route's shared `maxDuration`)."""
+    if cache is not None and subject_id in cache:
+        return cache[subject_id]
     path = _MODELS_DIR / subject_id / CLASSIFIER_VERSION / "classifier.joblib"
     if not path.is_file():
         raise ClassifierUnavailableError(f"no trained classifier for subject '{subject_id}'")
-    return joblib.load(path)
+    model = joblib.load(path)
+    if cache is not None:
+        cache[subject_id] = model
+    return model
 
 
 def _qualifying_events(
@@ -108,7 +126,12 @@ def _qualifying_events(
 
 
 def classify_learner_topic(
-    db: Session, *, learner_id: uuid.UUID, subject_id: str, topic_id: str
+    db: Session,
+    *,
+    learner_id: uuid.UUID,
+    subject_id: str,
+    topic_id: str,
+    classifier_cache: dict[str, object] | None = None,
 ) -> AssessmentEvent | None:
     """Classifies one learner/topic pair. Returns the written
     `misconception_classified` event, or `None` if no classification
@@ -118,6 +141,10 @@ def classify_learner_topic(
     function never raises for those cases). Does not commit -- mirrors
     `record_event`'s own transaction-boundary convention; the caller
     (the cron route, T020) controls commit per pair.
+
+    `classifier_cache`, when given, is passed straight to
+    `_load_classifier` -- shared across a batch run so a subject's
+    artifact is deserialized once, not once per pair.
 
     Raises `ClassifierUnavailableError` if no trained artifact exists
     for `subject_id` yet -- a real, distinct failure mode from "nothing
@@ -138,7 +165,7 @@ def classify_learner_topic(
     if len(qualifying) < CONFIDENT_MIN_EVENTS:
         return None
 
-    model = _load_classifier(subject_id)
+    model = _load_classifier(subject_id, cache=classifier_cache)
     embeddings = [
         embed_answer(question.stem, event.payload["response"]) for event, question in qualifying
     ]
@@ -227,20 +254,35 @@ def run_classification_batch(db: Session) -> int:
     re-embedding its whole history and writing a duplicate event would
     be pure waste. A pair never classified before always runs (subject
     to `classify_learner_topic`'s own evidence/confidence thresholds).
-    Returns the number of pairs that actually produced a new
+
+    Processes at most `MAX_PAIRS_PER_RUN` pairs, oldest-qualifying-
+    evidence-first, to bound this run's worst-case duration inside the
+    cron route's shared 30s `maxDuration` (research.md §3) -- any
+    excess is picked up by a later run via the same watermark, never
+    lost. Returns the number of pairs that actually produced a new
     `misconception_classified` event this run, not the number scanned.
     """
     last_answer_at = _last_answer_at_by_pair(db)
     last_classified_at = _last_classified_at_by_pair(db)
 
+    due_pairs = [
+        (learner_id, subject_id, topic_id, answered_at)
+        for (learner_id, subject_id, topic_id), answered_at in last_answer_at.items()
+        if (classified_at := last_classified_at.get((learner_id, subject_id, topic_id))) is None
+        or answered_at > classified_at
+    ]
+    due_pairs.sort(key=lambda pair: pair[3])
+
+    classifier_cache: dict[str, object] = {}
     classified_count = 0
-    for (learner_id, subject_id, topic_id), answered_at in last_answer_at.items():
-        classified_at = last_classified_at.get((learner_id, subject_id, topic_id))
-        if classified_at is not None and answered_at <= classified_at:
-            continue  # no new evidence since the last run
+    for learner_id, subject_id, topic_id, _ in due_pairs[:MAX_PAIRS_PER_RUN]:
         try:
             event = classify_learner_topic(
-                db, learner_id=learner_id, subject_id=subject_id, topic_id=topic_id
+                db,
+                learner_id=learner_id,
+                subject_id=subject_id,
+                topic_id=topic_id,
+                classifier_cache=classifier_cache,
             )
             db.commit()
         except Exception:

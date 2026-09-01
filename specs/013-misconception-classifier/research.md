@@ -104,6 +104,25 @@ Agent's read path a cheap, already-proven DB query.
   Constitution Principle IX and `tech-stack.md` rule out for this
   project's Vercel deployment model.
 
+**Correction post-review (2026-09-01)**: the cron route (`cron.py`)
+still shares the backend function's single `maxDuration: 30` budget
+(`tech-stack.md`) with every other endpoint, and `run_classification_
+batch()` had no bound on how many pairs -- each requiring a Voyage
+embedding call per qualifying answer -- it would process in one
+invocation. As pair/answer volume grows this run's worst-case duration
+grows unboundedly against a fixed budget, exactly the class of risk
+Principle IX exists to force out into the open before it becomes a
+live timeout. Fixed with `MAX_PAIRS_PER_RUN` (env var `MISCONCEPTION_
+MAX_PAIRS_PER_RUN`, default 20, same "tunable without a schema change"
+pattern as `CONFIDENCE_THRESHOLD` above): each run processes at most
+that many pairs, oldest-qualifying-evidence-first, and any excess is
+simply picked up by a later run via the existing watermark -- nothing
+is lost, only deferred. Separately, `_load_classifier` now accepts an
+optional cache shared across one run's pairs, so a subject's
+`classifier.joblib` is deserialized once per run rather than once per
+pair -- a smaller effect, but avoidable I/O on the same
+budget-constrained path.
+
 ## §4. Storage: a new `AssessmentEventType` value, zero new tables
 
 **Decision**: A classification result is a new `AssessmentEvent` row,
