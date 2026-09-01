@@ -111,14 +111,14 @@ Single deployable unit touched: the existing `backend/` project (plus one additi
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Unit test: the eval script's accuracy-computation helper returns the correct percentage given a known set of predictions vs. expected labels, including the "classifier scores lower than baseline" case (spec.md Acceptance Scenario 2) in `backend/tests/unit/test_misconception_eval_accuracy.py`
+- [X] T029 [P] [US3] Unit test: the eval script's accuracy-computation helper returns the correct percentage given a known set of predictions vs. expected labels, including the "classifier scores lower than baseline" case (spec.md Acceptance Scenario 2) in `backend/tests/unit/test_misconception_eval_accuracy.py`
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Implement `backend/src/services/misconception/baseline.py`: a single-shot ADK `LlmAgent` call (`LiteLlm`, Claude Haiku default via `MISCONCEPTION_BASELINE_MODEL`) with a Pydantic `output_schema` naming the closest taxonomy label or `none`, structurally mirroring `grading-agent/src/guardrails.py`'s `check_moderation()` (research.md §2) -- used only by the eval script, never the production classification path
-- [ ] T031 [US3] Implement `backend/scripts/check_misconception_classifier_eval.py`, mirroring `check_grading_agent_eval.py`'s structure: runs both the trained classifier (T017) and the baseline (T030) against `misconception_ground_truth.jsonl` (T010), computes and prints both accuracies, and exits non-zero **only** on a crash or malformed fixture -- never merely because the classifier scores below the baseline (research.md §7, FR-007) (depends on T017, T030, T010; satisfies T029)
+- [X] T030 [US3] Implement `backend/src/services/misconception/baseline.py`: a single-shot ADK `LlmAgent` call (`LiteLlm`, Claude Haiku default via `MISCONCEPTION_BASELINE_MODEL`) with a Pydantic `output_schema` naming the closest taxonomy label or `none`, structurally mirroring `grading-agent/src/guardrails.py`'s `check_moderation()` (research.md §2) -- used only by the eval script, never the production classification path
+- [X] T031 [US3] Implement `backend/scripts/check_misconception_classifier_eval.py`, mirroring `check_grading_agent_eval.py`'s structure: runs both the trained classifier (T017) and the baseline (T030) against `misconception_ground_truth.jsonl` (T010), computes and prints both accuracies, and exits non-zero **only** on a crash or malformed fixture -- never merely because the classifier scores below the baseline (research.md §7, FR-007) (depends on T017, T030, T010; satisfies T029). **Done 2026-08-31**, run for real (Claude Haiku baseline calls + real Voyage embeddings, no mocks): **classifier 79%, baseline 93%, n=14 -- the classifier does not beat the baseline**, printed as a `NOTE`, exit code confirmed `0`. This is the honest, unsurprising result of a 7-example-per-subject training set (T019's own note) -- reported as-is per FR-007, not hidden or treated as a failure.
 
-**Checkpoint**: All three user stories are independently functional -- named, cited misconceptions surface when evidence supports them; the report degrades gracefully when it can't; and the classifier's real accuracy is on the record either way.
+**Checkpoint**: All three user stories are independently functional -- named, cited misconceptions surface when evidence supports them; the report degrades gracefully when it can't; and the classifier's real accuracy is on the record either way. **Done 2026-08-31**: full backend suite 388/388 (383 baseline + 5 new).
 
 ---
 
