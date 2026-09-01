@@ -772,8 +772,17 @@ this one misconception classifier, consumed only by Recommendation.
 ---
 
 ## Milestone 12: Prompt Versioning and Regression Testing
-**Spec**: not yet written -- do not begin until Milestone 11 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/014-prompt-versioning/spec.md`
+**Status**: `/speckit-specify` complete (2026-09-01, branch
+`022-prompt-versioning`) -- spec quality checklist passed with zero
+`[NEEDS CLARIFICATION]` markers. Scoped the regression gate (User Story
+2) to the two agents with an existing quantitative eval suite
+(Assessment-Generation's spec 001 SC-003, Grading's spec 007 FR-008);
+corrected roadmap's own "Milestone 3's personalization eval" citation in
+the spec's Assumptions (Milestone 3/spec 006 evaluates the Sequencing
+Agent, which has no LLM prompt -- wired to spec 001 SC-003 instead, the
+suite that actually measures Assessment-Generation's output quality).
+`/speckit-plan` not yet run.
 
 **Scope**: Every prompt used by every agent (Assessment-Generation,
 Grading, Recommendation, Tutor) is stored as a versioned artifact --
