@@ -687,19 +687,50 @@ shared/deduplicated image asset libraries across subjects.
 
 ## Milestone 11: Fine-Tuned Misconception Classifier
 **Spec**: `specs/013-misconception-classifier/spec.md`
-**Status**: `/speckit-specify` complete (2026-08-31) -- Milestone 10's
-DoD is met, so this milestone's spec was written against it. Zero
-`NEEDS CLARIFICATION` markers; requirements-quality checklist passed on
-first pass. `/speckit-plan` complete (2026-08-31): locks the classifier
-as Voyage `voyage-3` embeddings + a per-subject `scikit-learn`
-classifier trained offline (no Claude fine-tuning API exists for this
-project to use), evaluated honestly against a prompted-only Claude
-Haiku baseline, classified via a new Vercel Cron job (never inline in
-the Recommendation Agent's request path) and stored as one new
-`AssessmentEventType` value (`misconception_classified`) rather than a
-new table -- zero new tables, zero new agents, zero new A2A services.
-Constitution Check passed with no violations; `tech-stack.md` amended
-(v2.1.0) to lock these choices. Next: `/speckit-tasks`.
+**Status**: `/speckit-implement` complete, all 6 phases (2026-08-31)
+(Setup; Foundational -- enum + migration, content-artifact
+`misconceptions` schema, taxonomy authored for both seeded subjects'
+free-text topics, the Voyage embedding wrapper, and the one hand-
+labeled ground-truth fixture this milestone's entire training/eval
+pipeline depends on, since no `AssessmentEvent` row has ever carried a
+misconception label; User Story 1 -- the classifier, the offline
+training script and its real trained artifacts, the scheduled
+classification cron route, and the Recommendation Agent's weak-area
+report enrichment, working end to end; User Story 2 -- graceful
+degradation confirmed structural, not a try/except away from breaking;
+User Story 3 -- the prompted-only baseline and the honest,
+never-a-merge-gate accuracy comparison; Polish -- regression, subject-
+conditional scan, and full live-environment quickstart validation).
+`/speckit-specify` (zero `NEEDS CLARIFICATION` markers),
+`/speckit-plan` (locks Voyage `voyage-3` embeddings + a per-subject
+`scikit-learn` classifier trained offline -- no Claude fine-tuning API
+exists for this project to use -- classified via a new Vercel Cron job,
+stored as one new `AssessmentEventType` value rather than a new table),
+and `/speckit-analyze` (8 findings, 0 CRITICAL, all remediated same-day)
+all complete beforehand. Zero new tables, zero new agents, zero new
+A2A services. `tech-stack.md` amended (v2.1.0) to lock these choices.
+
+**Real, honestly-reported findings from live validation** (all expected
+consequences of a 7-example-per-subject training set, not defects):
+the trained classifier's accuracy against the hand-labeled validation
+set is **79%**, against the prompted-only baseline's **93%** -- the
+classifier does not beat the baseline (`check_misconception_classifier_
+eval.py`, run for real with live Voyage/Claude Haiku calls, exit code
+`0` as designed, FR-007). Separately, live end-to-end validation
+(quickstart.md, real trained artifacts, real embeddings, a disposable
+test learner) found the real classifier's confidence on realistic wrong
+answers tops out at 0.46 against the locked `0.6` confidence threshold
+-- below it, so no classification is produced by default on the
+current training set; the full write/read mechanism was confirmed
+correct by temporarily lowering the threshold (an explicitly tunable
+env var, not a code change), where all 7 quickstart scenario checks
+passed. More/better-labeled training examples, not a code fix, is what
+would close this gap. Full backend suite: 387/388 (the sole failure is
+the pre-existing, already-documented Neon/PgBouncer type-OID-churn
+flake on `test_placement_api.py`, unrelated to this milestone -- passes
+in isolation, reproduced identically across this milestone's implement
+phases). Full frontend suite: 64/64. `check_no_subject_conditionals.py`
+clean throughout.
 
 **Scope**: Using the (question, learner free-text answer, expected
 grade) data accumulated since Milestone 6, fine-tune a lightweight
@@ -953,7 +984,10 @@ Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
 
-**Version**: 3.2.0 -- 2026-08-31, added "Tutor Agent answer-shielding
+**Version**: 3.3.0 -- 2026-08-31, Milestone 11 marked
+`/speckit-implement` complete (all 35 tasks, 6 phases; classifier
+trained and live-validated for real, honest accuracy/confidence
+findings recorded); 3.2.0 -- 2026-08-31, added "Tutor Agent answer-shielding
 during practice/assessment" to Out of current roadmap (flagged, not
 scoped); 3.1.0 -- 2026-08-16, Milestone 1 marked complete (deployed
 and verified live on Vercel); 3.0.0 (2026-08-15, added Milestones 8
