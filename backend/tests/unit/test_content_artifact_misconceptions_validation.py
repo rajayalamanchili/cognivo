@@ -83,3 +83,29 @@ def test_duplicate_misconception_id_fails_validation():
                 }
             )
         )
+
+
+def test_duplicate_misconception_id_across_topics_fails_validation():
+    """The classifier trains one model per subject_id across every topic's
+    ground truth, so misconception_id must be unique subject-wide, not
+    just within one topic."""
+    artifact = {
+        "subject_id": "test-subject",
+        "display_name": "Test Subject",
+        "content_version": "1.0.0",
+        "topics": [
+            {
+                **_BASE_TOPIC,
+                "misconceptions": [{"misconception_id": "dup", "description": "first"}],
+            },
+            {
+                "topic_id": "topic-2",
+                "display_name": "Topic Two",
+                "skill_definition": {"summary": "A second topic."},
+                "misconceptions": [{"misconception_id": "dup", "description": "second"}],
+            },
+        ],
+    }
+
+    with pytest.raises(ContentArtifactValidationError, match="duplicate"):
+        validate_content_artifact(artifact)

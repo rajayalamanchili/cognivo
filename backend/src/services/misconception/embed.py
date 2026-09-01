@@ -12,10 +12,12 @@ too).
 """
 
 import os
+import time
 
 import litellm
 
 MAX_ATTEMPTS = 2
+RETRY_DELAY_SECONDS = 2
 
 
 class EmbeddingUnavailableError(Exception):
@@ -32,10 +34,12 @@ def embed_answer(question_stem: str, answer_text: str) -> list[float]:
     model_name = os.environ.get("TUTOR_EMBEDDING_MODEL", "voyage/voyage-3")
     text = f"{question_stem}\n\n{answer_text}"
     last_error: Exception | None = None
-    for _ in range(MAX_ATTEMPTS):
+    for attempt in range(MAX_ATTEMPTS):
         try:
             response = litellm.embedding(model=model_name, input=[text])
             return response.data[0]["embedding"]
         except Exception as exc:  # noqa: BLE001 -- any provider failure retries, then surfaces
             last_error = exc
+            if attempt < MAX_ATTEMPTS - 1:
+                time.sleep(RETRY_DELAY_SECONDS)
     raise EmbeddingUnavailableError() from last_error
