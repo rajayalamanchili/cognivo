@@ -14,6 +14,7 @@ Never invoked inline from a learner-facing request path (research.md
 (`api/routes/cron.py`) or the offline training/eval scripts.
 """
 
+import logging
 import os
 import uuid
 from dataclasses import dataclass
@@ -29,6 +30,8 @@ from src.models.topic import Topic
 from src.services.audit_log.writer import record_event
 from src.services.misconception.embed import embed_answer
 from src.services.recommendation.weak_area import CONFIDENT_MIN_EVENTS
+
+logger = logging.getLogger(__name__)
 
 # research.md §8: one checked-in, versioned artifact per subject,
 # bundled with the deployed function -- read-only at request/job time.
@@ -192,10 +195,24 @@ def run_classification_batch(db: Session) -> int:
     )
     classified_count = 0
     for learner_id, subject_id, topic_id in pairs:
-        event = classify_learner_topic(
-            db, learner_id=learner_id, subject_id=subject_id, topic_id=topic_id
-        )
-        db.commit()
+        try:
+            event = classify_learner_topic(
+                db, learner_id=learner_id, subject_id=subject_id, topic_id=topic_id
+            )
+            db.commit()
+        except Exception:
+            # One bad pair (e.g. a missing classifier.joblib for this
+            # subject, ClassifierUnavailableError) must never fail the
+            # whole scheduled run (spec 013 US2/FR-006) -- roll back
+            # just this pair's partial work and keep going.
+            db.rollback()
+            logger.exception(
+                "misconception classification failed for learner=%s subject=%s topic=%s",
+                learner_id,
+                subject_id,
+                topic_id,
+            )
+            continue
         if event is not None:
             classified_count += 1
     return classified_count

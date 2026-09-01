@@ -91,15 +91,15 @@ Single deployable unit touched: the existing `backend/` project (plus one additi
 
 ### Tests for User Story 2
 
-- [ ] T025 [P] [US2] Integration test: a subject with no `misconceptions` taxonomy produces a full weak-area report with `misconception: null` on every flag and no error (spec.md edge case) in `backend/tests/integration/test_misconception_no_taxonomy.py`
-- [ ] T026 [P] [US2] Integration test: the classification job encountering a missing/unloadable `classifier.joblib` for one subject logs and skips that subject, continuing to classify every other qualifying learner/topic pair without raising (research.md §3) in `backend/tests/integration/test_misconception_missing_artifact.py`
+- [X] T025 [P] [US2] Integration test: a subject with no `misconceptions` taxonomy produces a full weak-area report with `misconception: null` on every flag and no error (spec.md edge case) in `backend/tests/integration/test_misconception_no_taxonomy.py`
+- [X] T026 [P] [US2] Integration test: the classification job encountering a missing/unloadable `classifier.joblib` for one subject logs and skips that subject, continuing to classify every other qualifying learner/topic pair without raising (research.md §3) in `backend/tests/integration/test_misconception_missing_artifact.py`
 
 ### Implementation for User Story 2
 
-- [ ] T027 [US2] Harden `classify.py` (T017) and the cron route (T020): wrap each learner/topic pair's classification (including artifact load) in a try/except that logs and continues rather than raising, so one bad pair or one subject's missing artifact never fails the whole scheduled run (depends on T017, T020; satisfies T026)
-- [ ] T028 [US2] Confirm (via T025) that `weak_area.py`'s read path (T022) already defaults to `misconception: null` whenever no matching event exists -- no separate code path needed, since the read is a plain "event found or not" query with no classifier invocation on the read side (depends on T022; satisfies T025)
+- [X] T027 [US2] Harden `classify.py` (T017) and the cron route (T020): wrap each learner/topic pair's classification (including artifact load) in a try/except that logs and continues rather than raising, so one bad pair or one subject's missing artifact never fails the whole scheduled run (depends on T017, T020; satisfies T026). **Done**: the try/except lives in `run_classification_batch()` (rollback + `logger.exception` + `continue` per pair) -- the cron route itself needed no separate change since it already delegates entirely to that now-hardened function.
+- [X] T028 [US2] Confirm (via T025) that `weak_area.py`'s read path (T022) already defaults to `misconception: null` whenever no matching event exists -- no separate code path needed, since the read is a plain "event found or not" query with no classifier invocation on the read side (depends on T022; satisfies T025). **Confirmed**: T025 passes with zero production-code changes needed, exactly as structurally guaranteed since Phase 3.
 
-**Checkpoint**: At this point, User Stories 1 AND 2 both work independently -- the enrichment is additive everywhere it can run and silently absent everywhere it can't.
+**Checkpoint**: At this point, User Stories 1 AND 2 both work independently -- the enrichment is additive everywhere it can run and silently absent everywhere it can't. **Done 2026-08-31**: full backend suite 383/383 (381 baseline + 2 new).
 
 ---
 
