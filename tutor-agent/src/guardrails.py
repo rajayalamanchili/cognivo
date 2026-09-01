@@ -46,6 +46,12 @@ MAX_REQUEST_LENGTH = 12000
 
 _APP_NAME = "cognivo-tutor-agent-guardrail-moderation"
 
+# Bumped whenever _MODERATION_INSTRUCTION's instructional content
+# changes (spec 014 FR-002/FR-008's CI-enforced version-bump
+# requirement) -- a code constant, not a database row, same as
+# GRADING_LOGIC_VERSION.
+TUTOR_GUARDRAIL_MODERATION_VERSION = "v1"
+
 _MODERATION_INSTRUCTION = """\
 You are a content-moderation classifier for a learning platform's tutoring \
 requests. Classify the submitted text as allowed or blocked.

@@ -8,6 +8,7 @@ on:
       - "grading-agent/**"
       - "backend/scripts/check_grading_agent_eval.py"
       - "backend/scripts/check_grading_agent_test_independence.py"
+      - "backend/scripts/check_prompt_versioning.py"
       - "backend/evaluation/grading_ground_truth.jsonl"
       - ".github/workflows/grading-agent-tests.yml"
 
@@ -19,6 +20,16 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+
+      - name: Fetch base branch for prompt-versioning diff
+        # spec 014 research.md §4/§8 -- needed for the version-bump
+        # check's `git show origin/<base>:<path>` below.
+        run: git fetch --depth=1 origin "${{ github.base_ref }}"
+
+      - name: Check prompt versioning (spec 014 FR-001/FR-002/FR-003/FR-008)
+        run: |
+          python3 backend/scripts/check_prompt_versioning.py grading-agent/src \
+            --base-ref "origin/${{ github.base_ref }}"
 
       - uses: astral-sh/setup-uv@v10.0.1
         with:

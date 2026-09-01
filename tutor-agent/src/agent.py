@@ -78,6 +78,11 @@ from src.tracing import configure_tracing, flush_traces, traced_exchange
 
 APP_NAME = "cognivo-tutor-agent"
 
+# Bumped whenever _INSTRUCTION's instructional content changes (spec 014
+# FR-002/FR-008's CI-enforced version-bump requirement) -- a code
+# constant, not a database row, same as GRADING_LOGIC_VERSION.
+TUTOR_INSTRUCTION_VERSION = "v1"
+
 
 def cite_passages(passage_ids: list[str], tool_context: ToolContext) -> None:
     """Report which retrieved_passages you actually drew on to answer,

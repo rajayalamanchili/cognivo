@@ -20,6 +20,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch base branch for prompt-versioning diff
+        # The prompt-versioning check below needs `git show
+        # origin/<base>:<path>` to resolve the PR's pre-change file
+        # content (spec 014 research.md §4/§8) -- actions/checkout's
+        # default shallow, single-ref fetch doesn't include this.
+        run: git fetch --depth=1 origin "${{ github.base_ref }}"
+
+      - name: Check prompt versioning (spec 014 FR-001/FR-002/FR-003/FR-008)
+        # Pure stdlib (ast/subprocess) -- no uv sync/venv needed, so this
+        # runs fast and fails closed before the Neon branch is even created.
+        run: |
+          python3 scripts/check_prompt_versioning.py src \
+            --base-ref "origin/${{ github.base_ref }}"
+
       - name: Create ephemeral Neon branch
         id: neon-branch
         uses: neondatabase/create-branch-action@v6

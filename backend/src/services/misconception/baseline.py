@@ -23,6 +23,11 @@ _APP_NAME = "misconception_baseline"
 
 NONE_LABEL = "none"
 
+# Bumped whenever _INSTRUCTION_TEMPLATE's instructional content changes
+# (spec 014 FR-002/FR-008's CI-enforced version-bump requirement) -- a
+# code constant, not a database row, same as GRADING_LOGIC_VERSION.
+MISCONCEPTION_BASELINE_PROMPT_VERSION = "v1"
+
 _INSTRUCTION_TEMPLATE = """\
 You are classifying a learner's incorrect free-text answer against a
 known list of misconception patterns for this topic.
