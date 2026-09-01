@@ -13,15 +13,17 @@ public caller can't trigger a reset of the live demo state on demand.
 import hmac
 import os
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
+from sqlalchemy.orm import Session
 
 from scripts.reset_demo_data import reset_demo_data
+from src.db import get_db
+from src.services.misconception.classify import run_classification_batch
 
 router = APIRouter()
 
 
-@router.get("/api/cron/reset-demo-data")
-def reset_demo_data_route(authorization: str | None = Header(default=None)) -> dict:
+def _require_cron_secret(authorization: str | None) -> None:
     expected_secret = os.environ.get("CRON_SECRET")
     if not expected_secret:
         raise HTTPException(status_code=503, detail="CRON_SECRET not configured")
@@ -30,5 +32,21 @@ def reset_demo_data_route(authorization: str | None = Header(default=None)) -> d
     if not hmac.compare_digest(provided, expected_secret):
         raise HTTPException(status_code=401, detail="unauthorized")
 
+
+@router.get("/api/cron/reset-demo-data")
+def reset_demo_data_route(authorization: str | None = Header(default=None)) -> dict:
+    _require_cron_secret(authorization)
     reset_demo_data()
     return {"status": "ok"}
+
+
+@router.get("/api/cron/classify-misconceptions")
+def classify_misconceptions_route(
+    authorization: str | None = Header(default=None), db: Session = Depends(get_db)
+) -> dict:
+    """Spec 013's scheduled classification job (contracts/api.md,
+    research.md §3) -- mirrors `reset_demo_data_route`'s auth pattern
+    exactly."""
+    _require_cron_secret(authorization)
+    classified_count = run_classification_batch(db)
+    return {"status": "ok", "classified_count": classified_count}

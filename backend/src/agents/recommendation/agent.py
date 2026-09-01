@@ -15,7 +15,12 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from src.services.recommendation.next_step import NextStepSuggestion, suggest_next_step
-from src.services.recommendation.weak_area import EvidenceCitation, classify_topics
+from src.services.recommendation.weak_area import (
+    EvidenceCitation,
+    MisconceptionEnrichment,
+    classify_topics,
+    get_misconception_enrichment,
+)
 
 
 @dataclass(frozen=True)
@@ -25,6 +30,7 @@ class WeakAreaFlag:
     p_mastery: float
     evidence: list[EvidenceCitation]
     next_step: NextStepSuggestion
+    misconception: MisconceptionEnrichment | None = None
 
 
 @dataclass(frozen=True)
@@ -53,6 +59,9 @@ def build_weak_area_report(
             p_mastery=flag.p_mastery,
             evidence=flag.evidence,
             next_step=suggest_next_step(
+                db, learner_id=learner_id, subject_id=subject_id, topic_id=flag.topic_id
+            ),
+            misconception=get_misconception_enrichment(
                 db, learner_id=learner_id, subject_id=subject_id, topic_id=flag.topic_id
             ),
         )
