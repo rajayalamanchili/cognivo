@@ -42,7 +42,7 @@ Every LLM prompt in `backend/src`, `grading-agent/src`, and `tutor-agent/src` be
 | VI. Agent boundaries match deployment boundaries | No new A2A service introduced; existing Grading/Tutor A2A boundaries and their inbound-auth requirements are untouched | PASS |
 | VII. Spec before code | `spec.md` approved via `/speckit-clarify` (2026-09-01, zero open questions) before this `plan.md` | PASS |
 | VIII. No real learner data until privacy specified | No learner data model touched; `GeneratedQuestion` is generated-content metadata, not learner data | PASS |
-| IX. Deployable and demoable from the start | New CI checks run in GitHub Actions, not at request time; the one runtime change (a new non-nullable column, always set at write time) requires no in-memory state and fits the existing stateless request path | PASS |
+| IX. Deployable and demoable from the start | New CI checks run in GitHub Actions, not at request time; the one runtime change (a new nullable column, always set to a real value on the new-row write path) requires no in-memory state and fits the existing stateless request path | PASS |
 | X. Staged release discipline | Implemented via a normal feature-branch PR into `staging`; strengthens the CI gate rather than bypassing it | PASS |
 
 No violations. Complexity Tracking not needed.
@@ -84,9 +84,10 @@ backend/
 ├── scripts/
 │   ├── check_prompt_versioning.py          # NEW: FR-003/FR-008 scanner
 │   └── batch_eval_questions.py             # add --fresh mode (FR-005)
-├── migrations/versions/                    # NEW: alembic revision for the column
+├── alembic/versions/                       # NEW: alembic revision for the column
 └── tests/unit/evaluation/
-    └── test_prompt_versioning.py           # NEW: scanner unit tests
+    ├── test_prompt_versioning.py           # NEW: unversioned-prompt scanner unit tests
+    └── test_prompt_version_bump.py         # NEW: version-bump enforcement unit tests
 
 grading-agent/
 └── src/

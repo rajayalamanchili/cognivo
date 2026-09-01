@@ -199,9 +199,10 @@ condition where a broad, already-correct one exists.
 
 ## §7. `GeneratedQuestion` schema change (FR-009)
 
-**Decision**: Add `generation_prompt_version: str` (non-nullable, no
-default -- every code path that creates a `GeneratedQuestion` is updated
-to pass it explicitly) as a new column on the existing
+**Decision**: Add `generation_prompt_version: str | None` (nullable, no
+default -- every code path that creates a *new* `GeneratedQuestion` is
+updated to pass a real version string explicitly; `None` is reserved for
+rows that predate this migration) as a new column on the existing
 `generated_questions` table, via a standard Alembic migration. Set from
 `GENERATION_PROMPT_VERSION` (§2) at the same call sites that already
 construct a `GeneratedQuestion` (`backend/src/api/routes/questions.py:100`,
@@ -216,7 +217,18 @@ generation event, so the version belongs directly on it, not on a
 separate new `AssessmentEventType`. No existing version-like field
 exists on this model today (confirmed by reading
 `backend/src/models/generated_question.py`), so this requires a real
-migration, not a python-only change.
+migration, not a python-only change. Nullable (not non-nullable) is a
+technical necessity, not a preference: `backend-tests.yml`'s ephemeral
+CI branch is created with `parent_branch: staging` (a copy-on-write
+clone of staging's real accumulated data, not an empty database, per
+that workflow's Neon branch-creation step), and `staging`/`main`'s own
+`generated_questions` table already holds rows from Milestones 1-11's
+live demo/dev usage -- a `NOT NULL` column with no default cannot be
+added to a non-empty Postgres table at all, so non-nullable was never
+actually buildable here (a gap the original version of this decision,
+written before checking that workflow's branch-provisioning step,
+missed). `NULL` on a pre-milestone row means exactly "not tracked,"
+consistent with FR-009's own "this milestone onward" scoping.
 
 **Alternatives considered**:
 - *A new `AssessmentEventType.QUESTION_GENERATED` event carrying the
@@ -225,12 +237,13 @@ migration, not a python-only change.
   itself, plus a separate `NEXT_TOPIC_SELECTED`/`PLACEMENT_QUESTION_SHOWN`
   event that isn't about the generation prompt), and inventing one
   duplicates data already naturally owned by the row being created.
-- *Nullable column with a backfill default (e.g. `"pre-v12"`)*:
-  rejected -- FR-009 Acceptance Scenario 2 only requires new rows carry
-  a real version; there is no requirement to retroactively attribute
-  historical rows (which were never versioned to begin with, so any
-  backfill value would be a fabrication, not a fact) -- SC-003's "100%
-  of questions generated... after this milestone ships" is explicit
+- *Nullable column with a fabricated backfill value (e.g. `"pre-v12"`)
+  written to every existing row*: rejected -- FR-009 Acceptance Scenario
+  2 only requires new rows carry a real version; there is no requirement
+  to retroactively attribute historical rows (which were never versioned
+  to begin with, so any backfill value would be a fabrication, not a
+  fact) -- SC-003's "100% of questions generated... after this milestone
+  ships" is explicit
   about the cutover point.
 
 ## §8. CI wiring for the new scanner (FR-004)

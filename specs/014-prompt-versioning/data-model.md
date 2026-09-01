@@ -44,13 +44,26 @@ satisfy this shape already (research.md §1's rejected-abstraction note).
 
 **Table**: `generated_questions` (`backend/src/models/generated_question.py`)
 
-**New column**: `generation_prompt_version: str`, non-nullable, no
-server-side default.
+**New column**: `generation_prompt_version: str | None`, nullable, no
+default. Every code path that creates a new `GeneratedQuestion` sets it
+explicitly to a real version string (never `None` for a row created
+after this migration); `None` is reserved for rows that predate this
+milestone.
 
-**Migration**: standard Alembic revision adding the column. No backfill
-of existing rows (research.md §7 -- historical rows were never versioned
-and SC-003 only requires versioning from this milestone forward, not
-retroactive attribution).
+**Migration**: standard Alembic revision adding the column as nullable.
+No backfill of existing rows (research.md §7 -- historical rows were
+never versioned and SC-003 only requires versioning from this milestone
+forward, not retroactive attribution). Nullable, not non-nullable, is
+the correct shape for this: `backend-tests.yml`'s ephemeral CI branch is
+created with `parent_branch: staging` (a copy-on-write clone of
+staging's real accumulated data, not an empty database), and
+`staging`/`main`'s own `generated_questions` table already has rows from
+Milestones 1-11's live demo/dev usage -- a non-nullable column with no
+default cannot be added to a non-empty Postgres table, and a fabricated
+backfill value was already rejected below for being dishonest about
+history. `NULL` for a pre-milestone row means exactly what it should:
+"not tracked," which is what FR-009's own "this milestone onward"
+wording already implies, not a gap to paper over.
 
 **Call sites requiring an update** (both already construct a
 `GeneratedQuestion`; both gain one new keyword argument sourced from
