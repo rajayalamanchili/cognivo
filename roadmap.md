@@ -773,16 +773,23 @@ this one misconception classifier, consumed only by Recommendation.
 
 ## Milestone 12: Prompt Versioning and Regression Testing
 **Spec**: `specs/014-prompt-versioning/spec.md`
-**Status**: `/speckit-specify` complete (2026-09-01, branch
-`022-prompt-versioning`) -- spec quality checklist passed with zero
-`[NEEDS CLARIFICATION]` markers. Scoped the regression gate (User Story
-2) to the two agents with an existing quantitative eval suite
-(Assessment-Generation's spec 001 SC-003, Grading's spec 007 FR-008);
-corrected roadmap's own "Milestone 3's personalization eval" citation in
-the spec's Assumptions (Milestone 3/spec 006 evaluates the Sequencing
-Agent, which has no LLM prompt -- wired to spec 001 SC-003 instead, the
-suite that actually measures Assessment-Generation's output quality).
-`/speckit-plan` not yet run.
+**Status**: `/speckit-plan` complete (2026-09-01, branch
+`022-prompt-versioning`). `/speckit-clarify` found zero critical
+ambiguities (spec quality checklist already passed with zero
+`[NEEDS CLARIFICATION]` markers at `/speckit-specify` time). Scoped the
+regression gate (User Story 2) to the two agents with an existing
+quantitative eval suite (Assessment-Generation's spec 001 SC-003,
+Grading's spec 007 FR-008); corrected roadmap's own "Milestone 3's
+personalization eval" citation in the spec's Assumptions (Milestone
+3/spec 006 evaluates the Sequencing Agent, which has no LLM prompt --
+wired to spec 001 SC-003 instead, the suite that actually measures
+Assessment-Generation's output quality). Plan locked prompt storage as
+code constants (extending `GRADING_LOGIC_VERSION`/`classifier_version`,
+no new DB table or third-party tool), an AST-based CI scanner for
+unversioned/unbumped prompts, and a `--fresh` in-process generation mode
+for `batch_eval_questions.py` so its regression gate works against a
+stateless, history-free CI database branch -- see
+`specs/014-prompt-versioning/research.md`. `/speckit-tasks` not yet run.
 
 **Scope**: Every prompt used by every agent (Assessment-Generation,
 Grading, Recommendation, Tutor) is stored as a versioned artifact --
