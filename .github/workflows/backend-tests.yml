@@ -50,6 +50,16 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Run Assessment-Generation regression gate (spec 014 FR-005/FR-007)
+        # --fresh mode needs no database at all (research.md §5) -- runs
+        # independently of the ephemeral Neon branch above, against the
+        # real Assessment-Generation Agent and this repo's own content
+        # artifacts on disk.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-4-5
+        run: uv run python scripts/batch_eval_questions.py --fresh
+
       - name: Run migrations against the ephemeral branch
         env:
           # Direct (unpooled) connection, not db_url_pooled: this suite's

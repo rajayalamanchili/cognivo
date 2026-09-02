@@ -55,6 +55,12 @@ jobs:
       # This script is plain stdlib (no venv needed) -- it shells out to
       # `uv run` inside grading-agent/ itself for the actual agent calls
       # (see check_grading_agent_eval.py's docstring).
+      #
+      # This step's existing `paths:` trigger (`grading-agent/**` above)
+      # already covers a change to the versioned scoring prompt itself
+      # (`prompt_defense.py`/`agent.py`'s `GRADING_LOGIC_VERSION`) -- no
+      # separate "changed prompt version" trigger condition was needed to
+      # satisfy spec 014 FR-006 (research.md §6).
       - name: Run ground-truth eval gate (spec 007 T040, FR-008, SC-003)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

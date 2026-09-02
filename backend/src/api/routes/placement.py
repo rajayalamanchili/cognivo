@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.agents.assessment_gen.agent import draft_to_answer_key
+from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_answer_key
 from src.agents.diagnostic.agent import generate_placement_questions
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
@@ -87,6 +87,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
             answer_key=draft_to_answer_key(placement_question.draft),
             validation_status=ValidationStatus.VALID,
             shown_at=now,
+            generation_prompt_version=GENERATION_PROMPT_VERSION,
         )
         db.add(question)
         db.flush()

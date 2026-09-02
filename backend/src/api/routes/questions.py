@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.agents.assessment_gen.agent import draft_to_answer_key
+from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_answer_key
 from src.agents.sequencing.agent import generate_next_question
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import (
@@ -110,6 +110,7 @@ async def get_next_question(
         answer_key=draft_to_answer_key(result.draft),
         validation_status=ValidationStatus.VALID,
         shown_at=now,
+        generation_prompt_version=GENERATION_PROMPT_VERSION,
     )
     db.add(question)
     db.flush()
