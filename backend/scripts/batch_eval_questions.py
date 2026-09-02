@@ -162,6 +162,13 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001 -- fail-closed (FR-007)
             print(f"FAIL: could not run the fresh Assessment-Generation eval: {exc}")
             return 1
+        if total == 0:
+            # Fail-closed (FR-007): "0/0 passed" is a vacuous pass, not
+            # a real result -- e.g. a future content-layout change or
+            # `CONTENT_DIR` moving would otherwise silently disable this
+            # regression gate instead of failing it (PR #55 review).
+            print("FAIL: --fresh generated zero questions -- no content artifacts found?")
+            return 1
     else:
         sample_size = args.sample_size or DEFAULT_SAMPLE_SIZE
         session_local = get_sessionmaker()

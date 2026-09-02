@@ -105,3 +105,45 @@ def test_cross_file_content_change_with_no_version_bump_anywhere_is_still_flagge
 
     assert len(violations) == 1
     assert "prompt_defense.py" in violations[0]
+
+
+def test_unrelated_files_version_bump_does_not_mask_a_different_files_missing_bump(
+    tmp_path: Path, monkeypatch
+):
+    """PR #55 review: an earlier tree-wide-OR version of the rescue would
+    let bumping one file's unrelated VERSION constant silently suppress
+    a genuinely missing bump in a completely different, non-importing
+    file -- exactly the shape `backend/src` has today (assessment_gen,
+    moderation.py, misconception/baseline.py are all independent)."""
+    _git("init", "-q", cwd=tmp_path)
+    _git("config", "user.email", "test@example.com", cwd=tmp_path)
+    _git("config", "user.name", "Test", cwd=tmp_path)
+
+    (tmp_path / "moderation.py").write_text(
+        '_INSTRUCTION = "the original moderation instruction"\n'
+        'MODERATION_INSTRUCTION_VERSION = "v1"\n'
+    )
+    (tmp_path / "baseline.py").write_text(
+        '_INSTRUCTION_TEMPLATE = "the original baseline instruction"\n'
+        'MISCONCEPTION_BASELINE_PROMPT_VERSION = "v1"\n'
+    )
+    _git("add", ".", cwd=tmp_path)
+    _git("commit", "-q", "-m", "initial", cwd=tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    # moderation.py's content changes with NO version bump (a real
+    # violation) -- baseline.py's version bumps for a totally unrelated
+    # reason in the same PR. Neither file imports the other.
+    (tmp_path / "moderation.py").write_text(
+        '_INSTRUCTION = "a deliberately changed moderation instruction"\n'
+        'MODERATION_INSTRUCTION_VERSION = "v1"\n'
+    )
+    (tmp_path / "baseline.py").write_text(
+        '_INSTRUCTION_TEMPLATE = "the original baseline instruction"\n'
+        'MISCONCEPTION_BASELINE_PROMPT_VERSION = "v2"\n'
+    )
+
+    violations = find_bump_violations_for_tree(Path("."), "HEAD")
+
+    assert len(violations) == 1
+    assert "moderation.py" in violations[0]

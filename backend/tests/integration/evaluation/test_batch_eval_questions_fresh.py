@@ -80,3 +80,18 @@ def test_fresh_sample_fails_closed_when_generation_call_itself_errors(monkeypatc
     assert total > 0
     assert len(failures) == total
     assert all("simulated model/network failure" in f.reason for f in failures)
+
+
+def test_main_fails_closed_when_fresh_finds_zero_content_artifacts(monkeypatch, tmp_path, capsys):
+    """PR #55 review: `total == 0` (e.g. CONTENT_DIR resolving to nothing,
+    a future content-layout change) must exit non-zero, not report a
+    vacuous "0/0 passed" success."""
+    import scripts.batch_eval_questions as batch_eval_questions
+
+    monkeypatch.setattr(batch_eval_questions, "CONTENT_DIR", tmp_path)  # empty, no subject.yaml
+    monkeypatch.setattr("sys.argv", ["batch_eval_questions.py", "--fresh"])
+
+    exit_code = batch_eval_questions.main()
+
+    assert exit_code == 1
+    assert "FAIL" in capsys.readouterr().out

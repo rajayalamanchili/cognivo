@@ -40,6 +40,13 @@ it's declared" philosophy:
    # associate each INSTRUCTION assignment with its nearest preceding/
    # following VERSION assignment (proximity, not full call-site
    # resolution) rather than merging all pairs in the file.
+   `find_bump_violations_for_tree` (the actual entry point `main()`
+   uses) wraps this per-file check with a narrow rescue: a file with no
+   VERSION constant of its own (Grading Agent's `prompt_defense.py`) is
+   not flagged if some *other file that imports it* had its VERSION
+   change instead -- see that function's own docstring for why this is
+   scoped to actual import edges, not "anything changed anywhere in the
+   tree" (an earlier, too-broad version of this fix, PR #55 review).
 
 Usage: python scripts/check_prompt_versioning.py <src_dir> [--base-ref REF]
 Exit code 0 = no violations; 1 = violations found.
@@ -201,40 +208,71 @@ def _version_text(source: str) -> str:
     return "".join(_source_segment(source, n) for n in _module_level_names_containing(tree, "VERSION"))
 
 
+def _imports_module(source: str, module_stem: str) -> bool:
+    """True if `source` has a `from ...<module_stem> import ...` (any
+    import depth/package prefix, matching this codebase's real style,
+    e.g. `from src.prompt_defense import build_instruction`)."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.rsplit(".", 1)[-1] == module_stem:
+                return True
+    return False
+
+
 def find_bump_violations_for_tree(src_dir: Path, base_ref: str) -> list[str]:
     """Version-bump enforcement (FR-008) across every file in `src_dir`
     against `base_ref`.
 
-    A bump violation is suppressed tree-wide if *some* VERSION constant
-    changed *anywhere* in the scan, not only in the file whose content
-    changed -- needed because this codebase's real Grading Agent prompt
-    keeps its content (`prompt_defense.py`'s `_GRADING_INSTRUCTION_TEMPLATE`)
-    and its version (`agent.py`'s `GRADING_LOGIC_VERSION`) in different
-    files (PR #55 review: a strict same-file-only check would
-    permanently fail every future, correctly-versioned Grading prompt
-    change, since `prompt_defense.py` itself has no VERSION constant to
-    compare against).
-    # ponytail: ceiling -- a PR that legitimately needs a bump for file
-    # A but instead bumps an unrelated VERSION constant in file B would
-    # incorrectly pass. Upgrade path: resolve each `LlmAgent` call
-    # site's actual content source (following the one import hop its
-    # `instruction=` argument's `Call` resolves to) instead of an
-    # any-file-in-tree OR.
+    A flagged file's violation is rescued only if some *other file that
+    actually imports it* had its own VERSION constant change -- narrow
+    and targeted, not "any file in the tree changed a version" (PR #55
+    review: an earlier tree-wide-OR version of this let bumping
+    `MISCONCEPTION_BASELINE_PROMPT_VERSION` silently mask a genuinely
+    missing bump in an unrelated `moderation.py` change, since both live
+    under the same `backend/src` scan). This still correctly handles
+    the one real cross-file case in this codebase -- Grading Agent's
+    content (`prompt_defense.py`'s `_GRADING_INSTRUCTION_TEMPLATE`) and
+    version (`agent.py`'s `GRADING_LOGIC_VERSION`, `agent.py` importing
+    `build_instruction` from `prompt_defense`) -- because `agent.py`
+    genuinely imports `prompt_defense`, unlike `moderation.py` and
+    `misconception/baseline.py`, which import nothing from each other.
+    # ponytail: ceiling -- only one import hop is resolved (does file B
+    # import module A by name), not a transitive closure or a check
+    # that B's import is actually *used* to build B's own instruction.
+    # Upgrade path: verify the imported name is the one actually passed
+    # to B's `LlmAgent(instruction=...)` call, not just that some import
+    # of it exists somewhere in B.
     """
-    bump_violations: list[str] = []
-    any_version_changed = False
+    file_sources: dict[Path, tuple[str, str]] = {}
     for py_file in _iter_py_files(src_dir):
         old_source = _git_show(base_ref, py_file)
         if not old_source:
             continue  # new file -- nothing to bump-check against
-        new_source = py_file.read_text()
-        bump_violations.extend(
-            find_version_bump_violations(old_source, new_source, filename=str(py_file))
-        )
-        if _version_text(old_source) != _version_text(new_source):
-            any_version_changed = True
+        file_sources[py_file] = (old_source, py_file.read_text())
 
-    return bump_violations if bump_violations and not any_version_changed else []
+    violations: list[str] = []
+    for py_file, (old_source, new_source) in file_sources.items():
+        file_violations = find_version_bump_violations(
+            old_source, new_source, filename=str(py_file)
+        )
+        if not file_violations:
+            continue
+
+        module_stem = py_file.stem
+        rescued = any(
+            other_file != py_file
+            and _imports_module(other_new, module_stem)
+            and _version_text(other_old) != _version_text(other_new)
+            for other_file, (other_old, other_new) in file_sources.items()
+        )
+        if not rescued:
+            violations.extend(file_violations)
+
+    return violations
 
 
 def main() -> int:
