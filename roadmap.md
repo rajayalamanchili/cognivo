@@ -772,8 +772,41 @@ this one misconception classifier, consumed only by Recommendation.
 ---
 
 ## Milestone 12: Prompt Versioning and Regression Testing
-**Spec**: not yet written -- do not begin until Milestone 11 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/014-prompt-versioning/spec.md`
+**Status**: Implementation complete (2026-09-01, branch
+`022-prompt-versioning`, all 26 tasks across 3 user stories + Polish).
+`/speckit-clarify` found zero critical ambiguities; `/speckit-plan`
+locked prompt storage as code constants (extending
+`GRADING_LOGIC_VERSION`/`classifier_version`, no new DB table or
+third-party tool). Scoped the regression gate (User Story 2) to the two
+agents with an existing quantitative eval suite (Assessment-Generation's
+spec 001 SC-003, Grading's spec 007 FR-008); corrected roadmap's own
+"Milestone 3's personalization eval" citation in the spec's Assumptions
+(Milestone 3/spec 006 evaluates the Sequencing Agent, which has no LLM
+prompt -- wired to spec 001 SC-003 instead).
+
+Shipped: an AST-based scanner (`backend/scripts/check_prompt_versioning.py`)
+detecting unversioned/unbumped prompts at the `LlmAgent(instruction=...)`
+call site, wired as a blocking CI step in all three engine-source
+workflows; all 7 prompts across `backend/`, `grading-agent/`, and
+`tutor-agent/` now carry an explicit version constant; a `--fresh`
+in-process mode for `batch_eval_questions.py` so the Assessment-Gen
+regression gate works with zero database dependency (verified end to
+end with a real, non-mocked run: 6/6 passed); a nullable
+`generation_prompt_version` column on `generated_questions` (nullable by
+necessity -- CI's ephemeral branch clones staging's real accumulated
+data, so `NOT NULL` with no default was never buildable), set at all
+three real construction sites, including one (`services/quiz/session.py`'s
+`persist_quiz_question()`) neither the original spec inventory nor
+`tasks.md` had caught until implementation.
+
+Full regression: `grading-agent` 23/23, `tutor-agent` 26/26, `frontend`
+64/64, `backend` 398/399 (the one flagged batch showed 17 errors on a
+concurrent run, traced to a self-inflicted Postgres deadlock from
+running two schema-churning pytest sessions against the same dev DB at
+once, not a code regression -- confirmed by re-running the two
+implicated files alone: 13/13 clean). See
+`specs/014-prompt-versioning/tasks.md` for the full task-by-task record.
 
 **Scope**: Every prompt used by every agent (Assessment-Generation,
 Grading, Recommendation, Tutor) is stored as a versioned artifact --

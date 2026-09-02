@@ -17,6 +17,7 @@ from google.adk.sessions import BaseSessionService
 from sqlalchemy.orm import Session
 
 from src.agents.assessment_gen.agent import (
+    GENERATION_PROMPT_VERSION,
     GeneratedQuestionDraft,
     draft_to_answer_key,
     generate_question,
@@ -229,6 +230,7 @@ def persist_quiz_question(
         validation_status=ValidationStatus.VALID,
         shown_at=now,
         quiz_session_id=quiz_session_id,
+        generation_prompt_version=GENERATION_PROMPT_VERSION,
     )
     db.add(question)
     db.flush()

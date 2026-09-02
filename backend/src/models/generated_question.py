@@ -59,3 +59,9 @@ class GeneratedQuestion(Base):
     quiz_session_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("quiz_sessions.quiz_session_id"), nullable=True
     )
+    generation_prompt_version: Mapped[str | None] = mapped_column(Text, nullable=True)
+    """Which Assessment-Generation prompt version produced this row (spec
+    014 FR-009), matching `grading_logic_version`/`classifier_version`'s
+    existing explainability pattern. Nullable, not backfilled: `None`
+    means this row predates Milestone 12 -- every row created afterward
+    always sets a real value."""

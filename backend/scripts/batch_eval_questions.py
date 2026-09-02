@@ -16,22 +16,29 @@ regression time.
 """
 
 import argparse
+import asyncio
 import random
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from google.adk.sessions import InMemorySessionService  # noqa: E402
+
 from src.agents.assessment_gen.agent import (  # noqa: E402
     GeneratedQuestionDraft,
     GenerationValidationError,
+    generate_question,
     _validate_draft,
 )
 from src.db import get_sessionmaker  # noqa: E402
-from src.models.enums import QuestionType  # noqa: E402
+from src.models.enums import DifficultyBand, QuestionType  # noqa: E402
 from src.models.generated_question import GeneratedQuestion  # noqa: E402
+from src.services.content_artifact.loader import load_content_artifact_file  # noqa: E402
 
 DEFAULT_SAMPLE_SIZE = 100
+DEFAULT_FRESH_SAMPLE_SIZE_PER_SUBJECT = 3
+CONTENT_DIR = Path(__file__).resolve().parent.parent / "content"
 
 
 def _draft_from_row(question: GeneratedQuestion) -> GeneratedQuestionDraft:
@@ -78,33 +85,107 @@ def evaluate_sample(
     return len(questions), failures
 
 
+async def _generate_and_validate_one(topic, session_service: InMemorySessionService) -> None:
+    """Raises `GenerationValidationError` (a bad draft) or lets any other
+    exception (a failed generation call -- missing credentials, model/
+    network error) propagate -- both are failures to the caller, per
+    FR-007's fail-closed requirement; neither is silently swallowed."""
+    skill = topic.skill_definition or {}
+    preferred_types = skill.get("preferred_question_types") or ["multiple_choice"]
+    question_type = QuestionType(preferred_types[0])
+    difficulty = DifficultyBand.MEDIUM
+    guidance = (topic.difficulty_calibration or {}).get(difficulty.value, "")
+
+    draft = await generate_question(
+        topic_display_name=topic.display_name,
+        skill_summary=skill.get("summary", ""),
+        difficulty=difficulty,
+        difficulty_guidance=guidance,
+        question_type=question_type,
+        session_service=session_service,
+    )
+    _validate_draft(draft, question_type)
+
+
+async def run_fresh_sample(
+    sample_size_per_subject: int = DEFAULT_FRESH_SAMPLE_SIZE_PER_SUBJECT,
+) -> tuple[int, list[EvalFailure]]:
+    """FR-005's stateless-CI-compatible mode (research.md §5): generates a
+    small fresh sample via the real Assessment-Generation path across
+    this project's content artifacts on disk -- no database, no
+    dependency on any previously-persisted `GeneratedQuestion` history."""
+    session_service = InMemorySessionService()
+    total = 0
+    failures: list[EvalFailure] = []
+    for subject_path in sorted(CONTENT_DIR.glob("*/subject.yaml")):
+        artifact = load_content_artifact_file(subject_path)
+        for topic in artifact.topics[:sample_size_per_subject]:
+            total += 1
+            question_id = f"{artifact.subject_id}:{topic.topic_id}"
+            try:
+                await _generate_and_validate_one(topic, session_service)
+            except GenerationValidationError as exc:
+                failures.append(EvalFailure(question_id, str(exc)))
+            except Exception as exc:  # noqa: BLE001 -- fail-closed (FR-007), see docstring above
+                failures.append(EvalFailure(question_id, f"generation call failed: {exc}"))
+    return total, failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--subject-id", default=None, help="Restrict the sample to one subject.")
     parser.add_argument(
         "--sample-size",
         type=int,
-        default=DEFAULT_SAMPLE_SIZE,
-        help=f"Max questions to re-validate (default {DEFAULT_SAMPLE_SIZE}).",
+        default=None,
+        help=(
+            f"Max questions to re-validate (default {DEFAULT_SAMPLE_SIZE} for the default "
+            f"DB-sampling mode, {DEFAULT_FRESH_SAMPLE_SIZE_PER_SUBJECT} per subject for --fresh)."
+        ),
     )
     parser.add_argument("--seed", type=int, default=None, help="Random seed for sampling.")
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help=(
+            "Generate a fresh sample via the real Assessment-Generation path instead of "
+            "sampling persisted GeneratedQuestion rows -- for a stateless CI database with "
+            "no accumulated history (research.md §5)."
+        ),
+    )
     args = parser.parse_args()
 
-    session_local = get_sessionmaker()
-    with session_local() as db:
-        query = db.query(GeneratedQuestion)
-        if args.subject_id:
-            query = query.filter(GeneratedQuestion.subject_id == args.subject_id)
-        all_questions = query.all()
+    if args.fresh:
+        sample_size = args.sample_size or DEFAULT_FRESH_SAMPLE_SIZE_PER_SUBJECT
+        try:
+            total, failures = asyncio.run(run_fresh_sample(sample_size))
+        except Exception as exc:  # noqa: BLE001 -- fail-closed (FR-007)
+            print(f"FAIL: could not run the fresh Assessment-Generation eval: {exc}")
+            return 1
+        if total == 0:
+            # Fail-closed (FR-007): "0/0 passed" is a vacuous pass, not
+            # a real result -- e.g. a future content-layout change or
+            # `CONTENT_DIR` moving would otherwise silently disable this
+            # regression gate instead of failing it (PR #55 review).
+            print("FAIL: --fresh generated zero questions -- no content artifacts found?")
+            return 1
+    else:
+        sample_size = args.sample_size or DEFAULT_SAMPLE_SIZE
+        session_local = get_sessionmaker()
+        with session_local() as db:
+            query = db.query(GeneratedQuestion)
+            if args.subject_id:
+                query = query.filter(GeneratedQuestion.subject_id == args.subject_id)
+            all_questions = query.all()
 
-    rng = random.Random(args.seed)
-    sample = (
-        rng.sample(all_questions, args.sample_size)
-        if len(all_questions) > args.sample_size
-        else all_questions
-    )
+        rng = random.Random(args.seed)
+        sample = (
+            rng.sample(all_questions, sample_size)
+            if len(all_questions) > sample_size
+            else all_questions
+        )
+        total, failures = evaluate_sample(sample)
 
-    total, failures = evaluate_sample(sample)
     passed = total - len(failures)
     print(f"batch_eval_questions: {passed}/{total} passed internal-consistency re-validation")
     for failure in failures:
