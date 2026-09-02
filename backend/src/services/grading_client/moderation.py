@@ -19,6 +19,11 @@ from pydantic import BaseModel
 
 APP_NAME = "cognivo-moderation"
 
+# Bumped whenever _INSTRUCTION's instructional content changes (spec 014
+# FR-002/FR-008's CI-enforced version-bump requirement) -- a code
+# constant, not a database row, same as GRADING_LOGIC_VERSION.
+MODERATION_INSTRUCTION_VERSION = "v1"
+
 _INSTRUCTION = """\
 You are a content-moderation classifier for a learning platform's \
 free-text answer submissions. Classify the submitted text as allowed or \

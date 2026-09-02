@@ -20,6 +20,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch base branch for prompt-versioning diff
+        # The prompt-versioning check below needs `git show
+        # origin/<base>:<path>` to resolve the PR's pre-change file
+        # content (spec 014 research.md §4/§8) -- actions/checkout's
+        # default shallow, single-ref fetch doesn't include this.
+        run: git fetch --depth=1 origin "${{ github.base_ref }}"
+
+      - name: Check prompt versioning (spec 014 FR-001/FR-002/FR-003/FR-008)
+        # Pure stdlib (ast/subprocess) -- no uv sync/venv needed, so this
+        # runs fast and fails closed before the Neon branch is even created.
+        run: |
+          python3 scripts/check_prompt_versioning.py src \
+            --base-ref "origin/${{ github.base_ref }}"
+
       - name: Create ephemeral Neon branch
         id: neon-branch
         uses: neondatabase/create-branch-action@v6
@@ -35,6 +49,47 @@ jobs:
 
       - name: Install dependencies
         run: uv sync
+
+      - name: Check if the Assessment-Generation prompt changed
+        # FR-005 scopes this gate to "a PR that changes [the] versioned
+        # prompt's content," not every backend PR -- mirrors how the
+        # Grading Agent's equivalent gate is scoped by its own
+        # workflow's `grading-agent/**` path filter (PR #55 review: this
+        # step previously ran unconditionally on every backend/** PR, a
+        # live billed API call on every unrelated backend change). This
+        # narrows, but doesn't eliminate, the fork-PR failure mode noted
+        # in the same review -- a fork PR that *does* touch this path
+        # would still fail on a missing ANTHROPIC_API_KEY (forked
+        # pull_request runs get no secrets), same as the Grading Agent's
+        # equivalent gate already does for `grading-agent/**`. Accepted
+        # as-is: this is a solo-maintained repo, not one that expects
+        # external fork contributions.
+        id: assessment-gen-changed
+        # Two-dot diff, not three-dot: three-dot needs a merge-base,
+        # which doesn't exist between two independently shallow-fetched
+        # refs (actions/checkout@v4's default fetch-depth: 1 plus the
+        # --depth=1 fetch above) -- confirmed to fail with "no merge
+        # base" in exactly this shallow-checkout shape (PR #55 review).
+        # Two-dot just compares tree contents at each ref directly, no
+        # ancestry needed, same reason the sibling check_prompt_versioning.py
+        # step's `git show ref:path` doesn't need one either.
+        run: |
+          if git diff --name-only "origin/${{ github.base_ref }}" HEAD -- src/agents/assessment_gen/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Assessment-Generation regression gate (spec 014 FR-005/FR-007)
+        # --fresh mode needs no database at all (research.md §5) -- runs
+        # independently of the ephemeral Neon branch above, against the
+        # real Assessment-Generation Agent and this repo's own content
+        # artifacts on disk.
+        if: steps.assessment-gen-changed.outputs.changed == 'true'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-4-5
+        run: uv run python scripts/batch_eval_questions.py --fresh
 
       - name: Run migrations against the ephemeral branch
         env:

@@ -27,6 +27,11 @@ from src.models.enums import DifficultyBand, QuestionType
 
 APP_NAME = "cognivo-assessment-gen"
 
+# Bumped whenever _INSTRUCTION_TEMPLATE's instructional content changes
+# (spec 014 FR-002/FR-008's CI-enforced version-bump requirement) -- a
+# code constant, not a database row, same as GRADING_LOGIC_VERSION.
+GENERATION_PROMPT_VERSION = "v1"
+
 
 class GenerationValidationError(Exception):
     """Raised when the model's draft fails internal-consistency validation
