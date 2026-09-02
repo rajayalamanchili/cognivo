@@ -33,10 +33,14 @@ from src.models.enums import (
 )
 from src.models.generated_question import GeneratedQuestion
 from src.models.quiz_session import QuizSession
+from src.models.subject import Subject
 from src.models.topic import Topic
+from src.observability.tracing import record_cache_hit_trace
 from src.services.audit_log.writer import record_event
+from src.services.cache_common.outcome import CacheOutcome
 from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import is_near_duplicate, recent_stems_for_topic
+from src.services.question_cache.cache import get_or_generate_question
 from src.services.quiz.difficulty import (
     current_difficulty_for_topic,
     next_difficulty,
@@ -128,6 +132,7 @@ class QuizQuestionResult:
     draft: GeneratedQuestionDraft
     image_url: str | None = None
     image_alt_text: str | None = None
+    cache_outcome: CacheOutcome = field(default_factory=lambda: CacheOutcome(hit=False))
 
 
 async def generate_quiz_question(
@@ -172,18 +177,44 @@ async def generate_quiz_question(
         image_url = content_image_url(quiz.subject_id, topic.image_asset["filename"])
         image_alt_text = topic.image_asset["alt_text"]
 
+    content_version = db.get(Subject, quiz.subject_id).content_version
+
     for _ in range(max_dedup_attempts):
-        draft = await generate_question(
-            topic_display_name=topic.display_name,
-            skill_summary=skill_summary(topic),
+        draft, cache_outcome = await get_or_generate_question(
+            db,
+            subject_id=quiz.subject_id,
+            topic_id=topic_id,
             difficulty=difficulty,
-            difficulty_guidance=difficulty_guidance(topic, difficulty),
-            question_type=question_type,
-            session_service=session_service,
+            content_version=content_version,
+            generation_prompt_version=GENERATION_PROMPT_VERSION,
             avoid_stems=recent_stems,
-            image_alt_text=image_alt_text,
+            generate_fn=lambda: generate_question(
+                topic_display_name=topic.display_name,
+                skill_summary=skill_summary(topic),
+                difficulty=difficulty,
+                difficulty_guidance=difficulty_guidance(topic, difficulty),
+                question_type=question_type,
+                session_service=session_service,
+                avoid_stems=recent_stems,
+                image_alt_text=image_alt_text,
+            ),
         )
         if not is_near_duplicate(draft.stem, recent_stems):
+            if cache_outcome.hit:
+                # Spec 015 FR-013 clarification: this path records no
+                # dedicated AssessmentEvent for question generation even
+                # on a fresh call (only QUIZ_DIFFICULTY_ADJUSTED, post-
+                # answer) -- its own per-learner GeneratedQuestion row
+                # (persist_quiz_question below, unchanged by caching)
+                # already satisfies the audit-log half for this path, so
+                # only the Langfuse trace is recorded explicitly here.
+                record_cache_hit_trace(
+                    name="quiz_question_generation_cache_hit",
+                    cache_type="question_generation",
+                    cache_entry_id=cache_outcome.cache_entry_id,
+                    prompt_version=GENERATION_PROMPT_VERSION,
+                    learner_id=quiz.learner_id,
+                )
             return QuizQuestionResult(
                 topic_id=topic_id,
                 question_type=question_type,
@@ -191,6 +222,7 @@ async def generate_quiz_question(
                 draft=draft,
                 image_url=image_url,
                 image_alt_text=image_alt_text,
+                cache_outcome=cache_outcome,
             )
 
     raise QuizEndedEarlyError(

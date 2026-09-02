@@ -14,7 +14,11 @@ from dataclasses import dataclass, field
 from google.adk.sessions import BaseSessionService
 from sqlalchemy.orm import Session
 
-from src.agents.assessment_gen.agent import GeneratedQuestionDraft, generate_question
+from src.agents.assessment_gen.agent import (
+    GENERATION_PROMPT_VERSION,
+    GeneratedQuestionDraft,
+    generate_question,
+)
 from src.agents.diagnostic.agent import (
     difficulty_guidance,
     preferred_question_type,
@@ -23,13 +27,16 @@ from src.agents.diagnostic.agent import (
 from src.models.enums import DifficultyBand, QuestionType
 from src.models.mastery_state import MasteryState
 from src.models.prerequisite_edge import PrerequisiteEdge
+from src.models.subject import Subject
 from src.models.topic import Topic
+from src.services.cache_common.outcome import CacheOutcome
 from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import (
     DEFAULT_LOOKBACK,
     is_near_duplicate,
     recent_stems_for_topic,
 )
+from src.services.question_cache.cache import get_or_generate_question
 
 # Selection uses the plain band label including "unknown" -- MasteryBand
 # (models/enums.py) intentionally has no "unknown" member since "unknown"
@@ -246,6 +253,7 @@ class NextQuestionResult:
     draft: GeneratedQuestionDraft
     image_url: str | None = None
     image_alt_text: str | None = None
+    cache_outcome: CacheOutcome = field(default_factory=lambda: CacheOutcome(hit=False))
 
 
 async def generate_next_question(
@@ -263,6 +271,7 @@ async def generate_next_question(
     (FR-008, T047) before giving up and returning the last draft."""
     selection = select_next_topic(db, learner_id=learner_id, subject_id=subject_id)
     topic = db.get(Topic, (subject_id, selection.topic_id))
+    subject = db.get(Subject, subject_id)
     question_type = preferred_question_type(topic)
     recent_stems = recent_stems_for_topic(
         db,
@@ -279,16 +288,26 @@ async def generate_next_question(
         image_alt_text = topic.image_asset["alt_text"]
 
     draft: GeneratedQuestionDraft | None = None
+    cache_outcome = CacheOutcome(hit=False)
     for _ in range(max_dedup_attempts):
-        draft = await generate_question(
-            topic_display_name=topic.display_name,
-            skill_summary=skill_summary(topic),
+        draft, cache_outcome = await get_or_generate_question(
+            db,
+            subject_id=subject_id,
+            topic_id=selection.topic_id,
             difficulty=selection.difficulty,
-            difficulty_guidance=difficulty_guidance(topic, selection.difficulty),
-            question_type=question_type,
-            session_service=session_service,
+            content_version=subject.content_version,
+            generation_prompt_version=GENERATION_PROMPT_VERSION,
             avoid_stems=recent_stems,
-            image_alt_text=image_alt_text,
+            generate_fn=lambda: generate_question(
+                topic_display_name=topic.display_name,
+                skill_summary=skill_summary(topic),
+                difficulty=selection.difficulty,
+                difficulty_guidance=difficulty_guidance(topic, selection.difficulty),
+                question_type=question_type,
+                session_service=session_service,
+                avoid_stems=recent_stems,
+                image_alt_text=image_alt_text,
+            ),
         )
         if not is_near_duplicate(draft.stem, recent_stems):
             break
@@ -299,4 +318,5 @@ async def generate_next_question(
         draft=draft,
         image_url=image_url,
         image_alt_text=image_alt_text,
+        cache_outcome=cache_outcome,
     )

@@ -34,7 +34,7 @@ from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
 from src.observability.session import get_database_session_service
-from src.observability.tracing import traced_request
+from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
 from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
@@ -95,6 +95,14 @@ async def get_next_question(
             subject_id=subject_id,
             session_service=get_database_session_service(),
         )
+        if result.cache_outcome.hit:
+            record_cache_hit_trace(
+                name="question_generation_cache_hit",
+                cache_type="question_generation",
+                cache_entry_id=result.cache_outcome.cache_entry_id,
+                prompt_version=GENERATION_PROMPT_VERSION,
+                learner_id=learner_id,
+            )
 
     now = datetime.datetime.now(datetime.UTC)
     question = GeneratedQuestion(
@@ -131,6 +139,8 @@ async def get_next_question(
             "chosen_topic_band": result.selection.band,
             "chosen_topic_p_mastery": result.selection.p_mastery,
             "is_fallback": result.selection.is_fallback,
+            "served_from_cache": result.cache_outcome.hit,
+            "cache_miss_reason": result.cache_outcome.reason,
         },
     )
 
