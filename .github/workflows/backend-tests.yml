@@ -56,9 +56,14 @@ jobs:
         # Grading Agent's equivalent gate is scoped by its own
         # workflow's `grading-agent/**` path filter (PR #55 review: this
         # step previously ran unconditionally on every backend/** PR, a
-        # live billed API call and a hard failure on fork PRs that
-        # touched nothing here since forked pull_request runs get no
-        # secrets).
+        # live billed API call on every unrelated backend change). This
+        # narrows, but doesn't eliminate, the fork-PR failure mode noted
+        # in the same review -- a fork PR that *does* touch this path
+        # would still fail on a missing ANTHROPIC_API_KEY (forked
+        # pull_request runs get no secrets), same as the Grading Agent's
+        # equivalent gate already does for `grading-agent/**`. Accepted
+        # as-is: this is a solo-maintained repo, not one that expects
+        # external fork contributions.
         id: assessment-gen-changed
         # Two-dot diff, not three-dot: three-dot needs a merge-base,
         # which doesn't exist between two independently shallow-fetched

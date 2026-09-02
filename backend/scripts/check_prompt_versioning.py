@@ -175,13 +175,66 @@ def find_version_bump_violations(
 
 
 def _git_show(base_ref: str, path: Path) -> str:
+    # A `rev:path` colon-path with no `./`/`../` prefix is resolved
+    # relative to the repo root, not the caller's cwd (gitrevisions(7))
+    # -- this script is invoked from `backend/` in CI (that job's
+    # `defaults.run.working-directory`), so a relative `path` like
+    # `src/agents/assessment_gen/agent.py` would otherwise be looked up
+    # at the (nonexistent) repo-root `src/...` instead of
+    # `backend/src/...`, silently failing every lookup (PR #55 review).
+    # `./` makes git resolve it relative to cwd instead, matching how
+    # `path` (from `_iter_py_files(src_dir)`) is itself cwd-relative.
     result = subprocess.run(
-        ["git", "show", f"{base_ref}:{path}"],
+        ["git", "show", f"{base_ref}:./{path}"],
         capture_output=True,
         text=True,
         check=False,
     )
     return result.stdout if result.returncode == 0 else ""
+
+
+def _version_text(source: str) -> str:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return ""
+    return "".join(_source_segment(source, n) for n in _module_level_names_containing(tree, "VERSION"))
+
+
+def find_bump_violations_for_tree(src_dir: Path, base_ref: str) -> list[str]:
+    """Version-bump enforcement (FR-008) across every file in `src_dir`
+    against `base_ref`.
+
+    A bump violation is suppressed tree-wide if *some* VERSION constant
+    changed *anywhere* in the scan, not only in the file whose content
+    changed -- needed because this codebase's real Grading Agent prompt
+    keeps its content (`prompt_defense.py`'s `_GRADING_INSTRUCTION_TEMPLATE`)
+    and its version (`agent.py`'s `GRADING_LOGIC_VERSION`) in different
+    files (PR #55 review: a strict same-file-only check would
+    permanently fail every future, correctly-versioned Grading prompt
+    change, since `prompt_defense.py` itself has no VERSION constant to
+    compare against).
+    # ponytail: ceiling -- a PR that legitimately needs a bump for file
+    # A but instead bumps an unrelated VERSION constant in file B would
+    # incorrectly pass. Upgrade path: resolve each `LlmAgent` call
+    # site's actual content source (following the one import hop its
+    # `instruction=` argument's `Call` resolves to) instead of an
+    # any-file-in-tree OR.
+    """
+    bump_violations: list[str] = []
+    any_version_changed = False
+    for py_file in _iter_py_files(src_dir):
+        old_source = _git_show(base_ref, py_file)
+        if not old_source:
+            continue  # new file -- nothing to bump-check against
+        new_source = py_file.read_text()
+        bump_violations.extend(
+            find_version_bump_violations(old_source, new_source, filename=str(py_file))
+        )
+        if _version_text(old_source) != _version_text(new_source):
+            any_version_changed = True
+
+    return bump_violations if bump_violations and not any_version_changed else []
 
 
 def main() -> int:
@@ -195,15 +248,7 @@ def main() -> int:
     violations = find_violations(args.src_dir)
 
     if args.base_ref:
-        for py_file in _iter_py_files(args.src_dir):
-            old_source = _git_show(args.base_ref, py_file)
-            if not old_source:
-                continue  # new file -- nothing to bump-check against
-            violations.extend(
-                find_version_bump_violations(
-                    old_source, py_file.read_text(), filename=str(py_file)
-                )
-            )
+        violations.extend(find_bump_violations_for_tree(args.src_dir, args.base_ref))
 
     if violations:
         print("PROMPT VERSIONING VIOLATION(S):")
