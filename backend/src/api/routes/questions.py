@@ -7,6 +7,7 @@ endpoint's shape matches the contract as written.
 """
 
 import datetime
+import os
 import uuid
 from typing import Any
 
@@ -38,6 +39,8 @@ from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
 from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
+from src.services.cache_common.outcome import CacheOutcome
+from src.services.grading_cache.cache import get_or_grade_answer
 from src.services.grading_client import guardrails
 from src.services.grading_client.client import (
     SCORE_THRESHOLD,
@@ -212,11 +215,11 @@ def _reject_free_text(
 
 async def _grade_free_text_submission(
     db: Session, *, question: GeneratedQuestion, response_text: str
-) -> GradingResult:
+) -> tuple[GradingResult, CacheOutcome]:
     """Runs the four pre-grading guardrails in contracts/api.md's locked
     order -- length (cheapest) -> rate limit (one DB query) -> moderation
-    (one LLM call) -> grading (the A2A call) -- short-circuiting on the
-    first rejection."""
+    (one LLM call) -> grading (cache-checked, then the A2A call on a
+    miss) -- short-circuiting on the first rejection."""
     if not guardrails.check_length(response_text):
         _reject_free_text(db, question=question, reason="too_long", response_text=response_text)
         raise TooLongError(max_length=guardrails.MAX_ANSWER_LENGTH)
@@ -231,12 +234,27 @@ async def _grade_free_text_submission(
         _reject_free_text(db, question=question, reason="moderation", response_text=response_text)
         raise ModerationRejectedError()
 
-    return await grade_free_text_answer(
+    return await get_or_grade_answer(
+        db,
         question_stem=question.stem,
         rubric_criteria=question.answer_key["criteria"],
         learner_answer=response_text,
         question_id=question.question_id,
         learner_id=question.learner_id,
+        # GRADING_LOGIC_VERSION is a code constant living in the
+        # separately-deployed grading-agent/ service (A2A boundary,
+        # Constitution Principle VI) -- not importable here. This env
+        # var must be kept in sync with it manually, mirroring
+        # GRADING_AGENT_URL/GRADING_AGENT_SHARED_SECRET's existing
+        # cross-deployment sync pattern (spec 015 research.md §3).
+        # Optional, not required (unlike those two): an unset/stale
+        # value only ever risks a wrong cache decision (a miss that
+        # could've been a hit, or FR-006 in reverse), never a request
+        # failure -- the actual grading result always comes from a real
+        # grade_fn() call on any miss, same fail-open spirit as FR-008.
+        # Defaults to the version live at the time this feature shipped.
+        grading_logic_version=os.environ.get("GRADING_AGENT_LOGIC_VERSION", "v2"),
+        grade_fn=grade_free_text_answer,
     )
 
 
@@ -267,9 +285,17 @@ async def answer_question(
     grading_result: GradingResult | None = None
     if question.question_type == QuestionType.FREE_TEXT:
         with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
-            grading_result = await _grade_free_text_submission(
+            grading_result, cache_outcome = await _grade_free_text_submission(
                 db, question=question, response_text=body.response
             )
+            if cache_outcome.hit:
+                record_cache_hit_trace(
+                    name="grading_cache_hit",
+                    cache_type="grading",
+                    cache_entry_id=cache_outcome.cache_entry_id,
+                    prompt_version=grading_result.grading_logic_version,
+                    learner_id=question.learner_id,
+                )
         correct = grading_result.correct
         answer_payload = {
             "response": body.response,
@@ -279,6 +305,8 @@ async def answer_question(
             "criteria_met": grading_result.criteria_met,
             "criteria_missed": grading_result.criteria_missed,
             "grading_logic_version": grading_result.grading_logic_version,
+            "served_from_cache": cache_outcome.hit,
+            "cache_miss_reason": cache_outcome.reason,
         }
     else:
         correct = grade_answer(
