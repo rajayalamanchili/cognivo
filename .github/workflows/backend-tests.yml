@@ -60,8 +60,16 @@ jobs:
         # touched nothing here since forked pull_request runs get no
         # secrets).
         id: assessment-gen-changed
+        # Two-dot diff, not three-dot: three-dot needs a merge-base,
+        # which doesn't exist between two independently shallow-fetched
+        # refs (actions/checkout@v4's default fetch-depth: 1 plus the
+        # --depth=1 fetch above) -- confirmed to fail with "no merge
+        # base" in exactly this shallow-checkout shape (PR #55 review).
+        # Two-dot just compares tree contents at each ref directly, no
+        # ancestry needed, same reason the sibling check_prompt_versioning.py
+        # step's `git show ref:path` doesn't need one either.
         run: |
-          if git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- src/agents/assessment_gen/ | grep -q .; then
+          if git diff --name-only "origin/${{ github.base_ref }}" HEAD -- src/agents/assessment_gen/ | grep -q .; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
