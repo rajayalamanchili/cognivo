@@ -51,6 +51,27 @@ def build():
     assert "fixture_no_version.py" in violations[0]
 
 
+def test_string_concatenation_instruction_is_flagged(tmp_path: Path):
+    """PR #55 review: a non-literal, non-reference expression (e.g. a
+    concatenation) must not slip past as if it were a fine reference."""
+    (tmp_path / "fixture_concatenation.py").write_text(
+        """
+from google.adk.agents import LlmAgent
+
+SOME_PROMPT_VERSION = "v1"
+
+
+def build(suffix: str):
+    return LlmAgent(name="x", instruction="a concatenated " + suffix)
+"""
+    )
+
+    violations = find_violations(tmp_path)
+
+    assert len(violations) == 1
+    assert "fixture_concatenation.py" in violations[0]
+
+
 def test_referenced_instruction_with_a_version_constant_passes(tmp_path: Path):
     (tmp_path / "fixture_compliant.py").write_text(
         """

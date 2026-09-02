@@ -8,24 +8,38 @@ Detects at the actual usage site -- an `LlmAgent(instruction=...)` call
 `check_no_subject_conditionals.py`'s "check where it's used, not how
 it's declared" philosophy:
 
-1. `find_violations`: an `instruction=` argument that is a bare string/
-   f-string literal is a violation (FR-001 -- nothing "discoverable and
-   versioned" was ever built for it). An `instruction=` argument that
-   *references* something (a `Name` or a `Name`-rooted `Call`, e.g.
-   `build_instruction(...)`) is fine at the call site, but the file
-   containing that call must then define at least one module-level
-   constant whose name contains "VERSION" (FR-002) -- this is a
-   file-level check, not full data-flow tracing back through helper
-   functions, matching this project's existing real prompts: every one
-   of them keeps its content and its version constant in the same file
-   as the `LlmAgent(...)` call, even where (Grading Agent) the prompt
-   *template* itself lives in a separate module.
+1. `find_violations`: an `instruction=` argument is fine only if it's a
+   reference -- a `Name` (e.g. a module-level constant, or a function
+   parameter that ultimately came from one) or a `Name`-rooted `Call`
+   (e.g. `build_instruction(...)`). Everything else -- a literal, an
+   f-string, a concatenation, a comprehension, or any other expression
+   -- is a violation (FR-001 -- nothing "discoverable and versioned" was
+   ever built for it). This is an allowlist, not a blocklist of literal
+   node types, specifically so a new expression form (e.g. `"a" + b`)
+   can't quietly slip past FR-001 the way a `Constant`/`JoinedStr`-only
+   blocklist would (PR #55 review). A file with a fine call site must
+   then define at least one module-level constant whose name contains
+   "VERSION" (FR-002) -- this is a file-level check, not full data-flow
+   tracing back through helper functions, matching this project's
+   existing real prompts: every one of them keeps its content and its
+   version constant in the same file as the `LlmAgent(...)` call, even
+   where (Grading Agent) the prompt *template* itself lives in a
+   separate module.
 2. `find_version_bump_violations`: a prompt's content (any module-level
    assignment whose target name contains "INSTRUCTION") changed between
    two source versions of a file, but no assignment whose target name
    contains "VERSION" also changed -- pure text-of-AST-node comparison,
    no git dependency, so a diff touching the file for unrelated reasons
    (a comment fix elsewhere) never requires a version bump.
+   # ponytail: this pairs "any INSTRUCTION changed" with "any VERSION
+   # changed" file-wide, not call-site-by-call-site -- in a file with
+   # more than one prompt/version pair, bumping one pair's version would
+   # incorrectly satisfy a different pair's content change (PR #55
+   # review). Not reachable today: every real file in this codebase has
+   # exactly one INSTRUCTION/VERSION pair. Upgrade path if that changes:
+   # associate each INSTRUCTION assignment with its nearest preceding/
+   # following VERSION assignment (proximity, not full call-site
+   # resolution) rather than merging all pairs in the file.
 
 Usage: python scripts/check_prompt_versioning.py <src_dir> [--base-ref REF]
 Exit code 0 = no violations; 1 = violations found.
@@ -61,8 +75,12 @@ def _get_kwarg(call: ast.Call, name: str) -> ast.expr | None:
     return None
 
 
-def _is_bare_literal(node: ast.expr) -> bool:
-    return isinstance(node, (ast.Constant, ast.JoinedStr))
+def _is_reference(node: ast.expr) -> bool:
+    """True only for a `Name` or a `Name`-rooted `Call` -- see module
+    docstring's "allowlist, not a blocklist" note."""
+    if isinstance(node, ast.Name):
+        return True
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
 
 
 def _module_level_names_containing(tree: ast.Module, substring: str) -> list[ast.Assign]:
@@ -90,10 +108,10 @@ def find_violations(src_dir: Path) -> list[str]:
             if isinstance(node, ast.Call) and _is_llm_agent_call(node):
                 has_llm_agent_call = True
                 instruction_arg = _get_kwarg(node, "instruction")
-                if instruction_arg is not None and _is_bare_literal(instruction_arg):
+                if instruction_arg is not None and not _is_reference(instruction_arg):
                     literal_violations.append(
-                        f"{py_file}:{instruction_arg.lineno}: LlmAgent instruction is a "
-                        "bare inline string literal, not a versioned artifact (FR-001)"
+                        f"{py_file}:{instruction_arg.lineno}: LlmAgent instruction must be a "
+                        "reference to a versioned constant, not an inline expression (FR-001)"
                     )
 
         if literal_violations:

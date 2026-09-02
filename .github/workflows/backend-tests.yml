@@ -50,11 +50,29 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
+      - name: Check if the Assessment-Generation prompt changed
+        # FR-005 scopes this gate to "a PR that changes [the] versioned
+        # prompt's content," not every backend PR -- mirrors how the
+        # Grading Agent's equivalent gate is scoped by its own
+        # workflow's `grading-agent/**` path filter (PR #55 review: this
+        # step previously ran unconditionally on every backend/** PR, a
+        # live billed API call and a hard failure on fork PRs that
+        # touched nothing here since forked pull_request runs get no
+        # secrets).
+        id: assessment-gen-changed
+        run: |
+          if git diff --name-only "origin/${{ github.base_ref }}"...HEAD -- src/agents/assessment_gen/ | grep -q .; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run Assessment-Generation regression gate (spec 014 FR-005/FR-007)
         # --fresh mode needs no database at all (research.md §5) -- runs
         # independently of the ephemeral Neon branch above, against the
         # real Assessment-Generation Agent and this repo's own content
         # artifacts on disk.
+        if: steps.assessment-gen-changed.outputs.changed == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-4-5
