@@ -7,9 +7,11 @@ from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enrollment import Enrollment
 from src.models.enrollment_request import EnrollmentRequest
 from src.models.generated_question import GeneratedQuestion
+from src.models.grading_response_cache import GradingResponseCache
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
 from src.models.prerequisite_edge import PrerequisiteEdge
+from src.models.question_generation_cache import QuestionGenerationCache
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
 from src.models.quiz_session import QuizSession
@@ -31,9 +33,11 @@ __all__ = [
     "Enrollment",
     "EnrollmentRequest",
     "GeneratedQuestion",
+    "GradingResponseCache",
     "LearnerProfile",
     "MasteryState",
     "PrerequisiteEdge",
+    "QuestionGenerationCache",
     "QuizAssignment",
     "QuizAssignmentTarget",
     "QuizSession",

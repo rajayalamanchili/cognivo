@@ -109,3 +109,45 @@ def traced_request(
             yield
     finally:
         flush_traces()
+
+
+def record_cache_hit_trace(
+    *,
+    name: str,
+    cache_type: str,
+    cache_entry_id: uuid.UUID,
+    prompt_version: str,
+    learner_id: uuid.UUID | str,
+) -> None:
+    """Emits a generation-shaped Langfuse observation for one semantic-
+    cache hit (spec 015 FR-013, research.md §4).
+
+    `traced_request()` alone creates no span -- real spans in this
+    codebase only come from `GoogleADKInstrumentor` auto-instrumenting a
+    real ADK `Runner` call (module docstring above), and a cache hit
+    makes none. This creates one explicitly, via the v4 client's manual
+    `start_observation(as_type="generation")` API, so a cache hit is
+    exactly as traceable as a fresh model call (Constitution Principle
+    V), never silently untraced. `usage_details={"input": 0, "output":
+    0}` makes the zero-token, no-model-call nature of a hit visible in
+    Langfuse itself, rather than indistinguishable there from a real
+    generation.
+
+    Call this from inside the caller's existing `traced_request()` block
+    (or, for the in-quiz question-generation path, which has no such
+    block today, on its own -- `configure_tracing()` below is
+    idempotent either way).
+    """
+    configure_tracing()
+    generation = get_client().start_observation(
+        name=name,
+        as_type="generation",
+        usage_details={"input": 0, "output": 0},
+        metadata={
+            "cache_type": cache_type,
+            "cache_entry_id": str(cache_entry_id),
+            "prompt_version": prompt_version,
+            "learner_id": str(learner_id),
+        },
+    )
+    generation.end()
