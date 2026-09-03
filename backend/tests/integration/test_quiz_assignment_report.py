@@ -107,12 +107,18 @@ def test_report_shows_mixed_status_and_score_per_learner(client, algebra_subject
     # ended_early, mirroring test_quiz_ended_early.py's exact pattern
     # (a fresh assignment targeting only this learner, question_count
     # high enough that ended_early isn't just "reached question_count").
+    # Deliberately a topic neither A nor B touched (spec 015): with
+    # semantic caching, `ENTRY_TOPIC` may already hold pool entries from
+    # A's/B's earlier generations by this point, and those wouldn't be
+    # near-duplicates of D's (still-empty) history -- a pool hit would
+    # silently bypass `patch_generation(stems=["identical stem"])`
+    # below and this scenario would never actually exhaust retries.
     client.post("/api/auth/logout")
     _login_instructor(client)
     solo_assignment = create_assignment(
         client,
         roster_id=roster_id,
-        topic_ids=[ENTRY_TOPIC],
+        topic_ids=["variables-and-expressions"],
         question_count=10,
         learner_ids=[learners["d"]],
     )
