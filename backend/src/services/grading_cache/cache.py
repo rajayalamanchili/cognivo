@@ -38,6 +38,7 @@ reads it from the `GRADING_AGENT_LOGIC_VERSION` env var, mirroring
 keeping the two independently-deployed services in sync.
 """
 
+import asyncio
 import datetime
 import uuid
 from collections.abc import Awaitable, Callable
@@ -99,7 +100,13 @@ async def get_or_grade_answer(
     answer_embedding: list[float] | None = None
     candidate_row: GradingResponseCache | None = None
     try:
-        answer_embedding = embed_answer(question_stem, learner_answer)
+        # embed_answer is sync (a blocking network call + a blocking
+        # sleep on retry, misconception/embed.py's docstring: written
+        # for a sync cron caller) -- this runs on every live free-text
+        # answer submission, so it's offloaded to a thread rather than
+        # blocking the event loop for every concurrent request (PR #57
+        # review).
+        answer_embedding = await asyncio.to_thread(embed_answer, question_stem, learner_answer)
         distance_expr = GradingResponseCache.answer_embedding.cosine_distance(answer_embedding)
         match = (
             db.query(GradingResponseCache, distance_expr.label("distance"))
