@@ -151,6 +151,13 @@ async def _run_grading(
             grading_logic_version=GRADING_LOGIC_VERSION,
         )
 
+    # A fake equivalence gate, always confirming -- this load test measures
+    # cache-lookup mechanics (research.md §10), not the real rubric-criteria
+    # classifier's accuracy (that's scripts/validate_grading_cache_threshold.py's
+    # job, run against real ground-truth data and a real model).
+    async def verify_fn(**kwargs) -> bool:
+        return True
+
     async def one_request(i: int) -> None:
         template = QUESTION_TEMPLATES[i % len(QUESTION_TEMPLATES)]
         if use_cache:
@@ -163,6 +170,7 @@ async def _run_grading(
                 learner_id=uuid.uuid4(),
                 grading_logic_version=GRADING_LOGIC_VERSION,
                 grade_fn=grade_fn,
+                verify_fn=verify_fn,
             )
         else:
             await grade_fn(

@@ -21,6 +21,39 @@
   combined number across both cache types, or separately per type? →
   A: Separately -- question-generation and grading each independently
   must reach at least 30%.
+- Q: Given real ground-truth data shows no cosine-distance threshold on
+  the embedding used for grading-cache matching can separate
+  negation/opposite-meaning answers from genuine paraphrases (the
+  closest false-positive pair measured a smaller distance than genuine
+  paraphrase pairs), should the grading cache require an additional
+  meaning-equivalence check beyond raw embedding-distance thresholding
+  before serving a hit? → A: Yes -- require a cheap LLM-based
+  equivalence check (same cost profile as the existing moderation
+  guardrail) to confirm the closest embedding candidate is actually
+  semantically equivalent before serving it as a hit; embedding
+  distance alone narrows to a candidate but is never sufficient on its
+  own to serve one.
+- Q: Should the embedding-distance search still act as a pre-filter
+  (only invoke the LLM equivalence check when a candidate is within a
+  broad distance ceiling), or should the LLM check always run against
+  the single closest candidate for the same question regardless of
+  distance? → A: Keep an embedding pre-filter -- a (looser than the
+  disproven 0.15) distance ceiling narrows to a plausible candidate
+  first; the LLM equivalence check only runs, and only costs a model
+  call, when one exists within that ceiling. A grading request with no
+  embedding-plausible prior answer never triggers the LLM check at all.
+- Q: The LLM equivalence check needs something to compare the new
+  answer's meaning against, but FR-009 already forbids storing the
+  original learner's answer text at all (so a hit can never leak it).
+  What should the check actually compare the new answer to? → A:
+  Never compare answer-to-answer. Cheaply classify the new answer
+  against the question's rubric criteria (a lightweight model call, not
+  a substitute for the full Grading Agent call) and check whether it
+  lands on the same criteria_met/criteria_missed pattern the cached row
+  already has -- fully consistent with FR-009, no original answer text
+  is ever needed or stored. Only on a pattern match is the cached row's
+  already-validated grade/score served; the lightweight classifier's
+  own output is never itself served as the grade.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -163,9 +196,14 @@ produced that matches manually-counted hits/misses from the same run.
 - What happens when a learner's free-text answer is grammatically close
   to a cached answer but differs in meaning (e.g., negation:
   "photosynthesis does not require light" vs. "photosynthesis requires
-  light")? The semantic-similarity match must not conflate them
-  (FR-002/FR-003), verified against the same ground-truth grading eval
-  set Milestone 6 already established.
+  light")? Embedding-distance similarity alone cannot reliably
+  distinguish this case -- verified against Milestone 6's ground-truth
+  grading eval set, the closest false-positive pair measured a smaller
+  cosine distance than genuine paraphrase pairs, so no single threshold
+  could separate them. FR-003's LLM-based equivalence check is the
+  mechanism that actually resolves this: embedding distance narrows to
+  a candidate, but the equivalence check must confirm it before a hit
+  is served.
 - What happens to Milestone 1's per-learner near-duplicate exclusion
   (its FR-008) when a question is served from a cross-learner cache? It
   continues to run unchanged and independently -- a cached question is
@@ -199,7 +237,25 @@ produced that matches manually-counted hits/misses from the same run.
 - **FR-003**: Grading-cache matching MUST use meaning-based (e.g.,
   embedding) similarity, not exact string matching, so a
   differently-worded but semantically equivalent answer can still
-  produce a cache hit.
+  produce a cache hit. Embedding distance alone MUST NOT be sufficient
+  to serve a hit: it narrows to the closest existing candidate for the
+  same question, and a cheap LLM-based equivalence check MUST confirm
+  the new answer before that candidate's cached grade is served --
+  validated against Milestone 6's ground-truth grading eval set, no
+  single embedding-distance threshold can separate negation/opposite-
+  meaning answers from genuine paraphrases (Edge Cases), so distance
+  alone cannot satisfy this requirement on its own. The equivalence
+  check never compares the new answer against the original learner's
+  answer text (FR-009 forbids storing it) -- it cheaply classifies the
+  new answer against the question's rubric criteria and confirms that
+  classification matches the candidate row's stored `criteria_met`/
+  `criteria_missed` pattern; only on a match is the candidate's already-
+  validated grade served, never the lightweight classifier's own
+  output. Embedding distance still acts as a pre-filter: the
+  equivalence check only runs (and only costs a model call) when a
+  candidate exists within a distance ceiling looser than the disproven
+  0.15 default; a request with no embedding-plausible prior answer
+  never triggers the check at all.
 - **FR-004**: Grading-cache matching MUST be scoped to the same
   question -- an answer signature MUST NOT be matched against cache
   entries created for a different question, even if the answer text is
@@ -221,7 +277,9 @@ produced that matches manually-counted hits/misses from the same run.
 - **FR-009**: A grading cache hit MUST NOT expose the free-text answer
   content of the learner whose submission originally created the cache
   entry to any other learner -- only the computed grade and rubric
-  breakdown are served.
+  breakdown are served. This also bounds FR-003's equivalence check:
+  it MUST NOT be implemented by storing or comparing against the
+  original answer's raw text.
 - **FR-010**: Caching MUST NOT alter or bypass Milestone 1's per-learner
   near-duplicate exclusion (that spec's FR-008) -- a cross-learner cache
   hit can still be excluded from a specific learner's next-question

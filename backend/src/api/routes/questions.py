@@ -7,6 +7,7 @@ endpoint's shape matches the contract as written.
 """
 
 import datetime
+import functools
 import os
 import uuid
 from typing import Any
@@ -41,6 +42,7 @@ from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.grading_cache.cache import get_or_grade_answer
+from src.services.grading_cache.equivalence import matches_cached_criteria_pattern
 from src.services.grading_client import guardrails
 from src.services.grading_client.client import (
     SCORE_THRESHOLD,
@@ -255,6 +257,13 @@ async def _grade_free_text_submission(
         # Defaults to the version live at the time this feature shipped.
         grading_logic_version=os.environ.get("GRADING_AGENT_LOGIC_VERSION", "v2"),
         grade_fn=grade_free_text_answer,
+        # FR-003: an embedding-close candidate is never served on
+        # distance alone -- this rubric-criteria re-classification
+        # (equivalence.py) is the actual gate, never touching the
+        # original learner's raw answer text (FR-009).
+        verify_fn=functools.partial(
+            matches_cached_criteria_pattern, session_service=get_database_session_service()
+        ),
     )
 
 

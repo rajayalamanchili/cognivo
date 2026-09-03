@@ -840,8 +840,45 @@ auto-tuning -- a distinct, much larger capability not implied by
 ---
 
 ## Milestone 13: Semantic Caching
-**Spec**: not yet written -- do not begin until Milestone 12 DoD is met.
-**Status**: Not started.
+**Spec**: `specs/015-semantic-caching/spec.md`
+**Status**: Implementation complete (2026-09-02, branch `023-semantic-caching`,
+all 28 tasks across 3 user stories + Polish). `/speckit-clarify` found zero
+critical ambiguities at spec-review time -- but `/speckit-implement`
+Phase 6's live validation against Milestone 6's ground-truth grading eval
+set (T024) found a real one anyway: the grading cache's original design
+(a single embedding cosine-distance threshold, matching `dedup/checker.py`'s
+0.85 similarity ratio) could not actually satisfy FR-002/FR-003 -- no
+threshold value separated negation/opposite-meaning answers from genuine
+paraphrases, since the closest false positive (the spec's own literal
+"does not require light" vs. "requires light" example, and several
+ground-truth pairs) measured a *smaller* distance than genuine true
+positives. Root cause: embedding `question_stem + answer_text` lets the
+shared, often-longer question stem dominate the embedding, drowning out
+the answer's actual meaning -- a known general weakness of sentence
+embeddings on negation, not a bug isolated to this codebase. Resolved via
+a follow-up `/speckit-clarify` mid-implementation: embedding distance is
+now only an efficiency pre-filter; a cheap Haiku-based rubric-criteria
+re-classification (`backend/src/services/grading_cache/equivalence.py`)
+is the actual correctness gate, comparing the new answer's classified
+`criteria_met` pattern against the cached row's -- never the original
+learner's raw answer text, keeping FR-009's no-raw-text privacy guarantee
+intact. Re-validated live with the real two-stage gate: zero false
+positives against the full ground-truth set + the negation example.
+
+Shipped: two new Postgres tables (`question_generation_cache`, a rotating
+5-variant/24h-freshness pool; `grading_response_cache`, `pgvector`-backed,
+no cap or TTL); cross-learner caching wired into both the sequencing and
+in-quiz question-generation paths and the free-text answer-grading path,
+with zero change to the response shape either serves (SC-003); a
+maintainer-run hit-rate report and a synthetic load test
+(`backend/scripts/cache_hit_rate_report.py`, `cache_load_test.py`) as the
+actual SC-001/SC-002 verification mechanism -- live run: question-generation
+80% hit rate, grading 90%, both well above the 30% floor, with a clear
+model-call-volume reduction vs. a `--no-cache` baseline run. Every cache
+hit gets its own full audit-log entry and Langfuse trace, indistinguishable
+in completeness from a fresh model call (FR-013). Milestones 1-12's full
+suites (`backend` 436/436, `grading-agent` 23/23, `tutor-agent` 26/26,
+`frontend` 64/64) still pass with caching enabled (SC-005).
 
 **Scope**: Near-duplicate or semantically similar LLM requests
 (question-generation requests for the same topic/difficulty within a

@@ -43,3 +43,15 @@
   explicitly not a separate record). Both are spec-level fixes; the
   corresponding plan/tasks-level fix (a missing synthetic-load-test task
   for SC-001/SC-002) is tracked in `tasks.md` T022/T026, not here.
+- `/speckit-implement` Phase 6 (T024, 2026-09-02) found, against real
+  ground-truth data, that FR-003's original "meaning-based similarity"
+  requirement could not actually be satisfied by embedding-distance
+  thresholding alone -- no single threshold separates negation/opposite-
+  meaning answers from genuine paraphrases (the closest false positive
+  measured a smaller distance than genuine true positives). Resolved via
+  `/speckit-clarify`: FR-003 now requires embedding distance to act only
+  as a pre-filter, with a cheap LLM-based equivalence check (re-
+  classifying against the stored rubric-criteria pattern, never
+  comparing raw answer text, per FR-009) confirming the candidate before
+  a hit is served. All checklist items still pass against the revised
+  requirement; re-validated, no regressions.

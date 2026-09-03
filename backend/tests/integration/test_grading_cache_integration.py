@@ -34,6 +34,10 @@ async def test_second_semantically_equivalent_answer_is_a_hit_with_no_answer_tex
         criteria_missed=[],
         grading_logic_version=GRADING_LOGIC_VERSION,
     ))
+    # A fake equivalence gate confirming True -- the real rubric-criteria
+    # re-classification (equivalence.py) is exercised live by
+    # scripts/validate_grading_cache_threshold.py, not this fast test.
+    verify_fn = _spy_verify_fn(True)
 
     with patch(
         "src.services.grading_cache.cache.embed_answer", return_value=_SHARED_EMBEDDING
@@ -47,10 +51,12 @@ async def test_second_semantically_equivalent_answer_is_a_hit_with_no_answer_tex
             learner_id=uuid.uuid4(),
             grading_logic_version=GRADING_LOGIC_VERSION,
             grade_fn=grade_fn,
+            verify_fn=verify_fn,
         )
         db_session.commit()
         assert first_outcome.hit is False
         assert grade_fn.calls == 1
+        assert verify_fn.calls == 0  # no candidate existed yet -- never invoked
 
         second_result, second_outcome = await get_or_grade_answer(
             db_session,
@@ -61,10 +67,12 @@ async def test_second_semantically_equivalent_answer_is_a_hit_with_no_answer_tex
             learner_id=uuid.uuid4(),
             grading_logic_version=GRADING_LOGIC_VERSION,
             grade_fn=grade_fn,
+            verify_fn=verify_fn,
         )
 
     assert second_outcome.hit is True
     assert grade_fn.calls == 1  # not invoked again
+    assert verify_fn.calls == 1
     assert second_result == first_result
     assert "Plants use sunlight" not in str(second_result)
     assert "Sunlight lets plants" not in str(first_result)
@@ -77,3 +85,12 @@ def _spy_grade_fn(result: GradingResult):
 
     grade_fn.calls = 0
     return grade_fn
+
+
+def _spy_verify_fn(confirmed: bool):
+    async def verify_fn(**kwargs):
+        verify_fn.calls += 1
+        return confirmed
+
+    verify_fn.calls = 0
+    return verify_fn
