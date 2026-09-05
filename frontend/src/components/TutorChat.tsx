@@ -52,7 +52,28 @@ const MARKDOWN_COMPONENTS = {
   a: (props: ComponentPropsWithoutRef<"a">) => (
     <a className="underline" target="_blank" rel="noopener noreferrer" {...props} />
   ),
+  // Tutor answers mix in untrusted retrieved-passage content (Milestone
+  // 9 RAG) -- rendering markdown images would let `![](url)` silently
+  // fetch an attacker-controlled URL as a side effect of displaying a
+  // chat bubble (a known RAG-chat exfiltration pattern).
+  img: () => null,
 };
+
+function RoleAvatar({ role }: { role: ChatMessage["role"] }) {
+  return (
+    <span
+      title={role === "learner" ? "You" : "Tutor"}
+      className={
+        "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base " +
+        (role === "learner"
+          ? "bg-primary text-primary-foreground"
+          : "border border-border text-foreground")
+      }
+    >
+      {role === "learner" ? "🙂" : "🦉"}
+    </span>
+  );
+}
 
 function stateFromError(error: unknown): ErrorState {
   if (error instanceof ApiError && error.body && typeof error.body === "object") {
@@ -108,21 +129,29 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
         {messages.map((message, index) => (
           <div
             key={index}
-            data-testid={
-              message.role === "learner" ? "tutor-chat-learner-message" : "tutor-chat-tutor-message"
-            }
-            data-exchange-id={message.exchangeId}
             className={
-              message.role === "learner"
-                ? "self-end rounded-lg bg-primary px-4 py-2 text-primary-foreground"
-                : "self-start rounded-lg border border-border px-4 py-2"
+              "flex max-w-[85%] items-start gap-2 " +
+              (message.role === "learner" ? "self-end flex-row-reverse" : "self-start")
             }
           >
-            {message.role === "tutor" && message.text ? (
-              <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
-            ) : (
-              message.text || (streaming && index === messages.length - 1 ? "…" : "")
-            )}
+            <RoleAvatar role={message.role} />
+            <div
+              data-testid={
+                message.role === "learner" ? "tutor-chat-learner-message" : "tutor-chat-tutor-message"
+              }
+              data-exchange-id={message.exchangeId}
+              className={
+                message.role === "learner"
+                  ? "rounded-lg bg-primary px-4 py-2 text-primary-foreground"
+                  : "rounded-lg border border-border px-4 py-2"
+              }
+            >
+              {message.role === "tutor" && message.text ? (
+                <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
+              ) : (
+                message.text || (streaming && index === messages.length - 1 ? "…" : "")
+              )}
+            </div>
           </div>
         ))}
       </div>

@@ -41,6 +41,13 @@ from src.models.quiz_assignment_target import QuizAssignmentTarget
 
 APP_NAME = "cognivo-tutor-shielding"
 
+# Practice questions have no expiry, so an inactive learner can
+# accumulate an unbounded number of never-answered rows over time --
+# cap the lookback the same way dedup/checker.py's DEFAULT_LOOKBACK
+# bounds its own per-learner scan, so each tutor message triggers at
+# most this many classify_match calls.
+MAX_OPEN_QUESTIONS = 10
+
 # Bumped whenever _MATCH_INSTRUCTION's instructional content changes
 # (spec 014 FR-002/FR-008's CI-enforced version-bump requirement) -- a
 # code constant, not a database row, same as
@@ -177,10 +184,10 @@ def _is_assignment_cancelled(db: Session, *, quiz_session_id: uuid.UUID) -> bool
 def find_open_questions(
     db: Session, *, learner_id: uuid.UUID, subject_id: str
 ) -> list[GeneratedQuestion]:
-    """FR-001/FR-002: every question currently displayed to this learner
-    in this subject with no submitted answer yet. Practice, quiz
-    (learner-initiated or instructor-assigned), and placement all set
-    `shown_at` on this same `GeneratedQuestion` table, so no
+    """FR-001/FR-002: up to `MAX_OPEN_QUESTIONS` most-recently-shown
+    questions in this subject with no submitted answer yet. Practice,
+    quiz (learner-initiated or instructor-assigned), and placement all
+    set `shown_at` on this same `GeneratedQuestion` table, so no
     per-context branching is needed here (Constitution Principle III).
     """
     candidates = (
@@ -190,6 +197,8 @@ def find_open_questions(
             GeneratedQuestion.subject_id == subject_id,
             GeneratedQuestion.shown_at.isnot(None),
         )
+        .order_by(GeneratedQuestion.shown_at.desc())
+        .limit(MAX_OPEN_QUESTIONS)
         .all()
     )
     return [
