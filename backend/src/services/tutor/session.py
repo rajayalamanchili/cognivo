@@ -314,6 +314,14 @@ async def prepare_message(
         {
             "open_question_stem": shielding_decision.open_question_stem,
             "open_question_topic_id": shielding_decision.open_question_topic_id,
+            # PR #59 review: without this, the FR-010 fail-safe payload
+            # was byte-for-byte identical to a confirmed match, so
+            # agent.py's own "is this actually the same question"
+            # judgment call could re-derive "unrelated" and answer
+            # directly -- silently defeating the fail-safe. `False`
+            # only for the inconclusive path (`shielded_question_id` is
+            # `None` there, per ShieldingDecision's own invariant).
+            "confirmed": shielding_decision.shielded_question_id is not None,
         }
         if shielding_decision.shielded
         else None

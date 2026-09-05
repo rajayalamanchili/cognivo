@@ -949,6 +949,17 @@ guarantee, not only an instruction. Full regression (T021, 2026-09-04):
 `backend` 454/454, `tutor-agent` 31/31, `grading-agent` 23/23,
 `frontend` 64/64, all passing with no regressions (SC-005).
 
+**PR #59 review fix (2026-09-04)**: the wire payload for FR-010's
+fail-safe (inconclusive classification) case was byte-for-byte
+identical to a confirmed match, so `tutor-agent/`'s own "is this
+actually the same question" re-check could independently judge
+"unrelated" and answer directly -- quietly defeating the fail-safe
+guarantee. Added `shielding.confirmed` (`true`/`false`) to the payload
+(`tutor/session.py`) and a distinct instruction branch that shields
+unconditionally when `confirmed` is `false`, with no "genuine, separate
+conceptual question" escape hatch (`TUTOR_INSTRUCTION_VERSION`
+`"v2"` -> `"v3"`).
+
 **Known gaps, honestly not yet closed**:
 - T020 (SC-001/SC-002 eval, `backend/scripts/check_shielding_eval.py` +
   `backend/evaluation/shielding_ground_truth.jsonl`, 14 rows): script

@@ -132,6 +132,7 @@ def test_direct_ask_against_an_open_question_is_shielded(
     assert captured["shielding"] == {
         "open_question_stem": open_question.stem,
         "open_question_topic_id": open_question.topic_id,
+        "confirmed": True,
     }
 
     exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
@@ -171,6 +172,39 @@ def test_unrelated_question_is_not_shielded_while_a_question_is_open(
 
     exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
     assert exchange.shielded is False
+    assert exchange.shielded_question_id is None
+
+
+def test_inconclusive_classification_shields_with_confirmed_false(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 FR-010, PR #59 review: a classifier failure must still
+    shield (fail-safe), but the wire payload must mark it `"confirmed":
+    False` so tutor-agent/'s instruction shields unconditionally
+    instead of re-deriving the same ambiguous match/no-match judgment
+    the backend's own classifier already failed to make."""
+    seed_open_question(db_session, learner_id=demo_learner.learner_id, subject=biology_subject)
+    captured: dict = {}
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match_failure(RuntimeError("classifier unavailable")),
+        patch_search_passages([]),
+        patch_grounded_stream_capturing(
+            ["Think about what you already know first."],
+            grounded_passage_ids=[],
+            captured_kwargs=captured,
+        ),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert captured["shielding"]["confirmed"] is False
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.shielded is True
     assert exchange.shielded_question_id is None
 
 

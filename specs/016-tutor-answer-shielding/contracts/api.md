@@ -22,7 +22,8 @@ optional key:
   "delegation_context": [ /* unchanged */ ],
   "shielding": {
     "open_question_stem": "...",
-    "open_question_topic_id": "photosynthesis"
+    "open_question_topic_id": "photosynthesis",
+    "confirmed": true
   }
 }
 ```
@@ -36,10 +37,19 @@ optional key:
   `answer_key` is never present anywhere in this payload
   (`research.md` decision 3, a hard constraint, not an
   instruction-only guarantee).
+- `shielding.confirmed` is `true` only when `classify_match` positively
+  matched `question` to `open_question_stem`; `false` for FR-10's
+  inconclusive/fail-safe case (added after PR #59 review: without this
+  distinction, the fail-safe payload was identical to a confirmed
+  match, so `agent.py`'s own "is this actually the same question"
+  re-check could independently decide "unrelated" and answer directly,
+  silently defeating the fail-safe). When `false`, `agent.py`'s
+  instruction shields unconditionally rather than re-deriving the
+  match/no-match judgment.
 - When `shielding` is present, `tutor-agent/`'s response MUST be a
   hint that does not state a final answer value for the open question
   -- enforced by `agent.py`'s instruction (`TUTOR_INSTRUCTION_VERSION`
-  `"v2"`), verified by `tutor-agent/tests/test_agent_instruction.py`.
+  `"v3"`), verified by `tutor-agent/tests/test_agent_instruction.py`.
 
 ## `GET /api/tutor/exchanges/{id}` (EXISTING, response fields ADDED)
 
