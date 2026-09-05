@@ -30,6 +30,8 @@ from google.adk.sessions import BaseSessionService
 from google.genai import types
 from pydantic import BaseModel
 
+from src.services.llm_provider import default_model
+
 APP_NAME = "cognivo-grading-cache-equivalence"
 
 # Bumped whenever _INSTRUCTION's instructional content changes (spec 014
@@ -95,7 +97,7 @@ async def classify_criteria_met(
     below treats it as no match; `scripts/validate_grading_cache_
     threshold.py` treats it as a hard validation failure)."""
     resolved_model_name = model_name or os.environ.get(
-        "GRADING_CACHE_EQUIVALENCE_MODEL", "anthropic/claude-haiku-4-5"
+        "GRADING_CACHE_EQUIVALENCE_MODEL", default_model("cheap")
     )
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)

@@ -34,6 +34,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
 
+from src.llm_provider import default_model
+
 if TYPE_CHECKING:
     from google.adk.agents.callback_context import CallbackContext
     from google.adk.models.llm_request import LlmRequest
@@ -96,7 +98,7 @@ async def check_moderation(raw_request_text: str, *, model_name: str | None = No
     current invocation.
     """
     resolved_model_name = model_name or os.environ.get(
-        "MODERATION_MODEL", "anthropic/claude-haiku-4-5"
+        "MODERATION_MODEL", default_model("cheap")
     )
     agent = _build_moderation_agent(resolved_model_name)
     session_service = InMemorySessionService()
