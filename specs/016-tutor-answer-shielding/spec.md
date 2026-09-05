@@ -4,7 +4,10 @@
 
 **Created**: 2026-09-04
 
-**Status**: Draft
+**Status**: `/speckit-implement` complete for Phases 1-5 (2026-09-04) --
+see `roadmap.md`'s Milestone 14 entry for full status, including the
+two live-verification items (T020's real eval, T022's live quickstart)
+honestly recorded as not yet run in this sandbox.
 
 **Input**: User description: "Prevent the Tutor Agent from giving a direct final answer to a learner's currently-open, unanswered practice or assessment question" (per `roadmap.md`'s "Out of current roadmap" entry, "Tutor Agent answer-shielding during practice/assessment")
 
