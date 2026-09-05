@@ -159,7 +159,7 @@ obvious.
 |---|---|---|
 | API framework | FastAPI, deployed as a Vercel Python Function (ASGI) | FastAPI has first-class, officially documented support as a Vercel-deployed backend framework, and pairs cleanly with ADK's Python-first design. |
 | Question/assessment generation | Structured-output calls to an LLM, called through ADK's `LiteLlm` model wrapper so the provider stays a runtime config value rather than hardcoded; default provider/model is Anthropic Claude (Sonnet), set via env var. Locked at Milestone 1 `/speckit-plan` time (see `specs/001-domain-agnostic-core/research.md` §2). Output validated against the content artifact before display (FR-007). | The validation step, not the model choice, is what carries the correctness guarantee. LiteLLM keeps the provider swappable without a code change; Claude was chosen as the default for consistency with this project's existing Anthropic-centric tooling (`claude-code-action`) and strong structured-output reliability. |
-| LLM provider switch (budget) | A single `LLM_PROVIDER` env var (`anthropic` default, or `openai`), read by a tiny per-deployable `llm_provider.py` helper (`backend/`, `grading-agent/`, `tutor-agent/` each carry their own copy -- Constitution Principle VI, no shared import across an A2A boundary) that maps a `"cheap"`/`"capable"` role to a provider-specific model string. Every LLM call site's existing specific `_MODEL` env var (`MODERATION_MODEL`, `GRADING_AGENT_MODEL`, `TUTOR_AGENT_MODEL`, etc.) still wins if set explicitly -- `LLM_PROVIDER` only supplies the fallback default. | Every LLM call in this codebase already goes through `LiteLlm(model=model_name)`, so provider-swapping was already mechanically possible per call site; this just adds one flag so a developer facing an Anthropic budget constraint doesn't have to set ~9 separate env vars individually. Chat-completion provider choice only -- embeddings (Voyage) and the misconception classifier's fine-tuning approach (below) are unrelated axes and stay as originally decided. |
+| LLM provider switch (budget) | A single `LLM_PROVIDER` env var (`anthropic` default, `openai`, or `gemini`), read by a tiny per-deployable `llm_provider.py` helper (`backend/`, `grading-agent/`, `tutor-agent/` each carry their own copy -- Constitution Principle VI, no shared import across an A2A boundary) that maps a `"cheap"`/`"capable"` role to a provider-specific model string. An unrecognized value silently falls back to the Anthropic default rather than erroring. Every LLM call site's existing specific `_MODEL` env var (`MODERATION_MODEL`, `GRADING_AGENT_MODEL`, `TUTOR_AGENT_MODEL`, etc.) still wins if set explicitly -- `LLM_PROVIDER` only supplies the fallback default, which is why `backend/.env.example` ships those vars commented out (an uncommented one pins that site regardless of `LLM_PROVIDER`). Set independently per deployment -- there is no shared config across the A2A boundary. | Every LLM call in this codebase already goes through `LiteLlm(model=model_name)`, so provider-swapping was already mechanically possible per call site; this just adds one flag so a developer facing an Anthropic budget constraint doesn't have to set ~9 separate env vars individually across 3 deployments. Chat-completion provider choice only -- embeddings (Voyage) and the misconception classifier's fine-tuning approach (below) are unrelated axes and stay as originally decided. |
 | Near-duplicate question detection | In-process text similarity (TF-IDF cosine or `difflib.SequenceMatcher`) over the last 5 generated questions per learner+topic -- no vector database or embeddings API (FR-008) | Locked at Milestone 1 `/speckit-plan` time (research.md §3). Deliberately does not pull `pgvector` forward from its Milestone 9 Tutor Agent scope -- a 5-question window doesn't justify that infrastructure yet. |
 
 ## Frontend
@@ -246,8 +246,11 @@ new `AssessmentEventType` value rather than a new table; resolves the
 item this file previously listed as not yet decided; see
 `specs/013-misconception-classifier/research.md`); 2.2.0 -- Amended
 2026-09-05 (added a budget-driven `LLM_PROVIDER` chat-completion
-switch on top of the existing per-call-site LiteLLM model config,
-supplementing rather than replacing the Anthropic default; corrected
-this file's now-stale "Anthropic is this project's only configured
-LLM provider" framing in the Embedding model and Classifier approach
-rows above, which predated this change)
+switch -- recognizing `anthropic` (default), `openai`, and `gemini`
+-- on top of the existing per-call-site LiteLLM model config,
+supplementing rather than replacing the Anthropic default;
+`backend/.env.example` ships every per-site `_MODEL` var
+commented-out so the switch takes effect without also editing those
+vars; corrected this file's now-stale "Anthropic is this project's
+only configured LLM provider" framing in the Embedding model and
+Classifier approach rows above, which predated this change)
