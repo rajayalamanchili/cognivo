@@ -75,7 +75,19 @@ fields (`backend/src/api/routes/tutor.py`). Response gains:
 - `shielded_question_id` (`string | null`) -- present and non-null only
   when `shielded` is `true` and a specific open question was
   confidently identified as the trigger (`data-model.md`'s invariant).
+  Stays `null` for FR-010's inconclusive/fail-safe case even though
+  `shielded` is `true` there too -- deliberately: attributing the
+  shield to a candidate question the classifier never confirmed would
+  misrepresent the audit trail (`shielding.py`'s `ShieldingDecision`
+  comments).
 
-This is SC-003's concrete verification surface: an inspector can call
-this endpoint for a sampled exchange and determine, without asking the
-Tutor Agent to explain itself, whether and why it was shielded.
+This is SC-003's concrete verification surface for the confirmed-match
+case: an inspector can call this endpoint for a sampled exchange and
+determine, without asking the Tutor Agent to explain itself, whether
+and which open question it was shielded against. For the FR-010
+fail-safe case, this endpoint confirms only *that* the exchange was
+shielded, not *which* open question triggered it -- reconstructing
+that requires cross-referencing `GeneratedQuestion.shown_at`/
+`AssessmentEvent` timestamps against the exchange's `created_at`,
+not a direct, guaranteed link. This is a known, accepted gap in this
+one branch, not a claim that SC-003 holds unconditionally.
