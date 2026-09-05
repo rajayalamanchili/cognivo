@@ -20,13 +20,16 @@ from tests.integration.tutor_helpers import (
     parse_sse_events,
     patch_disconnected_stream,
     patch_grounded_stream,
+    patch_grounded_stream_capturing,
     patch_interrupted_stream,
     patch_moderation,
     patch_search_passages,
     patch_search_passages_failure,
+    patch_shielding_match,
     patch_unavailable_stream,
     patch_unexpected_exception_opening_stream,
     patch_unexpected_exception_stream,
+    seed_open_question,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -96,6 +99,42 @@ def test_honest_non_grounded_answer_is_persisted(client, db_session, session_id)
     exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
     assert exchange.grounded is False
     assert exchange.retrieved_passage_ids == []
+
+
+def test_direct_ask_against_an_open_question_is_shielded(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 US1/SC-001: a tutor question directly asking for the
+    answer to a currently-open, unanswered question gets a hint-only
+    response, and the exchange records which question triggered it."""
+    open_question = seed_open_question(
+        db_session, learner_id=demo_learner.learner_id, subject=biology_subject
+    )
+    captured: dict = {}
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match(matches=True),
+        patch_search_passages([]),
+        patch_grounded_stream_capturing(
+            ["Think about what you already know first."],
+            grounded_passage_ids=[],
+            captured_kwargs=captured,
+        ),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer to that question"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert captured["shielding"] == {
+        "open_question_stem": open_question.stem,
+        "open_question_topic_id": open_question.topic_id,
+    }
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.shielded is True
+    assert exchange.shielded_question_id == open_question.question_id
 
 
 def test_409_still_answering_while_a_prior_exchange_is_in_flight(client, db_session, session_id):

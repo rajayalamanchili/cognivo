@@ -9,11 +9,14 @@ without depending on any live LLM, embedding, or A2A call.
 """
 
 import asyncio
+import datetime
 import uuid
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, patch
 
 from src.api.errors import TutorUnavailableError
+from src.models.enums import DifficultyBand, QuestionType, ValidationStatus
+from src.models.generated_question import GeneratedQuestion
 from src.services.retrieval.passage_search import RetrievedPassage
 from src.services.tutor_agent_client.client import (
     TutorAnswerDelta,
@@ -135,6 +138,73 @@ def patch_disconnected_stream(deltas: list[str]):
         for delta in deltas:
             yield TutorAnswerDelta(text=delta)
         raise asyncio.CancelledError()
+
+    return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
+
+
+def seed_open_question(
+    db_session, *, learner_id: uuid.UUID, subject, stem: str = "seeded open question"
+) -> GeneratedQuestion:
+    """A shown-but-unanswered `GeneratedQuestion` (spec 016 FR-001) --
+    mirrors `test_content_review_resolution.py`'s direct-ORM-construction
+    pattern, not a real generation call."""
+    topic = subject.topics[0]
+    question = GeneratedQuestion(
+        learner_id=learner_id,
+        subject_id=subject.subject_id,
+        topic_id=topic.topic_id,
+        difficulty=DifficultyBand.EASY,
+        question_type=QuestionType.MULTIPLE_CHOICE,
+        stem=stem,
+        options=["a", "b", "c", "d"],
+        answer_key={"correct_index": 0},
+        validation_status=ValidationStatus.VALID,
+        shown_at=datetime.datetime.now(datetime.UTC),
+    )
+    db_session.add(question)
+    db_session.commit()
+    db_session.refresh(question)
+    return question
+
+
+def patch_shielding_match(matches: bool):
+    """Fakes `classify_match` where `tutor/session.py` binds it
+    (`functools.partial(classify_match, ...)` re-resolves the name from
+    that module's namespace on every call, so patching it there is
+    sufficient) -- forces a confirmed match/no-match without any real
+    model call, same shape as `grading_cache`'s `verify_fn` fakes."""
+
+    async def _fake(**kwargs) -> bool:
+        return matches
+
+    return patch("src.services.tutor.session.classify_match", new=_fake)
+
+
+def patch_shielding_match_failure(exc: Exception):
+    """FR-010: a classification call that errors -- `determine_shielding`
+    must treat this as an inconclusive determination, not propagate it."""
+
+    async def _fake(**kwargs) -> bool:
+        raise exc
+
+    return patch("src.services.tutor.session.classify_match", new=_fake)
+
+
+def patch_grounded_stream_capturing(
+    deltas: list[str], grounded_passage_ids: list[uuid.UUID], captured_kwargs: dict
+):
+    """Same as `patch_grounded_stream`, but also records the kwargs
+    `stream_tutor_answer` was actually called with -- lets a test assert
+    on the `shielding` payload (or its absence) sent toward
+    `tutor-agent/`."""
+
+    async def _fake_stream(**kwargs) -> AsyncIterator[TutorStreamEvent]:
+        captured_kwargs.update(kwargs)
+        for delta in deltas:
+            yield TutorAnswerDelta(text=delta)
+        yield TutorAnswerResult(
+            answer_text="".join(deltas), grounded_passage_ids=list(grounded_passage_ids)
+        )
 
     return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
 
