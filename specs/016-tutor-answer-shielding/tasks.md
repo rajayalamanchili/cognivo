@@ -35,8 +35,8 @@ description: "Task list for Tutor Agent Answer-Shielding"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T001 [P] Add `shielded` (`Boolean`, not null, default `false`) and `shielded_question_id` (nullable `UUID`, FK -> `generated_questions.question_id`) columns to the `TutorExchange` model in `backend/src/models/tutor_exchange.py` (data-model.md)
-- [ ] T002 Alembic migration in `backend/alembic/versions/<hash>_tutor_exchange_shielding_columns.py`: add `shielded`/`shielded_question_id` to `tutor_exchanges`, additive-only, no backfill needed (data-model.md's Migration section) (depends on T001)
+- [X] T001 [P] Add `shielded` (`Boolean`, not null, default `false`) and `shielded_question_id` (nullable `UUID`, FK -> `generated_questions.question_id`) columns to the `TutorExchange` model in `backend/src/models/tutor_exchange.py` (data-model.md)
+- [X] T002 Alembic migration in `backend/alembic/versions/<hash>_tutor_exchange_shielding_columns.py`: add `shielded`/`shielded_question_id` to `tutor_exchanges`, additive-only, no backfill needed (data-model.md's Migration section) (depends on T001)
 
 **Checkpoint**: Schema ready -- user story implementation can now begin.
 
