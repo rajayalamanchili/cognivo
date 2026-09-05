@@ -20,13 +20,18 @@ from tests.integration.tutor_helpers import (
     parse_sse_events,
     patch_disconnected_stream,
     patch_grounded_stream,
+    patch_grounded_stream_capturing,
     patch_interrupted_stream,
     patch_moderation,
     patch_search_passages,
     patch_search_passages_failure,
+    patch_shielding_match,
+    patch_shielding_match_failure,
     patch_unavailable_stream,
     patch_unexpected_exception_opening_stream,
     patch_unexpected_exception_stream,
+    seed_open_question,
+    seed_open_quiz_assignment_question,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -96,6 +101,241 @@ def test_honest_non_grounded_answer_is_persisted(client, db_session, session_id)
     exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
     assert exchange.grounded is False
     assert exchange.retrieved_passage_ids == []
+
+
+def test_direct_ask_against_an_open_question_is_shielded(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 US1/SC-001: a tutor question directly asking for the
+    answer to a currently-open, unanswered question gets a hint-only
+    response, and the exchange records which question triggered it."""
+    open_question = seed_open_question(
+        db_session, learner_id=demo_learner.learner_id, subject=biology_subject
+    )
+    captured: dict = {}
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match(matches=True),
+        patch_search_passages([]),
+        patch_grounded_stream_capturing(
+            ["Think about what you already know first."],
+            grounded_passage_ids=[],
+            captured_kwargs=captured,
+        ),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer to that question"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert captured["shielding"] == {
+        "open_question_stem": open_question.stem,
+        "open_question_topic_id": open_question.topic_id,
+        "confirmed": True,
+    }
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.shielded is True
+    assert exchange.shielded_question_id == open_question.question_id
+
+
+def test_unrelated_question_is_not_shielded_while_a_question_is_open(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 US2/SC-002: an open, unanswered question elsewhere in
+    the subject must not shield an otherwise-normal answer to a
+    genuinely unrelated conceptual question."""
+    seed_open_question(db_session, learner_id=demo_learner.learner_id, subject=biology_subject)
+    captured: dict = {}
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match(matches=False),
+        patch_search_passages([]),
+        patch_grounded_stream_capturing(
+            ["Because negative times negative is positive."],
+            grounded_passage_ids=[],
+            captured_kwargs=captured,
+        ),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "why does multiplying two negatives give a positive?"},
+        )
+
+    assert response.status_code == 200, response.text
+    # stream_tutor_answer's own contract (client.py) omits "shielding"
+    # from the actual wire payload entirely when it's None -- this
+    # captures the outer call's kwargs, so None here is what proves
+    # shielding didn't apply.
+    assert captured.get("shielding") is None
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.shielded is False
+    assert exchange.shielded_question_id is None
+
+
+def test_inconclusive_classification_shields_with_confirmed_false(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 FR-010, PR #59 review: a classifier failure must still
+    shield (fail-safe), but the wire payload must mark it `"confirmed":
+    False` so tutor-agent/'s instruction shields unconditionally
+    instead of re-deriving the same ambiguous match/no-match judgment
+    the backend's own classifier already failed to make."""
+    seed_open_question(db_session, learner_id=demo_learner.learner_id, subject=biology_subject)
+    captured: dict = {}
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match_failure(RuntimeError("classifier unavailable")),
+        patch_search_passages([]),
+        patch_grounded_stream_capturing(
+            ["Think about what you already know first."],
+            grounded_passage_ids=[],
+            captured_kwargs=captured,
+        ),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer"},
+        )
+
+    assert response.status_code == 200, response.text
+    assert captured["shielding"]["confirmed"] is False
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.shielded is True
+    assert exchange.shielded_question_id is None
+
+
+def test_no_open_question_answers_normally_and_skips_classification(client, db_session, session_id):
+    """spec 016 US2: with nothing open at all, `determine_shielding`
+    must short-circuit before ever calling the classifier -- forcing
+    `classify_match` to raise proves it was never invoked."""
+    captured: dict = {}
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match_failure(RuntimeError("must not be called")),
+        patch_search_passages([]),
+        patch_grounded_stream_capturing(
+            ["A normal, unshielded answer."], grounded_passage_ids=[], captured_kwargs=captured
+        ),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "any question at all"}
+        )
+
+    assert response.status_code == 200, response.text
+    assert captured.get("shielding") is None
+
+    exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    assert exchange.shielded is False
+
+
+def test_shielding_lifts_once_the_open_question_is_answered(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 US3/SC-004: once a previously-shielded question has
+    been answered, a follow-up tutor question about it is answered
+    normally -- proven by forcing the classifier to raise, since a
+    still-open question would otherwise be shielded via FR-010's
+    fail-safe."""
+    open_question = seed_open_question(
+        db_session, learner_id=demo_learner.learner_id, subject=biology_subject
+    )
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match(matches=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["Think it through first."], grounded_passage_ids=[]),
+    ):
+        first = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer"},
+        )
+    assert first.status_code == 200, first.text
+    shielded_exchange = (
+        db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    )
+    assert shielded_exchange.shielded is True
+
+    answer = client.post(f"/api/questions/{open_question.question_id}/answer", json={"response": 0})
+    assert answer.status_code == 200, answer.text
+
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match_failure(RuntimeError("must not be called -- no longer open")),
+        patch_search_passages([]),
+        patch_grounded_stream(["Sure, here's why that's the answer."], grounded_passage_ids=[]),
+    ):
+        follow_up = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "now that I answered it, can you explain that one?"},
+        )
+    assert follow_up.status_code == 200, follow_up.text
+
+    exchanges = (
+        db_session.query(TutorExchange)
+        .filter(TutorExchange.session_id == session_id)
+        .order_by(TutorExchange.created_at)
+        .all()
+    )
+    assert len(exchanges) == 2
+    assert exchanges[1].shielded is False
+    assert exchanges[1].shielded_question_id is None
+
+
+def test_shielding_lifts_once_the_assignment_is_cancelled(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 016 US3/FR-006 (`/speckit-analyze` finding C1): a cancelled
+    instructor-assigned attempt's still-unanswered question is no
+    longer "open" -- shielding lifts without an answer ever being
+    submitted."""
+    from src.services.quiz_assignment.assignment import cancel_assignment
+
+    _question, assignment = seed_open_quiz_assignment_question(
+        db_session, learner_id=demo_learner.learner_id, subject=biology_subject
+    )
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match(matches=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["Think it through first."], grounded_passage_ids=[]),
+    ):
+        first = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer"},
+        )
+    assert first.status_code == 200, first.text
+    shielded_exchange = (
+        db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    )
+    assert shielded_exchange.shielded is True
+
+    cancel_assignment(db_session, assignment=assignment)
+
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match_failure(RuntimeError("must not be called -- assignment cancelled")),
+        patch_search_passages([]),
+        patch_grounded_stream(["Sure, here's why that's the answer."], grounded_passage_ids=[]),
+    ):
+        follow_up = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "can you explain that one to me now?"},
+        )
+    assert follow_up.status_code == 200, follow_up.text
+
+    exchanges = (
+        db_session.query(TutorExchange)
+        .filter(TutorExchange.session_id == session_id)
+        .order_by(TutorExchange.created_at)
+        .all()
+    )
+    assert len(exchanges) == 2
+    assert exchanges[1].shielded is False
+    assert exchanges[1].shielded_question_id is None
 
 
 def test_409_still_answering_while_a_prior_exchange_is_in_flight(client, db_session, session_id):

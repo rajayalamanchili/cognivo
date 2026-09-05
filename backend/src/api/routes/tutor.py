@@ -190,6 +190,8 @@ class ExchangeOut(BaseModel):
     grounded: bool
     retrieved_passages: list[RetrievedPassageOut]
     delegation_context: list[dict]
+    shielded: bool
+    shielded_question_id: uuid.UUID | None
 
 
 @router.get("/api/tutor/exchanges/{exchange_id}", response_model=ExchangeOut)
@@ -234,4 +236,6 @@ def get_exchange_route(
         grounded=exchange.grounded,
         retrieved_passages=retrieved_passages,
         delegation_context=exchange.delegation_context or [],
+        shielded=exchange.shielded,
+        shielded_question_id=exchange.shielded_question_id,
     )

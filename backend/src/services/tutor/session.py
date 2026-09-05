@@ -20,6 +20,7 @@ Split into two phases, both used by `api/routes/tutor.py`:
 
 import asyncio
 import datetime
+import functools
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -45,6 +46,7 @@ from src.services.audit_log.writer import record_event
 from src.services.grading_client.moderation import check_moderation
 from src.services.retrieval.passage_search import search_passages
 from src.services.tutor.rate_limit import check_tutor_rate_limit
+from src.services.tutor.shielding import classify_match, determine_shielding
 from src.services.tutor_agent_client.client import (
     TutorAnswerDelta,
     TutorAnswerResult,
@@ -226,6 +228,23 @@ async def prepare_message(
     if not allowed:
         raise ModerationRejectedError()
 
+    # spec 016 FR-001..FR-010: its own explicit traced_request() block,
+    # not folded into moderation's above or left unwrapped like the
+    # (non-LLM) delegation-context lookup below -- this is a real LLM
+    # classification call and must not lose its Langfuse span the way
+    # moderation's once did before that was fixed (`/speckit-analyze`
+    # finding I1).
+    with traced_request(learner_id=session.learner_id, session_id=session.session_id):
+        shielding_decision = await determine_shielding(
+            db,
+            learner_id=session.learner_id,
+            subject_id=session.subject_id,
+            tutor_question=question,
+            match_fn=functools.partial(
+                classify_match, session_service=get_database_session_service()
+            ),
+        )
+
     # FR-006 (US2): a real in-process Recommendation Agent lookup when
     # the question depends on the learner's own performance -- never
     # guessed or re-derived by the Tutor Agent itself (Constitution
@@ -245,6 +264,8 @@ async def prepare_message(
         session_id=session.session_id,
         question_text=question,
         delegation_context=delegation_context,
+        shielded=shielding_decision.shielded,
+        shielded_question_id=shielding_decision.shielded_question_id,
     )
     db.add(exchange)
     db.commit()
@@ -289,11 +310,28 @@ async def prepare_message(
         }
         for passage in retrieved
     ]
+    shielding_payload = (
+        {
+            "open_question_stem": shielding_decision.open_question_stem,
+            "open_question_topic_id": shielding_decision.open_question_topic_id,
+            # PR #59 review: without this, the FR-010 fail-safe payload
+            # was byte-for-byte identical to a confirmed match, so
+            # agent.py's own "is this actually the same question"
+            # judgment call could re-derive "unrelated" and answer
+            # directly -- silently defeating the fail-safe. `False`
+            # only for the inconclusive path (`shielded_question_id` is
+            # `None` there, per ShieldingDecision's own invariant).
+            "confirmed": shielding_decision.shielded_question_id is not None,
+        }
+        if shielding_decision.shielded
+        else None
+    )
     stream = stream_tutor_answer(
         question=question,
         subject_id=session.subject_id,
         retrieved_passages=passage_payloads,
         delegation_context=delegation_context,
+        shielding=shielding_payload,
         exchange_id=exchange.exchange_id,
         session_id=session.session_id,
     )
@@ -363,6 +401,10 @@ def _persist_completed_exchange(
             "retrieved_passage_ids": [str(pid) for pid in exchange.retrieved_passage_ids],
             "grounded": exchange.grounded,
             "delegation_context_summary": exchange.delegation_context or [],
+            "shielded": exchange.shielded,
+            "shielded_question_id": (
+                str(exchange.shielded_question_id) if exchange.shielded_question_id else None
+            ),
         },
     )
     db.commit()

@@ -8,6 +8,8 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py. Skips
 otherwise.
 """
 
+import uuid
+
 import pytest
 
 from scripts.seed_demo_instructor import seed_demo_instructor
@@ -26,6 +28,8 @@ from tests.integration.tutor_helpers import (
     patch_grounded_stream,
     patch_moderation,
     patch_search_passages,
+    patch_shielding_match,
+    seed_open_question,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -134,6 +138,45 @@ def test_owning_guardian_can_inspect(client, exchange):
         }
     ]
     assert body["delegation_context"] == []
+    assert body["shielded"] is False
+    assert body["shielded_question_id"] is None
+
+
+def test_shielded_exchange_is_inspectable(client, db_session, biology_subject, scenario):
+    """spec 016 FR-007/SC-003: a shielded exchange's trigger question is
+    inspectable via this same endpoint, without asking the Tutor Agent
+    itself to explain."""
+    login_guardian(client, "exchange-inspect-guardian-a@example.com")
+    learner_a_id = scenario["learner_a_id"]
+    open_question = seed_open_question(
+        db_session, learner_id=uuid.UUID(learner_a_id), subject=biology_subject
+    )
+    open_response = client.post(
+        "/api/tutor/sessions",
+        json={"learner_id": learner_a_id, "subject_id": biology_subject.subject_id},
+    )
+    session_id = open_response.json()["session_id"]
+
+    with (
+        patch_moderation(allowed=True),
+        patch_shielding_match(matches=True),
+        patch_search_passages([]),
+        patch_grounded_stream(["Think it through first."], grounded_passage_ids=[]),
+    ):
+        message_response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "just give me the answer"},
+        )
+    assert message_response.status_code == 200, message_response.text
+
+    exchange_row = (
+        db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    )
+    response = client.get(f"/api/tutor/exchanges/{exchange_row.exchange_id}")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["shielded"] is True
+    assert body["shielded_question_id"] == str(open_question.question_id)
 
 
 def test_other_guardian_forbidden(client, exchange):

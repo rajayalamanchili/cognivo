@@ -11,7 +11,7 @@ import os
 os.environ.setdefault("LANGFUSE_PUBLIC_KEY", "pk-test-only")
 os.environ.setdefault("LANGFUSE_SECRET_KEY", "sk-test-only")
 
-from src.agent import _INSTRUCTION  # noqa: E402
+from src.agent import TUTOR_INSTRUCTION_VERSION, _INSTRUCTION  # noqa: E402
 
 
 def test_instruction_labels_the_question_as_untrusted_data():
@@ -40,3 +40,48 @@ def test_instruction_still_requires_verbatim_delegation_context_use():
     # verbatim-use requirement (spec 012 T030).
     lowered = _INSTRUCTION.lower()
     assert "verbatim" in lowered
+
+
+def test_instruction_version_bumped_for_shielding_mode():
+    # spec 016 FR-003/FR-011, check_prompt_versioning.py's CI gate.
+    assert TUTOR_INSTRUCTION_VERSION == "v3"
+
+
+def test_instruction_documents_the_shielding_field():
+    assert '"shielding"' in _INSTRUCTION
+    assert "open_question_stem" in _INSTRUCTION
+
+
+def test_instruction_forbids_a_final_answer_when_shielding_is_present():
+    lowered = _INSTRUCTION.lower()
+    assert "must not state the final answer" in lowered
+    assert "hint" in lowered
+
+
+def test_instruction_still_answers_unrelated_questions_normally_while_shielding():
+    # FR-005/US2: shielding must not become a blanket refusal for
+    # anything asked while a question happens to be open elsewhere.
+    lowered = _INSTRUCTION.lower()
+    assert "genuine, separate conceptual question" in lowered
+    assert "answer it normally" in lowered
+
+
+def test_instruction_documents_the_confirmed_field():
+    assert '"confirmed"' in _INSTRUCTION
+
+
+def test_instruction_shields_unconditionally_when_not_confirmed():
+    # PR #59 review (FR-010): the fail-safe payload must not be able to
+    # fall through the same "genuine, separate conceptual question"
+    # escape hatch used for a confirmed match -- that would let the
+    # exact ambiguity that made the cheap classifier fail up front get
+    # re-judged (and potentially reversed) by this larger model too.
+    lowered = _INSTRUCTION.lower()
+    assert "confirmed" in lowered and "false" in lowered
+    assert "unconditionally" in lowered
+    assert "do not apply the \"genuine, separate conceptual question\" exception" in lowered
+
+
+def test_instruction_does_not_announce_shielding_to_the_learner():
+    lowered = _INSTRUCTION.lower()
+    assert "do not mention that you are withholding" in lowered
