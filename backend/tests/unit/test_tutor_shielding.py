@@ -44,6 +44,7 @@ def _make_question(
     subject,
     stem: str = "seeded question",
     shown: bool = True,
+    shown_at: datetime.datetime | None = None,
     quiz_session_id: uuid.UUID | None = None,
 ) -> GeneratedQuestion:
     topic = subject.topics[0]
@@ -57,7 +58,7 @@ def _make_question(
         options=["a", "b", "c", "d"],
         answer_key={"correct_index": 0},
         validation_status=ValidationStatus.VALID,
-        shown_at=_now() if shown else None,
+        shown_at=(shown_at or _now()) if shown else None,
         quiz_session_id=quiz_session_id,
     )
     db_session.add(question)
@@ -190,6 +191,32 @@ def test_unshown_question_is_not_open(db_session, demo_learner, biology_subject)
         db_session, learner_id=demo_learner.learner_id, subject_id=biology_subject.subject_id
     )
     assert open_questions == []
+
+
+def test_open_questions_capped_at_most_recently_shown(db_session, demo_learner, biology_subject):
+    """A learner who never answers practice questions accumulates them
+    without bound over time; the lookup must still return at most
+    `MAX_OPEN_QUESTIONS`, preferring the most recently shown, so each
+    tutor message triggers a bounded number of `classify_match` calls."""
+    from src.services.tutor.shielding import MAX_OPEN_QUESTIONS
+
+    base = _now()
+    questions = [
+        _make_question(
+            db_session,
+            learner_id=demo_learner.learner_id,
+            subject=biology_subject,
+            stem=f"question {i}",
+            shown_at=base + datetime.timedelta(seconds=i),
+        )
+        for i in range(MAX_OPEN_QUESTIONS + 3)
+    ]
+    open_questions = find_open_questions(
+        db_session, learner_id=demo_learner.learner_id, subject_id=biology_subject.subject_id
+    )
+    assert len(open_questions) == MAX_OPEN_QUESTIONS
+    expected_ids = {q.question_id for q in questions[-MAX_OPEN_QUESTIONS:]}
+    assert {q.question_id for q in open_questions} == expected_ids
 
 
 def test_answered_question_is_not_open(db_session, demo_learner, biology_subject):
