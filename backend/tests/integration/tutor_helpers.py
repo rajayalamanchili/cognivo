@@ -209,6 +209,84 @@ def patch_grounded_stream_capturing(
     return patch("src.services.tutor.session.stream_tutor_answer", new=_fake_stream)
 
 
+def seed_open_quiz_assignment_question(
+    db_session, *, learner_id: uuid.UUID, subject, stem: str = "assigned quiz question"
+):
+    """A shown-but-unanswered question from an in-progress instructor-
+    assigned quiz attempt, plus the (not-yet-cancelled) `QuizAssignment`
+    it belongs to -- spec 016 US3's cancellation-lift scenario
+    (`/speckit-analyze` finding C1). Direct-ORM setup, mirroring
+    `test_tutor_shielding.py`'s own copy of this same shape, bypassing
+    the full HTTP roster/instructor registration flow
+    `quiz_assignment_helpers.py` uses (not needed for this feature's
+    tests, which only care that `QuizAssignment.cancelled_at` gets set).
+    Returns `(question, assignment)` -- the caller cancels via
+    `quiz_assignment.assignment.cancel_assignment(db, assignment=...)`.
+    """
+    from src.models.classroom_roster import ClassroomRoster
+    from src.models.enums import EnrollmentMode, QuizSessionStatus
+    from src.models.quiz_assignment import QuizAssignment
+    from src.models.quiz_assignment_target import QuizAssignmentTarget
+    from src.models.quiz_session import QuizSession
+    from src.models.real_instructor_account import RealInstructorAccount
+
+    instructor = RealInstructorAccount(
+        email=f"tutor-shielding-test-{uuid.uuid4().hex[:8]}@example.com", password_hash="x"
+    )
+    db_session.add(instructor)
+    db_session.commit()
+    db_session.refresh(instructor)
+
+    roster = ClassroomRoster(
+        instructor_id=instructor.instructor_id,
+        subject_id=subject.subject_id,
+        enrollment_mode=EnrollmentMode.OPEN,
+        join_code=f"CODE{uuid.uuid4().hex[:6]}",
+    )
+    db_session.add(roster)
+    db_session.commit()
+    db_session.refresh(roster)
+
+    topic = subject.topics[0]
+    quiz_session = QuizSession(
+        learner_id=learner_id,
+        subject_id=subject.subject_id,
+        topic_ids=[topic.topic_id],
+        question_count=1,
+        status=QuizSessionStatus.IN_PROGRESS,
+    )
+    db_session.add(quiz_session)
+    db_session.commit()
+    db_session.refresh(quiz_session)
+
+    question = seed_open_question(db_session, learner_id=learner_id, subject=subject, stem=stem)
+    question.quiz_session_id = quiz_session.quiz_session_id
+    db_session.commit()
+    db_session.refresh(question)
+
+    assignment = QuizAssignment(
+        roster_id=roster.roster_id,
+        instructor_id=instructor.instructor_id,
+        subject_id=subject.subject_id,
+        topic_ids=[topic.topic_id],
+        question_count=1,
+    )
+    db_session.add(assignment)
+    db_session.commit()
+    db_session.refresh(assignment)
+
+    db_session.add(
+        QuizAssignmentTarget(
+            assignment_id=assignment.assignment_id,
+            learner_id=learner_id,
+            quiz_session_id=quiz_session.quiz_session_id,
+        )
+    )
+    db_session.commit()
+
+    return question, assignment
+
+
 def parse_sse_events(response_text: str) -> list[dict]:
     """Parses `data: {...}` lines out of a raw SSE response body into a
     list of decoded JSON payloads, in order."""

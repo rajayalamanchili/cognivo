@@ -127,10 +127,15 @@ specs/016-tutor-answer-shielding/
 ├── quickstart.md        # Phase 1 output
 ├── contracts/
 │   └── api.md           # Phase 1 output (delta to spec 012's internal A2A contract)
-├── tasks.md              # Phase 2 output (/speckit-tasks, not this command)
-└── eval/
-    └── shielding-test-questions.md   # Polish output (/speckit-analyze finding C2)
+└── tasks.md              # Phase 2 output (/speckit-tasks, not this command)
 ```
+
+The Polish-phase eval fixture (`/speckit-analyze` finding C2) lives at
+`backend/evaluation/shielding_ground_truth.jsonl`, not under this
+directory -- corrected during implementation to match this codebase's
+actual convention for a script-driven eval (`misconception_ground_
+truth.jsonl`/`grading_ground_truth.jsonl` sit there too), not Milestone
+9's separate manual-checklist-markdown convention under `specs/.../eval/`.
 
 ### Source Code (repository root)
 
