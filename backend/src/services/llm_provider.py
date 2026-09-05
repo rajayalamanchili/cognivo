@@ -12,6 +12,7 @@ always wins over this default.
 """
 
 import os
+from typing import Literal
 
 _CHEAP_MODELS = {
     "anthropic": "anthropic/claude-haiku-4-5",
@@ -25,10 +26,16 @@ _CAPABLE_MODELS = {
 }
 
 
-def default_model(role: str) -> str:
+def default_model(role: Literal["cheap", "capable"]) -> str:
     """`role` is "cheap" (moderation/classification calls) or "capable"
-    (primary generation/tutoring calls). Falls back to the Anthropic
-    default for an unrecognized `LLM_PROVIDER` value."""
+    (primary generation/tutoring calls) -- an unrecognized role raises
+    rather than silently picking the more expensive model. Falls back
+    to the Anthropic default for an unrecognized `LLM_PROVIDER` value."""
+    if role == "cheap":
+        table = _CHEAP_MODELS
+    elif role == "capable":
+        table = _CAPABLE_MODELS
+    else:
+        raise ValueError(f"unrecognized role: {role!r} (expected 'cheap' or 'capable')")
     provider = os.environ.get("LLM_PROVIDER", "anthropic")
-    table = _CHEAP_MODELS if role == "cheap" else _CAPABLE_MODELS
     return table.get(provider, table["anthropic"])
