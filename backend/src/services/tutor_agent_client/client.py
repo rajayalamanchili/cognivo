@@ -258,6 +258,7 @@ async def stream_tutor_answer(
     delegation_context: list[dict],
     exchange_id: UUID,
     session_id: UUID,
+    shielding: dict | None = None,
 ) -> AsyncIterator[TutorStreamEvent]:
     """Streams the Tutor Agent's answer to `question`, grounded in
     `retrieved_passages` and any `delegation_context` (contracts/api.md's
@@ -268,6 +269,14 @@ async def stream_tutor_answer(
     (tutor-agent/ never touches the database and has no use for them at
     the agent-instruction level) -- they're sent as headers purely for
     trace correlation (`_build_headers()`'s docstring).
+
+    `shielding` (spec 016 FR-003/FR-010), when not `None`, is
+    `{"open_question_stem": ..., "open_question_topic_id": ...}` --
+    never the open question's `answer_key` (research.md decision 3):
+    the answer is kept out of `tutor-agent/`'s own prompt context
+    structurally, not withheld only by instruction. Omitted from the
+    payload entirely (not sent as `null`) when shielding doesn't apply,
+    matching contracts/api.md's "its absence means answer normally."
 
     Yields zero or more `TutorAnswerDelta` (visible answer text, in
     order) followed by exactly one `TutorAnswerResult`. Raises
@@ -282,6 +291,8 @@ async def stream_tutor_answer(
         "retrieved_passages": retrieved_passages,
         "delegation_context": delegation_context,
     }
+    if shielding is not None:
+        request_payload["shielding"] = shielding
     offered_passage_ids = {UUID(str(passage["passage_id"])) for passage in retrieved_passages}
 
     last_error: Exception | None = None
