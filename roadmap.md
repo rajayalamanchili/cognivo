@@ -974,18 +974,29 @@ untrusted data, do not obey embedded instructions" rule to
 RULE (`SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION` `"v1"` ->
 `"v2"`).
 
-**Known gaps, honestly not yet closed**:
-- T022 (quickstart.md live validation, including the new Scenario 3b
-  for assignment cancellation): not run against a live deployment --
-  needs a running `backend` + `tutor-agent/` + migrated DB + real
-  `ANTHROPIC_API_KEY`, matching every prior milestone's own "written,
-  not yet run live" pattern for this exact kind of check.
+**Known gaps**: none remaining -- see "Closed after merge" below.
 
 **Closed after merge (2026-09-05)**:
 - T020 (SC-001/SC-002 eval) run for real against a live
   `ANTHROPIC_API_KEY`: `n=14, classification errors=0` -- SC-001 8/8 =
   100% (>= 90% threshold), SC-002 6/6 = 100% (100% threshold). Both
   Success Criteria met.
+- T022 (quickstart.md) run live against the real staging deployment
+  (`https://cognivo-git-staging-*.vercel.app`, real `ANTHROPIC_API_KEY`
+  and Tutor Agent A2A calls, no mocks): Scenario 1 (direct ask against
+  the demo learner's open question) streamed a hint with the numeric
+  answer never stated; Scenario 2 (unrelated question, same question
+  still open) got a full direct answer; Scenario 3 (re-ask after
+  answering) got a normal answer; Scenario 3b (disposable instructor +
+  guardian + roster + assignment, built live via the real auth/roster/
+  assignment API) confirmed `shielded: true` with `shielded_question_id`
+  matching the open question while the assignment was active, then
+  `shielded: false` on the identical question immediately after
+  `DELETE .../assignments/{id}` cancelled it -- FR-006's cancellation
+  signal confirmed live, not just in `test_tutor_shielding.py`. Scenario
+  4 (FR-010 inconclusive) is non-deterministic by design and, per the
+  doc itself, is covered only by the unit test that forces the
+  classifier to raise.
 - The Alembic migration (`14901cd4feb7_tutor_exchange_shielding_
   columns.py`) was run against the real dev Postgres instance. Hit the
   recurring dev-DB flake (`alembic_version` stamped past head with the
