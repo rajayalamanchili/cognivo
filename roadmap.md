@@ -917,8 +917,9 @@ if they've already seen it recently.
 
 ## Milestone 14: Tutor Agent Answer-Shielding
 **Spec**: `specs/016-tutor-answer-shielding/spec.md`
-**Status**: `/speckit-implement` complete for Phases 1-5 (Foundational +
-all three user stories, 2026-09-04, branch `023-tutor-answer-shielding`).
+**Status**: Merged to `staging` 2026-09-05 (PR #59). `/speckit-implement`
+complete for Phases 1-5 (Foundational + all three user stories,
+2026-09-04, branch `023-tutor-answer-shielding`).
 `/speckit-clarify` resolved two clarifications during specify itself
 (FR-002's question-context scope; FR-004's direct-or-paraphrase
 matching standard) plus two more in a dedicated session (FR-010's
@@ -974,33 +975,24 @@ RULE (`SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION` `"v1"` ->
 `"v2"`).
 
 **Known gaps, honestly not yet closed**:
-- T020 (SC-001/SC-002 eval, `backend/scripts/check_shielding_eval.py` +
-  `backend/evaluation/shielding_ground_truth.jsonl`, 14 rows): script
-  and fixture are written and confirmed structurally correct (every
-  row's classification failure was caught, logged, and counted as a
-  miss without crashing, exit code `0` as designed) -- but the actual
-  SC-001/SC-002 percentages have **not been measured for real**: this
-  sandbox has no `ANTHROPIC_API_KEY`, so every classification call
-  failed with `litellm.AuthenticationError` rather than a real model
-  judgment. Needs a real run with a live key before either Success
-  Criterion can be reported as met or not.
 - T022 (quickstart.md live validation, including the new Scenario 3b
   for assignment cancellation): not run against a live deployment --
   needs a running `backend` + `tutor-agent/` + migrated DB + real
   `ANTHROPIC_API_KEY`, matching every prior milestone's own "written,
   not yet run live" pattern for this exact kind of check.
-- The new Alembic migration (`14901cd4feb7_tutor_exchange_shielding_
-  columns.py`) was verified for chain/syntax correctness only (`alembic
-  heads` resolves it correctly, the model imports cleanly with the
-  right FK target) -- it has **not** been run against a real Postgres
-  instance in this sandbox (`alembic upgrade head` failed here with no
-  `DATABASE_URL` reachable from a direct CLI invocation, a sandbox/
-  environment limitation, not a migration defect). The full-suite
-  regression above used pytest's own `Base.metadata.create_all()`
-  schema convention (`tests/conftest.py`), which validates the ORM
-  model but not the migration file itself -- run `alembic upgrade
-  head` against a real dev database before this ships, the same
-  verification step every prior milestone's DoD confirmation has run.
+
+**Closed after merge (2026-09-05)**:
+- T020 (SC-001/SC-002 eval) run for real against a live
+  `ANTHROPIC_API_KEY`: `n=14, classification errors=0` -- SC-001 8/8 =
+  100% (>= 90% threshold), SC-002 6/6 = 100% (100% threshold). Both
+  Success Criteria met.
+- The Alembic migration (`14901cd4feb7_tutor_exchange_shielding_
+  columns.py`) was run against the real dev Postgres instance. Hit the
+  recurring dev-DB flake (`alembic_version` stamped past head with the
+  underlying tables missing) -- fixed with the confirmed `alembic stamp
+  base` + `upgrade head` replay, then demo accounts and both content
+  artifacts (`biology`, `algebra-1`) were reseeded since the replay
+  wipes all data, not just adds the missing table.
 
 **Scope**: Prevents the Tutor Agent from handing a learner a direct
 final answer to a question they currently have open and unanswered
@@ -1014,8 +1006,9 @@ an occasional missed instance (spec.md FR-008/Assumptions).
 **Definition of done**:
 - SC-001 (>=90% of direct/paraphrase-ask questions against an open
   question are shielded) and SC-002 (100% of unrelated-ask questions
-  are not) are measured for real against `backend/evaluation/
-  shielding_ground_truth.jsonl` -- **not yet met**, pending T020 above.
+  are not) measured for real against `backend/evaluation/
+  shielding_ground_truth.jsonl` -- **met**: 8/8 (100%) and 6/6 (100%)
+  respectively, 2026-09-05.
 - SC-003 (100% of shielded exchanges inspectable after the fact) --
   met, verified by `test_tutor_exchange_inspection.py`.
 - SC-004 (shielding lifts once a question is no longer open, including
