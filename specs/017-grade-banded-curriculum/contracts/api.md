@@ -92,7 +92,7 @@ question's `question_id` is simply never present in the submitted
 submitted answer reports `status: "unknown"`" behavior already
 satisfies FR-007 with no code change (`research.md` Decision 6). This
 endpoint additionally performs the one-time `GRADE_ASSIGNED` audit-log
-write and creates the subject's `LearnerGradeProgress` row internally,
+write and creates the subject's `GradeProgress` row internally,
 for a graded subject -- neither is visible in the response shape, only
 in the audit log (`GET`-able the same way every other
 `AssessmentEvent` already is).

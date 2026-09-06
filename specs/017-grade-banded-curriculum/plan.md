@@ -33,7 +33,7 @@ sub-agents, unchanged agent framework) -- all already locked in
 `tech-stack.md`.
 
 **Storage**: PostgreSQL (Neon), via two new tables (`grade_bands`,
-`learner_grade_progress`) and two modified tables (`topics` gains
+`grade_progress`) and two modified tables (`topics` gains
 `grade`; `generated_questions` gains `grade` and
 `placement_session_id`), plus three new `AssessmentEventType` enum
 values. See `data-model.md`.
@@ -62,7 +62,7 @@ within the existing per-question generation budget.
 - Grade-banding is all-or-nothing per subject content artifact
   (`research.md` Decision 1) -- a subject either grades every topic or
   none of them; no per-topic-optional mixing.
-- `LearnerGradeProgress.unlocked_grade` is a monotonic high-water mark,
+- `GradeProgress.unlocked_grade` is a monotonic high-water mark,
   never recomputed-down from live mastery state (Edge Cases,
   `data-model.md`).
 - No new agent boundary or A2A service (Constitution Principle IV/VI) --
@@ -105,7 +105,7 @@ No violations. Complexity Tracking is not needed.
 
 **Post-Phase-1 re-check**: `research.md` and `data-model.md` confirm the
 design stayed inside this table's assumptions -- no new table beyond
-the two minimal, justified additions (`GradeBand`, `LearnerGradeProgress`),
+the two minimal, justified additions (`GradeBand`, `GradeProgress`),
 no new agent, no new A2A service, no subject-id branching, and
 `submit_placement` needed zero code changes (Decision 6). The gate still
 passes.
@@ -135,7 +135,7 @@ backend/
 ├── src/
 │   ├── models/
 │   │   ├── grade_band.py             # NEW: GradeBand(subject_id, grade)
-│   │   ├── learner_grade_progress.py # NEW: LearnerGradeProgress(learner_id, subject_id, unlocked_grade)
+│   │   ├── grade_progress.py # NEW: GradeProgress(learner_id, subject_id, unlocked_grade)
 │   │   ├── topic.py                  # MODIFIED: + grade (nullable, FK -> grade_bands)
 │   │   ├── generated_question.py     # MODIFIED: + grade, + placement_session_id
 │   │   └── enums.py                  # MODIFIED: + GRADE_ASSIGNED, GRADE_UNLOCKED,
@@ -159,7 +159,7 @@ backend/
 │       └── routes/
 │           └── placement.py          # MODIFIED: start_placement grade-entry selection +
 │                                      #   grade field; submit_placement gains the one-time
-│                                      #   GRADE_ASSIGNED write + LearnerGradeProgress creation;
+│                                      #   GRADE_ASSIGNED write + GradeProgress creation;
 │                                      #   NEW: skip_placement_question route
 ├── alembic/
 │   └── versions/

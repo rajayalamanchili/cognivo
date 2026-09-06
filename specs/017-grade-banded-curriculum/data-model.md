@@ -41,7 +41,7 @@ prerequisites" rule, since no grade exists below the lowest one.
 `is_entry_level` itself is unchanged and continues to gate ungraded-
 subject placement exactly as today.
 
-## New: `LearnerGradeProgress` (`backend/src/models/learner_grade_progress.py`)
+## New: `GradeProgress` (`backend/src/models/grade_progress.py`)
 
 The "one explicit current starting/unlocked grade value per subject per
 learner" spec.md's Key Entities describes as an extension of
@@ -125,5 +125,5 @@ assumed impossible either).
 
 Two new Alembic revisions, both additive-only:
 
-1. Schema: `grade_bands` table, `topics.grade` + FK, `generated_questions.grade` + `generated_questions.placement_session_id`, `learner_grade_progress` table. No backfill -- every existing row predates this feature and is correctly represented by `grade IS NULL` / no `LearnerGradeProgress` row.
+1. Schema: `grade_bands` table, `topics.grade` + FK, `generated_questions.grade` + `generated_questions.placement_session_id`, `grade_progress` table. No backfill -- every existing row predates this feature and is correctly represented by `grade IS NULL` / no `GradeProgress` row.
 2. Enum: the three new `AssessmentEventType` values above (`ALTER TYPE ... ADD VALUE`, matching the existing enum-extension migrations' shape).
