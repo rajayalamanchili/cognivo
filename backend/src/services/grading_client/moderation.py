@@ -17,6 +17,8 @@ from google.adk.sessions import BaseSessionService
 from google.genai import types
 from pydantic import BaseModel
 
+from src.services.llm_provider import default_model
+
 APP_NAME = "cognivo-moderation"
 
 # Bumped whenever _INSTRUCTION's instructional content changes (spec 014
@@ -61,7 +63,7 @@ async def check_moderation(
     """FR-012: True if `text` passes moderation (safe to grade), False if
     it should be blocked."""
     resolved_model_name = model_name or os.environ.get(
-        "MODERATION_MODEL", "anthropic/claude-haiku-4-5"
+        "MODERATION_MODEL", default_model("cheap")
     )
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)

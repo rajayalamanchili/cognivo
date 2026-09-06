@@ -24,6 +24,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from src.models.enums import DifficultyBand, QuestionType
+from src.services.llm_provider import default_model
 
 APP_NAME = "cognivo-assessment-gen"
 
@@ -235,7 +236,9 @@ async def generate_question(
     caller from the topic's own content-artifact data, never by the
     model.
     """
-    resolved_model_name = model_name or os.environ["ASSESSMENT_GEN_MODEL"]
+    resolved_model_name = model_name or os.environ.get(
+        "ASSESSMENT_GEN_MODEL", default_model("capable")
+    )
     instruction = _build_instruction(
         topic_display_name=topic_display_name,
         skill_summary=skill_summary,
