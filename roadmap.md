@@ -1127,22 +1127,15 @@ any table yet.
   than new deploy automation. Needs `STAGING_DATABASE_URL`/
   `PRODUCTION_DATABASE_URL` as GitHub Actions secrets (distinct from
   their Vercel-env-var copies) before it can be built.
-- Grade-banded curriculum scoping (grades 1-12) per subject, with an
-  initial placement quiz that also assesses a starting grade level (not
-  just per-topic mastery as Milestone 1 does today), placement questions
-  labeled with the grade they represent, a skip option for a question
-  too far above the learner's current assessed level, and progressive
-  grade-level unlocking -- a learner only sees next-grade questions
-  after mastering the current grade's content. Raised 2026-08-22 after
-  live testing surfaced some generated questions as too hard for their
-  intended level. Real open design question for whoever scopes this:
-  how "grade" relates to the existing Topic/mastery-state model --
-  likely a new content-artifact-owned dimension (per Constitution
-  Principle III, never an engine-side conditional), but whether it's a
-  property of each topic, a grouping above topics, or a per-question
-  attribute needs its own `/speckit-clarify` before a spec is written,
-  given how directly it touches the mastery model's structure
-  (Principle I).
+- Grade-banded curriculum scoping (grades 1-12) per subject. Raised
+  2026-08-22 after live testing surfaced some generated questions as
+  too hard for their intended level. **Spec drafted and clarified
+  2026-09-06** (`specs/017-grade-banded-curriculum/spec.md`): grade is
+  a new "grade band" content-artifact entity grouping a subject's
+  existing topics (FR-001), and a grade counts as mastered once every
+  topic in its grade band reaches the existing mastered band (FR-004).
+  Still not assigned a milestone number/sequencing slot -- remains here
+  until that decision is made.
 - Content-curation policy differing by classroom type (an "open"
   classroom's content is LLM-curated; a "closed" classroom's content is
   human-created or LLM-generated-then-human-approved). Raised
