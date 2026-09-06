@@ -253,4 +253,20 @@ supplementing rather than replacing the Anthropic default;
 commented-out so the switch takes effect without also editing those
 vars; corrected this file's now-stale "Anthropic is this project's
 only configured LLM provider" framing in the Embedding model and
-Classifier approach rows above, which predated this change)
+Classifier approach rows above, which predated this change.
+**Scope note (Constitution Principle VII):** deliberately landed as a
+tech-stack.md-level technology-constraint amendment, not a new
+`specs/<feature>/` -- it adds no new FR/SC, no new agent boundary, and
+no new user-facing behavior, only a runtime override on model
+selection that already varied per call site before this change; it
+also cuts across five existing specs' call sites (001, 007, 013, 015,
+016) rather than belonging to any single one, so a dedicated spec
+would have had no natural home. `/speckit-analyze` was not run against
+this change: `check-prerequisites.sh` resolves `FEATURE_DIR` to
+whatever numbered `specs/` directory it can find, which for a
+non-`NNN-slug` branch is just the latest one on disk
+(`016-tutor-answer-shielding` at the time) -- running the analyze
+pass against that directory would silently re-analyze an unrelated,
+already-shipped milestone rather than checking anything about this
+change, so it was skipped rather than run for form's sake against the
+wrong artifacts)
