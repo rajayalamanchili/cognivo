@@ -38,6 +38,7 @@ from src.models.enums import AssessmentEventType
 from src.models.generated_question import GeneratedQuestion
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
+from src.services.llm_provider import default_model
 
 APP_NAME = "cognivo-tutor-shielding"
 
@@ -122,7 +123,7 @@ async def classify_match(
     exercise the lookup/tie-break/fail-safe logic) as FR-010's
     inconclusive-determination case."""
     resolved_model_name = model_name or os.environ.get(
-        "TUTOR_SHIELDING_CLASSIFICATION_MODEL", "anthropic/claude-haiku-4-5"
+        "TUTOR_SHIELDING_CLASSIFICATION_MODEL", default_model("cheap")
     )
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)

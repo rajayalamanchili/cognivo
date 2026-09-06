@@ -19,6 +19,8 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
 
+from src.services.llm_provider import default_model
+
 _APP_NAME = "misconception_baseline"
 
 NONE_LABEL = "none"
@@ -86,7 +88,7 @@ async def classify_baseline(
     if the model call produces no final response -- same fail-closed
     convention as `check_moderation()`."""
     resolved_model_name = model_name or os.environ.get(
-        "MISCONCEPTION_BASELINE_MODEL", "anthropic/claude-haiku-4-5"
+        "MISCONCEPTION_BASELINE_MODEL", default_model("cheap")
     )
     instruction = _build_instruction(question, learner_answer, taxonomy)
     agent = _build_agent(resolved_model_name, instruction)

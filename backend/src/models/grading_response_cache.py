@@ -9,7 +9,9 @@ from sqlalchemy.orm import Mapped, mapped_column
 from src.models.base import Base
 
 # voyage-3's output dimension -- matches
-# src/models/content_passage_embedding.py's EMBEDDING_DIMENSION.
+# src/models/content_passage_embedding.py's EMBEDDING_DIMENSION. See
+# that constant's comment for why this has no LLM_PROVIDER-style
+# budget switch across embedding providers.
 EMBEDDING_DIMENSION = 1024
 
 

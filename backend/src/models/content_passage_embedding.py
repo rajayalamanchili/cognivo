@@ -12,7 +12,14 @@ from src.models.enums import PassageField, enum_values
 # voyage-3's output dimension (research.md §1) -- the embedding column's
 # fixed width; TUTOR_EMBEDDING_MODEL is a runtime config value, but this
 # dimension is a schema constant tied to the specific model this feature
-# ships with.
+# ships with. Deliberately has no LLM_PROVIDER-style budget switch
+# (tech-stack.md's Embedding model row, considered 2026-09-05): a
+# different provider's default model won't fit this width (OpenAI/
+# Gemini), and even a same-width one (Cohere embed-v3, also 1024) is
+# not comparable to voyage-3 in the same similarity search -- swapping
+# providers live would silently corrupt retrieval for every row
+# embedded under the old one, not just error. Needs a real migration +
+# full re-embed plan, not a copy of the chat-completion switch.
 EMBEDDING_DIMENSION = 1024
 
 
