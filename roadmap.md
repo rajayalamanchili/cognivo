@@ -1031,6 +1031,74 @@ an occasional missed instance (spec.md FR-008/Assumptions).
 
 ---
 
+## Milestone 15: Grade-Banded Curriculum Scoping
+
+**Spec**: `specs/017-grade-banded-curriculum/spec.md`
+**Status**: `/speckit-implement` complete, all 6 phases (2026-09-07,
+branch `024-grade-banded-curriculum`). Raised 2026-08-22 after live
+testing surfaced some generated questions as too hard for their
+intended level; spec drafted and clarified 2026-09-06 (grade is a new
+"grade band" content-artifact entity grouping a subject's existing
+topics per FR-001, and a grade counts as mastered once every topic in
+its grade band reaches the existing mastered band per FR-004). Moved
+here from "Out of current roadmap" now that implementation has landed.
+
+Implementation: two new tables (`grade_bands`, `grade_progress`), two
+nullable columns each on `Topic`/`GeneratedQuestion`, and three new
+`AssessmentEventType` values, all additive-only (`data-model.md`) --
+`algebra-1`'s content artifact retrofitted with `grade_bands: [6, 7,
+8]`, `biology` deliberately left ungraded as the SC-005 regression
+fixture. `services/content_artifact/validator.py` enforces
+research.md Decision 1's all-or-nothing rule (every topic graded or
+none). `determine_starting_grade` (`services/placement/
+starting_grade.py`) and `grade_entry_topics`
+(`agents/diagnostic/agent.py`) are pure, DB-free functions reused
+unmodified between placement's final grade assignment and the skip
+endpoint's interim currently-assessed-level check. The Sequencing
+Agent's `rank_eligible_topics` gates every candidate pool (eligible,
+mastered-fallback, and full-fallback) by `GradeProgress.unlocked_grade`
+before ranking; `apply_mastery_update` advances `unlocked_grade`
+(monotonic, never reverts on a later regression) once every topic in
+the current grade reaches "mastered."
+
+**Known gaps**: none remaining.
+
+**Definition of done**:
+- SC-001 (byte-identical starting grade across ten repeated identical
+  placement runs) -- met, verified by `test_starting_grade.py`'s
+  pure-function repeated-call test, no DB involved.
+- SC-002 (100% of selected questions at or below the learner's
+  unlocked grade across a full placement-through-follow-up session) --
+  met, verified by `test_grade_progression.py` and confirmed live
+  against a real dev server + Postgres instance (quickstart.md
+  Scenario 3): three consecutive `next-question` calls stayed on the
+  starting grade's own topic while it remained unmastered.
+- SC-003 (zero next-grade questions shown before a grade's mastery
+  threshold is met) -- met, same evidence as SC-002; the live run's
+  `grade_unlocked` event (`previous_unlocked_grade: 6,
+  new_unlocked_grade: 7`) fired only once the last grade-6 topic
+  reached "mastered," and the very next call then selected a grade-7
+  topic.
+- SC-004 (a skipped placement question's replacement arrives in one
+  round-trip, no re-placement restart) -- met, verified by
+  `test_placement_skip.py` and confirmed live: skipping a grade-8
+  question returned a grade-6 replacement in the same response.
+- SC-005 (a pre-existing, ungraded content artifact's Milestone 1 test
+  suite passes unmodified) -- met: `biology`'s placement/practice flow
+  is untouched by every phase above; full regression run 2026-09-07,
+  backend 508/508 (one pooled-connection "cache lookup failed for
+  type" flake -- pre-existing, `conftest.py`-documented, unrelated
+  test each run, clean on isolated retry both times it surfaced) and
+  frontend 69/69, both passing.
+- SC-006 (every starting-grade assignment and grade-unlock event
+  reconstructable from the audit log) -- met: `grade_assigned`'s
+  payload carries `correct_by_grade` per declared grade, `grade_unlocked`'s
+  carries `previous_unlocked_grade`/`new_unlocked_grade`/
+  `triggering_topic_id`; both confirmed live via direct `assessment_events`
+  queries in quickstart.md Scenario 1/3.
+
+---
+
 ## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
 
 Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
@@ -1127,15 +1195,6 @@ any table yet.
   than new deploy automation. Needs `STAGING_DATABASE_URL`/
   `PRODUCTION_DATABASE_URL` as GitHub Actions secrets (distinct from
   their Vercel-env-var copies) before it can be built.
-- Grade-banded curriculum scoping (grades 1-12) per subject. Raised
-  2026-08-22 after live testing surfaced some generated questions as
-  too hard for their intended level. **Spec drafted and clarified
-  2026-09-06** (`specs/017-grade-banded-curriculum/spec.md`): grade is
-  a new "grade band" content-artifact entity grouping a subject's
-  existing topics (FR-001), and a grade counts as mastered once every
-  topic in its grade band reaches the existing mastered band (FR-004).
-  Still not assigned a milestone number/sequencing slot -- remains here
-  until that decision is made.
 - Content-curation policy differing by classroom type (an "open"
   classroom's content is LLM-curated; a "closed" classroom's content is
   human-created or LLM-generated-then-human-approved). Raised
