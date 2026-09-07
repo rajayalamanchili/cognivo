@@ -13,7 +13,10 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from src.models.enums import MasteryBand, QuestionType
+from src.models.grade_band import GradeBand
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
+from src.models.topic import Topic
 from src.services.mastery.bkt import (
     P_L0,
     P_S,
@@ -31,6 +34,7 @@ class MasteryUpdateResult:
     posterior_band: MasteryBand
     update_count: int
     bkt_params_used: dict[str, float]
+    grade_unlocked: int | None = None  # non-null only on the update that unlocks a next grade
 
 
 def apply_mastery_update(
@@ -75,6 +79,14 @@ def apply_mastery_update(
 
     db.flush()
 
+    grade_unlocked = _maybe_unlock_next_grade(
+        db,
+        learner_id=learner_id,
+        subject_id=subject_id,
+        topic_id=topic_id,
+        posterior_band=posterior.band,
+    )
+
     return MasteryUpdateResult(
         prior_p_mastery=prior_observation.p_mastery if prior_observation else None,
         posterior_p_mastery=posterior.p_mastery,
@@ -86,4 +98,71 @@ def apply_mastery_update(
             "p_s": P_S,
             "p_g": guess_probability(question_type),
         },
+        grade_unlocked=grade_unlocked,
     )
+
+
+def _maybe_unlock_next_grade(
+    db: Session,
+    *,
+    learner_id: uuid.UUID,
+    subject_id: str,
+    topic_id: str,
+    posterior_band: MasteryBand,
+) -> int | None:
+    """FR-004: on a topic reaching `mastered` whose grade equals the
+    learner's current `unlocked_grade`, advance `GradeProgress` to the
+    next declared grade once every topic in the current grade is also
+    mastered. `None` in every other case (data-model.md's
+    `MasteryUpdateResult.grade_unlocked` contract): ungraded topic, no
+    `GradeProgress` row yet, the completing topic isn't the learner's
+    current grade, the grade isn't fully mastered yet, or there's no
+    next declared grade to unlock. `unlocked_grade` only ever increases
+    here -- a regression (`posterior_band != MASTERED`) never reaches
+    this far, so an already-unlocked grade can never be revoked (spec.md
+    Edge Case)."""
+    if posterior_band != MasteryBand.MASTERED:
+        return None
+
+    topic = db.get(Topic, (subject_id, topic_id))
+    if topic.grade is None:
+        return None
+
+    progress = db.get(GradeProgress, (learner_id, subject_id))
+    if progress is None or topic.grade != progress.unlocked_grade:
+        return None
+
+    grade_topic_ids = [
+        t.topic_id
+        for t in db.query(Topic)
+        .filter(Topic.subject_id == subject_id, Topic.grade == progress.unlocked_grade)
+        .all()
+    ]
+    mastery_by_topic = {
+        state.topic_id: state
+        for state in db.query(MasteryState)
+        .filter(
+            MasteryState.learner_id == learner_id,
+            MasteryState.subject_id == subject_id,
+            MasteryState.topic_id.in_(grade_topic_ids),
+        )
+        .all()
+    }
+    grade_fully_mastered = all(
+        mastery_by_topic.get(t) is not None and mastery_by_topic[t].band == MasteryBand.MASTERED
+        for t in grade_topic_ids
+    )
+    if not grade_fully_mastered:
+        return None
+
+    declared_grades = [
+        row.grade for row in db.query(GradeBand).filter(GradeBand.subject_id == subject_id).all()
+    ]
+    higher_grades = [g for g in declared_grades if g > progress.unlocked_grade]
+    if not higher_grades:
+        return None
+
+    next_grade = min(higher_grades)
+    progress.unlocked_grade = next_grade
+    db.flush()
+    return next_grade

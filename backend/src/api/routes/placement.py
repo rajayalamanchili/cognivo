@@ -339,6 +339,21 @@ async def submit_placement(
                     "bkt_params_used": result.bkt_params_used,
                 },
             )
+            if result.grade_unlocked is not None:
+                topic = db.get(Topic, (question.subject_id, question.topic_id))
+                record_event(
+                    db,
+                    learner_id=question.learner_id,
+                    event_type=AssessmentEventType.GRADE_UNLOCKED,
+                    subject_id=question.subject_id,
+                    topic_id=question.topic_id,
+                    question_id=question.question_id,
+                    payload={
+                        "previous_unlocked_grade": topic.grade,
+                        "new_unlocked_grade": result.grade_unlocked,
+                        "triggering_topic_id": question.topic_id,
+                    },
+                )
 
     _assign_starting_grade_if_graded(
         db,

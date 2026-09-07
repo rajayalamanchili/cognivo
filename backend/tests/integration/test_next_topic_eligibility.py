@@ -9,6 +9,7 @@ mocking is needed here.
 """
 
 from src.agents.sequencing.agent import select_next_topic
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
 
 MASTERED_P = 0.9
@@ -67,6 +68,17 @@ def test_tie_broken_by_ascending_order_index(db_session, demo_learner, algebra_s
     # integers-and-operations) and solving-one-step-equations (prereq:
     # variables-and-expressions). Both newly-eligible topics are
     # "unknown" (tied) -- order_index must break the tie.
+    #
+    # order-of-operations is grade 7 -- this test predates spec 017's
+    # grade-gating and is about prereq/tie-break logic only, so give the
+    # learner a fully-unlocked GradeProgress row rather than have the
+    # grade gate interfere (spec 017 T023/T026).
+    db_session.add(
+        GradeProgress(
+            learner_id=demo_learner.learner_id, subject_id=algebra_subject.subject_id, unlocked_grade=8
+        )
+    )
+    db_session.commit()
     _set_mastery(
         db_session,
         demo_learner.learner_id,
