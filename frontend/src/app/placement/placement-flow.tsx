@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ApiError,
+  skipPlacementQuestion,
   startPlacement,
   submitPlacement,
   type MasteryStateEntry,
@@ -24,6 +25,8 @@ export default function PlacementFlow() {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [masteryState, setMasteryState] = useState<MasteryStateEntry[] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [skippingQuestionId, setSkippingQuestionId] = useState<string | null>(null);
+  const [skipError, setSkipError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +79,35 @@ export default function PlacementFlow() {
     }
   }
 
+  async function handleSkip(questionId: string) {
+    if (!placementSessionId) return;
+    setSkippingQuestionId(questionId);
+    setSkipError(null);
+    try {
+      const result = await skipPlacementQuestion(placementSessionId, questionId);
+      setQuestions((prev) =>
+        result.replacement_question
+          ? prev.map((q) => (q.question_id === questionId ? result.replacement_question! : q))
+          : prev.filter((q) => q.question_id !== questionId),
+      );
+      setResponses((prev) => {
+        const next = { ...prev };
+        delete next[questionId];
+        return next;
+      });
+    } catch (error) {
+      setSkipError(
+        error instanceof ApiError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : String(error),
+      );
+    } finally {
+      setSkippingQuestionId(null);
+    }
+  }
+
   if (phase === "loading") {
     return <p className="p-8">Loading placement questions&hellip;</p>;
   }
@@ -111,10 +143,26 @@ export default function PlacementFlow() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
       <h1 className="text-2xl font-semibold">Placement Assessment</h1>
+      {skipError && <p className="text-error">{skipError}</p>}
       {questions.map((question, index) => (
         <fieldset key={question.question_id} className="flex flex-col gap-3">
           <legend className="font-medium">
             {index + 1}. {question.stem}
+            {question.grade !== null && (
+              <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
+                Grade {question.grade}
+              </span>
+            )}
+            {question.grade !== null && (
+              <button
+                type="button"
+                disabled={skippingQuestionId === question.question_id}
+                onClick={() => handleSkip(question.question_id)}
+                className="ml-2 text-xs font-normal text-link underline disabled:opacity-40"
+              >
+                {skippingQuestionId === question.question_id ? "Skipping…" : "Skip (too hard)"}
+              </button>
+            )}
           </legend>
           {question.question_type === "multiple_choice" && question.options ? (
             <div className="flex flex-col gap-2">

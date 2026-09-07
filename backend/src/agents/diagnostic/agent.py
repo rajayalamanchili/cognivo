@@ -16,6 +16,7 @@ from google.adk.sessions import BaseSessionService
 
 from src.agents.assessment_gen.agent import GeneratedQuestionDraft, generate_question
 from src.models.enums import DifficultyBand, QuestionType
+from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.topic import Topic
 
 
@@ -40,6 +41,40 @@ def preferred_question_type(topic: Topic) -> QuestionType:
 def difficulty_guidance(topic: Topic, difficulty: DifficultyBand) -> str:
     calibration = (topic.skill_definition or {}).get("difficulty_calibration") or {}
     return calibration.get(difficulty.value, "")
+
+
+def grade_entry_topics(topics: list[Topic], edges: list[PrerequisiteEdge]) -> list[Topic]:
+    """Placement-eligible topics, spanning grade bands (spec 017 FR-002,
+    research.md Decision 2).
+
+    For a graded subject, a topic is a *grade-entry topic* iff every one
+    of its prerequisites belongs to a strictly lower grade than the
+    topic's own grade (vacuously true when it has none) -- this
+    generalizes `is_entry_level`'s "zero prerequisites" rule, which is
+    exactly this same condition for a subject's lowest declared grade
+    (nothing exists below it). An ungraded subject (every `topic.grade`
+    is `None`) falls back to `is_entry_level` unchanged, byte-identical
+    to Milestone 1's behavior (FR-009) -- callers do not need to branch
+    on whether the subject is graded themselves.
+
+    Preserves `topics`' input order (callers pass topics already ordered
+    by `Topic.order_index`, matching Milestone 1's existing ordering).
+    """
+    if all(topic.grade is None for topic in topics):
+        return [topic for topic in topics if topic.is_entry_level]
+
+    grade_by_topic = {topic.topic_id: topic.grade for topic in topics}
+    prereqs_by_topic: dict[str, list[str]] = {topic.topic_id: [] for topic in topics}
+    for edge in edges:
+        prereqs_by_topic.setdefault(edge.from_topic_id, []).append(edge.to_topic_id)
+
+    def is_grade_entry(topic: Topic) -> bool:
+        return all(
+            grade_by_topic[prereq_id] < topic.grade
+            for prereq_id in prereqs_by_topic[topic.topic_id]
+        )
+
+    return [topic for topic in topics if is_grade_entry(topic)]
 
 
 def skill_summary(topic: Topic) -> str:

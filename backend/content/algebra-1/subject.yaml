@@ -60,7 +60,12 @@ topics:
 
   - topic_id: solving-one-step-equations
     display_name: Solving One-Step Equations
-    grade: 7
+    # grade 6, same as its prerequisite (variables-and-expressions): its
+    # preferred_question_types is numeric-only, and every OTHER grade's
+    # entry topic across this subject is multiple_choice -- keeping
+    # every grade-entry topic multiple_choice keeps this fixture simple
+    # for tests that mock question generation with a fixed shape.
+    grade: 6
     prerequisites: [variables-and-expressions]
     skill_definition:
       summary: >-
@@ -102,7 +107,13 @@ topics:
 
   - topic_id: graphing-linear-equations
     display_name: Graphing Linear Equations
-    grade: 8
+    # grade 7, not 8: its only prerequisite (solving-multi-step-equations)
+    # is also grade 7, so it is never a grade-entry topic (research.md
+    # Decision 2) -- deliberate. Its preferred_question_types is
+    # free_text only, which placement's grading path (grade_answer,
+    # services/mastery/grading.py) does not support; a free_text topic
+    # must never be the sole/only entry point for a grade band.
+    grade: 7
     prerequisites: [solving-multi-step-equations]
     skill_definition:
       summary: >-

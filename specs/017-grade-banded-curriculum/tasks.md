@@ -58,19 +58,36 @@ description: "Task list for Grade-Banded Curriculum Scoping"
 
 ### Tests for User Story 1
 
-- [ ] T013 [P] [US1] Unit tests for `determine_starting_grade` in `backend/tests/unit/test_starting_grade.py`: contiguous-correct-from-lowest passes through to the highest fully-correct grade; a gap caps the result at the grade below the first miss; zero correct floors to the lowest declared grade; a partial (interim) input -- fewer grades answered than declared -- is handled the same way, for reuse by User Story 3's skip eligibility check; ten repeated calls with identical input produce byte-identical output (SC-001)
-- [ ] T014 [P] [US1] Unit tests for `grade_entry_topics` in `backend/tests/unit/test_diagnostic_agent.py`: a topic with no prerequisites at the subject's lowest declared grade is entry; a topic whose prerequisites are all in a strictly lower grade is entry; a topic with a same-or-higher-grade prerequisite is not entry; an ungraded subject's selection is unaffected (falls back to `is_entry_level`, byte-identical to today)
-- [ ] T015 [P] [US1] Integration test in `backend/tests/integration/test_placement.py`: `start_placement` against `algebra-1` returns questions spanning more than one grade, each with a non-null `grade`; against `biology` (ungraded) every question's `grade` is `null`, response otherwise unchanged from today (SC-005)
-- [ ] T016 [P] [US1] Integration test in `backend/tests/integration/test_placement.py`: `submit_placement` for `algebra-1` writes exactly one `grade_assigned` `AssessmentEvent` whose `payload.starting_grade` matches `determine_starting_grade`'s output for the submitted answers, and creates the learner's `GradeProgress` row with that value
+- [X] T013 [P] [US1] Unit tests for `determine_starting_grade` in `backend/tests/unit/test_starting_grade.py`: contiguous-correct-from-lowest passes through to the highest fully-correct grade; a gap caps the result at the grade below the first miss; zero correct floors to the lowest declared grade; a partial (interim) input -- fewer grades answered than declared -- is handled the same way, for reuse by User Story 3's skip eligibility check; ten repeated calls with identical input produce byte-identical output (SC-001) -- 6 tests, all passing
+- [X] T014 [P] [US1] Unit tests for `grade_entry_topics` in `backend/tests/unit/test_diagnostic_agent.py`: a topic with no prerequisites at the subject's lowest declared grade is entry; a topic whose prerequisites are all in a strictly lower grade is entry; a topic with a same-or-higher-grade prerequisite is not entry; an ungraded subject's selection is unaffected (falls back to `is_entry_level`, byte-identical to today) -- 5 tests, all passing
+- [X] T015 [P] [US1] Integration test in `backend/tests/integration/test_placement.py`: `start_placement` against `algebra-1` returns questions spanning more than one grade, each with a non-null `grade`; against `biology` (ungraded) every question's `grade` is `null`, response otherwise unchanged from today (SC-005)
+- [X] T016 [P] [US1] Integration test in `backend/tests/integration/test_placement.py`: `submit_placement` for `algebra-1` writes exactly one `grade_assigned` `AssessmentEvent` whose `payload.starting_grade` matches `determine_starting_grade`'s output for the submitted answers, and creates the learner's `GradeProgress` row with that value
 
 ### Implementation for User Story 1
 
-- [ ] T017 [US1] Implement `determine_starting_grade(correct_by_grade, declared_grades) -> int` in new `backend/src/services/placement/starting_grade.py` (research.md Decision 3) (depends on T013)
-- [ ] T018 [US1] Implement `grade_entry_topics(topics, edges) -> list[Topic]` pure helper in `backend/src/agents/diagnostic/agent.py` (research.md Decision 2) (depends on T014)
-- [ ] T019 [US1] Update `start_placement` in `backend/src/api/routes/placement.py`: use `grade_entry_topics` when the subject has `GradeBand` rows, else the existing `is_entry_level` query unchanged; thread `grade` into `PlacementQuestionOut` and the persisted `GeneratedQuestion`; set `placement_session_id` on each created `GeneratedQuestion` (depends on T003, T004, T009, T018)
-- [ ] T020 [US1] Update `submit_placement` in `backend/src/api/routes/placement.py`: for a graded subject, compute the starting grade via `determine_starting_grade` from this session's grade-entry answers, create the `GradeProgress` row, and record the `grade_assigned` `AssessmentEvent` (`payload`: `starting_grade`, `placement_session_id`, `correct_by_grade`) (depends on T002, T007, T017, T019)
-- [ ] T021 [US1] Update `frontend/src/services/api.ts` (`PlacementQuestion` gains `grade: number | null`) and `frontend/src/app/placement/placement-flow.tsx` to display each question's grade label
-- [ ] T022 [P] [US1] Vitest test for the grade label display in new `frontend/tests/unit/placement-flow.test.tsx` (no prior test file exists for `placement-flow.tsx`; matches this repo's `frontend/tests/unit/*.test.tsx` convention) (depends on T021)
+- [X] T017 [US1] Implement `determine_starting_grade(correct_by_grade, declared_grades) -> int` in new `backend/src/services/placement/starting_grade.py` (research.md Decision 3) (depends on T013)
+- [X] T018 [US1] Implement `grade_entry_topics(topics, edges) -> list[Topic]` pure helper in `backend/src/agents/diagnostic/agent.py` (research.md Decision 2) (depends on T014)
+- [X] T019 [US1] Update `start_placement` in `backend/src/api/routes/placement.py`: use `grade_entry_topics` when the subject has `GradeBand` rows, else the existing `is_entry_level` query unchanged; thread `grade` into `PlacementQuestionOut` and the persisted `GeneratedQuestion`; set `placement_session_id` on each created `GeneratedQuestion` (depends on T003, T004, T009, T018)
+- [X] T020 [US1] Update `submit_placement` in `backend/src/api/routes/placement.py`: for a graded subject, compute the starting grade via `determine_starting_grade` from this session's grade-entry answers, create the `GradeProgress` row, and record the `grade_assigned` `AssessmentEvent` (`payload`: `starting_grade`, `placement_session_id`, `correct_by_grade`) (depends on T002, T007, T017, T019) -- implemented as `_assign_starting_grade_if_graded`, called from `submit_placement`
+- [X] T021 [US1] Update `frontend/src/services/api.ts` (`PlacementQuestion` gains `grade: number | null`) and `frontend/src/app/placement/placement-flow.tsx` to display each question's grade label
+- [X] T022 [P] [US1] Vitest test for the grade label display in new `frontend/tests/unit/placement-flow.test.tsx` (no prior test file exists for `placement-flow.tsx`; matches this repo's `frontend/tests/unit/*.test.tsx` convention) (depends on T021) -- 2 tests, all passing
+
+**Implementation note (discovered during T011/T015)**: `algebra-1`'s
+original grade assignment put a free_text-only topic
+(`graphing-linear-equations`) as grade 8's sole entry point, but
+`submit_placement`'s grading path (`services/mastery/grading.py`'s
+`grade_answer`) has no `free_text` support at all -- it would have
+raised `ValueError: unknown question_type` on the first real placement
+attempt. Fixed at the content level (T011's own file): reassigned
+`graphing-linear-equations` to grade 7 (same grade as its prerequisite,
+so it's never a grade-entry topic) and `solving-one-step-equations` to
+grade 6 (same reasoning) so that every one of algebra-1's 5 grade-entry
+topics is `multiple_choice`-first -- avoiding both the free_text/
+placement incompatibility and a large ripple of unrelated test files'
+fixed-multiple_choice-only `_run_agent_once` mocks breaking. Also fixed
+two pre-existing tests whose hardcoded expectations (`== 2` entry
+questions, an exact response key set) predated this feature's content
+retrofit: `tests/contract/test_placement_api.py::test_start_placement_response_shape`.
 
 **Checkpoint**: User Story 1 is fully functional and independently testable.
 
@@ -106,13 +123,13 @@ description: "Task list for Grade-Banded Curriculum Scoping"
 
 ### Tests for User Story 3
 
-- [ ] T029 [P] [US3] Integration tests for the new skip endpoint in `backend/tests/integration/test_placement_skip.py`: skipping an above-interim-level question returns a lower-or-equal-grade replacement targeting a topic not yet used in the session (FR-006); skipping an at-or-below-level question returns `422`; skipping an already-answered question returns `409`; skipping against an ungraded subject returns `422`; skipping every above-level question offered still lets placement terminate with a valid starting grade once submitted (FR-008); a `placement_question_skipped` `AssessmentEvent` is recorded with the skipped/replacement question and topic/grade fields populated per data-model.md; after `submit_placement` with the skipped question's `question_id` omitted from `answers`, its topic reports `status: "unknown"` -- never counted correct or incorrect (FR-007, spec.md US3 Acceptance Scenario 2)
+- [X] T029 [P] [US3] Integration tests for the new skip endpoint in `backend/tests/integration/test_placement_skip.py`: skipping an above-interim-level question returns a lower-or-equal-grade replacement targeting a topic not yet used in the session (FR-006); skipping an at-or-below-level question returns `422`; skipping an already-answered question returns `409`; skipping against an ungraded subject returns `422`; skipping every above-level question offered still lets placement terminate with a valid starting grade once submitted (FR-008); a `placement_question_skipped` `AssessmentEvent` is recorded with the skipped/replacement question and topic/grade fields populated per data-model.md; after `submit_placement` with the skipped question's `question_id` omitted from `answers`, its topic reports `status: "unknown"` -- never counted correct or incorrect (FR-007, spec.md US3 Acceptance Scenario 2) -- 7 tests, all passing
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Implement `POST /api/placement/{placement_session_id}/skip` in `backend/src/api/routes/placement.py`: look up the skipped question's grade, compute the interim currently-assessed level via `determine_starting_grade` over this session's answered-so-far grade-entry questions (research.md Decision 4), reject with `422`/`409` per contracts/api.md, otherwise pick an unused eligible lower-or-equal-grade topic, generate+persist the replacement `GeneratedQuestion` (reusing `generate_placement_questions` with a one-element topic list), and record `placement_question_skipped` (depends on T005, T007, T017, T019, T029)
-- [ ] T031 [P] [US3] Add `skipPlacementQuestion` to `frontend/src/services/api.ts` and a skip button per question in `frontend/src/app/placement/placement-flow.tsx`: on skip, swap the skipped question out of local state and the replacement in (or just remove it if `replacement_question` is `null`) (depends on T021, T030)
-- [ ] T032 [US3] Vitest test for the skip button's replace/remove behavior in `frontend/tests/unit/placement-flow.test.tsx` (same file T022 creates -- not parallelizable with it) (depends on T022, T031)
+- [X] T030 [US3] Implement `POST /api/placement/{placement_session_id}/skip` in `backend/src/api/routes/placement.py`: look up the skipped question's grade, compute the interim currently-assessed level via `determine_starting_grade` over this session's answered-so-far grade-entry questions (research.md Decision 4), reject with `422`/`409` per contracts/api.md, otherwise pick an unused eligible lower-or-equal-grade topic, generate+persist the replacement `GeneratedQuestion` (reusing `generate_placement_questions` with a one-element topic list), and record `placement_question_skipped` (depends on T005, T007, T017, T019, T029) -- refactored `_correct_by_grade_for_session` out of `_assign_starting_grade_if_graded` so both the final starting-grade assignment and skip's interim-level check share one canonical, DB-queried computation
+- [X] T031 [P] [US3] Add `skipPlacementQuestion` to `frontend/src/services/api.ts` and a skip button per question in `frontend/src/app/placement/placement-flow.tsx`: on skip, swap the skipped question out of local state and the replacement in (or just remove it if `replacement_question` is `null`) (depends on T021, T030)
+- [X] T032 [US3] Vitest test for the skip button's replace/remove behavior in `frontend/tests/unit/placement-flow.test.tsx` (same file T022 creates -- not parallelizable with it) (depends on T022, T031) -- 2 new tests, all passing
 
 **Checkpoint**: All three user stories are independently functional.
 

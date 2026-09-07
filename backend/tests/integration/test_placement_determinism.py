@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from src.models.assessment_event import AssessmentEvent
 from src.models.generated_question import GeneratedQuestion
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
 
 _FIXED_DRAFT_JSON = (
@@ -32,15 +33,18 @@ _FIXED_DRAFT_JSON = (
 )
 
 
-def _reset_learner_state(db_session, learner_id: uuid.UUID) -> None:
-    """Wipes a learner's mastery/question/event history between
-    iterations -- test-only privileged reset, standing in for "a fresh
-    placement session" (quickstart.md); never a runtime application
+def _reset_learner_state(db_session, learner_id: uuid.UUID, subject_id: str) -> None:
+    """Wipes a learner's mastery/question/event/grade-progress history
+    between iterations -- test-only privileged reset, standing in for "a
+    fresh placement session" (quickstart.md); never a runtime application
     code path (MasteryState/AssessmentEvent rows are otherwise
     append-only/never-deleted, per data-model.md)."""
     db_session.query(AssessmentEvent).filter(AssessmentEvent.learner_id == learner_id).delete()
     db_session.query(MasteryState).filter(MasteryState.learner_id == learner_id).delete()
     db_session.query(GeneratedQuestion).filter(GeneratedQuestion.learner_id == learner_id).delete()
+    db_session.query(GradeProgress).filter(
+        GradeProgress.learner_id == learner_id, GradeProgress.subject_id == subject_id
+    ).delete()
     db_session.commit()
 
 
@@ -83,7 +87,7 @@ def test_placement_determinism(db_session, demo_learner, algebra_subject):
     ):
         results = []
         for _ in range(10):
-            _reset_learner_state(db_session, demo_learner.learner_id)
+            _reset_learner_state(db_session, demo_learner.learner_id, algebra_subject.subject_id)
             result = _run_one_placement(client, algebra_subject.subject_id)
             results.append(_strip_to_mastery_fields(result["mastery_state"]))
 
