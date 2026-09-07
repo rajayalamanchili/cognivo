@@ -97,6 +97,18 @@ describe("PlacementFlow skip button", () => {
     vi.mocked(api.skipPlacementQuestion).mockReset();
   });
 
+  it("hides the skip button for the lowest shown grade, since the backend always rejects it", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion, higherGradeQuestion],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/Solve the system of equations\./);
+
+    expect(screen.getAllByRole("button", { name: /skip \(too hard\)/i })).toHaveLength(1);
+  });
+
   it("swaps in the replacement question when skip returns one", async () => {
     vi.mocked(api.startPlacement).mockResolvedValue({
       placement_session_id: "session-1",
@@ -109,9 +121,9 @@ describe("PlacementFlow skip button", () => {
     render(<PlacementFlow />);
     await screen.findByText(/Solve the system of equations\./);
 
-    // gradedQuestion (index 0) also has a skip button -- target
-    // higherGradeQuestion's (index 1) specifically.
-    await userEvent.click(screen.getAllByRole("button", { name: /skip \(too hard\)/i })[1]);
+    // gradedQuestion (grade 6) is the lowest shown grade, so only
+    // higherGradeQuestion (grade 8) gets a skip button.
+    await userEvent.click(screen.getByRole("button", { name: /skip \(too hard\)/i }));
 
     await screen.findByText(/Evaluate 3x \+ 2 for x = 4\./);
     expect(screen.queryByText(/Solve the system of equations\./)).not.toBeInTheDocument();
@@ -131,9 +143,9 @@ describe("PlacementFlow skip button", () => {
     render(<PlacementFlow />);
     await screen.findByText(/Solve the system of equations\./);
 
-    // gradedQuestion (index 0) also has a skip button -- target
-    // higherGradeQuestion's (index 1) specifically.
-    await userEvent.click(screen.getAllByRole("button", { name: /skip \(too hard\)/i })[1]);
+    // gradedQuestion (grade 6) is the lowest shown grade, so only
+    // higherGradeQuestion (grade 8) gets a skip button.
+    await userEvent.click(screen.getByRole("button", { name: /skip \(too hard\)/i }));
 
     await waitFor(() =>
       expect(screen.queryByText(/Solve the system of equations\./)).not.toBeInTheDocument(),

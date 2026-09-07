@@ -14,12 +14,16 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_answer_key
-from src.agents.diagnostic.agent import generate_placement_questions, grade_entry_topics
+from src.agents.diagnostic.agent import (
+    generate_placement_questions,
+    grade_entry_topics,
+    preferred_question_type,
+)
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, DifficultyBand, ValidationStatus
+from src.models.enums import AssessmentEventType, DifficultyBand, QuestionType, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.grade_band import GradeBand
 from src.models.grade_progress import GradeProgress
@@ -226,6 +230,41 @@ def _correct_by_grade_for_session(
     }
 
 
+def _session_fully_resolved(db: Session, *, placement_session_id: uuid.UUID) -> bool:
+    """True iff every `GeneratedQuestion` shown in this placement session
+    has since been either answered (`ANSWER_SUBMITTED`) or skipped
+    (`PLACEMENT_QUESTION_SKIPPED`). `_assign_starting_grade_if_graded`'s
+    decision is one-time and permanent, and `_correct_by_grade_for_session`
+    treats any unresolved question as an explicit wrong answer -- so a
+    partial `submit_placement` call must not be allowed to trigger it,
+    or it would permanently lock in a starting grade lower than the
+    learner's answers actually support.
+    """
+    session_question_ids = {
+        row.question_id
+        for row in db.query(GeneratedQuestion.question_id)
+        .filter(GeneratedQuestion.placement_session_id == placement_session_id)
+        .all()
+    }
+    resolved_question_ids = {
+        event.question_id
+        for event in db.query(AssessmentEvent)
+        .filter(
+            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
+            AssessmentEvent.question_id.in_(session_question_ids),
+        )
+        .all()
+    }
+    resolved_question_ids |= {
+        uuid.UUID(event.payload["skipped_question_id"])
+        for event in db.query(AssessmentEvent)
+        .filter(AssessmentEvent.event_type == AssessmentEventType.PLACEMENT_QUESTION_SKIPPED)
+        .all()
+        if event.payload.get("placement_session_id") == str(placement_session_id)
+    }
+    return session_question_ids <= resolved_question_ids
+
+
 def _assign_starting_grade_if_graded(
     db: Session,
     *,
@@ -355,12 +394,13 @@ async def submit_placement(
                     },
                 )
 
-    _assign_starting_grade_if_graded(
-        db,
-        subject_id=subject_id,
-        learner_id=learner_id,
-        placement_session_id=placement_session_id,
-    )
+    if _session_fully_resolved(db, placement_session_id=placement_session_id):
+        _assign_starting_grade_if_graded(
+            db,
+            subject_id=subject_id,
+            learner_id=learner_id,
+            placement_session_id=placement_session_id,
+        )
 
     all_topics = (
         db.query(Topic).filter(Topic.subject_id == subject_id).order_by(Topic.order_index).all()
@@ -447,7 +487,7 @@ async def skip_placement_question(
         .filter(GeneratedQuestion.placement_session_id == placement_session_id)
         .all()
     }
-    replacement_topic = (
+    candidate_topics = (
         db.query(Topic)
         .filter(
             Topic.subject_id == question.subject_id,
@@ -456,7 +496,18 @@ async def skip_placement_question(
             Topic.topic_id.notin_(used_topic_ids),
         )
         .order_by(Topic.order_index)
-        .first()
+        .all()
+    )
+    # grade_answer has no FREE_TEXT case (services/mastery/grading.py) --
+    # a free_text-preferring topic here would 500 the eventual
+    # submit_placement call. start_placement avoids this by construction
+    # (every grade-entry topic is multiple_choice/numeric-first, see
+    # tasks.md's T011/T015 note); this query has no such guarantee since
+    # it isn't restricted to grade_entry_topics(), so it filters
+    # directly instead.
+    replacement_topic = next(
+        (t for t in candidate_topics if preferred_question_type(t) != QuestionType.FREE_TEXT),
+        None,
     )
 
     replacement_out: PlacementQuestionOut | None = None

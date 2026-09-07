@@ -53,6 +53,16 @@ export default function PlacementFlow() {
       (q) => responses[q.question_id] !== undefined && responses[q.question_id] !== "",
     );
 
+  // The backend only allows skipping a question above the learner's
+  // current assessed level, which -- since skip always precedes submit
+  // in this flow -- is the lowest grade among the questions still shown.
+  // Gating the button on that client-side avoids offering a skip that
+  // will always 422.
+  const lowestShownGrade = questions.reduce<number | null>(
+    (min, q) => (q.grade !== null && (min === null || q.grade < min) ? q.grade : min),
+    null,
+  );
+
   async function handleSubmit() {
     if (!placementSessionId || !allAnswered) return;
     setPhase("submitting");
@@ -153,7 +163,7 @@ export default function PlacementFlow() {
                 Grade {question.grade}
               </span>
             )}
-            {question.grade !== null && (
+            {question.grade !== null && lowestShownGrade !== null && question.grade > lowestShownGrade && (
               <button
                 type="button"
                 disabled={skippingQuestionId === question.question_id}

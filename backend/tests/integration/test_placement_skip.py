@@ -11,13 +11,16 @@ grade-6 topic left once both grade-6 entry topics are already shown at
 here.
 """
 
+import datetime
 import json
+import uuid
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType
+from src.models.enums import AssessmentEventType, DifficultyBand, QuestionType, ValidationStatus
+from src.models.generated_question import GeneratedQuestion
 
 _MULTIPLE_CHOICE_DRAFT = {
     "question_type": "multiple_choice",
@@ -238,3 +241,124 @@ def test_skipping_every_above_level_question_still_lets_placement_terminate_vali
         .one()
     )
     assert event.payload["starting_grade"] == 6
+
+
+def _mark_topic_used(db_session, *, learner, subject_id, topic_id, grade, placement_session_id):
+    """Simulate `topic_id` already having been served in this placement
+    session (e.g. as an earlier skip-replacement) -- the skip endpoint's
+    replacement query only cares that a `GeneratedQuestion` row exists
+    for the topic under this `placement_session_id`, not its answer
+    state."""
+    db_session.add(
+        GeneratedQuestion(
+            learner_id=learner.learner_id,
+            subject_id=subject_id,
+            topic_id=topic_id,
+            grade=grade,
+            placement_session_id=placement_session_id,
+            difficulty=DifficultyBand.EASY,
+            question_type=QuestionType.NUMERIC,
+            stem="filler",
+            answer_key={"value": 1.0, "tolerance": 0.0},
+            validation_status=ValidationStatus.VALID,
+            shown_at=datetime.datetime.now(datetime.UTC),
+        )
+    )
+    db_session.commit()
+
+
+def test_skip_never_offers_a_free_text_replacement(db_session, demo_learner, algebra_subject):
+    """A free_text topic (`graphing-linear-equations`) can never be
+    graded by `grade_answer` (services/mastery/grading.py has no
+    FREE_TEXT case) -- if it's the only remaining lower-grade candidate,
+    the skip must return no replacement rather than one that would 500
+    the eventual `submit_placement` call."""
+    client = _client()
+    body = _start(client, algebra_subject.subject_id)
+    questions = body["questions"]
+    placement_session_id = uuid.UUID(body["placement_session_id"])
+
+    # Exhaust every structured (non-free_text) grade<=7 topic other than
+    # graphing-linear-equations, so it's the only remaining candidate.
+    _mark_topic_used(
+        db_session,
+        learner=demo_learner,
+        subject_id=algebra_subject.subject_id,
+        topic_id="solving-one-step-equations",
+        grade=6,
+        placement_session_id=placement_session_id,
+    )
+    _mark_topic_used(
+        db_session,
+        learner=demo_learner,
+        subject_id=algebra_subject.subject_id,
+        topic_id="solving-multi-step-equations",
+        grade=7,
+        placement_session_id=placement_session_id,
+    )
+
+    # Raise the interim level to 7 by answering every grade 6/7 entry
+    # topic correctly, leaving only the grade-8 question unanswered.
+    grade_6_and_7_topics = {"integers-and-operations", "variables-and-expressions", "order-of-operations", "linear-inequalities"}
+    answers = [
+        {"question_id": q["question_id"], "response": 1}
+        for q in questions
+        if q["topic_id"] in grade_6_and_7_topics
+    ]
+    submit = client.post(
+        f"/api/placement/{placement_session_id}/submit", json={"answers": answers}
+    )
+    assert submit.status_code == 200, submit.text
+
+    systems_question = _question_by_topic(questions, "systems-of-linear-equations")
+    response = client.post(
+        f"/api/placement/{placement_session_id}/skip",
+        json={"question_id": systems_question["question_id"]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["replacement_question"] is None
+
+
+def test_partial_submit_does_not_permanently_assign_a_starting_grade(
+    db_session, demo_learner, algebra_subject
+):
+    """A `submit_placement` call that doesn't cover every non-skipped
+    session question must not trigger the one-time starting-grade
+    assignment -- otherwise a partial submission would permanently lock
+    in a starting grade lower than the learner's answers actually
+    support (no `GradeProgress` row exists yet to correct it)."""
+    client = _client()
+    body = _start(client, algebra_subject.subject_id)
+    questions = body["questions"]
+    placement_session_id = body["placement_session_id"]
+
+    # Submit only one of the five questions -- the rest are neither
+    # answered nor skipped.
+    partial_answers = [{"question_id": questions[0]["question_id"], "response": 1}]
+    submit = client.post(
+        f"/api/placement/{placement_session_id}/submit", json={"answers": partial_answers}
+    )
+    assert submit.status_code == 200, submit.text
+
+    assert (
+        db_session.query(AssessmentEvent)
+        .filter(AssessmentEvent.event_type == AssessmentEventType.GRADE_ASSIGNED)
+        .first()
+        is None
+    )
+
+    # Submitting the remaining questions completes the session and now
+    # assigns a starting grade.
+    remaining_answers = [
+        {"question_id": q["question_id"], "response": 1}
+        for q in questions[1:]
+    ]
+    submit2 = client.post(
+        f"/api/placement/{placement_session_id}/submit", json={"answers": remaining_answers}
+    )
+    assert submit2.status_code == 200, submit2.text
+    assert (
+        db_session.query(AssessmentEvent)
+        .filter(AssessmentEvent.event_type == AssessmentEventType.GRADE_ASSIGNED)
+        .one()
+    )
