@@ -10,6 +10,7 @@ export type MasteryStatus = "unknown" | "scored";
 export interface PlacementQuestion {
   question_id: string;
   topic_id: string;
+  grade: number | null;
   difficulty: Difficulty;
   question_type: QuestionType;
   stem: string;
@@ -35,6 +36,10 @@ export interface MasteryStateEntry {
 
 export interface PlacementSubmitResponse {
   mastery_state: MasteryStateEntry[];
+}
+
+export interface SkipPlacementQuestionResponse {
+  replacement_question: PlacementQuestion | null;
 }
 
 export interface MasteryTopicEntry extends MasteryStateEntry {
@@ -264,6 +269,16 @@ export function submitPlacement(
   return request<PlacementSubmitResponse>(`/api/placement/${placementSessionId}/submit`, {
     method: "POST",
     body: JSON.stringify({ answers }),
+  });
+}
+
+export function skipPlacementQuestion(
+  placementSessionId: string,
+  questionId: string,
+): Promise<SkipPlacementQuestionResponse> {
+  return request<SkipPlacementQuestionResponse>(`/api/placement/${placementSessionId}/skip`, {
+    method: "POST",
+    body: JSON.stringify({ question_id: questionId }),
   });
 }
 

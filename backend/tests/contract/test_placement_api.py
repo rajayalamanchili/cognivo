@@ -4,7 +4,11 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py. Skips
 otherwise. Question generation is mocked at the LLM-call boundary
 (`_run_agent_once`, see test_placement_determinism.py) so this test
 exercises the real API/DB contract without depending on a live LLM
-call.
+call. algebra-1 is graded as of spec 017 -- 5 grade-entry topics now
+(content/algebra-1/subject.yaml), not just the original 2 entry-level
+topics, but every one of them is still multiple_choice (deliberate
+content choice, see that file's comment on `solving-one-step-
+equations`), so the fixed multiple_choice mock below is unchanged.
 """
 
 from unittest.mock import AsyncMock, patch
@@ -47,17 +51,19 @@ def test_start_placement_response_shape(client, demo_learner, algebra_subject, m
 
     assert "placement_session_id" in body
     assert isinstance(body["questions"], list)
-    assert len(body["questions"]) == 2  # algebra-1 has 2 entry-level topics
+    assert len(body["questions"]) == 5  # algebra-1 has 5 grade-entry topics (spec 017)
 
     for question in body["questions"]:
         assert set(question.keys()) == {
             "question_id",
             "topic_id",
+            "grade",
             "difficulty",
             "question_type",
             "stem",
             "options",
         }
+        assert question["grade"] in (6, 7, 8)
         # Every entry-level topic is "unknown" at placement time -> always "easy" (FR-006).
         assert question["difficulty"] == "easy"
         assert "answer_key" not in question
@@ -114,7 +120,7 @@ def test_submit_placement_wrong_response_shape_returns_422(
     questions = start.json()["questions"]
     placement_session_id = start.json()["placement_session_id"]
 
-    # All algebra-1 entry-level questions are multiple_choice (mocked) --
+    # All algebra-1 grade-entry questions are multiple_choice (mocked) --
     # a string response violates the "integer option index" shape.
     answers = [{"question_id": q["question_id"], "response": "not-an-index"} for q in questions]
     submit = client.post(f"/api/placement/{placement_session_id}/submit", json={"answers": answers})

@@ -8,9 +8,16 @@
 subject_id: algebra-1
 display_name: Algebra I
 content_version: "1.0.0"
+# spec 017 (grade-banded curriculum scoping): every topic below declares
+# a grade referencing one of these bands -- all-or-nothing per subject
+# (research.md Decision 1). biology's content artifact is deliberately
+# left without grade_bands as the SC-005 ungraded-subject regression
+# fixture.
+grade_bands: [6, 7, 8]
 topics:
   - topic_id: integers-and-operations
     display_name: Integers and Operations
+    grade: 6
     prerequisites: []
     skill_definition:
       summary: >-
@@ -24,6 +31,7 @@ topics:
 
   - topic_id: variables-and-expressions
     display_name: Variables and Expressions
+    grade: 6
     prerequisites: []
     skill_definition:
       summary: >-
@@ -37,6 +45,7 @@ topics:
 
   - topic_id: order-of-operations
     display_name: Order of Operations
+    grade: 7
     prerequisites: [integers-and-operations]
     skill_definition:
       summary: >-
@@ -51,6 +60,12 @@ topics:
 
   - topic_id: solving-one-step-equations
     display_name: Solving One-Step Equations
+    # grade 6, same as its prerequisite (variables-and-expressions): its
+    # preferred_question_types is numeric-only, and every OTHER grade's
+    # entry topic across this subject is multiple_choice -- keeping
+    # every grade-entry topic multiple_choice keeps this fixture simple
+    # for tests that mock question generation with a fixed shape.
+    grade: 6
     prerequisites: [variables-and-expressions]
     skill_definition:
       summary: >-
@@ -64,6 +79,7 @@ topics:
 
   - topic_id: solving-multi-step-equations
     display_name: Solving Multi-Step Equations
+    grade: 7
     prerequisites: [solving-one-step-equations, order-of-operations]
     skill_definition:
       summary: >-
@@ -77,6 +93,7 @@ topics:
 
   - topic_id: linear-inequalities
     display_name: Linear Inequalities
+    grade: 7
     prerequisites: [solving-one-step-equations]
     skill_definition:
       summary: >-
@@ -90,6 +107,13 @@ topics:
 
   - topic_id: graphing-linear-equations
     display_name: Graphing Linear Equations
+    # grade 7, not 8: its only prerequisite (solving-multi-step-equations)
+    # is also grade 7, so it is never a grade-entry topic (research.md
+    # Decision 2) -- deliberate. Its preferred_question_types is
+    # free_text only, which placement's grading path (grade_answer,
+    # services/mastery/grading.py) does not support; a free_text topic
+    # must never be the sole/only entry point for a grade band.
+    grade: 7
     prerequisites: [solving-multi-step-equations]
     skill_definition:
       summary: >-
@@ -112,6 +136,7 @@ topics:
 
   - topic_id: systems-of-linear-equations
     display_name: Systems of Linear Equations
+    grade: 8
     prerequisites: [graphing-linear-equations, linear-inequalities]
     skill_definition:
       summary: >-

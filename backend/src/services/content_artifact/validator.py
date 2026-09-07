@@ -27,6 +27,7 @@ class ValidatedTopic:
     difficulty_calibration: dict
     image_asset: dict | None
     misconceptions: tuple[dict, ...]
+    grade: int | None
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,7 @@ class ValidatedContentArtifact:
     display_name: str
     content_version: str
     topics: tuple[ValidatedTopic, ...]
+    grade_bands: tuple[int, ...]
 
 
 _REQUIRED_SUBJECT_FIELDS = ("subject_id", "display_name", "content_version", "topics")
@@ -52,7 +54,10 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
     prerequisite graph is acyclic (which, combined with the previous
     check, guarantees every topic is reachable from some entry-level
     topic -- a finite acyclic graph always has at least one zero-
-    prerequisite node).
+    prerequisite node); grade-banding (spec 017 FR-001/FR-009) is
+    all-or-nothing per subject -- if `grade_bands` is declared non-empty,
+    every topic MUST declare a `grade` referencing one of those bands; if
+    `grade_bands` is absent/empty, no topic may declare a `grade` at all.
 
     Raises `ContentArtifactValidationError` on any failure. Returns a
     normalized, order-preserving `ValidatedContentArtifact` on success.
@@ -65,6 +70,8 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         raise ContentArtifactValidationError(
             f"subject '{subject_id}': 'topics' must be a non-empty list"
         )
+
+    grade_bands = _validate_grade_bands(subject_id, raw.get("grade_bands"))
 
     topic_ids: list[str] = []
     prereqs_by_topic: dict[str, tuple[str, ...]] = {}
@@ -90,6 +97,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         misconceptions = _validate_misconceptions(
             subject_id, topic_id, raw_topic.get("misconceptions"), seen_misconception_ids
         )
+        grade = _validate_topic_grade(subject_id, topic_id, raw_topic.get("grade"), grade_bands)
 
         topic_ids.append(topic_id)
         prereqs_by_topic[topic_id] = prerequisites
@@ -102,6 +110,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             "difficulty_calibration": difficulty_calibration,
             "image_asset": image_asset,
             "misconceptions": misconceptions,
+            "grade": grade,
         }
 
     topic_id_set = set(topic_ids)
@@ -130,6 +139,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             difficulty_calibration=t["difficulty_calibration"],
             image_asset=t["image_asset"],
             misconceptions=t["misconceptions"],
+            grade=t["grade"],
         )
         for t in normalized_by_topic.values()
     )
@@ -138,6 +148,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         subject_id=subject_id,
         display_name=raw["display_name"],
         content_version=str(raw["content_version"]),
+        grade_bands=grade_bands,
         topics=validated_topics,
     )
 
@@ -161,6 +172,53 @@ def _validate_difficulty_calibration(subject_id: str, topic_id: str, calibration
             f"subject '{subject_id}': topic '{topic_id}' has unknown difficulty band(s) "
             f"{sorted(unknown_bands)}; must be a subset of {_VALID_DIFFICULTY_BANDS}"
         )
+
+
+def _validate_grade_bands(subject_id: str, grade_bands: object) -> tuple[int, ...]:
+    """Schema check for the optional top-level `grade_bands` list (spec
+    017 FR-001) -- a plain list of distinct ints in 1-12, since a
+    `GradeBand` carries no metadata beyond its number (research.md
+    Decision 9). Absent/empty means this subject is fully ungraded
+    (FR-009)."""
+    if grade_bands is None:
+        return ()
+    if not isinstance(grade_bands, list):
+        raise ContentArtifactValidationError(f"subject '{subject_id}': 'grade_bands' must be a list")
+    for grade in grade_bands:
+        if not isinstance(grade, int) or isinstance(grade, bool) or not (1 <= grade <= 12):
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': 'grade_bands' entries must be integers 1-12, got {grade!r}"
+            )
+    if len(set(grade_bands)) != len(grade_bands):
+        raise ContentArtifactValidationError(f"subject '{subject_id}': 'grade_bands' has duplicates")
+    return tuple(sorted(grade_bands))
+
+
+def _validate_topic_grade(
+    subject_id: str, topic_id: str, grade: object, grade_bands: tuple[int, ...]
+) -> int | None:
+    """Enforces research.md Decision 1's all-or-nothing rule: if the
+    subject declares any `grade_bands`, every topic MUST declare a
+    `grade` that references one of them; if it declares none, no topic
+    may declare a `grade` either."""
+    if not grade_bands:
+        if grade is not None:
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' declares a 'grade' but the "
+                "subject declares no 'grade_bands' -- grade-banding is all-or-nothing per subject"
+            )
+        return None
+    if grade is None:
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' is missing 'grade' -- the subject "
+            "declares 'grade_bands', so every topic must declare one"
+        )
+    if grade not in grade_bands:
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' declares grade {grade!r}, which is "
+            f"not one of the subject's declared grade_bands {grade_bands}"
+        )
+    return grade
 
 
 def _validate_image_asset(subject_id: str, topic_id: str, image_asset: object) -> None:

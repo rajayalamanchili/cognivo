@@ -7,6 +7,7 @@ used for the eligible-topic case (data-model.md).
 """
 
 from src.agents.sequencing.agent import select_next_topic
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
 
 _ALGEBRA_TOPIC_IDS_IN_ORDER = [
@@ -22,6 +23,13 @@ _ALGEBRA_TOPIC_IDS_IN_ORDER = [
 
 
 def _master_all_topics(db_session, learner_id, subject_id, *, p_mastery_by_topic=None):
+    # This file predates spec 017's grade-gating and spans all three of
+    # algebra-1's grades on purpose (testing fallback tie-breaking, not
+    # grades) -- give the learner a fully-unlocked GradeProgress row so
+    # the grade gate never interferes (spec 017 T023/T026).
+    db_session.add(GradeProgress(learner_id=learner_id, subject_id=subject_id, unlocked_grade=8))
+    db_session.commit()
+
     p_mastery_by_topic = p_mastery_by_topic or {}
     for topic_id in _ALGEBRA_TOPIC_IDS_IN_ORDER:
         db_session.add(

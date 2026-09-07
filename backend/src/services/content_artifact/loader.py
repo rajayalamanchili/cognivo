@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from src.models.content_passage_embedding import ContentPassageEmbedding
 from src.models.enums import PassageField
+from src.models.grade_band import GradeBand
 from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.subject import Subject
 from src.models.topic import Topic
@@ -95,6 +96,16 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
     in the artifact are deleted, matching the prior behavior for that
     (uncommon) case. PrerequisiteEdge rows are cheap to delete and
     recreate since nothing references them.
+
+    `GradeBand` rows (spec 017) are upserted in two passes around the
+    Topic upsert below, not deleted-and-recreated like `PrerequisiteEdge`
+    -- `Topic.grade` has a composite FK to `grade_bands`, so a band still
+    referenced by an about-to-be-updated Topic row cannot be dropped
+    first. New bands are inserted before Topics are touched; bands no
+    longer declared are deleted only after every Topic's `grade` has
+    already been updated to a currently-declared value (validator.py's
+    all-or-nothing rule guarantees no Topic can reference a stale one by
+    that point).
     """
     existing = db.get(Subject, artifact.subject_id)
     if existing is None:
@@ -113,6 +124,15 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
         subject.validated_at = None
 
     db.query(PrerequisiteEdge).filter(PrerequisiteEdge.subject_id == artifact.subject_id).delete()
+
+    existing_grades = {
+        row.grade
+        for row in db.query(GradeBand).filter(GradeBand.subject_id == artifact.subject_id)
+    }
+    for grade in artifact.grade_bands:
+        if grade not in existing_grades:
+            db.add(GradeBand(subject_id=artifact.subject_id, grade=grade))
+    db.flush()
 
     existing_topics = {
         t.topic_id: t for t in db.query(Topic).filter(Topic.subject_id == artifact.subject_id)
@@ -136,6 +156,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
             row.skill_definition = skill_definition
             row.order_index = topic.order_index
             row.image_asset = topic.image_asset
+            row.grade = topic.grade
         else:
             db.add(
                 Topic(
@@ -146,9 +167,15 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
                     skill_definition=skill_definition,
                     order_index=topic.order_index,
                     image_asset=topic.image_asset,
+                    grade=topic.grade,
                 )
             )
     db.flush()
+
+    declared_grades = set(artifact.grade_bands)
+    db.query(GradeBand).filter(
+        GradeBand.subject_id == artifact.subject_id, GradeBand.grade.notin_(declared_grades)
+    ).delete(synchronize_session=False)
 
     for topic in artifact.topics:
         for prereq_id in topic.prerequisites:

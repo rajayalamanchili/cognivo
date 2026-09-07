@@ -7,6 +7,8 @@ from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enrollment import Enrollment
 from src.models.enrollment_request import EnrollmentRequest
 from src.models.generated_question import GeneratedQuestion
+from src.models.grade_band import GradeBand
+from src.models.grade_progress import GradeProgress
 from src.models.grading_response_cache import GradingResponseCache
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
@@ -33,6 +35,8 @@ __all__ = [
     "Enrollment",
     "EnrollmentRequest",
     "GeneratedQuestion",
+    "GradeBand",
+    "GradeProgress",
     "GradingResponseCache",
     "LearnerProfile",
     "MasteryState",

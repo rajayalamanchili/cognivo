@@ -112,6 +112,9 @@ class AssessmentEventType(enum.StrEnum):
     QUIZ_ASSIGNMENT_CANCELLED = "quiz_assignment_cancelled"
     TUTOR_EXCHANGE_COMPLETED = "tutor_exchange_completed"
     MISCONCEPTION_CLASSIFIED = "misconception_classified"
+    GRADE_ASSIGNED = "grade_assigned"
+    GRADE_UNLOCKED = "grade_unlocked"
+    PLACEMENT_QUESTION_SKIPPED = "placement_question_skipped"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required
