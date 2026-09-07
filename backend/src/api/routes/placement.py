@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_answer_key
@@ -250,17 +251,12 @@ def _session_fully_resolved(db: Session, *, placement_session_id: uuid.UUID) -> 
         event.question_id
         for event in db.query(AssessmentEvent)
         .filter(
-            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
+            AssessmentEvent.event_type.in_(
+                (AssessmentEventType.ANSWER_SUBMITTED, AssessmentEventType.PLACEMENT_QUESTION_SKIPPED)
+            ),
             AssessmentEvent.question_id.in_(session_question_ids),
         )
         .all()
-    }
-    resolved_question_ids |= {
-        uuid.UUID(event.payload["skipped_question_id"])
-        for event in db.query(AssessmentEvent)
-        .filter(AssessmentEvent.event_type == AssessmentEventType.PLACEMENT_QUESTION_SKIPPED)
-        .all()
-        if event.payload.get("placement_session_id") == str(placement_session_id)
     }
     return session_question_ids <= resolved_question_ids
 
@@ -288,23 +284,38 @@ def _assign_starting_grade_if_graded(
     )
     starting_grade = determine_starting_grade(correct_by_grade, declared_grades)
 
-    db.add(
-        GradeProgress(learner_id=learner_id, subject_id=subject_id, unlocked_grade=starting_grade)
-    )
-    record_event(
-        db,
-        learner_id=learner_id,
-        event_type=AssessmentEventType.GRADE_ASSIGNED,
-        subject_id=subject_id,
-        topic_id=None,
-        payload={
-            "starting_grade": starting_grade,
-            "placement_session_id": str(placement_session_id),
-            "correct_by_grade": {
-                str(grade): correct for grade, correct in correct_by_grade.items()
-            },
-        },
-    )
+    try:
+        with db.begin_nested():
+            db.add(
+                GradeProgress(
+                    learner_id=learner_id, subject_id=subject_id, unlocked_grade=starting_grade
+                )
+            )
+            record_event(
+                db,
+                learner_id=learner_id,
+                event_type=AssessmentEventType.GRADE_ASSIGNED,
+                subject_id=subject_id,
+                topic_id=None,
+                payload={
+                    "starting_grade": starting_grade,
+                    "placement_session_id": str(placement_session_id),
+                    "correct_by_grade": {
+                        str(grade): correct for grade, correct in correct_by_grade.items()
+                    },
+                },
+            )
+    except IntegrityError:
+        # Check-then-act race on the `db.get(GradeProgress, ...)` guard
+        # above: two concurrent `submit_placement` calls completing the
+        # same session's last answers can both pass it before either
+        # commits. The `(learner_id, subject_id)` primary key is the
+        # actual arbiter (same class of race as questions.py's
+        # ANSWER_SUBMITTED guard, PR #18) -- the loser's grade
+        # assignment is redundant, not an error, so only this savepoint
+        # rolls back, leaving the rest of this request's already-graded
+        # answers and mastery updates intact.
+        pass
 
 
 @router.post("/api/placement/{placement_session_id}/submit", response_model=PlacementSubmitResponse)
@@ -571,6 +582,7 @@ async def skip_placement_question(
         event_type=AssessmentEventType.PLACEMENT_QUESTION_SKIPPED,
         subject_id=question.subject_id,
         topic_id=question.topic_id,
+        question_id=question.question_id,
         payload={
             "skipped_question_id": str(question.question_id),
             "skipped_topic_id": question.topic_id,

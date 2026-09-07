@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, Boolean, ForeignKeyConstraint, Integer, UniqueConstraint
+from sqlalchemy import JSON, Boolean, ForeignKey, ForeignKeyConstraint, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.models.base import Base
@@ -28,15 +28,12 @@ class Topic(Base):
     __table_args__ = (
         UniqueConstraint("subject_id", "order_index", name="uq_topics_subject_order_index"),
         ForeignKeyConstraint(
-            ["subject_id"], ["subjects.subject_id"], name="fk_topics_subject_id"
-        ),
-        ForeignKeyConstraint(
             ["subject_id", "grade"], ["grade_bands.subject_id", "grade_bands.grade"],
             name="fk_topics_subject_id_grade",
         ),
     )
 
-    subject_id: Mapped[str] = mapped_column(primary_key=True)
+    subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.subject_id"), primary_key=True)
     topic_id: Mapped[str] = mapped_column(primary_key=True)
     display_name: Mapped[str] = mapped_column(nullable=False)
     is_entry_level: Mapped[bool] = mapped_column(Boolean, nullable=False)

@@ -12,6 +12,7 @@ covers every question this file generates.
 from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 from src.models.assessment_event import AssessmentEvent
 from src.models.enums import AssessmentEventType
@@ -169,3 +170,60 @@ def test_submit_placement_against_ungraded_subject_assigns_no_grade(
         db_session.get(GradeProgress, (demo_learner.learner_id, biology_subject.subject_id))
         is None
     )
+
+
+def test_submit_placement_survives_a_concurrent_grade_assignment_race(
+    db_session, demo_learner, algebra_subject, monkeypatch
+):
+    """Two `submit_placement` calls racing to assign the same learner/
+    subject's starting grade would otherwise both pass the `db.get(
+    GradeProgress, ...)` pre-check before either commits -- the second
+    insert then hits the `(learner_id, subject_id)` primary key and must
+    not surface as an unhandled 500, nor discard this request's own
+    answer/mastery events (spec 017 PR #67 review). Simulated here by
+    monkeypatching the existence check to miss a row that (as a stand-in
+    for a concurrent winner) already exists in the DB.
+    """
+    client = _client()
+
+    with _patch_generation():
+        start = client.post(f"/api/subjects/{algebra_subject.subject_id}/placement/start")
+    body = start.json()
+    placement_session_id = body["placement_session_id"]
+    questions = body["questions"]
+
+    db_session.add(
+        GradeProgress(
+            learner_id=demo_learner.learner_id,
+            subject_id=algebra_subject.subject_id,
+            unlocked_grade=6,
+        )
+    )
+    db_session.commit()
+
+    real_get = Session.get
+
+    def racy_get(self, entity, ident, *args, **kwargs):
+        if entity is GradeProgress:
+            return None
+        return real_get(self, entity, ident, *args, **kwargs)
+
+    monkeypatch.setattr(Session, "get", racy_get)
+
+    answers = [{"question_id": q["question_id"], "response": _CORRECT_RESPONSE} for q in questions]
+    submit = client.post(
+        f"/api/placement/{placement_session_id}/submit", json={"answers": answers}
+    )
+    assert submit.status_code == 200, submit.text
+
+    # The pre-existing ("concurrent winner's") grade is untouched, and
+    # this request's own answers were still recorded despite the race.
+    monkeypatch.undo()
+    progress = db_session.get(GradeProgress, (demo_learner.learner_id, algebra_subject.subject_id))
+    assert progress.unlocked_grade == 6
+    answered = (
+        db_session.query(AssessmentEvent)
+        .filter(AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED)
+        .all()
+    )
+    assert len(answered) == len(questions)
