@@ -12,6 +12,7 @@ import uuid
 from collections.abc import Sequence
 from unittest.mock import AsyncMock, patch
 
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
 from src.services.grading_client.client import SCORE_THRESHOLD, GradingResult
 
@@ -45,7 +46,14 @@ def make_free_text_topic_next_up(db_session, learner_id, subject_id) -> None:
     Next-topic eligibility rule). Uses `merge` (not `add`), since some
     tests call this twice for the same learner/subject (e.g. to fetch
     two separate free-text questions) and a plain `add` would violate
-    `mastery_states`' primary key on the second call."""
+    `mastery_states`' primary key on the second call.
+
+    `FREE_TEXT_TOPIC_ID` is grade 7 (content/algebra-1/subject.yaml) --
+    this helper predates spec 017's grade-gating and spans all three of
+    algebra-1's grades on purpose, so it also grants a fully-unlocked
+    `GradeProgress` row rather than have the grade gate exclude the
+    free-text topic itself (spec 017 T023/T026)."""
+    db_session.merge(GradeProgress(learner_id=learner_id, subject_id=subject_id, unlocked_grade=8))
     for topic_id in _OTHER_ALGEBRA_TOPIC_IDS:
         db_session.merge(
             MasteryState(

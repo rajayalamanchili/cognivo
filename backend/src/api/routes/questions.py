@@ -35,6 +35,7 @@ from src.models.enums import AssessmentEventType, QuestionType, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
+from src.models.topic import Topic
 from src.observability.session import get_database_session_service
 from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
@@ -368,6 +369,21 @@ async def answer_question(
             "bkt_params_used": result.bkt_params_used,
         },
     )
+    if result.grade_unlocked is not None:
+        topic = db.get(Topic, (question.subject_id, question.topic_id))
+        record_event(
+            db,
+            learner_id=question.learner_id,
+            event_type=AssessmentEventType.GRADE_UNLOCKED,
+            subject_id=question.subject_id,
+            topic_id=question.topic_id,
+            question_id=question.question_id,
+            payload={
+                "previous_unlocked_grade": topic.grade,
+                "new_unlocked_grade": result.grade_unlocked,
+                "triggering_topic_id": question.topic_id,
+            },
+        )
 
     # Quiz-aware branch (spec 005, research.md §4): every question is
     # graded and mastery-updated via the exact same, unmodified logic

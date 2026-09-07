@@ -25,6 +25,8 @@ from src.agents.diagnostic.agent import (
     skill_summary,
 )
 from src.models.enums import DifficultyBand, QuestionType
+from src.models.grade_band import GradeBand
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
 from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.subject import Subject
@@ -80,6 +82,8 @@ def rank_eligible_topics(
     band_by_topic: dict[str, str],
     p_mastery_by_topic: dict[str, float | None],
     prereqs_by_topic: dict[str, list[str]],
+    grade_by_topic: dict[str, int | None] | None = None,
+    unlocked_grade: int | None = None,
 ) -> tuple[list[str], bool]:
     """Pure eligibility/ranking rule (data-model.md's Next-topic
     eligibility rule), directly unit-testable with no DB -- mirrors
@@ -90,12 +94,29 @@ def rank_eligible_topics(
     guarantee for the dashboard's upcoming-topics list holds by
     construction rather than by convention.
 
+    `grade_by_topic`/`unlocked_grade` add spec 017 User Story 2's grade
+    gate: a topic whose `grade` is above `unlocked_grade` is excluded
+    from every pool (eligible, mastered-fallback, and full-fallback)
+    before ranking even begins -- it must never surface regardless of
+    band/prerequisites (spec.md Edge Case: prerequisites spanning
+    grades -- grade-gating and prerequisite-gating both apply,
+    independently). An ungraded topic (`grade IS NULL`) or an ungraded
+    subject (`unlocked_grade is None`) is unaffected, byte-identical to
+    before this feature.
+
     Returns topic ids ranked lowest-`p_mastery`-first (`unknown` ranked
     ahead of any numeric value), ties broken by `topic_ids_in_order`'s
     original order (`Topic.order_index`), plus whether the ranking fell
     back to the mastered-topics-or-all-topics pool because zero topics
     were strictly eligible (every topic mastered, or none has its
     prerequisites satisfied)."""
+    grade_by_topic = grade_by_topic or {}
+
+    def within_unlocked_grade(topic_id: str) -> bool:
+        topic_grade = grade_by_topic.get(topic_id)
+        return topic_grade is None or unlocked_grade is None or topic_grade <= unlocked_grade
+
+    topic_ids_in_order = [t for t in topic_ids_in_order if within_unlocked_grade(t)]
     order_index_by_topic = {topic_id: index for index, topic_id in enumerate(topic_ids_in_order)}
 
     def prereqs_satisfied(topic_id: str) -> bool:
@@ -126,6 +147,8 @@ class _TopicRankingContext:
     p_mastery_by_topic: dict[str, float | None]
     prereqs_by_topic: dict[str, list[str]]
     display_name_by_topic: dict[str, str]
+    grade_by_topic: dict[str, int | None]
+    unlocked_grade: int | None
 
 
 def _load_topic_ranking_context(
@@ -137,6 +160,17 @@ def _load_topic_ranking_context(
     topics = (
         db.query(Topic).filter(Topic.subject_id == subject_id).order_by(Topic.order_index).all()
     )
+    declared_grades = [
+        row.grade for row in db.query(GradeBand).filter(GradeBand.subject_id == subject_id).all()
+    ]
+    unlocked_grade: int | None = None
+    if declared_grades:
+        progress = db.get(GradeProgress, (learner_id, subject_id))
+        # No GradeProgress row yet (data-model.md's defensive default):
+        # only reachable if a learner answers a graded subject's
+        # question before ever completing its placement flow -- gate at
+        # the lowest declared grade rather than leaving everything open.
+        unlocked_grade = progress.unlocked_grade if progress is not None else min(declared_grades)
     edges = db.query(PrerequisiteEdge).filter(PrerequisiteEdge.subject_id == subject_id).all()
     mastery_by_topic = {
         state.topic_id: state
@@ -163,6 +197,8 @@ def _load_topic_ranking_context(
         p_mastery_by_topic={t.topic_id: p_mastery_of(t.topic_id) for t in topics},
         prereqs_by_topic=prereqs_by_topic,
         display_name_by_topic={t.topic_id: t.display_name for t in topics},
+        grade_by_topic={t.topic_id: t.grade for t in topics},
+        unlocked_grade=unlocked_grade,
     )
 
 
@@ -184,6 +220,8 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         band_by_topic=ctx.band_by_topic,
         p_mastery_by_topic=ctx.p_mastery_by_topic,
         prereqs_by_topic=ctx.prereqs_by_topic,
+        grade_by_topic=ctx.grade_by_topic,
+        unlocked_grade=ctx.unlocked_grade,
     )
     chosen_id = ranked[0]
     chosen_band = ctx.band_by_topic[chosen_id]
@@ -228,6 +266,8 @@ def preview_topic_priority(
         band_by_topic=ctx.band_by_topic,
         p_mastery_by_topic=ctx.p_mastery_by_topic,
         prereqs_by_topic=ctx.prereqs_by_topic,
+        grade_by_topic=ctx.grade_by_topic,
+        unlocked_grade=ctx.unlocked_grade,
     )
 
     def to_entry(topic_id: str) -> TopicPreviewEntry:

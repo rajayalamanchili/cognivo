@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
+from src.models.grade_progress import GradeProgress
 from src.models.mastery_state import MasteryState
 
 MASTERED_P = 0.9
@@ -74,6 +75,17 @@ def test_image_and_text_only_answers_share_identical_shape_and_grading(
     # Force selection of the image-bearing topic (same technique as
     # test_next_question_image.py): master every other topic so
     # systems-of-linear-equations is the sole eligible one left.
+    #
+    # systems-of-linear-equations is grade 8 -- this test predates spec
+    # 017's grade-gating, so give the learner a fully-unlocked
+    # GradeProgress row rather than have the grade gate exclude it
+    # (spec 017 T023/T026).
+    db_session.add(
+        GradeProgress(
+            learner_id=demo_learner.learner_id, subject_id=algebra_subject.subject_id, unlocked_grade=8
+        )
+    )
+    db_session.commit()
     for topic in algebra_subject.topics:
         if topic.topic_id == "systems-of-linear-equations":
             continue
