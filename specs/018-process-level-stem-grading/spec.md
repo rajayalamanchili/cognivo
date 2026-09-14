@@ -8,6 +8,25 @@
 
 **Input**: User description: "process-level STEM grading" -- expanded from roadmap.md's "Out of current roadmap" entry (raised 2026-09-14 during a K-12 STEM gap-analysis session): today's grading (Milestone 1's structured comparison, Milestone 6's free-text rubric grading) is binary against an answer key or a flat set of rubric criteria -- a wrong final answer on a multi-step math/science problem gets no distinction between "the setup was right, there was an arithmetic slip in step 3" and "the underlying concept was misunderstood," which is most of what real STEM mastery diagnosis needs. This feature extends Milestone 6's Grading Agent to grade a multi-step submission step by step, localizing exactly where it first diverges from the expected solution, rather than introducing a new agent or rewriting the mastery model itself.
 
+## Clarifications
+
+### Session 2026-09-14
+
+- Q: Is each step's input a free-text response graded against that
+  step's rubric criteria, or a structured/exact-match value, and (once
+  raised) does batching change the LLM cost of the free-text option? →
+  A: Free-text per step, graded in a single batched LLM call against
+  the full step-rubric -- flat LLM cost regardless of step count, the
+  same budget as Milestone 6's existing single free-text grade, not one
+  call per step.
+- Q: What's the maximum acceptable end-to-end time for grading one full
+  multi-step submission? → A: 15 seconds, submission received to result
+  returned.
+- Q: What should happen when a learner's submission has a different
+  number of steps than the question's rubric expects? → A: Reject
+  before grading with a clear error; no Grading Decision is recorded
+  and no mastery update happens.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A wrong answer names the step that went wrong (Priority: P1)
@@ -115,9 +134,9 @@ other agent requires redeployment.
 
 ### Edge Cases
 
-- Learner submits fewer steps than the rubric expects (jumps straight to
-  a final answer).
-- Learner submits more steps than the rubric expects (extra work shown).
+- Learner submits fewer or more steps than the rubric expects (jumps
+  straight to a final answer, or shows extra work) -- rejected before
+  grading per FR-012, no Grading Decision recorded.
 - The first step is blank; all steps are blank (must not crash or
   silently pass -- consistent with Milestone 6's existing blank-answer
   handling).
@@ -142,9 +161,13 @@ other agent requires redeployment.
   learner (Constitution Principle II).
 - **FR-003**: The system MUST accept a learner's answer to a
   process-level question as a structured, ordered set of per-step
-  inputs -- one discrete input per expected step -- rather than a single
-  free-text blob that the Grading Agent would otherwise have to segment
-  into steps itself.
+  inputs -- one discrete free-text input per expected step -- rather
+  than a single free-text blob that the Grading Agent would otherwise
+  have to segment into steps itself.
+- **FR-003a**: The Grading Agent MUST grade all steps of a submission
+  in a single batched call against the full step-rubric, not one call
+  per step -- flat LLM cost regardless of step count, the same budget
+  as Milestone 6's existing single free-text grade.
 - **FR-004**: The Grading Agent MUST grade a stepwise submission against
   its question's step-structured rubric and identify the first step
   index at which the submission diverges from the expected step, not
@@ -156,10 +179,11 @@ other agent requires redeployment.
   generation time, not inferred by a separate freeform judgment
   (Constitution Principle II).
 - **FR-006**: When an earlier step is incorrect, the Grading Agent MUST
-  stop evaluating subsequent steps and mark them as ungraded (not
-  attempted-and-wrong) -- a later step is only ever graded against the
-  rubric's own expected prior-step value, never against whatever value
-  the learner actually carried forward.
+  stop evaluating subsequent steps and omit them from the result
+  entirely (not report them as attempted-and-wrong, and not invent a
+  separate "ungraded" status for them) -- a later step is only ever
+  graded against the rubric's own expected prior-step value, never
+  against whatever value the learner actually carried forward.
 - **FR-007**: A graded stepwise submission MUST feed the same
   deterministic mastery-update mechanism already used by every existing
   question type (Constitution Principle I, unchanged) via a single
@@ -183,6 +207,12 @@ other agent requires redeployment.
 - **FR-011**: Milestones 1-15's full acceptance-scenario suites MUST
   continue to pass unmodified for any topic that has not opted into
   process-level grading.
+- **FR-012**: When a submission's step count does not match its
+  question's rubric, the system MUST reject it before grading with a
+  clear error -- no Grading Decision is recorded and no mastery update
+  occurs -- mirroring Milestone 6's existing pattern of rejecting a
+  malformed submission (e.g., answer too long) before grading rather
+  than guessing intent.
 
 ### Key Entities
 
@@ -195,10 +225,13 @@ other agent requires redeployment.
 - **Stepwise Submission**: A learner's answer to a process-level
   question, structured as the same ordered sequence of per-step inputs
   as the rubric it is graded against.
-- **Step Grading Result**: The per-step outcome (correct, incorrect, or
-  ungraded per FR-006) attached to an existing Grading Decision, plus
-  the first-diverging step index and the single aggregate correctness
-  signal derived from it that feeds the mastery update.
+- **Step Grading Result**: The per-step outcome (correct or incorrect)
+  attached to an existing Grading Decision for every step up to and
+  including the first diverging one -- any step after that is omitted
+  from the result entirely, per FR-006, rather than carrying a separate
+  "ungraded" status -- plus the first-diverging step index and the
+  single aggregate correctness signal derived from it that feeds the
+  mastery update.
 
 ## Success Criteria *(mandatory)*
 
@@ -222,6 +255,9 @@ other agent requires redeployment.
   other agent or service, demonstrating this feature preserved
   Milestone 6's existing A2A boundary justification rather than
   eroding it.
+- **SC-006**: Grading a full multi-step submission -- from submission
+  received to result returned -- completes within 15 seconds, measured
+  across the full request path the same way Milestone 6's SC-006 was.
 
 ## Assumptions
 

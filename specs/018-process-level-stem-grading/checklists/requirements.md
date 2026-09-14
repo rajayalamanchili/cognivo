@@ -31,11 +31,17 @@
 
 ## Notes
 
-- FR-003 (structured per-step input vs. free-text segmented by the
-  Grading Agent) and FR-006 (stop-on-first-error vs. carried-error
-  tolerance) were both resolved with a default rather than a
-  [NEEDS CLARIFICATION] marker, favoring the more deterministic,
-  rubric-authored option consistent with Constitution Principles I/II.
-  See spec.md's Assumptions and the FR text itself for the reasoning.
-  Flagged to the user for override at spec-review time.
-- All items pass on first validation pass; no iteration needed.
+- FR-003's step-input/grading-mechanism question was resolved
+  interactively in the 2026-09-14 `/speckit-clarify` session (see spec.md's
+  Clarifications section): free-text per step, graded in one batched
+  LLM call against the full step-rubric (FR-003a), not the
+  originally-drafted default. That same session also fixed the
+  latency budget (SC-006, 15s) and the step-count-mismatch behavior
+  (FR-012).
+- FR-006 (stop-on-first-error vs. carried-error tolerance) remains
+  resolved by default rather than by explicit clarification, favoring
+  the more deterministic, rubric-authored option consistent with
+  Constitution Principles I/II. See spec.md's Assumptions and the FR
+  text itself for the reasoning. Still flagged to the user for
+  override at spec-review time if desired.
+- All items pass; no iteration needed.
