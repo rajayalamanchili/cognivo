@@ -1212,10 +1212,92 @@ any table yet.
   reason Milestone 2/3's stale-status corrections were left in place
   rather than deleted: an honest record that this started life here,
   not a retroactively-tidied history.
+- Process-level (step-by-step) STEM grading. Raised 2026-09-14 during a
+  K-12 STEM gap-analysis session: today's grading (Milestone 1's
+  structured comparison, Milestone 6's free-text rubric grading) is
+  binary against an answer key -- a wrong final answer on a multi-step
+  math/science problem gets no distinction between "setup was right,
+  arithmetic slip in step 3" and "fundamentally misunderstood the
+  concept," which is most of what STEM mastery diagnosis actually needs.
+  Would extend Milestone 6's Grading Agent (per-step rubric grading, not
+  a new agent) rather than create a seventh agent boundary, per
+  Constitution Principle IV. Needs its own spec, since it changes what
+  a rubric and a grading result look like.
+- Proper math/science notation for free-text answers (fractions,
+  exponents, chemical formulas, derivatives) -- today's free-text
+  answer field is plain text, which can't represent any of these
+  correctly. Raised 2026-09-14, same session as above. A real
+  correctness/UX gap specific to STEM subjects that a text/history
+  subject wouldn't hit; likely a rendering/input-widget change plus
+  whatever grading-comparison adjustment it implies, not a new agent.
+- Spaced repetition / mastery decay for foundational topics. Raised
+  2026-09-14. The mastery model (Milestone 1) has no notion of
+  forgetting -- a topic marked "mastered" once stays mastered forever,
+  which understates real risk for subjects as cumulative as STEM
+  (algebra assumes arithmetic fluency retained years later). Would need
+  its own spec on how/when a mastered topic gets resurfaced and whether
+  that's a Sequencing Agent change or a distinct scheduler.
+- Interactive, manipulable simulations (e.g. a slider that changes a
+  graph or a pendulum in real time) -- distinct from, and a strict step
+  up from, Milestone 10's static image stimuli, which display an image
+  but never let a learner manipulate it. Raised 2026-09-14. Deliberately
+  not folded into Milestone 10, matching that milestone's own pattern of
+  naming each multimodal step-up (audio, video, learner-submitted
+  images, AI-generated images) as its own explicitly deferred item
+  rather than silent scope creep.
+- Standards alignment (Common Core Math, NGSS) as topic-level tags on
+  content artifacts. Raised 2026-09-14. Today's content artifacts are
+  self-authored topic graphs with no link to what schools actually
+  teach; tagging against real standards would let the instructor
+  dashboard (Milestone 7) show "on pace with grade-level standards"
+  instead of an abstract mastery number. Depends on Milestone 15's
+  grade-band entity already existing as the natural place to hang a
+  standards tag.
+- Code execution for CS-adjacent STEM questions (run a learner's actual
+  code and grade its behavior, not multiple-choice questions about
+  code). Raised 2026-09-14. A materially different grading model from
+  every existing question type -- deterministic comparison and rubric
+  grading both assume a fixed answer shape, not program behavior over
+  test cases -- so this would need its own spec rather than reusing
+  Milestone 6's grading path as-is.
+- Age-adaptive learner experience across the grade 1-12 range: read-
+  aloud/audio support for learners who aren't yet reading fluently,
+  session-length and motivation mechanics that differ by developmental
+  age, and a guardian-mediation model that's deliberately more active
+  for younger learners than older ones. Raised 2026-09-14. Distinct
+  from Milestone 15 (grade-banded curriculum), which adapts *content
+  difficulty* to grade level but leaves the *interaction model* (UI,
+  session pacing, audio, how much the existing `guardian` role mediates
+  a session) identical across all ages. Milestone 15's `grade_bands`
+  data model is the natural substrate to peg this to once scoped.
+- English Language Learner (ELL) support -- bilingual or translated
+  question variants. Raised 2026-09-14. Lower priority than the items
+  above; named explicitly rather than folded silently into a future
+  i18n effort.
+- STEM-career connections surfaced alongside a topic (tying a topic to
+  a real-world STEM career/application). Raised 2026-09-14. Lower
+  priority; a small, cheap addition if picked up, not a reason to pull
+  it ahead of the gaps above.
+- Instructor pacing-guide alignment -- letting an instructor sync
+  Sequencing's topic order with their actual classroom calendar so the
+  platform supplements rather than conflicts with what's taught that
+  week. Raised 2026-09-14. Depends on Milestone 7's instructor role and
+  dashboard already existing; lower priority than the grading/content
+  gaps above.
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.5.0 -- 2026-09-14, added ten items to "Out of current
+roadmap" from a K-12 STEM gap-analysis session (process-level STEM
+grading, math/science notation, spaced repetition/mastery decay,
+interactive simulations, standards alignment, code execution for
+CS-adjacent STEM, age-adaptive learner experience, ELL support,
+STEM-career connections, instructor pacing-guide alignment); the same
+session's other two flagged gaps (grade-band adaptation, misconception
+taxonomy grounding) turned out to already be covered by Milestones 15
+and 11 respectively, so no new entry was needed for either.
 
 **Version**: 3.4.0 -- 2026-09-04, added Milestone 14 (Tutor Agent
 Answer-Shielding), promoted from its prior "Out of current roadmap"
