@@ -269,4 +269,20 @@ non-`NNN-slug` branch is just the latest one on disk
 pass against that directory would silently re-analyze an unrelated,
 already-shipped milestone rather than checking anything about this
 change, so it was skipped rather than run for form's sake against the
-wrong artifacts)
+wrong artifacts); 2.3.0 -- Amended 2026-09-18 (production incident:
+Anthropic API credits nearly exhausted, causing live `500`s on
+learner-facing generation calls. Two fixes, deliberately kept
+separate: (1) a **config-only** change -- `LLM_PROVIDER` set to
+`openai` in `backend/.env.example` (the template mirrored into each
+Vercel project's environment variables) and each of the three real
+deployments, no code touched, since the switch mechanism (2.2.0) was
+already designed for exactly this; the code-level fallback in all
+three `llm_provider.py` copies deliberately stays `anthropic` per this
+file's original locked default, so a deployment with `LLM_PROVIDER`
+unset still matches this table's documented behavior. (2) a genuine,
+provider-independent **code fix**: the Anthropic capable-role model
+string was `claude-sonnet-4-5`, which has breaking changes as of this
+date -- bumped to `claude-sonnet-5` in all three `llm_provider.py`
+copies. Same scope-note reasoning as 2.2.0 applies to both: no new
+FR/SC, no new agent boundary -- landed as a tech-stack.md-level
+amendment, not a new `specs/<feature>/` directory).
