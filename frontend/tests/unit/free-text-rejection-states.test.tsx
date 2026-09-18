@@ -61,6 +61,8 @@ describe("FreeTextAnswerInput rejection states", () => {
               criteria_met: [],
               criteria_missed: [],
               grading_logic_version: "v1",
+              first_diverging_step_index: null,
+              step_results: null,
             });
         }),
     );

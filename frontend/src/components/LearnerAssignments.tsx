@@ -212,7 +212,8 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
         />
-        {currentQuestion.question_type !== "free_text" && (
+        {currentQuestion.question_type !== "free_text" &&
+          currentQuestion.question_type !== "multi_step" && (
           <button
             type="button"
             disabled={response === "" || phase === "submitting"}

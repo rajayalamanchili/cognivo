@@ -48,7 +48,9 @@ from src.services.grading_client import guardrails
 from src.services.grading_client.client import (
     SCORE_THRESHOLD,
     GradingResult,
+    StepwiseGradingResult,
     grade_free_text_answer,
+    grade_stepwise_answer,
 )
 from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
@@ -74,6 +76,7 @@ class NextQuestionOut(BaseModel):
     options: list[str] | None = None
     image_url: str | None = None
     image_alt_text: str | None = None
+    steps: list[str] | None = None
 
 
 @router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
@@ -160,11 +163,26 @@ async def get_next_question(
         options=result.draft.options,
         image_url=result.image_url,
         image_alt_text=result.image_alt_text,
+        # Step prompts only, never the per-step rubric criteria (spec 018
+        # FR-002) -- the answer key must not leak to the client, same
+        # discipline as every other question_type's answer_key.
+        steps=(
+            [step.step_prompt for step in result.draft.steps]
+            if result.question_type == QuestionType.MULTI_STEP
+            else None
+        ),
     )
 
 
 class AnswerIn(BaseModel):
     response: Any
+
+
+class StepResultOut(BaseModel):
+    step_index: int
+    correct: bool
+    criteria_met: list[str]
+    criteria_missed: list[str]
 
 
 class AnswerOut(BaseModel):
@@ -177,6 +195,8 @@ class AnswerOut(BaseModel):
     criteria_met: list[str] | None = None
     criteria_missed: list[str] | None = None
     grading_logic_version: str | None = None
+    first_diverging_step_index: int | None = None
+    step_results: list[StepResultOut] | None = None
 
 
 def _already_answered(db: Session, question_id: uuid.UUID) -> bool:
@@ -199,7 +219,13 @@ def _reject_free_text(
     HTTP-error exception right after this returns, so this write must
     already be durable by then. Never paired with an `ANSWER_SUBMITTED`
     event for the same submission (a rejected submission is never
-    graded, contracts/api.md)."""
+    graded, contracts/api.md).
+
+    Reused for `multi_step` submissions too (spec 018 contracts/api.md:
+    length/rate-limit/moderation rejection is "identical in shape" to
+    free-text's) -- no separate event type exists for it, `response_text`
+    is simply the submission's concatenated step text in that case.
+    """
     record_event(
         db,
         learner_id=question.learner_id,
@@ -268,6 +294,39 @@ async def _grade_free_text_submission(
     )
 
 
+async def _grade_stepwise_submission(
+    db: Session, *, question: GeneratedQuestion, response_steps: list[str]
+) -> StepwiseGradingResult:
+    """Multi-step counterpart to `_grade_free_text_submission` (spec 018).
+    Same length/rate-limit/moderation guardrail order, run against the
+    submission's concatenated step text (contracts/api.md) -- but calls
+    `grade_stepwise_answer()` directly rather than `get_or_grade_answer()`,
+    bypassing Milestone 13's semantic grading cache for `multi_step`
+    submissions in v1 (research.md §6, plan.md's Constraints)."""
+    concatenated = "\n".join(response_steps)
+    if not guardrails.check_length(concatenated):
+        _reject_free_text(db, question=question, reason="too_long", response_text=concatenated)
+        raise TooLongError(max_length=guardrails.MAX_ANSWER_LENGTH)
+
+    rate_limit_status = guardrails.check_rate_limit(db, learner_id=question.learner_id)
+    if not rate_limit_status.allowed:
+        _reject_free_text(db, question=question, reason="rate_limited", response_text=concatenated)
+        raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
+
+    allowed = await check_moderation(concatenated, session_service=get_database_session_service())
+    if not allowed:
+        _reject_free_text(db, question=question, reason="moderation", response_text=concatenated)
+        raise ModerationRejectedError()
+
+    return await grade_stepwise_answer(
+        question_stem=question.stem,
+        steps=question.answer_key["steps"],
+        learner_steps=response_steps,
+        question_id=question.question_id,
+        learner_id=question.learner_id,
+    )
+
+
 @router.post("/api/questions/{question_id}/answer", response_model=AnswerOut)
 async def answer_question(
     question_id: uuid.UUID,
@@ -293,6 +352,7 @@ async def answer_question(
         raise UnprocessableError(f"question {question_id}: {exc}") from exc
 
     grading_result: GradingResult | None = None
+    stepwise_result: StepwiseGradingResult | None = None
     if question.question_type == QuestionType.FREE_TEXT:
         with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
             grading_result, cache_outcome = await _grade_free_text_submission(
@@ -317,6 +377,29 @@ async def answer_question(
             "grading_logic_version": grading_result.grading_logic_version,
             "served_from_cache": cache_outcome.hit,
             "cache_miss_reason": cache_outcome.reason,
+        }
+    elif question.question_type == QuestionType.MULTI_STEP:
+        with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
+            stepwise_result = await _grade_stepwise_submission(
+                db, question=question, response_steps=body.response
+            )
+        correct = stepwise_result.correct
+        answer_payload = {
+            "response": body.response,
+            "correct": correct,
+            "graduated_score": stepwise_result.graduated_score,
+            "threshold_used": SCORE_THRESHOLD,
+            "first_diverging_step_index": stepwise_result.first_diverging_step_index,
+            "step_results": [
+                {
+                    "step_index": s.step_index,
+                    "correct": s.correct,
+                    "criteria_met": s.criteria_met,
+                    "criteria_missed": s.criteria_missed,
+                }
+                for s in stepwise_result.step_results
+            ],
+            "grading_logic_version": stepwise_result.grading_logic_version,
         }
     else:
         correct = grade_answer(
@@ -415,6 +498,25 @@ async def answer_question(
             criteria_met=grading_result.criteria_met,
             criteria_missed=grading_result.criteria_missed,
             grading_logic_version=grading_result.grading_logic_version,
+        )
+    elif stepwise_result is not None:
+        answer_body.update(
+            graduated_score=stepwise_result.graduated_score,
+            # The per-step breakdown replaces the flat criteria fields,
+            # it does not sit alongside them (contracts/api.md).
+            criteria_met=None,
+            criteria_missed=None,
+            first_diverging_step_index=stepwise_result.first_diverging_step_index,
+            step_results=[
+                {
+                    "step_index": s.step_index,
+                    "correct": s.correct,
+                    "criteria_met": s.criteria_met,
+                    "criteria_missed": s.criteria_missed,
+                }
+                for s in stepwise_result.step_results
+            ],
+            grading_logic_version=stepwise_result.grading_logic_version,
         )
     return JSONResponse(answer_body)
 

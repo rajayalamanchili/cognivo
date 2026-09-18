@@ -29,6 +29,9 @@ def validate_response_shape(question_type: QuestionType, response: Any) -> None:
     elif question_type == QuestionType.FREE_TEXT:
         if not isinstance(response, str):
             raise ValueError("free_text response must be a string")
+    elif question_type == QuestionType.MULTI_STEP:
+        if not isinstance(response, list) or not all(isinstance(item, str) for item in response):
+            raise ValueError("multi_step response must be a list of strings")
 
 
 def grade_answer(question: dict[str, Any], *, response: Any) -> bool:

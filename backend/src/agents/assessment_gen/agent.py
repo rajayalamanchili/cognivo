@@ -47,6 +47,21 @@ class RubricCriterion(BaseModel):
     weight: float = Field(gt=0)
 
 
+class StepDraft(BaseModel):
+    """One expected step within a `multi_step` question's rubric (spec 018
+    FR-002/FR-005, data-model.md's Step Rubric entity)."""
+
+    step_prompt: str = Field(min_length=1)
+    rubric_criteria: list[RubricCriterion] = Field(
+        description=(
+            "Required: >=2 weighted grading criteria for this step, weights summing to "
+            "1.0 -- one method/operation-choice criterion and a separate execution/"
+            "computation-correctness criterion at minimum (FR-005), so a computational "
+            "slip on a correct method is distinguishable from choosing the wrong method."
+        )
+    )
+
+
 class GeneratedQuestionDraft(BaseModel):
     """The Assessment-Generation Agent's structured output shape.
 
@@ -56,7 +71,7 @@ class GeneratedQuestionDraft(BaseModel):
     then checked by `_validate_draft` below.
     """
 
-    question_type: Literal["multiple_choice", "numeric", "free_text"]
+    question_type: Literal["multiple_choice", "numeric", "free_text", "multi_step"]
     stem: str = Field(min_length=1)
     options: list[str] | None = Field(
         default=None, description="Required for multiple_choice; null for numeric/free_text."
@@ -76,7 +91,14 @@ class GeneratedQuestionDraft(BaseModel):
         default=None,
         description=(
             "Required for free_text: 1-4 grading criteria whose weights sum to 1.0. "
-            "Null for multiple_choice/numeric."
+            "Null for multiple_choice/numeric/multi_step."
+        ),
+    )
+    steps: list[StepDraft] | None = Field(
+        default=None,
+        description=(
+            "Required for multi_step: >=2 ordered steps, each with its own rubric_criteria "
+            "(spec 018 FR-002). Null for every other question_type."
         ),
     )
 
@@ -106,6 +128,16 @@ sentence or two of explanation, not a single word or number. Provide \
 (a specific, checkable thing a correct answer must demonstrate -- never vague) \
 and a "weight" (a positive number; all weights in the list MUST sum to 1.0). \
 Leave "options", "correct_index", "correct_value", and "tolerance" null.
+- If question_type is "multi_step": ask a multi-step problem the learner must solve one \
+step at a time (e.g. solving an equation, balancing a reaction). Provide "steps" as an \
+ordered list of >=2 steps, each with a "step_prompt" (what the learner must do at that \
+step) and its own "rubric_criteria": >=2 weighted grading criteria for that step whose \
+weights sum to 1.0. Author at least one criterion for the correct method/operation choice \
+at that step and a SEPARATE criterion for whether it was executed/computed correctly -- \
+never a single combined criterion -- so a learner who picks the right method but makes a \
+computational slip is distinguishable from a learner who picks the wrong method entirely. \
+Leave "options", "correct_index", "correct_value", "tolerance", and "rubric_criteria" \
+(the top-level field) null.
 - The question must be answerable using only the stated topic skill -- no outside \
 context needed.
 {avoid_section}
@@ -188,6 +220,19 @@ def _validate_draft(draft: GeneratedQuestionDraft, question_type: QuestionType) 
             raise GenerationValidationError(
                 f"free_text rubric_criteria weights must sum to ~1.0, got {total_weight}"
             )
+    elif question_type == QuestionType.MULTI_STEP:
+        if not draft.steps or len(draft.steps) < 2:
+            raise GenerationValidationError("multi_step question needs >=2 steps (spec 018 FR-002)")
+        for index, step in enumerate(draft.steps):
+            if not step.rubric_criteria or len(step.rubric_criteria) < 2:
+                raise GenerationValidationError(
+                    f"multi_step step {index} needs >=2 rubric criteria (spec 018 FR-005)"
+                )
+            step_weight = sum(c.weight for c in step.rubric_criteria)
+            if not math.isclose(step_weight, 1.0, rel_tol=0.01):
+                raise GenerationValidationError(
+                    f"multi_step step {index} criteria weights must sum to ~1.0, got {step_weight}"
+                )
 
 
 async def _run_agent_once(agent: LlmAgent, session_service: BaseSessionService) -> str:
@@ -277,6 +322,19 @@ def draft_to_answer_key(draft: GeneratedQuestionDraft) -> dict:
         return {
             "criteria": [
                 {"description": c.description, "weight": c.weight} for c in draft.rubric_criteria
+            ]
+        }
+    if draft.question_type == "multi_step":
+        return {
+            "steps": [
+                {
+                    "step_prompt": step.step_prompt,
+                    "criteria": [
+                        {"description": c.description, "weight": c.weight}
+                        for c in step.rubric_criteria
+                    ],
+                }
+                for step in draft.steps
             ]
         }
     return {"value": draft.correct_value, "tolerance": draft.tolerance}

@@ -11,6 +11,7 @@ the question's own rubric shape before acceptance, never trusted blindly
 
 import asyncio
 import json
+import math
 import os
 import uuid
 from dataclasses import dataclass
@@ -54,6 +55,27 @@ class GradingResult:
     graduated_score: float
     criteria_met: list[str]
     criteria_missed: list[str]
+    grading_logic_version: str
+
+
+@dataclass(frozen=True)
+class StepGradingResult:
+    """One step's outcome within a stepwise submission (spec 018
+    data-model.md's Step Grading Result). `correct` is true only when
+    every one of this step's own criteria was met."""
+
+    step_index: int
+    correct: bool
+    criteria_met: list[str]
+    criteria_missed: list[str]
+
+
+@dataclass(frozen=True)
+class StepwiseGradingResult:
+    correct: bool
+    graduated_score: float
+    first_diverging_step_index: int | None
+    step_results: list[StepGradingResult]
     grading_logic_version: str
 
 
@@ -108,6 +130,117 @@ def _validate_and_parse(raw_text: str, rubric_criteria: list[dict]) -> GradingRe
     )
 
 
+def _validate_and_parse_stepwise(raw_text: str, steps: list[dict]) -> StepwiseGradingResult:
+    """contracts/api.md's multi-step validation gate: never trusts the
+    agent's self-reported `graduated_score`/`first_diverging_step_index`
+    -- both are independently recomputed from `step_results`' own content
+    below and rejected (retried) on any disagreement, same discipline
+    `_validate_and_parse` applies to free-text (FR-006/FR-014)."""
+    try:
+        data = json.loads(raw_text)
+    except json.JSONDecodeError as exc:
+        raise _InvalidGradingResponse(f"non-JSON Grading Agent response: {exc}") from exc
+
+    reported_score = data.get("graduated_score")
+    if isinstance(reported_score, bool) or not isinstance(reported_score, (int, float)):
+        raise _InvalidGradingResponse(
+            f"graduated_score missing or not a number: {reported_score!r}"
+        )
+    if not (0.0 <= reported_score <= 1.0):
+        raise _InvalidGradingResponse(f"graduated_score out of range [0,1]: {reported_score!r}")
+
+    grading_logic_version = data.get("grading_logic_version")
+    if not grading_logic_version or not isinstance(grading_logic_version, str):
+        raise _InvalidGradingResponse("missing grading_logic_version")
+
+    reported_index = data.get("first_diverging_step_index")
+    if reported_index is not None and (
+        isinstance(reported_index, bool) or not isinstance(reported_index, int)
+    ):
+        raise _InvalidGradingResponse(
+            f"first_diverging_step_index must be an int or null: {reported_index!r}"
+        )
+
+    step_results_raw = data.get("step_results")
+    if not isinstance(step_results_raw, list) or not step_results_raw:
+        raise _InvalidGradingResponse("step_results missing or empty")
+
+    total_steps = len(steps)
+    parsed_steps: list[StepGradingResult] = []
+    for index, entry in enumerate(step_results_raw):
+        if index >= total_steps:
+            raise _InvalidGradingResponse("step_results has more entries than the rubric's steps")
+        if parsed_steps and not parsed_steps[-1].correct:
+            raise _InvalidGradingResponse(
+                "step_results includes a step after the first diverging step (FR-006)"
+            )
+        if not isinstance(entry, dict):
+            raise _InvalidGradingResponse("step_results entry is not an object")
+        step_index = entry.get("step_index")
+        if isinstance(step_index, bool) or step_index != index:
+            raise _InvalidGradingResponse("step_results is out of order or missing step_index")
+
+        expected_criteria = steps[index]["criteria"]
+        criteria_results = entry.get("criteria_results")
+        if (
+            not isinstance(criteria_results, list)
+            or len(criteria_results) != len(expected_criteria)
+        ):
+            raise _InvalidGradingResponse(
+                f"step {index}: criteria_results count doesn't match that step's rubric"
+            )
+
+        criteria_met: list[str] = []
+        criteria_missed: list[str] = []
+        for expected, actual in zip(expected_criteria, criteria_results, strict=True):
+            if not isinstance(actual, dict) or actual.get("description") != expected["description"]:
+                raise _InvalidGradingResponse(
+                    f"step {index}: criteria_results order/description doesn't match the rubric"
+                )
+            if actual.get("met"):
+                criteria_met.append(expected["description"])
+            else:
+                criteria_missed.append(expected["description"])
+
+        parsed_steps.append(
+            StepGradingResult(
+                step_index=index,
+                correct=not criteria_missed,
+                criteria_met=criteria_met,
+                criteria_missed=criteria_missed,
+            )
+        )
+
+    diverged = bool(parsed_steps) and not parsed_steps[-1].correct
+    derived_index = parsed_steps[-1].step_index if diverged else None
+    expected_length = (derived_index + 1) if diverged else total_steps
+    if len(parsed_steps) != expected_length:
+        raise _InvalidGradingResponse(
+            "step_results length doesn't match its own reported divergence point"
+        )
+    if reported_index != derived_index:
+        raise _InvalidGradingResponse(
+            f"first_diverging_step_index {reported_index!r} doesn't match step_results "
+            f"(derived {derived_index!r})"
+        )
+
+    correct_step_count = sum(1 for s in parsed_steps if s.correct)
+    derived_score = correct_step_count / total_steps
+    if not math.isclose(derived_score, reported_score, abs_tol=1e-6):
+        raise _InvalidGradingResponse(
+            f"graduated_score {reported_score!r} doesn't match step_results "
+            f"(derived {derived_score!r})"
+        )
+
+    return StepwiseGradingResult(
+        correct=derived_score >= SCORE_THRESHOLD,
+        graduated_score=derived_score,
+        first_diverging_step_index=derived_index,
+        step_results=parsed_steps,
+        grading_logic_version=grading_logic_version,
+    )
+
+
 def _build_headers(*, question_id: uuid.UUID, learner_id: uuid.UUID) -> dict[str, str]:
     # The Grading Agent's endpoint is a public Vercel URL with none of
     # this backend's guardrails (length cap, rate limit, moderation)
@@ -141,18 +274,11 @@ def _build_headers(*, question_id: uuid.UUID, learner_id: uuid.UUID) -> dict[str
 
 async def _call_grading_agent_once(
     *,
-    question_stem: str,
-    rubric_criteria: list[dict],
-    learner_answer: str,
+    request_payload: dict,
     question_id: uuid.UUID,
     learner_id: uuid.UUID,
 ) -> str:
     grading_agent_url = os.environ["GRADING_AGENT_URL"]
-    request_payload = {
-        "question_stem": question_stem,
-        "rubric": {"criteria": rubric_criteria},
-        "learner_answer": learner_answer,
-    }
     headers = _build_headers(question_id=question_id, learner_id=learner_id)
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT_SECONDS, headers=headers) as httpx_client:
         factory = ClientFactory(ClientConfig(streaming=False, httpx_client=httpx_client))
@@ -193,17 +319,54 @@ async def grade_free_text_answer(
     at the agent-instruction level) -- they're sent as headers purely
     for trace correlation (`_build_headers()`'s docstring).
     """
+    request_payload = {
+        "question_stem": question_stem,
+        "rubric": {"criteria": rubric_criteria},
+        "learner_answer": learner_answer,
+    }
     last_error: Exception | None = None
     for attempt in range(MAX_ATTEMPTS):
         try:
             raw_text = await _call_grading_agent_once(
-                question_stem=question_stem,
-                rubric_criteria=rubric_criteria,
+                request_payload=request_payload,
                 question_id=question_id,
                 learner_id=learner_id,
-                learner_answer=learner_answer,
             )
             return _validate_and_parse(raw_text, rubric_criteria)
+        except (_InvalidGradingResponse, A2AClientError, httpx.HTTPError, OSError) as exc:
+            last_error = exc
+            if attempt < MAX_ATTEMPTS - 1:
+                await asyncio.sleep(RETRY_BACKOFF_SECONDS)
+
+    raise GradingUnavailableError() from last_error
+
+
+async def grade_stepwise_answer(
+    *,
+    question_stem: str,
+    steps: list[dict],
+    learner_steps: list[str],
+    question_id: uuid.UUID,
+    learner_id: uuid.UUID,
+) -> StepwiseGradingResult:
+    """Multi-step counterpart to `grade_free_text_answer` (spec 018
+    FR-003a): one batched A2A call grading every step at once, never one
+    call per step. Same retry/validation discipline -- see
+    `_validate_and_parse_stepwise`'s docstring."""
+    request_payload = {
+        "question_stem": question_stem,
+        "steps": steps,
+        "learner_steps": learner_steps,
+    }
+    last_error: Exception | None = None
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            raw_text = await _call_grading_agent_once(
+                request_payload=request_payload,
+                question_id=question_id,
+                learner_id=learner_id,
+            )
+            return _validate_and_parse_stepwise(raw_text, steps)
         except (_InvalidGradingResponse, A2AClientError, httpx.HTTPError, OSError) as exc:
             last_error = exc
             if attempt < MAX_ATTEMPTS - 1:

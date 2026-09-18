@@ -149,7 +149,7 @@ export default function PracticeFlow() {
         disabled={phase === "submitting"}
         onFreeTextGraded={handleFreeTextGraded}
       />
-      {question.question_type !== "free_text" && (
+      {question.question_type !== "free_text" && question.question_type !== "multi_step" && (
         <button
           type="button"
           disabled={response === "" || phase === "submitting"}

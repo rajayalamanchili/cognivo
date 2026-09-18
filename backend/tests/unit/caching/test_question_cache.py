@@ -248,3 +248,59 @@ async def test_lookup_failure_is_a_miss_and_the_generator_still_runs(db_session,
     assert outcome.reason == "storage_failure"
     assert generate_calls == 1
     assert draft.stem == "fresh despite the failure"
+
+
+async def test_multi_step_pool_entry_round_trips_its_steps(db_session, algebra_subject):
+    """Spec 018: this cache is question-type-agnostic in storage
+    (`get_or_generate_question`'s generic `answer_key`/`question_type`
+    columns), but `_draft_from_cache_row` must reconstruct a `multi_step`
+    row's `steps` field on a hit -- not silently return `steps=None`."""
+    row = QuestionGenerationCache(
+        subject_id="algebra-1",
+        topic_id="solving-multi-step-equations",
+        difficulty=DIFFICULTY,
+        content_version=CONTENT_VERSION,
+        generation_prompt_version=GENERATION_PROMPT_VERSION,
+        question_type=QuestionType.MULTI_STEP,
+        stem="Solve for x: 3x + 2 = 14",
+        options=None,
+        answer_key={
+            "steps": [
+                {
+                    "step_prompt": "Isolate the variable term on one side.",
+                    "criteria": [
+                        {"description": "Chooses to subtract 2 from both sides", "weight": 0.5},
+                        {"description": "Correctly computes 3x = 12", "weight": 0.5},
+                    ],
+                },
+                {
+                    "step_prompt": "Solve for x.",
+                    "criteria": [
+                        {"description": "Chooses to divide both sides by 3", "weight": 0.5},
+                        {"description": "Correctly computes x = 4", "weight": 0.5},
+                    ],
+                },
+            ]
+        },
+        question_signature=f"sig-{uuid.uuid4()}",
+    )
+    db_session.add(row)
+    db_session.commit()
+
+    draft, outcome, generate_calls = await _get_or_generate(
+        db_session, topic_id="solving-multi-step-equations"
+    )
+
+    assert outcome.hit is True
+    assert generate_calls == 0
+    assert draft.question_type == "multi_step"
+    assert draft.stem == "Solve for x: 3x + 2 = 14"
+    assert draft.steps is not None
+    assert [s.step_prompt for s in draft.steps] == [
+        "Isolate the variable term on one side.",
+        "Solve for x.",
+    ]
+    assert [c.description for c in draft.steps[0].rubric_criteria] == [
+        "Chooses to subtract 2 from both sides",
+        "Correctly computes 3x = 12",
+    ]

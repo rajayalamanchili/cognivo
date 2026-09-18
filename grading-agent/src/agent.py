@@ -45,8 +45,23 @@ class CriterionResult(BaseModel):
     met: bool
 
 
+class StepResult(BaseModel):
+    """One step's grading outcome within a multi-step submission (spec
+    018 contracts/api.md) -- only present for steps up to and including
+    the first diverging one (FR-006)."""
+
+    step_index: int
+    criteria_results: list[CriterionResult]
+
+
 class GradingResult(BaseModel):
     """The Grading Agent's structured A2A response shape (contracts/api.md).
+
+    Flat by design, same "nulled-irrelevant-fields" pattern as
+    `assessment_gen/agent.py`'s `GeneratedQuestionDraft` (spec 018): a
+    free-text request fills `criteria_results` and leaves
+    `first_diverging_step_index`/`step_results` null; a multi-step
+    request does the reverse.
 
     The caller (`services/grading_client/client.py`) validates this
     against the question's own rubric -- same criteria count/order,
@@ -56,7 +71,9 @@ class GradingResult(BaseModel):
     """
 
     graduated_score: float = Field(ge=0.0, le=1.0)
-    criteria_results: list[CriterionResult]
+    criteria_results: list[CriterionResult] | None = None
+    first_diverging_step_index: int | None = None
+    step_results: list[StepResult] | None = None
     grading_logic_version: str
 
 
