@@ -3,13 +3,15 @@
 import { useState } from "react";
 import type { AnswerResult, NextQuestion } from "@/services/api";
 import FreeTextAnswerInput from "@/components/FreeTextAnswerInput";
+import MultiStepAnswerInput from "@/components/MultiStepAnswerInput";
 
 // Presentational + flag-affordance only (FR-011) -- answer submission and
 // question fetching stay owned by the page that renders this card, with
-// one exception: `free_text` questions submit themselves via
-// `FreeTextAnswerInput` (spec 007 FR-018), reported back through
-// `onFreeTextGraded` rather than the shared `response`/`onResponseChange`
-// props MC/numeric use.
+// two exceptions: `free_text` and `multi_step` questions submit
+// themselves (via `FreeTextAnswerInput`/`MultiStepAnswerInput`, spec 007
+// FR-018/spec 018 FR-003a), reported back through the shared
+// `onFreeTextGraded` callback rather than the `response`/
+// `onResponseChange` props MC/numeric use.
 
 export interface QuestionCardProps {
   question: NextQuestion;
@@ -78,6 +80,13 @@ export default function QuestionCard({
       ) : question.question_type === "free_text" ? (
         <FreeTextAnswerInput
           questionId={question.question_id}
+          onGraded={(result) => onFreeTextGraded?.(result)}
+          disabled={disabled}
+        />
+      ) : question.question_type === "multi_step" ? (
+        <MultiStepAnswerInput
+          questionId={question.question_id}
+          steps={question.steps ?? []}
           onGraded={(result) => onFreeTextGraded?.(result)}
           disabled={disabled}
         />

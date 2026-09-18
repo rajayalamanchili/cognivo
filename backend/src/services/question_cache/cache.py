@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from src.agents.assessment_gen.agent import (
     GeneratedQuestionDraft,
     RubricCriterion,
+    StepDraft,
     draft_to_answer_key,
 )
 from src.models.enums import DifficultyBand, QuestionType
@@ -56,6 +57,17 @@ def _draft_from_cache_row(row: QuestionGenerationCache) -> GeneratedQuestionDraf
         kwargs["rubric_criteria"] = [
             RubricCriterion(description=criterion["description"], weight=criterion["weight"])
             for criterion in row.answer_key["criteria"]
+        ]
+    elif row.question_type == QuestionType.MULTI_STEP:
+        kwargs["steps"] = [
+            StepDraft(
+                step_prompt=step["step_prompt"],
+                rubric_criteria=[
+                    RubricCriterion(description=c["description"], weight=c["weight"])
+                    for c in step["criteria"]
+                ],
+            )
+            for step in row.answer_key["steps"]
         ]
     return GeneratedQuestionDraft(**kwargs)
 

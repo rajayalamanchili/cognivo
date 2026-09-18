@@ -81,11 +81,20 @@ topics:
     display_name: Solving Multi-Step Equations
     grade: 7
     prerequisites: [solving-one-step-equations, order-of-operations]
+    # spec 018 (process-level STEM grading): opts this topic into step-
+    # by-step grading -- a naturally multi-step topic where naming the
+    # first wrong step (rather than one undifferentiated "incorrect")
+    # is actually useful to a learner.
+    process_level_grading: true
     skill_definition:
       summary: >-
         Solve linear equations requiring two or more steps, including
         combining like terms and the distributive property.
-      preferred_question_types: [numeric]
+      # multi_step first: next-question's `preferred_question_type()`
+      # (sequencing/agent.py) only ever consults the first entry -- this
+      # topic is the one place in this content artifact that entry is
+      # actually a multi_step question, not numeric (spec 018).
+      preferred_question_types: [multi_step, numeric]
     difficulty_calibration:
       easy: "A two-step equation, e.g. 2x + 3 = 11."
       medium: "A multi-step equation with variables on one side requiring distribution first."

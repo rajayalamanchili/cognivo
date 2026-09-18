@@ -41,7 +41,11 @@ def guess_probability(question_type: QuestionType) -> float:
         return P_G_MULTIPLE_CHOICE
     if question_type == QuestionType.NUMERIC:
         return P_G_NUMERIC
-    if question_type == QuestionType.FREE_TEXT:
+    if question_type in (QuestionType.FREE_TEXT, QuestionType.MULTI_STEP):
+        # spec 018 FR-007: multi_step feeds the same mastery mechanism via
+        # a single aggregate correctness signal -- same negligible-blind-
+        # guess rationale as free_text (graded against per-step rubric
+        # criteria, not a discrete option set to luck into).
         return P_G_FREE_TEXT
     raise ValueError(f"unknown question_type: {question_type!r}")
 

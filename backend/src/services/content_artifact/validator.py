@@ -28,6 +28,7 @@ class ValidatedTopic:
     image_asset: dict | None
     misconceptions: tuple[dict, ...]
     grade: int | None
+    step_grading_enabled: bool
 
 
 @dataclass(frozen=True)
@@ -98,6 +99,9 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             subject_id, topic_id, raw_topic.get("misconceptions"), seen_misconception_ids
         )
         grade = _validate_topic_grade(subject_id, topic_id, raw_topic.get("grade"), grade_bands)
+        step_grading_enabled = _validate_process_level_grading(
+            subject_id, topic_id, raw_topic.get("process_level_grading")
+        )
 
         topic_ids.append(topic_id)
         prereqs_by_topic[topic_id] = prerequisites
@@ -111,6 +115,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             "image_asset": image_asset,
             "misconceptions": misconceptions,
             "grade": grade,
+            "step_grading_enabled": step_grading_enabled,
         }
 
     topic_id_set = set(topic_ids)
@@ -140,6 +145,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             image_asset=t["image_asset"],
             misconceptions=t["misconceptions"],
             grade=t["grade"],
+            step_grading_enabled=t["step_grading_enabled"],
         )
         for t in normalized_by_topic.values()
     )
@@ -219,6 +225,21 @@ def _validate_topic_grade(
             f"not one of the subject's declared grade_bands {grade_bands}"
         )
     return grade
+
+
+def _validate_process_level_grading(subject_id: str, topic_id: str, value: object) -> bool:
+    """Schema-only check for an optional per-topic `process_level_grading`
+    boolean (spec 018 FR-001) -- type-check only, no cross-topic rule
+    (unlike `grade`/`grade_bands`' all-or-nothing check): each topic's
+    opt-in is independent, and a topic that omits the field defaults to
+    `false` (research.md §3)."""
+    if value is None:
+        return False
+    if not isinstance(value, bool):
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' process_level_grading must be a boolean"
+        )
+    return value
 
 
 def _validate_image_asset(subject_id: str, topic_id: str, image_asset: object) -> None:

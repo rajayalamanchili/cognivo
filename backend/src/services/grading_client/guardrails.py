@@ -36,12 +36,17 @@ class RateLimitStatus:
     retry_after_seconds: int
 
 
+_LLM_GRADED_QUESTION_TYPES = (QuestionType.FREE_TEXT, QuestionType.MULTI_STEP)
+
+
 def check_rate_limit(db: Session, *, learner_id: uuid.UUID) -> RateLimitStatus:
-    """FR-016: counts this learner's free-text submissions (graded and
-    rejected alike) in the trailing window via a DB query, never an
-    in-memory counter (research.md §6) -- correct even across separate
-    Vercel Function invocations, since each one starts with a fresh
-    process."""
+    """FR-016: counts this learner's LLM-graded submissions (free-text and
+    multi-step alike, graded and rejected alike) in the trailing window
+    via a DB query, never an in-memory counter (research.md §6) -- correct
+    even across separate Vercel Function invocations, since each one
+    starts with a fresh process. Spec 018 extends this same DB-backed
+    limiter to `multi_step` submissions (contracts/api.md) rather than
+    introducing a second, parallel rate limiter."""
     now = datetime.datetime.now(datetime.UTC)
     window_start = now - datetime.timedelta(minutes=RATE_LIMIT_WINDOW_MINUTES)
     rows = (
@@ -49,7 +54,7 @@ def check_rate_limit(db: Session, *, learner_id: uuid.UUID) -> RateLimitStatus:
         .join(GeneratedQuestion, AssessmentEvent.question_id == GeneratedQuestion.question_id)
         .filter(
             AssessmentEvent.learner_id == learner_id,
-            GeneratedQuestion.question_type == QuestionType.FREE_TEXT,
+            GeneratedQuestion.question_type.in_(_LLM_GRADED_QUESTION_TYPES),
             AssessmentEvent.event_type.in_(_COUNTED_EVENT_TYPES),
             AssessmentEvent.created_at >= window_start,
         )

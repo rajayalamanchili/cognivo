@@ -1099,6 +1099,118 @@ the current grade reaches "mastered."
 
 ---
 
+## Milestone 16: Process-Level STEM Grading
+
+**Spec**: `specs/018-process-level-stem-grading/spec.md`
+**Status**: `/speckit-implement` complete, all 6 phases (2026-09-18,
+branch `025-process-level-stem-grading`). Raised 2026-09-14 during a
+K-12 STEM gap-analysis session: a wrong final answer on a multi-step
+math/science problem got no distinction between "setup was right,
+arithmetic slip in step 3" and "fundamentally misunderstood the
+concept." Moved here from "Out of current roadmap" now that
+implementation has landed.
+
+Implementation: extends Milestone 6's Grading Agent rather than adding
+a seventh agent boundary (Constitution Principle IV) -- a new
+`QuestionType.MULTI_STEP` reuses the free-text grading path end to end
+(content-artifact opt-in, generation-time rubric, the existing A2A call,
+the existing aggregate-score-into-mastery mechanism), with the rubric,
+request payload, and grading result all carrying an ordered list of
+steps instead of one flat criteria list. One new column
+(`topics.step_grading_enabled`, additive-only, default `false`), zero
+new tables -- the step rubric and stepwise grading result both reuse
+existing JSON columns (`GeneratedQuestion.answer_key`,
+`AssessmentEvent.payload`). `step_results` contains one entry per step
+up to and including the first incorrect step (never a placeholder
+"ungraded" entry for steps after it); `grading_client/client.py`
+recomputes `graduated_score` independently from `step_results` rather
+than trusting the Grading Agent's self-reported value. `multi_step`
+submissions bypass Milestone 13's semantic grading cache in v1 (call
+the Grading Agent directly). `algebra-1`'s `solving-multi-step-equations`
+topic is the one content artifact opted in
+(`process_level_grading: true`); `biology` is deliberately left
+untouched as the SC-003 regression fixture, same precedent Milestone 15
+established. Caught and fixed one authoring bug along the way:
+`preferred_question_type()` (`sequencing/agent.py`) only ever reads a
+topic's *first* `preferred_question_types` entry, so the initial
+`[numeric, multi_step]` ordering would have silently never served a
+multi-step question at all -- fixed to `[multi_step, numeric]` and
+confirmed live against the real dev DB.
+
+**Post-merge fix (2026-09-18, PR #70's `claude-review`)**: the
+promotion PR's automated review caught that `topics.step_grading_enabled`
+was never actually *read* anywhere at runtime -- `preferred_question_
+type()` (`diagnostic/agent.py`, the single function all five
+question-type-selection call sites route through) decided purely from
+`preferred_question_types`' list order, so a topic that listed
+`multi_step` first without ever setting `process_level_grading: true`
+would still have been served and graded as `multi_step`. The DB column
+was documentation, not a gate -- exactly the kind of spec/implementation
+mismatch that undermines SC-003's claimed safety property. Fixed at the
+single root-cause call site: `preferred_question_type()` now skips a
+`multi_step` entry unless `topic.step_grading_enabled` is `true`,
+falling through to the next preferred type (or `MULTIPLE_CHOICE`) --
+all five callers (`sequencing`, `diagnostic`/placement, `quiz/session.py`,
+`evaluation/conditions.py`, `placement.py`'s skip endpoint) fixed at
+once. Three new unit tests in `test_diagnostic_agent.py` flip
+`step_grading_enabled` independently of `preferred_question_types`'
+content specifically to prove the flag is load-bearing, closing the
+test gap the review also flagged.
+
+**Second post-merge fix (2026-09-18)**: the above fix meant
+`preferred_question_type()` could now return `MULTI_STEP` for a
+grade<=7 topic reached by `placement.py`'s skip-replacement query,
+which (unlike `start_placement`'s initial pass) isn't restricted to
+`grade_entry_topics()` and so isn't protected by content-authoring
+convention alone. `grade_answer()` (`services/mastery/grading.py`) has
+no `MULTI_STEP` case (its response is a list, not a scalar, and its
+real grading path is the separate stepwise A2A call) -- a
+`multi_step`-preferring topic offered here would 500 the eventual
+`submit_placement` call, mirroring the exact FREE_TEXT gap this same
+query already guarded against. Fixed by widening that filter to
+exclude both `FREE_TEXT` and `MULTI_STEP`; `test_skip_never_offers_a_
+multi_step_replacement` added, mirroring the existing free-text test.
+
+**Definition of done**:
+- SC-001 (a multi-step submission with an error in exactly one step
+  names that specific step, 100% correctly localized across first/
+  middle/last error positions) -- met, verified by
+  `test_multi_step_answer_grading.py`.
+- SC-002 (byte-identical stepwise answers to the same question always
+  receive byte-identical step-level results, across repeated runs) --
+  met, verified by `test_identical_submissions_to_identical_rubrics_
+  produce_byte_identical_step_results`.
+- SC-003 (100% of topics not opted into process-level grading show zero
+  behavior change, measured against Milestones 1 and 6's existing
+  acceptance suites) -- met: `test_biology_never_offers_multi_step.py`
+  confirms every `biology` topic stays `step_grading_enabled: false`
+  and never offers `multi_step`; full regression 2026-09-18, `backend`
+  552/552, `grading-agent` 29/29, `frontend` 75/75, all passing (two
+  isolated-retry-confirmed pre-existing pooled-connection flakes during
+  the full run, same documented Neon/PgBouncer OID-cache-churn pattern
+  as Milestone 15's SC-005 note, unrelated to this feature and clean on
+  retry). One real pre-existing contract-test gap found and fixed:
+  `test_next_question_response_shape` asserted an exact response-key
+  set that predated this feature's additive, always-present nullable
+  `steps` field -- same class of change as Milestone 10's `image_url`/
+  `image_alt_text` addition, test updated to match.
+- SC-004 (100% of recorded step-level grading decisions traceable after
+  the fact to the specific rubric criterion applied at the diverging
+  step) -- met, verified by `test_multi_step_grading_decision_audit.py`
+  and `test_diverging_step_names_the_specific_missed_criterion`.
+- SC-005 (a step-level scoring-logic change deploys to the Grading
+  Agent alone, verified live, zero redeployment of any other service)
+  -- **not verified live**: no live Vercel deployment available in this
+  environment to redeploy `grading-agent/` against. Structurally
+  unchanged from Milestone 6's existing A2A boundary (same shared-secret
+  auth, same independent deployment target, only the message content's
+  shape gained an ordered-steps variant) -- same honesty standard prior
+  milestones' quickstart records used for an environment-gated scenario.
+- SC-006 (grading a full multi-step submission completes within 15s
+  end to end) -- met, verified by `test_multi_step_grading_latency.py`.
+
+---
+
 ## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
 
 Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
@@ -1212,10 +1324,99 @@ any table yet.
   reason Milestone 2/3's stale-status corrections were left in place
   rather than deleted: an honest record that this started life here,
   not a retroactively-tidied history.
+- ~~Process-level (step-by-step) STEM grading~~ -- promoted to
+  Milestone 16 (2026-09-18), see that entry above the "Known gap"
+  section. This bullet is kept, struck through, for the same reason
+  Milestone 2/3's and Milestone 14's stale-status corrections were left
+  in place rather than deleted: an honest record that this started life
+  here, not a retroactively-tidied history. (Original entry: raised
+  2026-09-14 during a K-12 STEM gap-analysis session -- today's grading
+  was binary against an answer key, with no distinction between "setup
+  was right, arithmetic slip in step 3" and "fundamentally misunderstood
+  the concept.")
+- Proper math/science notation for free-text answers (fractions,
+  exponents, chemical formulas, derivatives) -- today's free-text
+  answer field is plain text, which can't represent any of these
+  correctly. Raised 2026-09-14, same session as above. A real
+  correctness/UX gap specific to STEM subjects that a text/history
+  subject wouldn't hit; likely a rendering/input-widget change plus
+  whatever grading-comparison adjustment it implies, not a new agent.
+- Spaced repetition / mastery decay for foundational topics. Raised
+  2026-09-14. The mastery model (Milestone 1) has no notion of
+  forgetting -- a topic marked "mastered" once stays mastered forever,
+  which understates real risk for subjects as cumulative as STEM
+  (algebra assumes arithmetic fluency retained years later). Would need
+  its own spec on how/when a mastered topic gets resurfaced and whether
+  that's a Sequencing Agent change or a distinct scheduler.
+- Interactive, manipulable simulations (e.g. a slider that changes a
+  graph or a pendulum in real time) -- distinct from, and a strict step
+  up from, Milestone 10's static image stimuli, which display an image
+  but never let a learner manipulate it. Raised 2026-09-14. Deliberately
+  not folded into Milestone 10, matching that milestone's own pattern of
+  naming each multimodal step-up (audio, video, learner-submitted
+  images, AI-generated images) as its own explicitly deferred item
+  rather than silent scope creep.
+- Standards alignment (Common Core Math, NGSS) as topic-level tags on
+  content artifacts. Raised 2026-09-14. Today's content artifacts are
+  self-authored topic graphs with no link to what schools actually
+  teach; tagging against real standards would let the instructor
+  dashboard (Milestone 7) show "on pace with grade-level standards"
+  instead of an abstract mastery number. Depends on Milestone 15's
+  grade-band entity already existing as the natural place to hang a
+  standards tag.
+- Code execution for CS-adjacent STEM questions (run a learner's actual
+  code and grade its behavior, not multiple-choice questions about
+  code). Raised 2026-09-14. A materially different grading model from
+  every existing question type -- deterministic comparison and rubric
+  grading both assume a fixed answer shape, not program behavior over
+  test cases -- so this would need its own spec rather than reusing
+  Milestone 6's grading path as-is.
+- Age-adaptive learner experience across the grade 1-12 range: read-
+  aloud/audio support for learners who aren't yet reading fluently,
+  session-length and motivation mechanics that differ by developmental
+  age, and a guardian-mediation model that's deliberately more active
+  for younger learners than older ones. Raised 2026-09-14. Distinct
+  from Milestone 15 (grade-banded curriculum), which adapts *content
+  difficulty* to grade level but leaves the *interaction model* (UI,
+  session pacing, audio, how much the existing `guardian` role mediates
+  a session) identical across all ages. Milestone 15's `grade_bands`
+  data model is the natural substrate to peg this to once scoped.
+- English Language Learner (ELL) support -- bilingual or translated
+  question variants. Raised 2026-09-14. Lower priority than the items
+  above; named explicitly rather than folded silently into a future
+  i18n effort.
+- STEM-career connections surfaced alongside a topic (tying a topic to
+  a real-world STEM career/application). Raised 2026-09-14. Lower
+  priority; a small, cheap addition if picked up, not a reason to pull
+  it ahead of the gaps above.
+- Instructor pacing-guide alignment -- letting an instructor sync
+  Sequencing's topic order with their actual classroom calendar so the
+  platform supplements rather than conflicts with what's taught that
+  week. Raised 2026-09-14. Depends on Milestone 7's instructor role and
+  dashboard already existing; lower priority than the grading/content
+  gaps above.
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.6.0 -- 2026-09-18, added Milestone 16 (Process-Level STEM
+Grading), promoted from its prior "Out of current roadmap" entry;
+`/speckit-implement` complete for all 6 phases (Foundational + all
+three user stories + Polish), full regression clean (`backend` 552/552,
+`grading-agent` 29/29, `frontend` 75/75), SC-001-004/006 verified,
+SC-005 (independent Grading Agent redeploy) not verified live -- no
+Vercel deployment available in this environment.
+
+**Version**: 3.5.0 -- 2026-09-14, added ten items to "Out of current
+roadmap" from a K-12 STEM gap-analysis session (process-level STEM
+grading, math/science notation, spaced repetition/mastery decay,
+interactive simulations, standards alignment, code execution for
+CS-adjacent STEM, age-adaptive learner experience, ELL support,
+STEM-career connections, instructor pacing-guide alignment); the same
+session's other two flagged gaps (grade-band adaptation, misconception
+taxonomy grounding) turned out to already be covered by Milestones 15
+and 11 respectively, so no new entry was needed for either.
 
 **Version**: 3.4.0 -- 2026-09-04, added Milestone 14 (Tutor Agent
 Answer-Shielding), promoted from its prior "Out of current roadmap"

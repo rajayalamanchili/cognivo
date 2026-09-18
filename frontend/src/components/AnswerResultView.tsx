@@ -15,6 +15,7 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
   const hasCriteria =
     (result.criteria_met && result.criteria_met.length > 0) ||
     (result.criteria_missed && result.criteria_missed.length > 0);
+  const hasStepResults = result.step_results !== null && result.step_results.length > 0;
 
   return (
     <div className="flex flex-col gap-4" data-testid="answer-result-view">
@@ -42,6 +43,48 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
                   ✗
                 </span>
                 <span>{criterion}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hasStepResults && (
+        <div
+          className="flex flex-col gap-3 rounded-lg border border-border p-4"
+          data-testid="step-results"
+        >
+          <p className="text-sm font-medium text-muted">Step-by-step result</p>
+          <ul className="flex flex-col gap-2">
+            {result.step_results?.map((step) => (
+              <li key={step.step_index} className="flex flex-col gap-1">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <span
+                    aria-hidden="true"
+                    className={step.correct ? "text-success" : "text-error"}
+                  >
+                    {step.correct ? "✓" : "✗"}
+                  </span>
+                  <span>Step {step.step_index + 1}</span>
+                </div>
+                <ul className="ml-6 flex flex-col gap-1">
+                  {step.criteria_met.map((criterion) => (
+                    <li key={criterion} className="flex items-start gap-2 text-sm">
+                      <span aria-hidden="true" className="text-success">
+                        ✓
+                      </span>
+                      <span>{criterion}</span>
+                    </li>
+                  ))}
+                  {step.criteria_missed.map((criterion) => (
+                    <li key={criterion} className="flex items-start gap-2 text-sm">
+                      <span aria-hidden="true" className="text-error">
+                        ✗
+                      </span>
+                      <span>{criterion}</span>
+                    </li>
+                  ))}
+                </ul>
               </li>
             ))}
           </ul>

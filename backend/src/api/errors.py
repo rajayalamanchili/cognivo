@@ -69,6 +69,19 @@ class ModerationRejectedError(DomainError):
         super().__init__("moderation_rejected")
 
 
+class StepCountMismatchError(DomainError):
+    """Maps to HTTP 422 (spec 018 FR-012): `{"error": "step_count_mismatch",
+    "expected_step_count": ..., "submitted_step_count": ...}` -- checked
+    before any other rejection, since it's the cheapest (one length
+    comparison against the question's own `answer_key`, contracts/
+    api.md's error-state ordering)."""
+
+    def __init__(self, expected_step_count: int, submitted_step_count: int):
+        super().__init__("step_count_mismatch")
+        self.expected_step_count = expected_step_count
+        self.submitted_step_count = submitted_step_count
+
+
 class GradingUnavailableError(DomainError):
     """Maps to HTTP 503 (spec 007 FR-010/FR-014) -- the Grading Agent was
     unreachable, timed out, or its response repeatedly failed rubric-shape
