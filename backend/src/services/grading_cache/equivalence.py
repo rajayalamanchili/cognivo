@@ -21,7 +21,6 @@ Uses the same ADK `LlmAgent` + `LiteLlm` + cheap-model pattern
 other lightweight pre/post-grading classification step.
 """
 
-import os
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -30,7 +29,7 @@ from google.adk.sessions import BaseSessionService
 from google.genai import types
 from pydantic import BaseModel
 
-from src.services.llm_provider import default_model
+from src.services.llm_provider import resolve_model
 
 APP_NAME = "cognivo-grading-cache-equivalence"
 
@@ -96,9 +95,7 @@ async def classify_criteria_met(
     decides the fail-open behavior (`matches_cached_criteria_pattern`
     below treats it as no match; `scripts/validate_grading_cache_
     threshold.py` treats it as a hard validation failure)."""
-    resolved_model_name = model_name or os.environ.get(
-        "GRADING_CACHE_EQUIVALENCE_MODEL", default_model("cheap")
-    )
+    resolved_model_name = model_name or resolve_model("GRADING_CACHE_EQUIVALENCE_MODEL", "cheap")
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
     user_id = "grading-cache-equivalence-service"

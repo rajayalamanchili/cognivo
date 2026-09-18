@@ -8,7 +8,6 @@ cheaper/faster model than the Sonnet default used for grading/generation
 classification task.
 """
 
-import os
 
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
@@ -17,7 +16,7 @@ from google.adk.sessions import BaseSessionService
 from google.genai import types
 from pydantic import BaseModel
 
-from src.services.llm_provider import default_model
+from src.services.llm_provider import resolve_model
 
 APP_NAME = "cognivo-moderation"
 
@@ -62,9 +61,7 @@ async def check_moderation(
 ) -> bool:
     """FR-012: True if `text` passes moderation (safe to grade), False if
     it should be blocked."""
-    resolved_model_name = model_name or os.environ.get(
-        "MODERATION_MODEL", default_model("cheap")
-    )
+    resolved_model_name = model_name or resolve_model("MODERATION_MODEL", "cheap")
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
     user_id = "moderation-service"

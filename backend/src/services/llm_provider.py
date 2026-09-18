@@ -47,3 +47,24 @@ def default_model(role: Literal["cheap", "capable"]) -> str:
         raise ValueError(f"unrecognized role: {role!r} (expected 'cheap' or 'capable')")
     provider = os.environ.get("LLM_PROVIDER", "anthropic")
     return table.get(provider, table["anthropic"])
+
+
+def resolve_model(specific_var: str, role: Literal["cheap", "capable"]) -> str:
+    """Resolves one LLM call site's model string, with `LLM_PROVIDER`
+    grouped as the single per-deployment lever it's meant to be: when
+    `LLM_PROVIDER` is explicitly set, it wins over every call site in
+    this deployment, `specific_var` included. A budget-constrained
+    provider switch should never require hunting down and editing N
+    separate per-call-site `_MODEL` env vars one at a time (2026-09-18
+    incident: switching off Anthropic meant `ASSESSMENT_GEN_MODEL`, a
+    leftover explicit pin from this project's original Milestone 1
+    setup, silently kept calling Anthropic even after `LLM_PROVIDER`
+    was set).
+
+    `specific_var` (e.g. `ASSESSMENT_GEN_MODEL`) still wins over the
+    provider-table default when `LLM_PROVIDER` itself is left unset --
+    the per-call-site pin `default_model()`'s own callers already
+    supported, unchanged for anyone relying on it today."""
+    if os.environ.get("LLM_PROVIDER"):
+        return default_model(role)
+    return os.environ.get(specific_var) or default_model(role)

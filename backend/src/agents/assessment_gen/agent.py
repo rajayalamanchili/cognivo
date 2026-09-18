@@ -12,7 +12,6 @@ learner.
 
 import json
 import math
-import os
 from collections.abc import Sequence
 from typing import Literal
 
@@ -24,7 +23,7 @@ from google.genai import types
 from pydantic import BaseModel, Field
 
 from src.models.enums import DifficultyBand, QuestionType
-from src.services.llm_provider import default_model
+from src.services.llm_provider import resolve_model
 
 APP_NAME = "cognivo-assessment-gen"
 
@@ -285,9 +284,7 @@ async def generate_question(
     caller from the topic's own content-artifact data, never by the
     model.
     """
-    resolved_model_name = model_name or os.environ.get(
-        "ASSESSMENT_GEN_MODEL", default_model("capable")
-    )
+    resolved_model_name = model_name or resolve_model("ASSESSMENT_GEN_MODEL", "capable")
     instruction = _build_instruction(
         topic_display_name=topic_display_name,
         skill_summary=skill_summary,

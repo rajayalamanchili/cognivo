@@ -21,7 +21,6 @@ text" pattern.
 """
 
 import dataclasses
-import os
 import uuid
 from collections.abc import Awaitable, Callable
 
@@ -38,7 +37,7 @@ from src.models.enums import AssessmentEventType
 from src.models.generated_question import GeneratedQuestion
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
-from src.services.llm_provider import default_model
+from src.services.llm_provider import resolve_model
 
 APP_NAME = "cognivo-tutor-shielding"
 
@@ -122,8 +121,8 @@ async def classify_match(
     injection so unit tests never need real ADK/LLM machinery to
     exercise the lookup/tie-break/fail-safe logic) as FR-010's
     inconclusive-determination case."""
-    resolved_model_name = model_name or os.environ.get(
-        "TUTOR_SHIELDING_CLASSIFICATION_MODEL", default_model("cheap")
+    resolved_model_name = model_name or resolve_model(
+        "TUTOR_SHIELDING_CLASSIFICATION_MODEL", "cheap"
     )
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
