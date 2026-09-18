@@ -8,7 +8,7 @@ from src.services.llm_provider import default_model
 def test_defaults_to_anthropic_when_unset(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     assert default_model("cheap") == "anthropic/claude-haiku-4-5"
-    assert default_model("capable") == "anthropic/claude-sonnet-4-5"
+    assert default_model("capable") == "anthropic/claude-sonnet-5"
 
 
 def test_openai_provider_switches_both_roles(monkeypatch):
