@@ -31,7 +31,11 @@ APP_NAME = "cognivo-assessment-gen"
 # Bumped whenever _INSTRUCTION_TEMPLATE's instructional content changes
 # (spec 014 FR-002/FR-008's CI-enforced version-bump requirement) -- a
 # code constant, not a database row, same as GRADING_LOGIC_VERSION.
-GENERATION_PROMPT_VERSION = "v1"
+# v2 (spec 018): added multi-step question generation guidance -- an
+# ordered list of steps, each with >=2 weighted criteria (one method/
+# operation-choice criterion, one separate execution-correctness
+# criterion).
+GENERATION_PROMPT_VERSION = "v2"
 
 
 class GenerationValidationError(Exception):

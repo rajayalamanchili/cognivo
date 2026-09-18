@@ -283,7 +283,7 @@ async def _grade_free_text_submission(
         # failure -- the actual grading result always comes from a real
         # grade_fn() call on any miss, same fail-open spirit as FR-008.
         # Defaults to the version live at the time this feature shipped.
-        grading_logic_version=os.environ.get("GRADING_AGENT_LOGIC_VERSION", "v2"),
+        grading_logic_version=os.environ.get("GRADING_AGENT_LOGIC_VERSION", "v3"),
         grade_fn=grade_free_text_answer,
         # FR-003: an embedding-close candidate is never served on
         # distance alone -- this rubric-criteria re-classification

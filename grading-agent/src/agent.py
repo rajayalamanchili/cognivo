@@ -34,8 +34,9 @@ APP_NAME = "cognivo-grading-agent"
 # A code constant, not a database row (research.md §8) -- git history is
 # the audit trail for when/why this changed. v2 (T045, SC-005's live
 # deployment demonstration): prompt_defense.py's surface-form-vs-
-# substance scoring fix -- see that module's docstring.
-GRADING_LOGIC_VERSION = "v2"
+# substance scoring fix -- see that module's docstring. v3 (spec 018):
+# added multi-step grading -- see that module's docstring.
+GRADING_LOGIC_VERSION = "v3"
 
 
 class CriterionResult(BaseModel):

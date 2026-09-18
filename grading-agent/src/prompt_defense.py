@@ -16,6 +16,13 @@ answer that's substantively correct but phrased/formatted differently
 criterion. The prior instruction never said this, leaving it to
 per-call model judgment, an unnecessary source of strictness variance
 this fix removes.
+
+GRADING_LOGIC_VERSION "v3" (spec 018, process-level STEM grading):
+added a multi-step request/response branch alongside the existing
+free-text one -- grade each step in order against its own criteria,
+stop after the first fully-incorrect step, and report
+`first_diverging_step_index`/`step_results` instead of a flat
+`criteria_results` list.
 """
 
 _GRADING_INSTRUCTION_TEMPLATE = """\
