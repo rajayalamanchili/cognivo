@@ -509,15 +509,22 @@ async def skip_placement_question(
         .order_by(Topic.order_index)
         .all()
     )
-    # grade_answer has no FREE_TEXT case (services/mastery/grading.py) --
-    # a free_text-preferring topic here would 500 the eventual
-    # submit_placement call. start_placement avoids this by construction
+    # grade_answer has no FREE_TEXT or MULTI_STEP case
+    # (services/mastery/grading.py) -- a topic preferring either here
+    # would 500 the eventual submit_placement call (FREE_TEXT: spec 015;
+    # MULTI_STEP: spec 018, since its response is a list, not a scalar,
+    # and its grading path is the separate stepwise A2A call, not
+    # grade_answer at all). start_placement avoids this by construction
     # (every grade-entry topic is multiple_choice/numeric-first, see
     # tasks.md's T011/T015 note); this query has no such guarantee since
     # it isn't restricted to grade_entry_topics(), so it filters
     # directly instead.
     replacement_topic = next(
-        (t for t in candidate_topics if preferred_question_type(t) != QuestionType.FREE_TEXT),
+        (
+            t
+            for t in candidate_topics
+            if preferred_question_type(t) not in (QuestionType.FREE_TEXT, QuestionType.MULTI_STEP)
+        ),
         None,
     )
 
