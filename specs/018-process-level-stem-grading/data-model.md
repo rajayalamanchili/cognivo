@@ -37,13 +37,15 @@ float, "tolerance": float}`, and free-text's `{"criteria": [...]}`:
     {
       "step_prompt": "Isolate the variable term on one side.",
       "criteria": [
-        { "description": "Subtracts 2 from both sides correctly", "weight": 1.0 }
+        { "description": "Chooses to subtract 2 from both sides", "weight": 0.5 },
+        { "description": "Correctly computes 3x = 12", "weight": 0.5 }
       ]
     },
     {
       "step_prompt": "Solve for x.",
       "criteria": [
-        { "description": "Divides both sides by 3 correctly", "weight": 1.0 }
+        { "description": "Chooses to divide both sides by 3", "weight": 0.5 },
+        { "description": "Correctly computes x = 4", "weight": 0.5 }
       ]
     }
   ]
@@ -55,7 +57,11 @@ question by the Assessment-Generation Agent (FR-002), validated the
 same way `_validate_draft()` already validates free-text's criteria
 weights (research.md §4), before `shown_at` may be set. `>= 2` steps
 required; each step's `criteria` list follows the exact same shape and
-weight-sums-to-`1.0` rule as a free-text question's flat criteria list.
+weight-sums-to-`1.0` rule as a free-text question's flat criteria list,
+plus a `>= 2` criteria-per-step floor (FR-005) -- one criterion for the
+method/operation chosen, a separate one for whether it was executed
+correctly, so a computational slip on an otherwise-correct method is
+distinguishable from choosing the wrong method entirely.
 
 ## New (not persisted as a row): stepwise learner submission
 
@@ -92,14 +98,14 @@ used exactly as it already is for MC/numeric/free-text (`question_id`,
     {
       "step_index": 0,
       "correct": true,
-      "criteria_met": ["Subtracts 2 from both sides correctly"],
+      "criteria_met": ["Chooses to subtract 2 from both sides", "Correctly computes 3x = 12"],
       "criteria_missed": []
     },
     {
       "step_index": 1,
       "correct": false,
-      "criteria_met": [],
-      "criteria_missed": ["Divides both sides by 3 correctly"]
+      "criteria_met": ["Chooses to divide both sides by 3"],
+      "criteria_missed": ["Correctly computes x = 4"]
     }
   ],
   "grading_logic_version": "v1"

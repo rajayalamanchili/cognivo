@@ -35,8 +35,8 @@ may now also be a `list[str]` when `question_type == "multi_step"`.
   "graduated_score": 1.0,
   "first_diverging_step_index": null,
   "step_results": [
-    { "step_index": 0, "correct": true, "criteria_met": ["Subtracts 2 from both sides correctly"], "criteria_missed": [] },
-    { "step_index": 1, "correct": true, "criteria_met": ["Divides both sides by 3 correctly"], "criteria_missed": [] }
+    { "step_index": 0, "correct": true, "criteria_met": ["Chooses to subtract 2 from both sides", "Correctly computes 3x = 12"], "criteria_missed": [] },
+    { "step_index": 1, "correct": true, "criteria_met": ["Chooses to divide both sides by 3", "Correctly computes x = 4"], "criteria_missed": [] }
   ],
   "grading_logic_version": "v1"
 }
@@ -53,8 +53,8 @@ may now also be a `list[str]` when `question_type == "multi_step"`.
   "graduated_score": 0.5,
   "first_diverging_step_index": 1,
   "step_results": [
-    { "step_index": 0, "correct": true, "criteria_met": ["Subtracts 2 from both sides correctly"], "criteria_missed": [] },
-    { "step_index": 1, "correct": false, "criteria_met": [], "criteria_missed": ["Divides both sides by 3 correctly"] }
+    { "step_index": 0, "correct": true, "criteria_met": ["Chooses to subtract 2 from both sides", "Correctly computes 3x = 12"], "criteria_missed": [] },
+    { "step_index": 1, "correct": false, "criteria_met": ["Chooses to divide both sides by 3"], "criteria_missed": ["Correctly computes x = 4"] }
   ],
   "grading_logic_version": "v1"
 }
@@ -119,13 +119,15 @@ variant.
     {
       "step_prompt": "Isolate the variable term on one side.",
       "criteria": [
-        { "description": "Subtracts 2 from both sides correctly", "weight": 1.0 }
+        { "description": "Chooses to subtract 2 from both sides", "weight": 0.5 },
+        { "description": "Correctly computes 3x = 12", "weight": 0.5 }
       ]
     },
     {
       "step_prompt": "Solve for x.",
       "criteria": [
-        { "description": "Divides both sides by 3 correctly", "weight": 1.0 }
+        { "description": "Chooses to divide both sides by 3", "weight": 0.5 },
+        { "description": "Correctly computes x = 4", "weight": 0.5 }
       ]
     }
   ],
@@ -146,11 +148,17 @@ against this exact shape before acceptance, same discipline as
   "step_results": [
     {
       "step_index": 0,
-      "criteria_results": [{ "description": "Subtracts 2 from both sides correctly", "met": true }]
+      "criteria_results": [
+        { "description": "Chooses to subtract 2 from both sides", "met": true },
+        { "description": "Correctly computes 3x = 12", "met": true }
+      ]
     },
     {
       "step_index": 1,
-      "criteria_results": [{ "description": "Divides both sides by 3 correctly", "met": true }]
+      "criteria_results": [
+        { "description": "Chooses to divide both sides by 3", "met": true },
+        { "description": "Correctly computes x = 4", "met": true }
+      ]
     }
   ],
   "grading_logic_version": "v1"

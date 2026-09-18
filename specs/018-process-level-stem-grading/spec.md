@@ -143,8 +143,9 @@ other agent requires redeployment.
 - A later step is logically correct only relative to the learner's own
   (wrong) earlier value -- see FR-006.
 - An opted-in topic's generated question has a malformed step rubric
-  (zero steps, or a step missing criteria) -- must fail validation, not
-  silently degrade to whole-question grading.
+  (zero steps, a step missing criteria, or a step with only one
+  criterion) -- must fail validation, not silently degrade to
+  whole-question grading.
 
 ## Requirements *(mandatory)*
 
@@ -172,12 +173,16 @@ other agent requires redeployment.
   its question's step-structured rubric and identify the first step
   index at which the submission diverges from the expected step, not
   only a whole-question correct/incorrect verdict.
-- **FR-005**: When a step is graded incorrect, the Grading Agent MUST
-  record which specific rubric-defined criterion that step failed (for
-  example, "correct method, arithmetic error" versus "incorrect
-  method") -- a distinction authored into the rubric itself at
-  generation time, not inferred by a separate freeform judgment
-  (Constitution Principle II).
+- **FR-005**: Every step's rubric MUST author at least two distinct
+  grading criteria (never one), so that when a step is graded
+  incorrect, the Grading Agent can record which specific criterion
+  that step failed and distinguish a sound method with a computational
+  slip from a genuinely incorrect method (for example, "correct
+  method, arithmetic error" versus "incorrect method") -- a distinction
+  authored into the rubric itself at generation time, not inferred by
+  a separate freeform judgment (Constitution Principle II). A single
+  criterion per step can never express this distinction, so it is not
+  a valid step rubric (see FR-010).
 - **FR-006**: When an earlier step is incorrect, the Grading Agent MUST
   stop evaluating subsequent steps and omit them from the result
   entirely (not report them as attempted-and-wrong, and not invent a
@@ -198,12 +203,14 @@ other agent requires redeployment.
   existing A2A boundary justification (Constitution Principle VI). This
   feature extends that agent's existing logic; it does not introduce a
   new agent boundary (Constitution Principle IV).
-- **FR-010**: The system MUST reject, at content-authoring/validation
-  time, any opted-in topic's question whose rubric is not properly
-  step-structured (zero steps, or a step missing its own criteria) --
-  consistent with how Milestone 15's validator enforces its own
-  structural rule -- rather than silently falling back to whole-question
-  grading.
+- **FR-010**: The system MUST reject, at question-generation-draft-
+  validation time (the same `_validate_draft()` gate FR-002 already
+  runs before a question is shown to a learner), any opted-in topic's
+  question whose rubric is not properly step-structured -- zero steps,
+  a step missing its own criteria, or a step with fewer than two
+  criteria (FR-005) -- consistent with how Milestone 15's validator
+  enforces its own structural rule -- rather than silently falling back
+  to whole-question grading.
 - **FR-011**: Milestones 1-15's full acceptance-scenario suites MUST
   continue to pass unmodified for any topic that has not opted into
   process-level grading.

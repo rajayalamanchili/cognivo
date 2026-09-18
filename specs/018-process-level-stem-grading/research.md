@@ -102,8 +102,15 @@ rubric_criteria: list[RubricCriterion]}`, reusing the existing
 `RubricCriterion` type unchanged). `_validate_draft()` gains a
 `MULTI_STEP` branch requiring `len(steps) >= 2` (a "multi-step"
 question with fewer than two steps is a contradiction) and, per step,
-the same non-empty-criteria / weights-sum-to-~1.0 check `FREE_TEXT`
-already applies (FR-002, FR-010). Stored in `GeneratedQuestion.answer_key`
+`len(rubric_criteria) >= 2` (FR-005 -- a single criterion per step can
+never distinguish a sound method with a computational slip from a
+genuinely incorrect method) plus the same non-empty-criteria /
+weights-sum-to-~1.0 check `FREE_TEXT` already applies (FR-002, FR-010).
+`_build_instruction()`'s multi-step guidance must explicitly ask the
+model for one method-correctness criterion and one execution-
+correctness criterion per step (not just "criteria" generically), so
+the `>= 2` count produces a real method/execution split instead of two
+arbitrary near-duplicate criteria. Stored in `GeneratedQuestion.answer_key`
 as `{"steps": [{"step_prompt": ..., "criteria": [...]}]}` -- no new
 column (data-model.md).
 

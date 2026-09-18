@@ -34,15 +34,18 @@ the learner is meant to answer.
 ```bash
 curl -s -X POST "$BACKEND_URL/api/questions/<question_id>/answer" \
   -H "Content-Type: application/json" \
-  -d '{"response": ["Subtract 2 from both sides: 3x = 12", "Divide both sides by 5: x = 2.4"]}'
+  -d '{"response": ["Subtract 2 from both sides: 3x = 12", "Divide both sides by 3: x = 5"]}'
 ```
 
 **Expected**: `correct: false`, `first_diverging_step_index: 1`,
-`step_results` has exactly two entries (step 0 correct, step 1
-incorrect -- the learner divided by 5 instead of 3) -- naming the wrong
-step, not a bare `"incorrect"` (SC-001). Re-submitting the identical
-`response` to a second, disposable question with the same rubric
-produces byte-identical `step_results` (SC-002).
+`step_results` has exactly two entries (step 0 correct; step 1's
+method criterion "Chooses to divide both sides by 3" met, but its
+execution criterion "Correctly computes x = 4" missed -- the learner
+chose the right operation and made an arithmetic slip) -- naming the
+wrong step *and* distinguishing a computational error from a wrong
+method, not a bare `"incorrect"` (SC-001, FR-005). Re-submitting the
+identical `response` to a second, disposable question with the same
+rubric produces byte-identical `step_results` (SC-002).
 
 Inspect the audit log directly (no dedicated audit-log endpoint
 exists, same convention prior quickstarts use):
@@ -54,9 +57,12 @@ ORDER BY created_at DESC LIMIT 1;
 ```
 
 **Expected**: `payload.first_diverging_step_index = 1`,
-`payload.step_results[1].criteria_missed` names the specific rubric
-criterion the step failed -- this is FR-008's "reconstructable after
-the fact" requirement and User Story 2's Acceptance Scenario 2.
+`payload.step_results[1].criteria_missed = ["Correctly computes x = 4"]`
+while `criteria_met = ["Chooses to divide both sides by 3"]` -- naming
+the specific rubric criterion the step failed *and* showing the method
+criterion was still satisfied (FR-005) -- this is FR-008's
+"reconstructable after the fact" requirement and User Story 2's
+Acceptance Scenario 2.
 
 ## Scenario 2 -- User Story 1: an all-correct submission behaves like any other correct answer
 
