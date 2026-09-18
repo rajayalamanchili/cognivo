@@ -31,13 +31,13 @@ story depends on.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T001 [P] Add `QuestionType.MULTI_STEP = "multi_step"` in `backend/src/models/enums.py` (data-model.md)
-- [ ] T002 [P] Add `AssessmentEventType.STEP_COUNT_MISMATCH_REJECTED = "step_count_mismatch_rejected"` in `backend/src/models/enums.py` (data-model.md)
-- [ ] T003 [P] Add `step_grading_enabled: Mapped[bool]` column (`NOT NULL`, `default=False`) to `Topic` in `backend/src/models/topic.py` (data-model.md, research.md §3)
-- [ ] T004 Alembic migration in `backend/alembic/versions/<rev>_process_level_stem_grading_schema.py`: add `topics.step_grading_enabled` (`NOT NULL DEFAULT false`) and `ALTER TYPE` for the two new enum values above -- additive-only, no backfill needed beyond the column default (depends on T001, T002, T003)
-- [ ] T005 Update `backend/src/services/content_artifact/validator.py`: parse and validate an optional per-topic `process_level_grading` boolean field (type-check only -- no cross-topic rule, unlike `grade_bands`' all-or-nothing check; research.md §3)
-- [ ] T006 Update `backend/src/services/content_artifact/loader.py`: persist `Topic.step_grading_enabled` from the validated artifact in `persist_content_artifact` (depends on T003, T005)
-- [ ] T007 [P] Unit tests for the validator's new field in `backend/tests/unit/test_content_artifact_validator.py`: `process_level_grading: true` accepted; a non-boolean value rejected; a topic that omits the field defaults to `false`; a fully valid artifact with a mix of opted-in and opted-out topics accepted (no all-or-nothing rule) (depends on T005)
+- [X] T001 [P] Add `QuestionType.MULTI_STEP = "multi_step"` in `backend/src/models/enums.py` (data-model.md)
+- [X] T002 [P] Add `AssessmentEventType.STEP_COUNT_MISMATCH_REJECTED = "step_count_mismatch_rejected"` in `backend/src/models/enums.py` (data-model.md)
+- [X] T003 [P] Add `step_grading_enabled: Mapped[bool]` column (`NOT NULL`, `default=False`) to `Topic` in `backend/src/models/topic.py` (data-model.md, research.md §3)
+- [X] T004 Alembic migration in `backend/alembic/versions/<rev>_process_level_stem_grading_schema.py`: add `topics.step_grading_enabled` (`NOT NULL DEFAULT false`) and `ALTER TYPE` for the two new enum values above -- additive-only, no backfill needed beyond the column default (depends on T001, T002, T003)
+- [X] T005 Update `backend/src/services/content_artifact/validator.py`: parse and validate an optional per-topic `process_level_grading` boolean field (type-check only -- no cross-topic rule, unlike `grade_bands`' all-or-nothing check; research.md §3)
+- [X] T006 Update `backend/src/services/content_artifact/loader.py`: persist `Topic.step_grading_enabled` from the validated artifact in `persist_content_artifact` (depends on T003, T005)
+- [X] T007 [P] Unit tests for the validator's new field in `backend/tests/unit/test_content_artifact_validator.py`: `process_level_grading: true` accepted; a non-boolean value rejected; a topic that omits the field defaults to `false`; a fully valid artifact with a mix of opted-in and opted-out topics accepted (no all-or-nothing rule) (depends on T005)
 
 **Checkpoint**: Foundation ready -- user story implementation can now begin.
 

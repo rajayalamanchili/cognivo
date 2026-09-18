@@ -30,6 +30,7 @@ class QuestionType(enum.StrEnum):
     MULTIPLE_CHOICE = "multiple_choice"
     NUMERIC = "numeric"
     FREE_TEXT = "free_text"
+    MULTI_STEP = "multi_step"
 
 
 class ValidationStatus(enum.StrEnum):
@@ -115,6 +116,7 @@ class AssessmentEventType(enum.StrEnum):
     GRADE_ASSIGNED = "grade_assigned"
     GRADE_UNLOCKED = "grade_unlocked"
     PLACEMENT_QUESTION_SKIPPED = "placement_question_skipped"
+    STEP_COUNT_MISMATCH_REJECTED = "step_count_mismatch_rejected"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required
