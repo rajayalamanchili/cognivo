@@ -96,12 +96,12 @@ check).
 
 ### Tests for User Story 2
 
-- [ ] T024 [P] [US2] Extend `test_multi_step_answer_grading.py` (T012): the response's `step_results` entry for the diverging step includes non-empty `criteria_missed` naming the specific failed criterion's description, and `criteria_met`/`criteria_missed` are correctly split per step (not aggregated across steps) (Acceptance Scenario 1); a case where the step's method criterion is met but its execution criterion is missed (correct method, computational slip) is distinguishable in the response from a case where the method criterion itself is missed (FR-005)
+- [X] T024 [P] [US2] Extend `test_multi_step_answer_grading.py` (T012): the response's `step_results` entry for the diverging step includes non-empty `criteria_missed` naming the specific failed criterion's description, and `criteria_met`/`criteria_missed` are correctly split per step (not aggregated across steps) (Acceptance Scenario 1); a case where the step's method criterion is met but its execution criterion is missed (correct method, computational slip) is distinguishable in the response from a case where the method criterion itself is missed (FR-005)
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] Confirm/extend `GradingResult`'s step-result dataclass (from T019) exposes `criteria_met`/`criteria_missed` per step (not just `met: bool`), threading the same per-step criteria-description split `_validate_and_parse()` already does for flat free-text criteria (depends on T019)
-- [ ] T026 [US2] Surface `step_results[*].criteria_met`/`criteria_missed` in the `POST /answer` response body and in the stepwise result display added in T022 (depends on T021, T022, T025)
+- [X] T025 [US2] Confirm/extend `GradingResult`'s step-result dataclass (from T019) exposes `criteria_met`/`criteria_missed` per step (not just `met: bool`), threading the same per-step criteria-description split `_validate_and_parse()` already does for flat free-text criteria (depends on T019)
+- [X] T026 [US2] Surface `step_results[*].criteria_met`/`criteria_missed` in the `POST /answer` response body and in the stepwise result display added in T022 (depends on T021, T022, T025)
 
 **Checkpoint**: User Stories 1 and 2 both work independently -- a wrong
 step is named AND explained.
@@ -122,15 +122,15 @@ mismatched-step-count answer and confirm rejection before grading
 
 ### Tests for User Story 3
 
-- [ ] T027 [P] [US3] Integration test in new `backend/tests/integration/test_multi_step_response_validation.py`: submitting fewer or more steps than the question's rubric expects returns `422 step_count_mismatch` with `expected_step_count`/`submitted_step_count`; a `step_count_mismatch_rejected` event is recorded, no `ANSWER_SUBMITTED` event, question remains open for resubmission (FR-012, mirrors `test_free_text_response_validation.py`/`test_free_text_length_cap.py`'s rejection-path assertions)
-- [ ] T028 [P] [US3] Integration test confirming a `biology`-style ungraded topic never returns `question_type: "multi_step"` and every existing MC/numeric/free-text integration test still passes unmodified against a DB with this feature's migration applied (SC-003) -- extend `test_next_question_variety.py` or add alongside it
+- [X] T027 [P] [US3] Integration test in new `backend/tests/integration/test_multi_step_response_validation.py`: submitting fewer or more steps than the question's rubric expects returns `422 step_count_mismatch` with `expected_step_count`/`submitted_step_count`; a `step_count_mismatch_rejected` event is recorded, no `ANSWER_SUBMITTED` event, question remains open for resubmission (FR-012, mirrors `test_free_text_response_validation.py`/`test_free_text_length_cap.py`'s rejection-path assertions)
+- [X] T028 [P] [US3] Integration test confirming a `biology`-style ungraded topic never returns `question_type: "multi_step"` and every existing MC/numeric/free-text integration test still passes unmodified against a DB with this feature's migration applied (SC-003) -- extend `test_next_question_variety.py` or add alongside it
 
 ### Implementation for User Story 3
 
-- [ ] T029 [US3] Add the FR-012 step-count check to `answer_question()`'s `multi_step` branch in `backend/src/api/routes/questions.py`, ordered first (cheapest, before length/rate-limit/moderation/grading per contracts/api.md's error-state ordering) -- reject with `422 step_count_mismatch` and record `step_count_mismatch_rejected` via `record_event()` (depends on T002, T021, T027)
-- [ ] T030 [US3] Retrofit `backend/content/algebra-1/subject.yaml`: set `process_level_grading: true` on 1-2 naturally multi-step topics (e.g. `solving-one-step-equations` or a peer topic), author `preferred_question_types` to include `multi_step` (research.md §5) (depends on T006)
-- [ ] T031 [US3] Reload `algebra-1`'s content artifact against the dev DB and confirm `biology`'s artifact still loads unchanged (SC-003 smoke check) (depends on T030)
-- [ ] T032 [P] [US3] Confirm `grading-agent/`'s existing total-request-length cap (research.md §2) against a realistic multi-step payload (e.g., the 2-step example in contracts/api.md, scaled to the actual authored question from T030) -- raise the constant if it's too tight, documented in `grading-agent/src/guardrails.py`; add/extend a `grading-agent/tests/test_guardrails.py` case for a multi-step-shaped request
+- [X] T029 [US3] Add the FR-012 step-count check to `answer_question()`'s `multi_step` branch in `backend/src/api/routes/questions.py`, ordered first (cheapest, before length/rate-limit/moderation/grading per contracts/api.md's error-state ordering) -- reject with `422 step_count_mismatch` and record `step_count_mismatch_rejected` via `record_event()` (depends on T002, T021, T027)
+- [X] T030 [US3] Retrofit `backend/content/algebra-1/subject.yaml`: set `process_level_grading: true` on 1-2 naturally multi-step topics (e.g. `solving-one-step-equations` or a peer topic), author `preferred_question_types` to include `multi_step` (research.md §5) (depends on T006)
+- [X] T031 [US3] Reload `algebra-1`'s content artifact against the dev DB and confirm `biology`'s artifact still loads unchanged (SC-003 smoke check) (depends on T030)
+- [X] T032 [P] [US3] Confirm `grading-agent/`'s existing total-request-length cap (research.md §2) against a realistic multi-step payload (e.g., the 2-step example in contracts/api.md, scaled to the actual authored question from T030) -- raise the constant if it's too tight, documented in `grading-agent/src/guardrails.py`; add/extend a `grading-agent/tests/test_guardrails.py` case for a multi-step-shaped request
 
 **Checkpoint**: All user stories independently functional. Regression
 proven, not just claimed.

@@ -26,6 +26,7 @@ from src.api.errors import (
     ModerationRejectedError,
     NotFoundError,
     RateLimitedError,
+    StepCountMismatchError,
     TooLongError,
     UnprocessableError,
 )
@@ -302,7 +303,32 @@ async def _grade_stepwise_submission(
     submission's concatenated step text (contracts/api.md) -- but calls
     `grade_stepwise_answer()` directly rather than `get_or_grade_answer()`,
     bypassing Milestone 13's semantic grading cache for `multi_step`
-    submissions in v1 (research.md §6, plan.md's Constraints)."""
+    submissions in v1 (research.md §6, plan.md's Constraints).
+
+    FR-012's step-count check runs first -- cheapest (one length
+    comparison against the question's own `answer_key`, no DB query
+    beyond what's already loaded), before length/rate-limit/moderation/
+    grading (contracts/api.md's error-state ordering)."""
+    expected_step_count = len(question.answer_key["steps"])
+    if len(response_steps) != expected_step_count:
+        record_event(
+            db,
+            learner_id=question.learner_id,
+            event_type=AssessmentEventType.STEP_COUNT_MISMATCH_REJECTED,
+            subject_id=question.subject_id,
+            topic_id=question.topic_id,
+            question_id=question.question_id,
+            payload={
+                "expected_step_count": expected_step_count,
+                "submitted_step_count": len(response_steps),
+            },
+        )
+        db.commit()
+        raise StepCountMismatchError(
+            expected_step_count=expected_step_count,
+            submitted_step_count=len(response_steps),
+        )
+
     concatenated = "\n".join(response_steps)
     if not guardrails.check_length(concatenated):
         _reject_free_text(db, question=question, reason="too_long", response_text=concatenated)

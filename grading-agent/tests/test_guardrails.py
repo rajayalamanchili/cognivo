@@ -2,6 +2,7 @@
 (follow-up to spec 007, `src/guardrails.py`).
 """
 
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -37,6 +38,38 @@ def test_check_length_accepts_text_at_the_limit():
 
 def test_check_length_rejects_text_over_the_limit():
     assert check_length("a" * (MAX_REQUEST_LENGTH + 1)) is False
+
+
+def test_check_length_accepts_a_realistic_multi_step_request():
+    # spec 018 T032: a realistic multi-step A2A request (contracts/
+    # api.md's 2-step example, scaled to the actual authored question
+    # from T030's algebra-1/solving-multi-step-equations retrofit) --
+    # well within MAX_REQUEST_LENGTH's existing headroom (no change
+    # needed to the constant).
+    payload = {
+        "question_stem": "Solve for x: 3x + 2 = 14",
+        "steps": [
+            {
+                "step_prompt": "Isolate the variable term on one side.",
+                "criteria": [
+                    {"description": "Chooses to subtract 2 from both sides", "weight": 0.5},
+                    {"description": "Correctly computes 3x = 12", "weight": 0.5},
+                ],
+            },
+            {
+                "step_prompt": "Solve for x.",
+                "criteria": [
+                    {"description": "Chooses to divide both sides by 3", "weight": 0.5},
+                    {"description": "Correctly computes x = 4", "weight": 0.5},
+                ],
+            },
+        ],
+        "learner_steps": [
+            "Subtract 2 from both sides: 3x = 12",
+            "Divide both sides by 3: x = 4",
+        ],
+    }
+    assert check_length(json.dumps(payload)) is True
 
 
 def _content(role: str, text: str | None):

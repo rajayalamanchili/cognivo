@@ -9,11 +9,13 @@ Scenario 2/3, SC-001, SC-002), T012. Mirrors
 from fastapi.testclient import TestClient
 
 from tests.integration.multi_step_helpers import (
+    DEFAULT_STEPS,
     all_correct_agent_response,
     diverges_at_step_response,
     get_multi_step_question,
     patch_grading_agent_call,
     patch_moderation,
+    stepwise_agent_response_json,
 )
 
 
@@ -113,3 +115,115 @@ def test_identical_submissions_to_identical_rubrics_produce_byte_identical_step_
     assert responses[0]["step_results"] == responses[1]["step_results"]
     assert responses[0]["first_diverging_step_index"] == responses[1]["first_diverging_step_index"]
     assert responses[0]["graduated_score"] == responses[1]["graduated_score"]
+
+
+def test_diverging_step_names_the_specific_missed_criterion(
+    db_session, demo_learner, algebra_subject
+):
+    """US2 Acceptance Scenario 1: the diverging step's `criteria_missed`
+    names the specific failed criterion, and each step's criteria_met/
+    criteria_missed reflect only that step's own rubric -- not aggregated
+    across steps (T024)."""
+    from src.api.main import app
+
+    client = TestClient(app)
+    question = get_multi_step_question(client, db_session, demo_learner, algebra_subject)
+
+    with (
+        patch_moderation(allowed=True),
+        patch_grading_agent_call(response_text=diverges_at_step_response(1)),
+    ):
+        response = client.post(
+            f"/api/questions/{question['question_id']}/answer",
+            json={
+                "response": [
+                    "Subtract 2 from both sides: 3x = 12",
+                    "Divide both sides by 3: x = 5",
+                ]
+            },
+        )
+
+    assert response.status_code == 200, response.text
+    step0, step1 = response.json()["step_results"]
+    assert step0["criteria_met"] == [
+        "Chooses to subtract 2 from both sides",
+        "Correctly computes 3x = 12",
+    ]
+    assert step0["criteria_missed"] == []
+    assert step1["criteria_met"] == ["Chooses to divide both sides by 3"]
+    assert step1["criteria_missed"] == ["Correctly computes x = 4"]
+
+
+def test_wrong_method_is_distinguishable_from_correct_method_wrong_execution(
+    db_session, demo_learner, algebra_subject
+):
+    """FR-005: a computational slip on an otherwise-correct method must be
+    distinguishable from choosing the wrong method entirely -- the diverging
+    step's `criteria_missed` differs in which criterion it names."""
+    from src.api.main import app
+
+    client = TestClient(app)
+
+    question_a = get_multi_step_question(client, db_session, demo_learner, algebra_subject)
+    with (
+        patch_moderation(allowed=True),
+        patch_grading_agent_call(response_text=diverges_at_step_response(1)),
+    ):
+        response_a = client.post(
+            f"/api/questions/{question_a['question_id']}/answer",
+            json={
+                "response": [
+                    "Subtract 2 from both sides: 3x = 12",
+                    "Divide both sides by 3: x = 5",
+                ]
+            },
+        )
+    assert response_a.status_code == 200, response_a.text
+    step1_a = response_a.json()["step_results"][1]
+
+    wrong_method_response = stepwise_agent_response_json(
+        graduated_score=0.5,
+        first_diverging_step_index=1,
+        step_results=[
+            {
+                "step_index": 0,
+                "criteria_results": [
+                    {"description": c["description"], "met": True}
+                    for c in DEFAULT_STEPS[0]["criteria"]
+                ],
+            },
+            {
+                "step_index": 1,
+                "criteria_results": [
+                    {"description": "Chooses to divide both sides by 3", "met": False},
+                    {"description": "Correctly computes x = 4", "met": False},
+                ],
+            },
+        ],
+    )
+    question_b = get_multi_step_question(client, db_session, demo_learner, algebra_subject)
+    with (
+        patch_moderation(allowed=True),
+        patch_grading_agent_call(response_text=wrong_method_response),
+    ):
+        response_b = client.post(
+            f"/api/questions/{question_b['question_id']}/answer",
+            json={
+                "response": [
+                    "Subtract 2 from both sides: 3x = 12",
+                    "Multiply both sides by 3: x = 36",
+                ]
+            },
+        )
+    assert response_b.status_code == 200, response_b.text
+    step1_b = response_b.json()["step_results"][1]
+
+    # Case A (correct method, wrong execution): the method criterion is met.
+    assert step1_a["criteria_met"] == ["Chooses to divide both sides by 3"]
+    assert step1_a["criteria_missed"] == ["Correctly computes x = 4"]
+    # Case B (wrong method entirely): the method criterion itself is missed.
+    assert step1_b["criteria_met"] == []
+    assert step1_b["criteria_missed"] == [
+        "Chooses to divide both sides by 3",
+        "Correctly computes x = 4",
+    ]
