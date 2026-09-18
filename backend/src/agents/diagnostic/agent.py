@@ -30,11 +30,19 @@ class PlacementQuestion:
 def preferred_question_type(topic: Topic) -> QuestionType:
     """First entry in the content artifact's `preferred_question_types`
     (backend/content/<subject>/subject.yaml) -- a content-artifact-owned
-    choice, never an engine-side subject conditional (Principle III)."""
+    choice, never an engine-side subject conditional (Principle III).
+
+    A `multi_step` entry is skipped unless `topic.step_grading_enabled`
+    is `true` (spec 018 FR-001/data-model.md) -- this is the actual
+    runtime gate, not just a documented convention: a topic that lists
+    `multi_step` without opting in via `process_level_grading: true`
+    never has it selected."""
     skill = (topic.skill_definition or {}).get("skill") or {}
     preferred = skill.get("preferred_question_types") or []
-    if preferred:
-        return QuestionType(preferred[0])
+    for question_type in preferred:
+        if question_type == QuestionType.MULTI_STEP.value and not topic.step_grading_enabled:
+            continue
+        return QuestionType(question_type)
     return QuestionType.MULTIPLE_CHOICE
 
 
