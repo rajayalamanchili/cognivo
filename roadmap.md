@@ -1137,6 +1137,26 @@ topic's *first* `preferred_question_types` entry, so the initial
 multi-step question at all -- fixed to `[multi_step, numeric]` and
 confirmed live against the real dev DB.
 
+**Post-merge fix (2026-09-18, PR #70's `claude-review`)**: the
+promotion PR's automated review caught that `topics.step_grading_enabled`
+was never actually *read* anywhere at runtime -- `preferred_question_
+type()` (`diagnostic/agent.py`, the single function all five
+question-type-selection call sites route through) decided purely from
+`preferred_question_types`' list order, so a topic that listed
+`multi_step` first without ever setting `process_level_grading: true`
+would still have been served and graded as `multi_step`. The DB column
+was documentation, not a gate -- exactly the kind of spec/implementation
+mismatch that undermines SC-003's claimed safety property. Fixed at the
+single root-cause call site: `preferred_question_type()` now skips a
+`multi_step` entry unless `topic.step_grading_enabled` is `true`,
+falling through to the next preferred type (or `MULTIPLE_CHOICE`) --
+all five callers (`sequencing`, `diagnostic`/placement, `quiz/session.py`,
+`evaluation/conditions.py`, `placement.py`'s skip endpoint) fixed at
+once. Three new unit tests in `test_diagnostic_agent.py` flip
+`step_grading_enabled` independently of `preferred_question_types`'
+content specifically to prove the flag is load-bearing, closing the
+test gap the review also flagged.
+
 **Definition of done**:
 - SC-001 (a multi-step submission with an error in exactly one step
   names that specific step, 100% correctly localized across first/
