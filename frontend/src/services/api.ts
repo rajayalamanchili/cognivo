@@ -2,7 +2,7 @@
 // only -- `/api/*` requests are same-origin in production and proxied to
 // the local backend in dev (see next.config.ts).
 
-export type QuestionType = "multiple_choice" | "numeric" | "free_text";
+export type QuestionType = "multiple_choice" | "numeric" | "free_text" | "multi_step";
 export type Difficulty = "easy" | "medium" | "hard";
 export type MasteryBand = "struggling" | "developing" | "mastered";
 export type MasteryStatus = "unknown" | "scored";
@@ -132,6 +132,19 @@ export interface NextQuestion {
   options: string[] | null;
   image_url: string | null;
   image_alt_text: string | null;
+  // Step prompts only, for `multi_step` questions (spec 018 FR-002) --
+  // null for every other question_type.
+  steps: string[] | null;
+}
+
+// One step's outcome within a `multi_step` submission (spec 018
+// data-model.md's Step Grading Result) -- present only for steps up to
+// and including the first diverging one (FR-006).
+export interface StepResult {
+  step_index: number;
+  correct: boolean;
+  criteria_met: string[];
+  criteria_missed: string[];
 }
 
 export interface AnswerResult {
@@ -144,6 +157,8 @@ export interface AnswerResult {
   criteria_met: string[] | null;
   criteria_missed: string[] | null;
   grading_logic_version: string | null;
+  first_diverging_step_index: number | null;
+  step_results: StepResult[] | null;
 }
 
 export interface FlagResult {
@@ -321,7 +336,7 @@ export function getNextQuestion(learnerId: string, subjectId: string): Promise<N
 
 export function answerQuestion(
   questionId: string,
-  response: string | number,
+  response: string | number | string[],
 ): Promise<AnswerResult> {
   return request<AnswerResult>(`/api/questions/${questionId}/answer`, {
     method: "POST",

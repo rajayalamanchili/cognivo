@@ -31,6 +31,7 @@ const question = {
   options: ["3", "4", "5", "6"],
   image_url: null,
   image_alt_text: null,
+  steps: null,
 };
 
 async function renderAndStartQuiz() {
@@ -100,6 +101,8 @@ describe("QuizFlow", () => {
       criteria_met: null,
       criteria_missed: null,
       grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
     });
     vi.mocked(api.getQuizNextQuestion).mockRejectedValue(new ApiError(409, "already completed"));
     vi.mocked(api.getQuizSummary).mockResolvedValue({
@@ -143,6 +146,8 @@ describe("QuizFlow", () => {
       criteria_met: null,
       criteria_missed: null,
       grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
     });
     vi.mocked(api.getQuizNextQuestion).mockResolvedValue({
       status: "ended_early",

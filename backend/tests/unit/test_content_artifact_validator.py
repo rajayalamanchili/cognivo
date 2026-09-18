@@ -92,3 +92,46 @@ def test_duplicate_grade_bands_fails_validation():
         validate_content_artifact(
             _artifact(grade_bands=[6, 6], topics=[_base_topic("topic-1", grade=6)])
         )
+
+
+# Spec 018 FR-001: optional per-topic `process_level_grading` boolean --
+# type-check only, no cross-topic all-or-nothing rule.
+
+
+def test_process_level_grading_true_accepted():
+    artifact = validate_content_artifact(
+        _artifact(topics=[_base_topic("topic-1", process_level_grading=True)])
+    )
+
+    assert artifact.topics[0].step_grading_enabled is True
+
+
+def test_process_level_grading_omitted_defaults_to_false():
+    artifact = validate_content_artifact(_artifact(topics=[_base_topic("topic-1")]))
+
+    assert artifact.topics[0].step_grading_enabled is False
+
+
+def test_process_level_grading_non_boolean_fails_validation():
+    with pytest.raises(ContentArtifactValidationError, match="must be a boolean"):
+        validate_content_artifact(
+            _artifact(topics=[_base_topic("topic-1", process_level_grading="yes")])
+        )
+
+
+def test_mixed_opted_in_and_opted_out_topics_accepted():
+    """No all-or-nothing rule (unlike grade_bands) -- each topic's opt-in
+    is independent."""
+    artifact = validate_content_artifact(
+        _artifact(
+            topics=[
+                _base_topic("topic-1", process_level_grading=True),
+                _base_topic("topic-2"),
+            ]
+        )
+    )
+
+    assert {t.topic_id: t.step_grading_enabled for t in artifact.topics} == {
+        "topic-1": True,
+        "topic-2": False,
+    }

@@ -21,6 +21,7 @@ from src.api.errors import (
     NotFoundError,
     QuestionTooLongError,
     RateLimitedError,
+    StepCountMismatchError,
     StillAnsweringError,
     TooLongError,
     TutorUnavailableError,
@@ -89,6 +90,18 @@ def _handle_unprocessable(request: Request, exc: UnprocessableError) -> JSONResp
 def _handle_too_long(request: Request, exc: TooLongError) -> JSONResponse:
     return JSONResponse(
         status_code=422, content={"error": "answer_too_long", "max_length": exc.max_length}
+    )
+
+
+@app.exception_handler(StepCountMismatchError)
+def _handle_step_count_mismatch(request: Request, exc: StepCountMismatchError) -> JSONResponse:
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": "step_count_mismatch",
+            "expected_step_count": exc.expected_step_count,
+            "submitted_step_count": exc.submitted_step_count,
+        },
     )
 
 

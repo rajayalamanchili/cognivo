@@ -15,6 +15,7 @@ const baseQuestion: NextQuestion = {
   options: ["(2, 3)", "(0, 1)", "(5, 0)", "(-1, 2)"],
   image_url: null,
   image_alt_text: null,
+  steps: null,
 };
 
 function renderCard(question: NextQuestion) {
