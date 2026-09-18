@@ -319,6 +319,60 @@ def test_skip_never_offers_a_free_text_replacement(db_session, demo_learner, alg
     assert response.json()["replacement_question"] is None
 
 
+def test_skip_never_offers_a_multi_step_replacement(db_session, demo_learner, algebra_subject):
+    """A multi_step topic (`solving-multi-step-equations`, spec 018) can
+    never be graded by `grade_answer` (services/mastery/grading.py has
+    no MULTI_STEP case, and its response is a list, not the scalar
+    grade_answer expects) -- if it's the only remaining lower-grade
+    candidate, the skip must return no replacement rather than one that
+    would 500 the eventual `submit_placement` call. Mirrors
+    `test_skip_never_offers_a_free_text_replacement`."""
+    client = _client()
+    body = _start(client, algebra_subject.subject_id)
+    questions = body["questions"]
+    placement_session_id = uuid.UUID(body["placement_session_id"])
+
+    # Exhaust every structured, non-multi_step grade<=7 topic other than
+    # solving-multi-step-equations, so it's the only remaining candidate.
+    _mark_topic_used(
+        db_session,
+        learner=demo_learner,
+        subject_id=algebra_subject.subject_id,
+        topic_id="solving-one-step-equations",
+        grade=6,
+        placement_session_id=placement_session_id,
+    )
+    _mark_topic_used(
+        db_session,
+        learner=demo_learner,
+        subject_id=algebra_subject.subject_id,
+        topic_id="graphing-linear-equations",
+        grade=7,
+        placement_session_id=placement_session_id,
+    )
+
+    # Raise the interim level to 7 by answering every grade 6/7 entry
+    # topic correctly, leaving only the grade-8 question unanswered.
+    grade_6_and_7_topics = {"integers-and-operations", "variables-and-expressions", "order-of-operations", "linear-inequalities"}
+    answers = [
+        {"question_id": q["question_id"], "response": 1}
+        for q in questions
+        if q["topic_id"] in grade_6_and_7_topics
+    ]
+    submit = client.post(
+        f"/api/placement/{placement_session_id}/submit", json={"answers": answers}
+    )
+    assert submit.status_code == 200, submit.text
+
+    systems_question = _question_by_topic(questions, "systems-of-linear-equations")
+    response = client.post(
+        f"/api/placement/{placement_session_id}/skip",
+        json={"question_id": systems_question["question_id"]},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["replacement_question"] is None
+
+
 def test_partial_submit_does_not_permanently_assign_a_starting_grade(
     db_session, demo_learner, algebra_subject
 ):

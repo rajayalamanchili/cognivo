@@ -1157,6 +1157,20 @@ once. Three new unit tests in `test_diagnostic_agent.py` flip
 content specifically to prove the flag is load-bearing, closing the
 test gap the review also flagged.
 
+**Second post-merge fix (2026-09-18)**: the above fix meant
+`preferred_question_type()` could now return `MULTI_STEP` for a
+grade<=7 topic reached by `placement.py`'s skip-replacement query,
+which (unlike `start_placement`'s initial pass) isn't restricted to
+`grade_entry_topics()` and so isn't protected by content-authoring
+convention alone. `grade_answer()` (`services/mastery/grading.py`) has
+no `MULTI_STEP` case (its response is a list, not a scalar, and its
+real grading path is the separate stepwise A2A call) -- a
+`multi_step`-preferring topic offered here would 500 the eventual
+`submit_placement` call, mirroring the exact FREE_TEXT gap this same
+query already guarded against. Fixed by widening that filter to
+exclude both `FREE_TEXT` and `MULTI_STEP`; `test_skip_never_offers_a_
+multi_step_replacement` added, mirroring the existing free-text test.
+
 **Definition of done**:
 - SC-001 (a multi-step submission with an error in exactly one step
   names that specific step, 100% correctly localized across first/
