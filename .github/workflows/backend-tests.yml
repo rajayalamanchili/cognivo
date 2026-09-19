@@ -87,8 +87,15 @@ jobs:
         # artifacts on disk.
         if: steps.assessment-gen-changed.outputs.changed == 'true'
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-4-5
+          # 2026-09-18: was pinned to ANTHROPIC_API_KEY +
+          # ASSESSMENT_GEN_MODEL=anthropic/claude-sonnet-4-5 (a retired
+          # model ID) -- failed with "Your credit balance is too low to
+          # access the Anthropic API." Switched to LLM_PROVIDER=openai
+          # (src/services/llm_provider.py's resolve_model()) so this
+          # gate uses the same budget-driven switch as every real
+          # deployment, rather than a hardcoded Anthropic pin.
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: openai
         run: uv run python scripts/batch_eval_questions.py --fresh
 
       - name: Run migrations against the ephemeral branch
@@ -117,7 +124,7 @@ jobs:
           # in tests that mock the actual model call -- not secret, same
           # default as backend/.env.example. No ANTHROPIC_API_KEY needed
           # since every test exercising this path mocks _run_agent_once.
-          ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-4-5
+          ASSESSMENT_GEN_MODEL: anthropic/claude-sonnet-5
         run: |
           DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run pytest -q
 
