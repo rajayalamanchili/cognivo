@@ -61,8 +61,14 @@ jobs:
       # (`prompt_defense.py`/`agent.py`'s `GRADING_LOGIC_VERSION`) -- no
       # separate "changed prompt version" trigger condition was needed to
       # satisfy spec 014 FR-006 (research.md §6).
+      # 2026-09-18: was pinned to ANTHROPIC_API_KEY +
+      # GRADING_AGENT_MODEL=anthropic/claude-sonnet-4-5 (a retired model
+      # ID) -- failed with an empty/non-JSON eval-runner response.
+      # Switched to LLM_PROVIDER=openai (grading-agent/src/llm_provider.py's
+      # resolve_model()) so this gate uses the same budget-driven switch
+      # as every real deployment, rather than a hardcoded Anthropic pin.
       - name: Run ground-truth eval gate (spec 007 T040, FR-008, SC-003)
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GRADING_AGENT_MODEL: anthropic/claude-sonnet-4-5
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: openai
         run: python3 backend/scripts/check_grading_agent_eval.py

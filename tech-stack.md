@@ -159,7 +159,7 @@ obvious.
 |---|---|---|
 | API framework | FastAPI, deployed as a Vercel Python Function (ASGI) | FastAPI has first-class, officially documented support as a Vercel-deployed backend framework, and pairs cleanly with ADK's Python-first design. |
 | Question/assessment generation | Structured-output calls to an LLM, called through ADK's `LiteLlm` model wrapper so the provider stays a runtime config value rather than hardcoded; default provider/model is Anthropic Claude (Sonnet), set via env var. Locked at Milestone 1 `/speckit-plan` time (see `specs/001-domain-agnostic-core/research.md` §2). Output validated against the content artifact before display (FR-007). | The validation step, not the model choice, is what carries the correctness guarantee. LiteLLM keeps the provider swappable without a code change; Claude was chosen as the default for consistency with this project's existing Anthropic-centric tooling (`claude-code-action`) and strong structured-output reliability. |
-| LLM provider switch (budget) | A single `LLM_PROVIDER` env var (`anthropic` default, `openai`, or `gemini`), read by a tiny per-deployable `llm_provider.py` helper (`backend/`, `grading-agent/`, `tutor-agent/` each carry their own copy -- Constitution Principle VI, no shared import across an A2A boundary) that maps a `"cheap"`/`"capable"` role to a provider-specific model string. An unrecognized value silently falls back to the Anthropic default rather than erroring. Every LLM call site's existing specific `_MODEL` env var (`MODERATION_MODEL`, `GRADING_AGENT_MODEL`, `TUTOR_AGENT_MODEL`, etc.) still wins if set explicitly -- `LLM_PROVIDER` only supplies the fallback default, which is why `backend/.env.example` ships those vars commented out (an uncommented one pins that site regardless of `LLM_PROVIDER`). Set independently per deployment -- there is no shared config across the A2A boundary. | Every LLM call in this codebase already goes through `LiteLlm(model=model_name)`, so provider-swapping was already mechanically possible per call site; this just adds one flag so a developer facing an Anthropic budget constraint doesn't have to set ~9 separate env vars individually across 3 deployments. Chat-completion provider choice only -- embeddings (Voyage) and the misconception classifier's fine-tuning approach (below) are unrelated axes and stay as originally decided. |
+| LLM provider switch (budget) | A single `LLM_PROVIDER` env var (`anthropic` default, `openai`, or `gemini`), read by a tiny per-deployable `llm_provider.py` helper (`backend/`, `grading-agent/`, `tutor-agent/` each carry their own copy -- Constitution Principle VI, no shared import across an A2A boundary) that maps a `"cheap"`/`"capable"` role to a provider-specific model string. An unrecognized value silently falls back to the Anthropic default rather than erroring. `resolve_model(specific_var, role)` is the per-call-site entry point (`MODERATION_MODEL`, `GRADING_AGENT_MODEL`, `TUTOR_AGENT_MODEL`, etc. each pass their own `specific_var`): when `LLM_PROVIDER` is explicitly set, it wins over every call site in that deployment, `specific_var` included -- grouped as one lever per agent/service (amended 2026-09-18, see changelog). `specific_var` only gets a chance to override the provider-table default when `LLM_PROVIDER` itself is left unset, which is why `backend/.env.example` ships those vars commented out by default. Set `LLM_PROVIDER` independently per deployment -- there is no shared config across the A2A boundary. | Every LLM call in this codebase already goes through `LiteLlm(model=model_name)`, so provider-swapping was already mechanically possible per call site; this just adds one flag so a developer facing an Anthropic budget constraint doesn't have to set ~9 separate env vars individually across 3 deployments. Chat-completion provider choice only -- embeddings (Voyage) and the misconception classifier's fine-tuning approach (below) are unrelated axes and stay as originally decided. |
 | Near-duplicate question detection | In-process text similarity (TF-IDF cosine or `difflib.SequenceMatcher`) over the last 5 generated questions per learner+topic -- no vector database or embeddings API (FR-008) | Locked at Milestone 1 `/speckit-plan` time (research.md §3). Deliberately does not pull `pgvector` forward from its Milestone 9 Tutor Agent scope -- a 5-question window doesn't justify that infrastructure yet. |
 
 ## Frontend
@@ -285,4 +285,24 @@ string was `claude-sonnet-4-5`, which has breaking changes as of this
 date -- bumped to `claude-sonnet-5` in all three `llm_provider.py`
 copies. Same scope-note reasoning as 2.2.0 applies to both: no new
 FR/SC, no new agent boundary -- landed as a tech-stack.md-level
-amendment, not a new `specs/<feature>/` directory).
+amendment, not a new `specs/<feature>/` directory); 2.4.0 -- Amended
+2026-09-18 (same-day follow-up: setting `LLM_PROVIDER=openai` per
+2.3.0 didn't actually stop every Anthropic call, because a leftover
+`ASSESSMENT_GEN_MODEL` pin from this project's original Milestone 1
+setup -- a specific `_MODEL` var -- still won per 2.2.0's original
+precedence. Grouped the switch properly: added `resolve_model
+(specific_var, role)` to all three `llm_provider.py` copies, flipping
+the precedence so `LLM_PROVIDER`, when explicitly set, wins over every
+call site in that deployment, `specific_var` included -- one lever per
+agent/service, not N separate `_MODEL` vars to hunt down and edit
+individually during a provider switch. `specific_var` still wins over
+the provider-table default when `LLM_PROVIDER` itself is left unset,
+preserving the original per-call-site pin use case. All 9 call sites
+across the three services (`ASSESSMENT_GEN_MODEL`, `MODERATION_MODEL`
+x3, `GRADING_CACHE_EQUIVALENCE_MODEL`,
+`TUTOR_SHIELDING_CLASSIFICATION_MODEL`, `MISCONCEPTION_BASELINE_MODEL`,
+`GRADING_AGENT_MODEL`, `TUTOR_AGENT_MODEL`) now route through
+`resolve_model()` instead of calling `default_model()` directly. Same
+scope-note reasoning as 2.2.0/2.3.0: no new FR/SC, no new agent
+boundary -- a tech-stack.md-level amendment, not a new
+`specs/<feature>/` directory).

@@ -23,7 +23,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.guardrails import before_model_guardrail
-from src.llm_provider import default_model
+from src.llm_provider import resolve_model
 from src.prompt_defense import build_instruction
 from src.tracing import configure_tracing, flush_traces, traced_exchange
 
@@ -101,7 +101,7 @@ def _build_agent(model_name: str) -> LlmAgent:
 # this module never crashes when the env var isn't set (e.g. during
 # lint/test collection); real grading calls should set
 # `GRADING_AGENT_MODEL` explicitly.
-_MODEL_NAME = os.environ.get("GRADING_AGENT_MODEL", default_model("capable"))
+_MODEL_NAME = resolve_model("GRADING_AGENT_MODEL", "capable")
 _agent = _build_agent(_MODEL_NAME)
 
 # Instruments every ADK agent/tool call globally (idempotent), same as
