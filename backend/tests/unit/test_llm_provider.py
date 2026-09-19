@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.services.llm_provider import default_model
+from src.services.llm_provider import default_model, resolve_model
 
 
 def test_defaults_to_anthropic_when_unset(monkeypatch):
@@ -31,3 +31,24 @@ def test_unrecognized_provider_falls_back_to_anthropic(monkeypatch):
 def test_unrecognized_role_raises_instead_of_picking_capable():
     with pytest.raises(ValueError, match="unrecognized role"):
         default_model("chep")  # typo -- must not silently resolve to "capable"
+
+
+def test_resolve_model_llm_provider_wins_over_a_pinned_specific_var(monkeypatch):
+    # 2026-09-18 incident: a leftover pinned ASSESSMENT_GEN_MODEL kept
+    # calling Anthropic even after LLM_PROVIDER was set to openai --
+    # LLM_PROVIDER must win when explicitly set, full stop.
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.setenv("ASSESSMENT_GEN_MODEL", "anthropic/claude-sonnet-5")
+    assert resolve_model("ASSESSMENT_GEN_MODEL", "capable").startswith("openai/")
+
+
+def test_resolve_model_specific_var_still_wins_when_llm_provider_is_unset(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("ASSESSMENT_GEN_MODEL", "openai/gpt-5.6-sol")
+    assert resolve_model("ASSESSMENT_GEN_MODEL", "capable") == "openai/gpt-5.6-sol"
+
+
+def test_resolve_model_falls_back_to_provider_default_when_neither_is_set(monkeypatch):
+    monkeypatch.delenv("LLM_PROVIDER", raising=False)
+    monkeypatch.delenv("ASSESSMENT_GEN_MODEL", raising=False)
+    assert resolve_model("ASSESSMENT_GEN_MODEL", "capable") == "anthropic/claude-sonnet-5"

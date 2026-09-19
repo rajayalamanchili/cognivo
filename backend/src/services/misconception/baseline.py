@@ -10,8 +10,6 @@ the production classification path (`classify.py`), which never makes
 an LLM call at all.
 """
 
-import os
-
 from google.adk.agents import LlmAgent
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import Runner
@@ -19,7 +17,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
 
-from src.services.llm_provider import default_model
+from src.services.llm_provider import resolve_model
 
 _APP_NAME = "misconception_baseline"
 
@@ -87,9 +85,7 @@ async def classify_baseline(
     if none of `taxonomy`'s patterns apply. Fails closed to `NONE_LABEL`
     if the model call produces no final response -- same fail-closed
     convention as `check_moderation()`."""
-    resolved_model_name = model_name or os.environ.get(
-        "MISCONCEPTION_BASELINE_MODEL", default_model("cheap")
-    )
+    resolved_model_name = model_name or resolve_model("MISCONCEPTION_BASELINE_MODEL", "cheap")
     instruction = _build_instruction(question, learner_answer, taxonomy)
     agent = _build_agent(resolved_model_name, instruction)
     session_service = InMemorySessionService()

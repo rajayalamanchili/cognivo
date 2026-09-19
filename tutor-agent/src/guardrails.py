@@ -23,7 +23,6 @@ this agent is a documented stateless pure function with no database
 connection of its own (research.md §2, `agent.py`'s module docstring).
 """
 
-import os
 from typing import TYPE_CHECKING
 
 from google.adk.agents import LlmAgent
@@ -34,7 +33,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from pydantic import BaseModel
 
-from src.llm_provider import default_model
+from src.llm_provider import resolve_model
 
 if TYPE_CHECKING:
     from google.adk.agents.callback_context import CallbackContext
@@ -97,9 +96,7 @@ async def check_moderation(raw_request_text: str, *, model_name: str | None = No
     -- this check is single-shot and has no reason to survive past the
     current invocation.
     """
-    resolved_model_name = model_name or os.environ.get(
-        "MODERATION_MODEL", default_model("cheap")
-    )
+    resolved_model_name = model_name or resolve_model("MODERATION_MODEL", "cheap")
     agent = _build_moderation_agent(resolved_model_name)
     session_service = InMemorySessionService()
     runner = Runner(app_name=_APP_NAME, agent=agent, session_service=session_service)
