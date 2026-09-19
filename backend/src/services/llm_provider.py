@@ -3,12 +3,11 @@
 Every LLM call in this codebase already goes through ADK's `LiteLlm`
 wrapper with a per-call-site model string read from its own env var
 (`MODERATION_MODEL`, `ASSESSMENT_GEN_MODEL`, etc.), defaulting to
-Anthropic (tech-stack.md's locked default). `LLM_PROVIDER` is a single
-override on top of those per-site defaults -- set it to `openai` or
-`gemini` to flip every site that doesn't have its own specific
-`_MODEL` var set to that provider's equivalent instead, without
-touching each var individually. A specific `_MODEL` env var, when set,
-always wins over this default.
+Anthropic (tech-stack.md's locked default). `LLM_PROVIDER` is this
+deployment's single grouped lever: when set, it overrides every call
+site here via `resolve_model()` below, even one with its own specific
+`_MODEL` var already pinned -- `default_model()` alone (the un-grouped
+per-role lookup) is what a specific `_MODEL` var still wins over.
 
 Which provider is actually *live* in a given deployment is a config
 concern, not a code concern: set the `LLM_PROVIDER` env var directly
@@ -16,7 +15,9 @@ in that deployment (`backend/.env.example`'s own copy is the template
 mirrored into each Vercel project's environment variables) rather than
 editing this file's fallback -- e.g. when an Anthropic budget/credit
 constraint hits, flip `LLM_PROVIDER=openai` in Vercel and redeploy,
-no PR needed.
+no PR needed, and no hunting down every individual `_MODEL` var this
+deployment happens to have pinned (2026-09-18 incident: exactly that
+happened with `ASSESSMENT_GEN_MODEL`).
 """
 
 import os
