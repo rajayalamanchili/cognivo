@@ -39,6 +39,7 @@ export default function PlacementFlow() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [skippingQuestionId, setSkippingQuestionId] = useState<string | null>(null);
   const [skipError, setSkipError] = useState<string | null>(null);
+  const [readAloudUsed, setReadAloudUsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +85,7 @@ export default function PlacementFlow() {
         return {
           question_id: question.question_id,
           response: question.question_type === "numeric" ? Number(raw) : Number.parseInt(raw, 10),
+          read_aloud_used: readAloudUsed[question.question_id] ?? false,
         };
       });
       const result = await submitPlacement(placementSessionId, answers);
@@ -191,7 +193,10 @@ export default function PlacementFlow() {
           {question.read_aloud_eligible && canUseReadAloud() && (
             <button
               type="button"
-              onClick={() => speak(buildReadAloudText(question))}
+              onClick={() => {
+                speak(buildReadAloudText(question));
+                setReadAloudUsed((prev) => ({ ...prev, [question.question_id]: true }));
+              }}
               className="self-start rounded-lg border border-border px-3 py-1.5 text-sm"
               data-testid="read-aloud-button"
             >

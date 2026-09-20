@@ -35,6 +35,12 @@ type Phase =
 
 const DEFAULT_QUESTION_COUNT = 5;
 
+// FR-009's "more frequent positive reinforcement for younger bands" --
+// a brief, non-blocking encouragement shown above the next question
+// every `reinforcementEveryN` answered questions, distinct from (and
+// suppressed by) the end-of-recommended-length stopping point itself.
+const REINFORCEMENT_MESSAGE = "Nice work! Keep it up! ⭐";
+
 export default function QuizFlow() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [learnerId, setLearnerId] = useState<string | null>(null);
@@ -57,6 +63,7 @@ export default function QuizFlow() {
   // reaching it (Acceptance Scenario 1).
   const [answeredCount, setAnsweredCount] = useState(0);
   const [stoppingPointShown, setStoppingPointShown] = useState(false);
+  const [reinforcementMessage, setReinforcementMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,6 +128,7 @@ export default function QuizFlow() {
       setQuizSessionId(result.quiz_session_id);
       setAnsweredCount(0);
       setStoppingPointShown(false);
+      setReinforcementMessage(null);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
         setReadAloudUsed(false);
@@ -165,9 +173,13 @@ export default function QuizFlow() {
     const profile = getPacingProfile(unlockedGrade);
     if (!stoppingPointShown && newCount >= profile.recommendedQuestionCount) {
       setStoppingPointShown(true);
+      setReinforcementMessage(null);
       setPhase("stopping-point");
       return;
     }
+    setReinforcementMessage(
+      newCount % profile.reinforcementEveryN === 0 ? REINFORCEMENT_MESSAGE : null,
+    );
     await advanceToNextQuestion(sessionId);
   }
 
@@ -259,6 +271,15 @@ export default function QuizFlow() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
         <h1 className="text-2xl font-semibold">Quiz</h1>
+        {reinforcementMessage && (
+          <p
+            data-testid="reinforcement-message"
+            className="font-heading text-primary"
+            aria-live="polite"
+          >
+            {reinforcementMessage}
+          </p>
+        )}
         <QuestionCard
           key={currentQuestion.question_id}
           question={currentQuestion}

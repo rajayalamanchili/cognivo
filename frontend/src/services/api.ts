@@ -26,6 +26,7 @@ export interface PlacementStartResponse {
 export interface PlacementAnswer {
   question_id: string;
   response: string | number;
+  read_aloud_used?: boolean;
 }
 
 export interface MasteryStateEntry {

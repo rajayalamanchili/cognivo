@@ -171,6 +171,17 @@ change to mastery computation, quiz scoring, or server-enforced limits
 pass), matching Story 3's Acceptance Scenario 2 ("no early stopping
 point is imposed").
 
+**Update (code-review fix, post-implementation)**: the initial
+implementation only ever consumed `recommendedQuestionCount` (the
+one-time, end-of-session stopping point) -- `reinforcementEveryN` was
+computed and unit-tested but never wired to anything, leaving FR-009's
+"more frequent positive reinforcement for younger bands" half
+unimplemented. Both `quiz-flow.tsx` and `LearnerAssignments.tsx` now
+also show a brief, non-blocking encouragement message
+(`data-testid="reinforcement-message"`) every `reinforcementEveryN`
+answered questions, suppressed on any count that also reaches the
+stopping point (no double reinforcement on the same answer).
+
 **Alternatives considered**: A new `SessionPacingProfile` database table
 (rejected -- four grade bands' worth of two static numbers each doesn't
 need a table; a code constant is simpler and there is no per-learner

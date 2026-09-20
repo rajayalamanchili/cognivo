@@ -33,6 +33,13 @@ import { getPacingProfile } from "@/lib/pacing";
 
 type Phase = "list" | "answering" | "submitting" | "stopping-point" | "finished";
 
+// FR-009's "more frequent positive reinforcement for younger bands" --
+// a brief, non-blocking encouragement shown above the next question
+// every `reinforcementEveryN` answered questions, distinct from (and
+// suppressed by) the end-of-recommended-length stopping point itself.
+// Kept as the exact same copy quiz-flow.tsx uses -- one shared mechanic.
+const REINFORCEMENT_MESSAGE = "Nice work! Keep it up! ⭐";
+
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
   in_progress: "In progress",
@@ -66,6 +73,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
   const [stoppingPointShown, setStoppingPointShown] = useState(false);
+  const [reinforcementMessage, setReinforcementMessage] = useState<string | null>(null);
 
   // `refreshAssignments` is only ever called from event handlers (the
   // "Back to assignments" button below), never from the effect itself --
@@ -124,6 +132,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
       setHandoffToken(result.handoff_token);
       setAnsweredCount(0);
       setStoppingPointShown(false);
+      setReinforcementMessage(null);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
         setReadAloudUsed(false);
@@ -168,9 +177,13 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     const profile = getPacingProfile(unlockedGrade);
     if (!stoppingPointShown && newCount >= profile.recommendedQuestionCount) {
       setStoppingPointShown(true);
+      setReinforcementMessage(null);
       setPhase("stopping-point");
       return;
     }
+    setReinforcementMessage(
+      newCount % profile.reinforcementEveryN === 0 ? REINFORCEMENT_MESSAGE : null,
+    );
     await advanceToNextQuestion(sessionId);
   }
 
@@ -221,6 +234,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     setAttemptError(null);
     setAnsweredCount(0);
     setStoppingPointShown(false);
+    setReinforcementMessage(null);
     refreshAssignments();
   }
 
@@ -272,6 +286,15 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         {attemptError && (
           <p className="text-sm text-error" data-testid="learner-assignment-attempt-error">
             {attemptError}
+          </p>
+        )}
+        {reinforcementMessage && (
+          <p
+            data-testid="reinforcement-message"
+            className="font-heading text-primary"
+            aria-live="polite"
+          >
+            {reinforcementMessage}
           </p>
         )}
         <QuestionCard

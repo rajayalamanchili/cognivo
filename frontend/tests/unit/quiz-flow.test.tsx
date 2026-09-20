@@ -296,4 +296,75 @@ describe("QuizFlow session pacing (spec 019 FR-009, SC-009)", () => {
     await screen.findByTestId("question-card");
     expect(screen.queryByTestId("quiz-stopping-point")).not.toBeInTheDocument();
   });
+
+  it("shows a brief reinforcement message every reinforcementEveryN questions, cleared in between (FR-009's reinforcement cadence)", async () => {
+    // Grade 4's pacing profile is { recommendedQuestionCount: 5,
+    // reinforcementEveryN: 2 } (frontend/src/lib/pacing.ts).
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 4),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 4) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 4) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q4", 4) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q5", 4) });
+
+    await renderAndStartQuiz();
+
+    // q1 answered (count 1, not divisible by 2) -- no message on q2.
+    await screen.findByTestId("question-card");
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
+
+    // q2 answered (count 2, divisible by 2) -- message appears on q3.
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(await screen.findByTestId("reinforcement-message")).toHaveTextContent(/nice work/i);
+
+    // q3 answered (count 3, not divisible by 2) -- message clears on q4.
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
+
+    // q4 answered (count 4, divisible by 2) -- message reappears on q5.
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(await screen.findByTestId("reinforcement-message")).toBeInTheDocument();
+  });
+
+  it("suppresses the reinforcement message when the same answer also reaches the stopping point", async () => {
+    // Grade 1's profile is { recommendedQuestionCount: 3,
+    // reinforcementEveryN: 1 } -- every count is divisible by 1, but the
+    // 3rd answer must show the stopping point, not a reinforcement message.
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 1),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 1) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 1) });
+
+    await renderAndStartQuiz();
+
+    for (let i = 0; i < 3; i++) {
+      await screen.findByTestId("question-card");
+      await userEvent.click(screen.getByLabelText("4"));
+      await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    expect(await screen.findByTestId("quiz-stopping-point")).toBeInTheDocument();
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
+  });
 });

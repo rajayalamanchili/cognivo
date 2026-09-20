@@ -150,6 +150,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
 class PlacementAnswerIn(BaseModel):
     question_id: uuid.UUID
     response: Any
+    read_aloud_used: bool = False
 
 
 class PlacementSubmitRequest(BaseModel):
@@ -380,6 +381,7 @@ async def submit_placement(
                     "response": answer.response,
                     "correct": correct,
                     "placement_session_id": str(placement_session_id),
+                    "read_aloud_used": answer.read_aloud_used,
                 },
             )
             record_event(

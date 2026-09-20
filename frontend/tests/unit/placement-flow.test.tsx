@@ -18,6 +18,7 @@ vi.mock("@/services/api", async () => {
     ...actual,
     startPlacement: vi.fn(),
     skipPlacementQuestion: vi.fn(),
+    submitPlacement: vi.fn(),
   };
 });
 
@@ -104,10 +105,17 @@ describe("PlacementFlow read-aloud (spec 019 FR-001/FR-003)", () => {
       configurable: true,
       value: { speak: vi.fn(), cancel: vi.fn() },
     });
+    vi.stubGlobal(
+      "SpeechSynthesisUtterance",
+      class {
+        constructor(public text: string) {}
+      },
+    );
   });
 
   afterEach(() => {
     Object.defineProperty(window, "speechSynthesis", { configurable: true, value: undefined });
+    vi.unstubAllGlobals();
   });
 
   it("shows a read-aloud control for a read-aloud-eligible question", async () => {
@@ -132,6 +140,32 @@ describe("PlacementFlow read-aloud (spec 019 FR-001/FR-003)", () => {
     await screen.findByText(/What is -3 \+ 7\?/);
 
     expect(screen.queryByTestId("read-aloud-button")).not.toBeInTheDocument();
+  });
+
+  it("submits read_aloud_used: true only for a question whose read-aloud control was clicked (SC-007)", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [{ ...gradedQuestion, read_aloud_eligible: true }, higherGradeQuestion],
+    });
+    vi.mocked(api.submitPlacement).mockResolvedValue({ mastery_state: [] });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+
+    await userEvent.click(screen.getByTestId("read-aloud-button"));
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByLabelText("(1, 2)"));
+    await userEvent.click(screen.getByText("Submit Placement"));
+
+    await waitFor(() =>
+      expect(api.submitPlacement).toHaveBeenCalledWith(
+        "session-1",
+        expect.arrayContaining([
+          expect.objectContaining({ question_id: "q1", read_aloud_used: true }),
+          expect.objectContaining({ question_id: "q3", read_aloud_used: false }),
+        ]),
+      ),
+    );
   });
 });
 
