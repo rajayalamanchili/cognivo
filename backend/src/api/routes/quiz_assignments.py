@@ -27,11 +27,11 @@ from src.observability.session import get_database_session_service
 from src.services.auth.dependencies import InstructorAccount, current_guardian, current_instructor
 from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
-from src.services.mediation.tier import resolve_mediation_tier
 from src.services.quiz.session import compute_quiz_summary, persist_quiz_question
 from src.services.quiz_assignment.assignment import (
     cancel_assignment,
     create_assignment,
+    pinned_mediation_tiers_by_session,
     start_assignment_attempt,
 )
 from src.services.quiz_assignment.status import derive_target_status
@@ -306,6 +306,13 @@ def list_learner_assignments_route(
         ):
             status_by_session_id[quiz_session_id] = status
 
+    # Read back each session's tier as pinned at start time (spec 019
+    # Edge Cases: a quiz session keeps the tier it started with, even if
+    # the learner's unlocked grade -- and therefore the live tier --
+    # advances mid-session via an in-quiz mastery update). One query for
+    # the whole list, rather than resolve_mediation_tier() per row.
+    pinned_tiers = pinned_mediation_tiers_by_session(db, learner_id=learner_id)
+
     # FR-016: every assignment targeting this learner is included, a
     # cancelled one included and marked via `cancelled_at` rather than
     # omitted (research.md §8) -- `status` is derived purely from
@@ -325,8 +332,7 @@ def list_learner_assignments_route(
         has_unviewed_activity = (
             status in ("completed", "ended_early")
             and target.guardian_viewed_at is None
-            and resolve_mediation_tier(db, learner_id=learner_id, subject_id=assignment.subject_id)
-            == MediationTier.OPT_IN_NUDGES
+            and pinned_tiers.get(target.quiz_session_id) == MediationTier.OPT_IN_NUDGES
         )
         result.append(
             AssignmentForLearnerOut(

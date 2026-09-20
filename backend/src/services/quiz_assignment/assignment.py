@@ -18,6 +18,7 @@ from google.adk.sessions import BaseSessionService
 from sqlalchemy.orm import Session
 
 from src.api.errors import ConflictError, ForbiddenError, NotFoundError, UnprocessableError
+from src.models.assessment_event import AssessmentEvent
 from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
 from src.models.enums import AssessmentEventType, MediationTier, QuizSessionStatus
@@ -284,6 +285,34 @@ def guardian_owns_target(
     return learner is not None and learner.guardian_id == claims.account_id
 
 
+def pinned_mediation_tiers_by_session(
+    db: Session, *, learner_id: uuid.UUID
+) -> dict[uuid.UUID, MediationTier | None]:
+    """The tier actually resolved and logged in each of this learner's
+    `GUARDIAN_MEDIATION_APPLIED` events, keyed by `quiz_session_id` --
+    read back here instead of calling `resolve_mediation_tier` live,
+    since `GradeProgress.unlocked_grade` (and therefore the live tier)
+    can advance mid-session via an in-quiz mastery update, and spec
+    019's Edge Cases require a session to keep the tier it started
+    with ("the quiz session already in progress keeps the tier it
+    started with"). A session missing from the returned dict was never
+    assignment-linked (no event was ever recorded for it)."""
+    events = (
+        db.query(AssessmentEvent)
+        .filter(
+            AssessmentEvent.learner_id == learner_id,
+            AssessmentEvent.event_type == AssessmentEventType.GUARDIAN_MEDIATION_APPLIED,
+        )
+        .all()
+    )
+    tiers: dict[uuid.UUID, MediationTier | None] = {}
+    for event in events:
+        session_id = uuid.UUID(event.payload["quiz_session_id"])
+        tier_value = event.payload["tier"]
+        tiers[session_id] = MediationTier(tier_value) if tier_value is not None else None
+    return tiers
+
+
 def _resolve_tier_gated_access(
     db: Session,
     *,
@@ -312,10 +341,8 @@ def _resolve_tier_gated_access(
         return None
 
     quiz = db.get(QuizSession, quiz_session_id)
-    tier = (
-        resolve_mediation_tier(db, learner_id=target.learner_id, subject_id=quiz.subject_id)
-        if quiz is not None
-        else None
+    tier = pinned_mediation_tiers_by_session(db, learner_id=target.learner_id).get(
+        quiz_session_id
     )
     if tier in (None, MediationTier.CO_PRESENT):
         raise ForbiddenError("not_learner_guardian")
@@ -325,7 +352,8 @@ def _resolve_tier_gated_access(
     token_quiz_session_id = verify_handoff_token(handoff_token)
     if token_quiz_session_id is None or token_quiz_session_id != quiz_session_id:
         raise ForbiddenError("invalid_handoff_token")
-    assert quiz is not None  # tier is None whenever quiz is None, handled above
+    assert quiz is not None  # the GUARDIAN_MEDIATION_APPLIED event a pinned tier came
+    # from is only ever recorded after start_assignment_attempt's start_quiz() call
     return quiz
 
 

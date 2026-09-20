@@ -115,6 +115,36 @@ def test_indicator_exclusive_to_opt_in_nudges_tier(
     assert _has_unviewed_activity(client, attempt["learner_id"]) is expect_indicator
 
 
+def test_grade_unlock_after_session_start_does_not_change_pinned_tier(
+    client, db_session, algebra_subject
+):
+    """Code-review fix: the tier gating a session must stay the tier
+    resolved and logged in GUARDIAN_MEDIATION_APPLIED at
+    start_assignment_attempt time (spec 019 Edge Cases: "the quiz
+    session already in progress keeps the tier it started with"), not
+    whatever `resolve_mediation_tier` would return live from the
+    learner's *current* GradeProgress -- which an in-quiz mastery
+    update can advance mid-session."""
+    attempt = _complete_one_question_attempt(
+        client, db_session, algebra_subject, label="grade-unlock-mid-session", unlocked_grade=4
+    )
+
+    grade_progress = (
+        db_session.query(GradeProgress)
+        .filter(
+            GradeProgress.learner_id == attempt["learner_id"],
+            GradeProgress.subject_id == algebra_subject.subject_id,
+        )
+        .first()
+    )
+    grade_progress.unlocked_grade = 7
+    db_session.commit()
+
+    # Started (and logged) as check_in; must stay check_in even though
+    # the learner's unlocked grade now maps live to opt_in_nudges.
+    assert _has_unviewed_activity(client, attempt["learner_id"]) is False
+
+
 def test_viewing_the_summary_clears_the_indicator_and_is_idempotent(
     client, db_session, algebra_subject
 ):
