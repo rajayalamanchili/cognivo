@@ -34,6 +34,19 @@ describe("Nav", () => {
     window.localStorage.removeItem(DEMO_LEARNER_MODE_KEY);
   });
 
+  it.each([
+    ["logged out", { account_type: null, identifier: null } as const, "/"],
+    ["demo_instructor (still a demo account)", { account_type: "demo_instructor" as const, identifier: "Demo Instructor" }, "/"],
+    ["a real guardian", { account_type: "guardian" as const, identifier: "parent@example.com" }, "/guardian/learners"],
+    ["a real instructor", { account_type: "instructor" as const, identifier: "teacher@example.com" }, "/instructor/dashboard"],
+  ])("the Cognivo logo links home appropriately for %s", async (_label, whoAmI, expectedHref) => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue(whoAmI);
+    render(<Nav />);
+
+    const logo = await screen.findByTestId("nav-logo");
+    await waitFor(() => expect(logo).toHaveAttribute("href", expectedHref));
+  });
+
   it("shows only Try Demo, Sign In, and Personalization Evidence when logged out", async () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
     render(<Nav />);
