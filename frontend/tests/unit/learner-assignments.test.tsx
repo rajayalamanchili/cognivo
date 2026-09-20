@@ -267,6 +267,76 @@ describe("LearnerAssignments", () => {
     );
   });
 
+  it("shows a stopping-point prompt after the recommended count for the learner's grade band (spec 019 FR-009)", async () => {
+    const answerResult = {
+      correct: true,
+      topic_id: "integers-and-operations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing" as const,
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    };
+    function questionAt(id: string) {
+      return {
+        question_id: id,
+        topic_id: "integers-and-operations",
+        difficulty: "easy" as const,
+        question_type: "multiple_choice" as const,
+        stem: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        image_url: null,
+        image_alt_text: null,
+        steps: null,
+        read_aloud_eligible: false,
+        unlocked_grade: 1,
+      };
+    }
+
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+    vi.mocked(api.startAssignment).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      handoff_token: null,
+      question: questionAt("q1"),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2") })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3") });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    fireEvent.click(await screen.findByText("Start"));
+
+    // Grade 1's pacing profile recommends a checkpoint at 3 questions
+    // (frontend/src/lib/pacing.ts) -- answer three in a row.
+    for (let i = 0; i < 3; i++) {
+      await screen.findByText("What is 2 + 2?");
+      fireEvent.click(screen.getByLabelText("4"));
+      fireEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    expect(await screen.findByTestId("quiz-stopping-point")).toBeInTheDocument();
+    expect(screen.queryByTestId("question-card")).not.toBeInTheDocument();
+    expect(api.getQuizSummary).not.toHaveBeenCalled();
+  });
+
   it("refetches the list when 'Refresh' is clicked", async () => {
     vi.mocked(api.listLearnerAssignments).mockResolvedValueOnce({ assignments: [] });
     render(<LearnerAssignments learnerId={LEARNER_ID} />);

@@ -25,20 +25,34 @@ needed for SC-004/SC-005 specifically.
 
 ## Scenario 1 -- User Story 1: read-aloud offered only below grade 3 (SC-001, SC-002)
 
+`/practice`, `/quiz`, and `/placement` are demo-learner-only routes
+(they always resolve the seeded demo learner internally and accept no
+`learner_id`); a real learner has no login of their own (research.md
+§4) and only ever reaches a question card through the guardian's
+assignment flow. As the grade-1 learner's guardian:
+
 ```bash
-open "$FRONTEND_URL/practice?learner_id=<grade-1-learner-id>"
+open "$FRONTEND_URL/guardian/learners"
 ```
+
+Start an assignment for the grade-1 learner (co-present tier -- the
+guardian's own session drives it, no hand-off token needed).
 
 **Expected**: the question card shows a read-aloud control; clicking it
 plays the question text and every answer choice aloud via the browser's
 own text-to-speech; replaying does not navigate away or clear the
-in-progress response (FR-002). Repeat against `/quiz` and `/placement`
-for the same learner -- the control appears in all three flows (Decision
-1: one shared `QuestionCard` component).
+in-progress response (FR-002). The same `QuestionCard` component
+(Decision 1) backs `/practice`, `/quiz`, and `/placement` too -- if the
+seeded demo learner has an `unlocked_grade` of 1-2 for the subject
+under test (an ungraded subject, or no `GradeProgress` row yet, is
+never eligible per FR-013), spot check `/practice` and `/placement` to
+confirm the control appears there as well.
 
-```bash
-open "$FRONTEND_URL/practice?learner_id=<grade-10-learner-id>"
-```
+Start an assignment for the grade-10 learner the same way (independent
+tier -- copy the response's `handoff_token` and open the quiz from a
+second, guardian-cookie-less session using `X-Quiz-Handoff-Token`, or
+just load `/guardian/learners` as that learner's guardian for a
+same-session smoke check).
 
 **Expected**: no read-aloud control appears (FR-003).
 
@@ -119,9 +133,11 @@ exposure is opt-in-nudges-only).
 
 ## Scenario 4 -- User Story 3: pacing checkpoint differs by grade band (SC-009)
 
-```bash
-open "$FRONTEND_URL/quiz?learner_id=<grade-1-learner-id>"
-```
+As in Scenario 1, a real learner reaches a quiz only through the
+guardian-started assignment flow at `/guardian/learners`
+(`LearnerAssignments.tsx`), which carries the identical pacing
+checkpoint `/quiz`'s demo-only flow has (spec 019 FR-009 applies to
+both). Start the grade-1 learner's assignment and answer questions:
 
 **Expected**: after `pacing.ts`'s configured question count for the
 earliest band, a positive-reinforcement stopping point appears instead
@@ -129,12 +145,14 @@ of the next question loading immediately -- the learner can still
 choose to continue (soft checkpoint, FR-009/Story 3 Acceptance Scenario
 1); the quiz itself does not end on its own.
 
-```bash
-open "$FRONTEND_URL/quiz?learner_id=<grade-10-learner-id>"
-```
+Start the grade-10 learner's assignment and answer questions the same
+way:
 
 **Expected**: no stopping point appears; questions continue loading
 until the learner ends the quiz or it completes, exactly as today.
+`/quiz` itself (demo learner only) can also be spot-checked directly at
+`$FRONTEND_URL/quiz` for the same before/after pacing behavior, since
+it shares the identical `getPacingProfile`/`advanceAfterAnswer` logic.
 
 ## Scenario 5 -- Regression: `biology` (ungraded) and demo learner are untouched (SC-008)
 

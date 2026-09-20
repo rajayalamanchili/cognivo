@@ -17,15 +17,21 @@ import {
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import { getPacingProfile } from "@/lib/pacing";
 
 // A per-learner assignment list (spec 011, User Story 2) -- "start"
 // re-uses the exact same question/answer/summary UI `quiz-flow.tsx`
 // already built for a self-serve quiz (`QuestionCard`/`QuizSummary`,
 // `getQuizNextQuestion`/`answerQuestion`/`getQuizSummary`), since an
 // assignment attempt is just an ordinary quiz session under the hood
-// (research.md §1) and must look identical to one.
+// (research.md §1) and must look identical to one. This is also the
+// *only* quiz path a real (non-demo) learner ever reaches (Milestone
+// 17's guardian-mediation research.md §4) -- so it gets the same
+// session-pacing checkpoint (spec 019 FR-009) `quiz-flow.tsx` has, via
+// the identical `advanceAfterAnswer` pattern, not just read-aloud and
+// hand-off tokens.
 
-type Phase = "list" | "answering" | "submitting" | "finished";
+type Phase = "list" | "answering" | "submitting" | "stopping-point" | "finished";
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   not_started: "Not started",
@@ -58,6 +64,8 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [attemptError, setAttemptError] = useState<string | null>(null);
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [stoppingPointShown, setStoppingPointShown] = useState(false);
 
   // `refreshAssignments` is only ever called from event handlers (the
   // "Back to assignments" button below), never from the effect itself --
@@ -110,6 +118,8 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
       const result = await startAssignment(assignmentId, learnerId);
       setQuizSessionId(result.quiz_session_id);
       setHandoffToken(result.handoff_token);
+      setAnsweredCount(0);
+      setStoppingPointShown(false);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
         setReadAloudUsed(false);
@@ -144,6 +154,27 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     }
   }
 
+  // spec 019 FR-009: same soft, dismissible checkpoint quiz-flow.tsx
+  // uses -- called after every answered question, before fetching the
+  // next one, so a reached stopping point shows the checkpoint instead
+  // of an unnecessary extra fetch.
+  async function advanceAfterAnswer(sessionId: string, unlockedGrade: number | null) {
+    const newCount = answeredCount + 1;
+    setAnsweredCount(newCount);
+    const profile = getPacingProfile(unlockedGrade);
+    if (!stoppingPointShown && newCount >= profile.recommendedQuestionCount) {
+      setStoppingPointShown(true);
+      setPhase("stopping-point");
+      return;
+    }
+    await advanceToNextQuestion(sessionId);
+  }
+
+  async function handleContinueFromStoppingPoint() {
+    if (!quizSessionId) return;
+    await advanceToNextQuestion(quizSessionId);
+  }
+
   async function handleSubmitAnswer() {
     if (!currentQuestion || !quizSessionId || response === "") return;
     setPhase("submitting");
@@ -154,7 +185,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           : Number.parseInt(response, 10);
       await answerQuestion(currentQuestion.question_id, value, readAloudUsed, handoffToken);
       setResponse("");
-      await advanceToNextQuestion(quizSessionId);
+      await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
       setAttemptError(errorText(error));
       setPhase("answering");
@@ -162,9 +193,9 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   }
 
   async function handleFreeTextGraded() {
-    if (!quizSessionId) return;
+    if (!quizSessionId || !currentQuestion) return;
     setResponse("");
-    await advanceToNextQuestion(quizSessionId);
+    await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
   }
 
   async function handleFlag(reason: string) {
@@ -184,7 +215,36 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     setCurrentQuestion(null);
     setSummary(null);
     setAttemptError(null);
+    setAnsweredCount(0);
+    setStoppingPointShown(false);
     refreshAssignments();
+  }
+
+  if (phase === "stopping-point") {
+    return (
+      <div
+        className="flex flex-col items-center gap-4 p-8 text-center"
+        data-testid="quiz-stopping-point"
+      >
+        <p className="text-lg">Nice work! You&apos;ve reached a good stopping point.</p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={handleContinueFromStoppingPoint}
+            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+          >
+            Keep going
+          </button>
+          <button
+            type="button"
+            onClick={handleBackToList}
+            className="rounded-lg border border-border px-5 py-3"
+          >
+            I&apos;m done for now
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (phase === "finished" && summary) {
