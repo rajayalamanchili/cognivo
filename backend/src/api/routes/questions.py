@@ -12,7 +12,7 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
@@ -57,7 +57,7 @@ from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import record_quiz_answer
-from src.services.quiz_assignment.assignment import assert_guardian_owns_assignment_session
+from src.services.quiz_assignment.assignment import assert_quiz_session_access
 
 router = APIRouter()
 
@@ -365,16 +365,21 @@ async def answer_question(
     body: AnswerIn,
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
 ) -> JSONResponse:
     question = db.get(GeneratedQuestion, question_id)
     if question is None:
         raise NotFoundError(f"unknown question_id: {question_id}")
-    # spec 011, research.md §2: a no-op unless this question's quiz
+    # spec 011, research.md §2 (extended by spec 019 with tier-aware
+    # hand-off-token support): a no-op unless this question's quiz
     # session is assignment-linked -- the non-quiz and non-assigned-quiz
     # answer paths are completely unaffected.
     if question.quiz_session_id is not None:
-        assert_guardian_owns_assignment_session(
-            db, quiz_session_id=question.quiz_session_id, claims=claims
+        assert_quiz_session_access(
+            db,
+            quiz_session_id=question.quiz_session_id,
+            claims=claims,
+            handoff_token=x_quiz_handoff_token,
         )
     if _already_answered(db, question_id):
         raise ConflictError(f"question {question_id} already answered")

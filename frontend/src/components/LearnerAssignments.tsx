@@ -50,6 +50,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
 
   const [phase, setPhase] = useState<Phase>("list");
   const [quizSessionId, setQuizSessionId] = useState<string | null>(null);
+  const [handoffToken, setHandoffToken] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<NextQuestion | null>(null);
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
@@ -107,6 +108,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     try {
       const result = await startAssignment(assignmentId, learnerId);
       setQuizSessionId(result.quiz_session_id);
+      setHandoffToken(result.handoff_token);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
         setReadAloudUsed(false);
@@ -123,7 +125,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
 
   async function advanceToNextQuestion(sessionId: string) {
     try {
-      const next = await getQuizNextQuestion(sessionId);
+      const next = await getQuizNextQuestion(sessionId, handoffToken);
       if (next.status === "in_progress" && next.question) {
         setCurrentQuestion(next.question);
         setFlagged(false);
@@ -149,7 +151,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         currentQuestion.question_type === "numeric"
           ? Number(response)
           : Number.parseInt(response, 10);
-      await answerQuestion(currentQuestion.question_id, value, readAloudUsed);
+      await answerQuestion(currentQuestion.question_id, value, readAloudUsed, handoffToken);
       setResponse("");
       await advanceToNextQuestion(quizSessionId);
     } catch (error) {
@@ -177,6 +179,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   function handleBackToList() {
     setPhase("list");
     setQuizSessionId(null);
+    setHandoffToken(null);
     setCurrentQuestion(null);
     setSummary(null);
     setAttemptError(null);
@@ -217,6 +220,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           onFreeTextGraded={handleFreeTextGraded}
           readAloudEnabled={currentQuestion.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
+          handoffToken={handoffToken}
         />
         {currentQuestion.question_type !== "free_text" &&
           currentQuestion.question_type !== "multi_step" && (
@@ -263,6 +267,13 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           <div className="flex flex-col gap-1">
             <span>
               {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
+              {assignment.has_unviewed_activity && (
+                <span
+                  data-testid={`learner-assignment-unviewed-${assignment.assignment_id}`}
+                  className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle"
+                  title="New activity"
+                />
+              )}
             </span>
             <span className="text-muted">
               {STATUS_LABEL[assignment.status]}

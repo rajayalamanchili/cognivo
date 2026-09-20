@@ -30,6 +30,9 @@ export interface QuestionCardProps {
   // (FR-012).
   readAloudEnabled?: boolean;
   onReadAloudUsed?: () => void;
+  // spec 019 FR-005b: forwarded to FreeTextAnswerInput/MultiStepAnswerInput,
+  // which submit their own answers independently of the parent flow.
+  handoffToken?: string | null;
 }
 
 const DEFAULT_FLAG_REASON = "Learner flagged this question's answer key as incorrect.";
@@ -54,6 +57,7 @@ export default function QuestionCard({
   onFreeTextGraded,
   readAloudEnabled,
   onReadAloudUsed,
+  handoffToken,
 }: QuestionCardProps) {
   const [showFlagForm, setShowFlagForm] = useState(false);
   const [reason, setReason] = useState("");
@@ -126,6 +130,7 @@ export default function QuestionCard({
           onGraded={(result) => onFreeTextGraded?.(result)}
           disabled={disabled}
           readAloudUsed={readAloudUsed}
+          handoffToken={handoffToken}
         />
       ) : question.question_type === "multi_step" ? (
         <MultiStepAnswerInput
@@ -134,6 +139,7 @@ export default function QuestionCard({
           onGraded={(result) => onFreeTextGraded?.(result)}
           disabled={disabled}
           readAloudUsed={readAloudUsed}
+          handoffToken={handoffToken}
         />
       ) : (
         <input

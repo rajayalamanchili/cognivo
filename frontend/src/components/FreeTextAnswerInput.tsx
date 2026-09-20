@@ -18,6 +18,7 @@ export interface FreeTextAnswerInputProps {
   onGraded: (result: AnswerResult) => void;
   disabled?: boolean;
   readAloudUsed?: boolean;
+  handoffToken?: string | null;
 }
 
 type SubmitState =
@@ -46,6 +47,7 @@ export default function FreeTextAnswerInput({
   onGraded,
   disabled,
   readAloudUsed,
+  handoffToken,
 }: FreeTextAnswerInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SubmitState>("idle");
@@ -53,7 +55,7 @@ export default function FreeTextAnswerInput({
   async function handleSubmit() {
     setState("grading-in-progress");
     try {
-      const result = await answerQuestion(questionId, text, readAloudUsed);
+      const result = await answerQuestion(questionId, text, readAloudUsed, handoffToken);
       setState("idle");
       onGraded(result);
     } catch (error) {

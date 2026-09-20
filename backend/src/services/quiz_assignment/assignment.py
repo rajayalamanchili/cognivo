@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from src.api.errors import ConflictError, ForbiddenError, NotFoundError, UnprocessableError
 from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
-from src.models.enums import AssessmentEventType, QuizSessionStatus
+from src.models.enums import AssessmentEventType, MediationTier, QuizSessionStatus
 from src.models.learner_profile import LearnerProfile
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
@@ -28,7 +28,8 @@ from src.models.quiz_session import QuizSession
 from src.models.topic import Topic
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
-from src.services.auth.tokens import SessionClaims
+from src.services.auth.tokens import SessionClaims, issue_handoff_token, verify_handoff_token
+from src.services.mediation.tier import resolve_mediation_tier
 from src.services.quiz.session import (
     QuizEndedEarlyError,
     QuizQuestionResult,
@@ -201,7 +202,7 @@ async def start_assignment_attempt(
     assignment: QuizAssignment,
     target: QuizAssignmentTarget,
     session_service: BaseSessionService,
-) -> tuple[QuizSession, QuizQuestionResult | None]:
+) -> tuple[QuizSession, QuizQuestionResult | None, str | None]:
     """Runs start-eligibility checks, then calls the existing
     `start_quiz()`/`generate_quiz_question()` unchanged and claims
     `target.quiz_session_id` in the same transaction (FR-006, FR-011,
@@ -212,7 +213,14 @@ async def start_assignment_attempt(
     persists the returned `QuizQuestionResult` via `persist_quiz_question`
     and commits, exactly as `quiz.py`'s own route does for a `None`-free
     result; a `None` result means the quiz already ended early and this
-    function has already committed that outcome itself."""
+    function has already committed that outcome itself.
+
+    spec 019 FR-005a/b/FR-012: once the claim succeeds, determines this
+    target's guardian-mediation tier and mints a hand-off token for
+    every tier except `CO_PRESENT`/`None`, recording one
+    `GUARDIAN_MEDIATION_APPLIED` event regardless of tier -- before
+    attempting question generation, since minting is independent of
+    whether the quiz then immediately ends early."""
     _assert_eligible_to_start(db, assignment=assignment, target=target)
 
     quiz = start_quiz(
@@ -227,6 +235,27 @@ async def start_assignment_attempt(
         db.rollback()
         raise ConflictError("already_attempted")
 
+    tier = resolve_mediation_tier(
+        db, learner_id=target.learner_id, subject_id=assignment.subject_id
+    )
+    handoff_token = (
+        issue_handoff_token(quiz.quiz_session_id)
+        if tier not in (None, MediationTier.CO_PRESENT)
+        else None
+    )
+    record_event(
+        db,
+        learner_id=target.learner_id,
+        event_type=AssessmentEventType.GUARDIAN_MEDIATION_APPLIED,
+        subject_id=assignment.subject_id,
+        topic_id=None,
+        payload={
+            "quiz_session_id": str(quiz.quiz_session_id),
+            "tier": tier.value if tier is not None else None,
+            "handoff_token_issued": handoff_token is not None,
+        },
+    )
+
     try:
         with traced_request(learner_id=target.learner_id, session_id=quiz.quiz_session_id):
             result = await generate_quiz_question(db, quiz=quiz, session_service=session_service)
@@ -234,20 +263,46 @@ async def start_assignment_attempt(
         quiz.status = QuizSessionStatus.ENDED_EARLY
         quiz.completed_at = datetime.datetime.now(datetime.UTC)
         db.commit()
-        return quiz, None
+        return quiz, None, handoff_token
 
-    return quiz, result
+    return quiz, result, handoff_token
 
 
-def assert_guardian_owns_assignment_session(
-    db: Session, *, quiz_session_id: uuid.UUID, claims: SessionClaims | None
+def _guardian_owns_target(
+    db: Session, *, target: QuizAssignmentTarget, claims: SessionClaims | None
+) -> bool:
+    if claims is None or claims.account_type != "guardian":
+        return False
+    learner = db.get(LearnerProfile, target.learner_id)
+    return learner is not None and learner.guardian_id == claims.account_id
+
+
+def assert_quiz_session_access(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    claims: SessionClaims | None,
+    handoff_token: str | None = None,
 ) -> None:
     """No-op unless `quiz_session_id` is linked to a `QuizAssignmentTarget`
     row (research.md §2) -- the pre-existing, non-assignment quiz/answer
-    path is completely unaffected. When it *is* assignment-linked, the
-    request must carry a guardian session matching that target's
-    learner's own `guardian_id`, or this raises `ForbiddenError`
-    (`not_learner_guardian`)."""
+    path (including every demo-learner session, FR-014) is completely
+    unaffected.
+
+    When it *is* assignment-linked (spec 019 FR-005a/b/c, contracts/
+    api.md), the target's guardian-mediation tier decides what's
+    accepted:
+    - `co_present`/`None` (no `GradeProgress` row): only the guardian's
+      own session is accepted, exactly as before this feature -- a
+      `handoff_token`, if sent, is ignored.
+    - `check_in`/`opt_in_nudges`/`independent`: the guardian's own
+      session is still accepted, OR a `handoff_token` that decodes to
+      this exact `quiz_session_id` and whose `QuizSession` is still
+      `IN_PROGRESS`.
+
+    Renamed from `assert_guardian_owns_assignment_session` -- spec 011's
+    original name no longer describes what this function checks now
+    that a non-guardian credential can also pass."""
     target = (
         db.query(QuizAssignmentTarget)
         .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
@@ -256,12 +311,25 @@ def assert_guardian_owns_assignment_session(
     if target is None:
         return
 
-    if claims is None or claims.account_type != "guardian":
+    if _guardian_owns_target(db, target=target, claims=claims):
+        return
+
+    quiz = db.get(QuizSession, quiz_session_id)
+    tier = (
+        resolve_mediation_tier(db, learner_id=target.learner_id, subject_id=quiz.subject_id)
+        if quiz is not None
+        else None
+    )
+    if tier in (None, MediationTier.CO_PRESENT):
         raise ForbiddenError("not_learner_guardian")
 
-    learner = db.get(LearnerProfile, target.learner_id)
-    if learner is None or learner.guardian_id != claims.account_id:
+    if handoff_token is None:
         raise ForbiddenError("not_learner_guardian")
+    token_quiz_session_id = verify_handoff_token(handoff_token)
+    if token_quiz_session_id is None or token_quiz_session_id != quiz_session_id:
+        raise ForbiddenError("invalid_handoff_token")
+    if quiz is None or quiz.status != QuizSessionStatus.IN_PROGRESS:
+        raise ConflictError("quiz_session_not_in_progress")
 
 
 def cancel_assignment(db: Session, *, assignment: QuizAssignment) -> QuizAssignment:

@@ -17,7 +17,7 @@ from src.api.errors import ForbiddenError, NotFoundError
 from src.api.routes.quiz import QuizQuestionOut, QuizStartOut
 from src.db import get_db
 from src.models.classroom_roster import ClassroomRoster
-from src.models.enums import QuizSessionStatus
+from src.models.enums import MediationTier, QuizSessionStatus
 from src.models.learner_profile import LearnerProfile
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
@@ -25,6 +25,8 @@ from src.models.quiz_session import QuizSession
 from src.models.real_guardian_account import RealGuardianAccount
 from src.observability.session import get_database_session_service
 from src.services.auth.dependencies import InstructorAccount, current_guardian, current_instructor
+from src.services.mediation.read_aloud import resolve_read_aloud_eligible
+from src.services.mediation.tier import resolve_mediation_tier
 from src.services.quiz.session import compute_quiz_summary, persist_quiz_question
 from src.services.quiz_assignment.assignment import (
     cancel_assignment,
@@ -268,6 +270,7 @@ class AssignmentForLearnerOut(BaseModel):
     due_at: datetime.datetime | None
     cancelled_at: datetime.datetime | None
     status: str
+    has_unviewed_activity: bool
 
 
 class ListLearnerAssignmentsOut(BaseModel):
@@ -306,23 +309,36 @@ def list_learner_assignments_route(
     # cancelled one included and marked via `cancelled_at` rather than
     # omitted (research.md §8) -- `status` is derived purely from
     # quiz-session state, never folded together with `cancelled_at`.
-    return ListLearnerAssignmentsOut(
-        assignments=[
+    result: list[AssignmentForLearnerOut] = []
+    for target, assignment in rows:
+        status = derive_target_status(
+            status_by_session_id.get(target.quiz_session_id)
+            if target.quiz_session_id is not None
+            else None
+        )
+        # spec 019 FR-006/FR-007/FR-008, research.md Decision 7: the
+        # in-app "new activity" indicator is exclusive to the
+        # opt-in-nudges tier -- check-in gets a summary (not a badge)
+        # and independent gets neither, even though `guardian_viewed_at`
+        # itself is written for every tier uniformly.
+        has_unviewed_activity = (
+            status in ("completed", "ended_early")
+            and target.guardian_viewed_at is None
+            and resolve_mediation_tier(db, learner_id=learner_id, subject_id=assignment.subject_id)
+            == MediationTier.OPT_IN_NUDGES
+        )
+        result.append(
             AssignmentForLearnerOut(
                 assignment_id=assignment.assignment_id,
                 topic_ids=assignment.topic_ids,
                 question_count=assignment.question_count,
                 due_at=assignment.due_at,
                 cancelled_at=assignment.cancelled_at,
-                status=derive_target_status(
-                    status_by_session_id.get(target.quiz_session_id)
-                    if target.quiz_session_id is not None
-                    else None
-                ),
+                status=status,
+                has_unviewed_activity=has_unviewed_activity,
             )
-            for target, assignment in rows
-        ]
-    )
+        )
+    return ListLearnerAssignmentsOut(assignments=result)
 
 
 @router.post(
@@ -353,11 +369,13 @@ async def start_assignment_attempt_route(
     if target is None:
         raise ForbiddenError("not_targeted")
 
-    quiz, result = await start_assignment_attempt(
+    quiz, result, handoff_token = await start_assignment_attempt(
         db, assignment=assignment, target=target, session_service=get_database_session_service()
     )
     if result is None:
-        return QuizStartOut(quiz_session_id=quiz.quiz_session_id, status="ended_early")
+        return QuizStartOut(
+            quiz_session_id=quiz.quiz_session_id, status="ended_early", handoff_token=handoff_token
+        )
 
     question = persist_quiz_question(
         db,
@@ -370,6 +388,7 @@ async def start_assignment_attempt_route(
     return QuizStartOut(
         quiz_session_id=quiz.quiz_session_id,
         status="in_progress",
+        handoff_token=handoff_token,
         question=QuizQuestionOut(
             question_id=question.question_id,
             topic_id=result.topic_id,
@@ -377,5 +396,10 @@ async def start_assignment_attempt_route(
             question_type=result.question_type.value,
             stem=result.draft.stem,
             options=result.draft.options,
+            image_url=result.image_url,
+            image_alt_text=result.image_alt_text,
+            read_aloud_eligible=resolve_read_aloud_eligible(
+                db, learner_id=learner_id, subject_id=assignment.subject_id
+            ),
         ),
     )

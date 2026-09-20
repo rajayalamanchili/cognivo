@@ -46,6 +46,7 @@ describe("FreeTextAnswerInput", () => {
       "q1",
       "The independent variable is x.",
       undefined,
+      undefined,
     );
     expect(onGraded).toHaveBeenCalledWith(
       expect.objectContaining({ correct: true, topic_id: "linear-equations" }),

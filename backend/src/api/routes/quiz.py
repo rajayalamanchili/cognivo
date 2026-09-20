@@ -6,22 +6,24 @@ reusing the exact same, unmodified grading/mastery-update mechanism a
 non-quiz answer already goes through.
 
 `get_quiz_next_question` gains one conditional check for spec 011
-(research.md §2): `assert_guardian_owns_assignment_session` is a no-op
-for a `QuizSession` that isn't linked to a `QuizAssignmentTarget` row,
-so this route's behavior for the pre-existing demo/capability-URL quiz
-path (this docstring's original scope) is completely unchanged.
+(research.md §2), extended by spec 019 with tier-aware hand-off-token
+support: `assert_quiz_session_access` is a no-op for a `QuizSession`
+that isn't linked to a `QuizAssignmentTarget` row, so this route's
+behavior for the pre-existing demo/capability-URL quiz path (this
+docstring's original scope) is completely unchanged.
 """
 
 import datetime
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
 from src.db import get_db
 from src.models.enums import QuizSessionStatus
+from src.models.quiz_assignment_target import QuizAssignmentTarget
 from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
@@ -38,7 +40,7 @@ from src.services.quiz.session import (
     persist_quiz_question,
     start_quiz,
 )
-from src.services.quiz_assignment.assignment import assert_guardian_owns_assignment_session
+from src.services.quiz_assignment.assignment import assert_quiz_session_access
 
 router = APIRouter()
 
@@ -100,6 +102,11 @@ class QuizStartOut(BaseModel):
     quiz_session_id: uuid.UUID
     status: str
     question: QuizQuestionOut | None = None
+    # spec 019 FR-005a/b, contracts/api.md: shared with the demo/ad-hoc
+    # `start_quiz_route` below, which never sets this (always `None`,
+    # since a non-assignment-linked session never goes through tier
+    # determination at all -- FR-014).
+    handoff_token: str | None = None
 
 
 @router.post("/api/quizzes", response_model=QuizStartOut)
@@ -164,11 +171,14 @@ async def get_quiz_next_question(
     quiz_session_id: uuid.UUID,
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
 ) -> QuizNextQuestionOut:
     quiz = db.get(QuizSession, quiz_session_id)
     if quiz is None:
         raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
-    assert_guardian_owns_assignment_session(db, quiz_session_id=quiz_session_id, claims=claims)
+    assert_quiz_session_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
+    )
     if quiz.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
             f"quiz {quiz_session_id} is already {quiz.status.value} -- "
@@ -243,6 +253,20 @@ def get_quiz_summary_route(
     quiz = db.get(QuizSession, quiz_session_id)
     if quiz is None:
         raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
+
+    # spec 019 FR-006/FR-007a, research.md Decision 7: a no-op unless
+    # assignment-linked (mirrors `assert_quiz_session_access`'s existing
+    # no-op-for-demo/ad-hoc-sessions precedent) -- set for any tier,
+    # unconditionally, since the badge's tier-gating happens at the
+    # list-view read layer (`list_learner_assignments_route`), not here.
+    target = (
+        db.query(QuizAssignmentTarget)
+        .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
+        .first()
+    )
+    if target is not None and target.guardian_viewed_at is None:
+        target.guardian_viewed_at = datetime.datetime.now(datetime.UTC)
+        db.commit()
 
     summary = compute_quiz_summary(db, quiz_session_id=quiz_session_id)
 

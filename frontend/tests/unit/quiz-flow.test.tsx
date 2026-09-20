@@ -75,6 +75,7 @@ describe("QuizFlow", () => {
 
   it("renders the answering phase with the reused QuestionCard after starting a quiz", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "in_progress",
       question,
@@ -88,6 +89,7 @@ describe("QuizFlow", () => {
 
   it("transitions to the completed phase once the last question is answered", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "in_progress",
       question,
@@ -115,9 +117,7 @@ describe("QuizFlow", () => {
       started_at: "2026-08-18T12:00:00Z",
       completed_at: "2026-08-18T12:01:00Z",
       score: { correct: 1, total: 1 },
-      summary: [
-        { topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 },
-      ],
+      summary: [{ topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 }],
     });
 
     await renderAndStartQuiz();
@@ -133,6 +133,7 @@ describe("QuizFlow", () => {
 
   it("transitions to the ended_early phase when next-question reports it", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "in_progress",
       question,
@@ -163,9 +164,7 @@ describe("QuizFlow", () => {
       started_at: "2026-08-18T12:00:00Z",
       completed_at: "2026-08-18T12:01:00Z",
       score: { correct: 1, total: 1 },
-      summary: [
-        { topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 },
-      ],
+      summary: [{ topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 }],
     });
 
     await renderAndStartQuiz();
@@ -181,6 +180,7 @@ describe("QuizFlow", () => {
 
   it("shows the ended_early phase immediately if the very first question can't be generated", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "ended_early",
       question: null,
