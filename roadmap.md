@@ -1213,14 +1213,18 @@ multi_step_replacement` added, mirroring the existing free-text test.
 
 ## Milestone 17: Age-Adaptive Learner Experience
 
-**Spec**: `specs/019-age-adaptive-learner-experience/spec.md` (not yet
-created).
-**Status**: Not started. Flagged 2026-09-14 during a K-12 STEM
+**Spec**: `specs/019-age-adaptive-learner-experience/spec.md`.
+**Status**: Implementation-complete 2026-09-20 on branch
+`019-age-adaptive-learner-experience` (all three user stories plus
+Phase 6 Polish); not yet merged. Flagged 2026-09-14 during a K-12 STEM
 gap-analysis session as "Age-adaptive learner experience across the
 grade 1-12 range" in "Out of current roadmap"; promoted to its own
 milestone 2026-09-20 after it resurfaced as the top open gap in a
 follow-up product-thinking pass ("nothing currently adapts to grade
-band, only to mastery level"). No spec/plan/tasks yet.
+band, only to mastery level"). Full backend (595) and frontend (96)
+regression suites pass; Milestone 15's grade-banding suite and the
+Constitution Principle III subject-conditional check both confirmed
+clean.
 
 **Pre-spec clarification (2026-09-20)**: formal `/speckit-clarify`
 requires an existing `spec.md`, which this milestone doesn't have yet,
