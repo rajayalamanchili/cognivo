@@ -70,7 +70,8 @@ describe("FreeTextAnswerInput rejection states", () => {
     render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
     await submit();
 
-    expect(screen.getByRole("button", { name: /grading/i })).toBeDisabled();
+    expect(screen.getByTestId("loading-indicator")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /reading your answer/i })).toBeDisabled();
     expectOnlyVisible(null);
 
     resolveAnswer?.();

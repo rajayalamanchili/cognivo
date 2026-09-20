@@ -7,6 +7,7 @@ import {
   type AnswerResult,
   type FreeTextErrorBody,
 } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // Free-text owns its own submission (unlike MC/numeric, whose submit
 // button lives in the parent flow page) so it can render FR-018's five
@@ -81,7 +82,11 @@ export default function FreeTextAnswerInput({
         disabled={busy || text.trim() === ""}
         className="self-start rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
       >
-        {state === "grading-in-progress" ? "Grading…" : "Submit Answer"}
+        {state === "grading-in-progress" ? (
+          <LoadingIndicator message="Reading your answer…" compact />
+        ) : (
+          "Submit Answer"
+        )}
       </button>
 
       {state === "too-long" && (

@@ -19,6 +19,7 @@ import {
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { formatTopicId } from "@/lib/format-topic-id";
 import { getPacingProfile } from "@/lib/pacing";
 
@@ -210,7 +211,7 @@ export default function QuizFlow() {
   }
 
   if (phase === "loading") {
-    return <p className="p-8">Loading&hellip;</p>;
+    return <LoadingIndicator message="Getting ready…" />;
   }
 
   if (phase === "error") {
@@ -231,10 +232,7 @@ export default function QuizFlow() {
 
   if (phase === "stopping-point") {
     return (
-      <div
-        className="mx-auto flex max-w-2xl flex-col gap-6 p-8"
-        data-testid="quiz-stopping-point"
-      >
+      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="quiz-stopping-point">
         <h1 className="text-2xl font-semibold">Great work! 🎉</h1>
         <p>You&apos;ve answered {answeredCount} questions -- that&apos;s a nice stopping point.</p>
         <div className="flex items-center gap-4">
@@ -275,15 +273,19 @@ export default function QuizFlow() {
         />
         {currentQuestion.question_type !== "free_text" &&
           currentQuestion.question_type !== "multi_step" && (
-          <button
-            type="button"
-            disabled={response === "" || phase === "submitting"}
-            onClick={handleSubmitAnswer}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
-          >
-            {phase === "submitting" ? "Submitting…" : "Submit Answer"}
-          </button>
-        )}
+            <button
+              type="button"
+              disabled={response === "" || phase === "submitting"}
+              onClick={handleSubmitAnswer}
+              className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+            >
+              {phase === "submitting" ? (
+                <LoadingIndicator message="Checking your answer…" compact />
+              ) : (
+                "Submit Answer"
+              )}
+            </button>
+          )}
       </div>
     );
   }
@@ -337,7 +339,11 @@ export default function QuizFlow() {
         onClick={handleStart}
         className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
       >
-        {phase === "starting" ? "Starting…" : "Start Quiz"}
+        {phase === "starting" ? (
+          <LoadingIndicator message="Building your quiz…" compact />
+        ) : (
+          "Start Quiz"
+        )}
       </button>
     </div>
   );

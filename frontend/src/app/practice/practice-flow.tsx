@@ -14,6 +14,7 @@ import {
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 type Phase = "loading" | "answering" | "submitting" | "result" | "error";
 
@@ -106,7 +107,7 @@ export default function PracticeFlow() {
   }
 
   if (phase === "loading") {
-    return <p className="p-8">Loading next question&hellip;</p>;
+    return <LoadingIndicator message="Finding your next question…" />;
   }
 
   if (phase === "error") {
@@ -161,7 +162,11 @@ export default function PracticeFlow() {
           onClick={handleSubmit}
           className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
         >
-          {phase === "submitting" ? "Submitting…" : "Submit Answer"}
+          {phase === "submitting" ? (
+            <LoadingIndicator message="Checking your answer…" compact />
+          ) : (
+            "Submit Answer"
+          )}
         </button>
       )}
     </div>

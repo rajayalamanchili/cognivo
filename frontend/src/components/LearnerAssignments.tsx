@@ -16,6 +16,7 @@ import {
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // A per-learner assignment list (spec 011, User Story 2) -- "start"
 // re-uses the exact same question/answer/summary UI `quiz-flow.tsx`
@@ -224,21 +225,25 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         />
         {currentQuestion.question_type !== "free_text" &&
           currentQuestion.question_type !== "multi_step" && (
-          <button
-            type="button"
-            disabled={response === "" || phase === "submitting"}
-            onClick={handleSubmitAnswer}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
-          >
-            {phase === "submitting" ? "Submitting…" : "Submit Answer"}
-          </button>
-        )}
+            <button
+              type="button"
+              disabled={response === "" || phase === "submitting"}
+              onClick={handleSubmitAnswer}
+              className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+            >
+              {phase === "submitting" ? (
+                <LoadingIndicator message="Checking your answer…" compact />
+              ) : (
+                "Submit Answer"
+              )}
+            </button>
+          )}
       </div>
     );
   }
 
   if (loading) {
-    return <p className="text-sm">Loading assignments&hellip;</p>;
+    return <LoadingIndicator message="Finding your quizzes…" />;
   }
 
   if (loadError) {
@@ -293,7 +298,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
               disabled={startingId === assignment.assignment_id}
               className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40"
             >
-              {startingId === assignment.assignment_id ? "Starting…" : "Start"}
+              {startingId === assignment.assignment_id ? (
+                <LoadingIndicator message="Building your quiz…" compact />
+              ) : (
+                "Start"
+              )}
             </button>
           )}
         </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ApiError, getDemoInstructor } from "@/services/api";
 import { enterDemoLearnerMode, notifySessionChanged } from "@/lib/visitor-state";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 export default function DemoEntryPage() {
   const router = useRouter();
@@ -51,7 +52,11 @@ export default function DemoEntryPage() {
           disabled={starting}
           className="rounded-lg border border-border px-5 py-3 disabled:opacity-40"
         >
-          {starting ? "Starting…" : "Try as a demo instructor"}
+          {starting ? (
+            <LoadingIndicator variant="professional" compact />
+          ) : (
+            "Try as a demo instructor"
+          )}
         </button>
       </div>
 

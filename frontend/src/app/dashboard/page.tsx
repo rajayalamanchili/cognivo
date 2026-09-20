@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import DashboardFlow from "./dashboard-flow";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<p className="p-8">Loading dashboard&hellip;</p>}>
+    <Suspense fallback={<LoadingIndicator message="Getting your dashboard ready…" />}>
       <DashboardFlow />
     </Suspense>
   );

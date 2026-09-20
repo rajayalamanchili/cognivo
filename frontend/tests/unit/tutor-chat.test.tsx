@@ -94,7 +94,8 @@ describe("TutorChat", () => {
     await userEvent.click(screen.getByRole("button", { name: /ask/i }));
 
     expect(input).toBeDisabled();
-    expect(screen.getByRole("button", { name: /answering/i })).toBeDisabled();
+    expect(screen.getByTestId("loading-indicator")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /thinking/i })).toBeDisabled();
 
     resolveStream();
     await waitFor(() => expect(input).not.toBeDisabled());

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { getDemoLearner, getMasteryState, type MasteryTopicEntry } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 type Phase = "loading" | "loaded" | "error";
 
@@ -35,7 +36,7 @@ export default function MasteryFlow() {
   }, [subjectId]);
 
   if (phase === "loading") {
-    return <p className="p-8">Loading mastery state&hellip;</p>;
+    return <LoadingIndicator message="Gathering your progress…" />;
   }
 
   if (phase === "error") {

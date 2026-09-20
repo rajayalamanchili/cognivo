@@ -12,6 +12,7 @@ import {
   type PlacementQuestion,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import LoadingIndicator from "@/components/LoadingIndicator";
 import { canUseReadAloud, speak } from "@/lib/read-aloud";
 
 type Phase = "loading" | "answering" | "submitting" | "results" | "error";
@@ -130,7 +131,7 @@ export default function PlacementFlow() {
   }
 
   if (phase === "loading") {
-    return <p className="p-8">Loading placement questions&hellip;</p>;
+    return <LoadingIndicator message="Preparing your first questions…" />;
   }
 
   if (phase === "error") {
@@ -174,16 +175,18 @@ export default function PlacementFlow() {
                 Grade {question.grade}
               </span>
             )}
-            {question.grade !== null && lowestShownGrade !== null && question.grade > lowestShownGrade && (
-              <button
-                type="button"
-                disabled={skippingQuestionId === question.question_id}
-                onClick={() => handleSkip(question.question_id)}
-                className="ml-2 text-xs font-normal text-link underline disabled:opacity-40"
-              >
-                {skippingQuestionId === question.question_id ? "Skipping…" : "Skip (too hard)"}
-              </button>
-            )}
+            {question.grade !== null &&
+              lowestShownGrade !== null &&
+              question.grade > lowestShownGrade && (
+                <button
+                  type="button"
+                  disabled={skippingQuestionId === question.question_id}
+                  onClick={() => handleSkip(question.question_id)}
+                  className="ml-2 text-xs font-normal text-link underline disabled:opacity-40"
+                >
+                  {skippingQuestionId === question.question_id ? "Skipping…" : "Skip (too hard)"}
+                </button>
+              )}
           </legend>
           {question.read_aloud_eligible && canUseReadAloud() && (
             <button
@@ -237,7 +240,11 @@ export default function PlacementFlow() {
         onClick={handleSubmit}
         className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
       >
-        {phase === "submitting" ? "Submitting…" : "Submit Placement"}
+        {phase === "submitting" ? (
+          <LoadingIndicator message="Figuring out where to start you…" compact />
+        ) : (
+          "Submit Placement"
+        )}
       </button>
     </div>
   );
