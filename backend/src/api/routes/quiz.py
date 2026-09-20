@@ -41,7 +41,10 @@ from src.services.quiz.session import (
     persist_quiz_question,
     start_quiz,
 )
-from src.services.quiz_assignment.assignment import assert_quiz_session_access
+from src.services.quiz_assignment.assignment import (
+    assert_quiz_session_access,
+    assert_quiz_summary_access,
+)
 
 router = APIRouter()
 
@@ -256,11 +259,17 @@ class QuizSummaryOut(BaseModel):
 
 @router.get("/api/quizzes/{quiz_session_id}", response_model=QuizSummaryOut)
 def get_quiz_summary_route(
-    quiz_session_id: uuid.UUID, db: Session = Depends(get_db)
+    quiz_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
 ) -> QuizSummaryOut:
     quiz = db.get(QuizSession, quiz_session_id)
     if quiz is None:
         raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
+    assert_quiz_summary_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
+    )
 
     # spec 019 FR-006/FR-007a, research.md Decision 7: a no-op unless
     # assignment-linked (mirrors `assert_quiz_session_access`'s existing

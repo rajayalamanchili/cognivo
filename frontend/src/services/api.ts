@@ -376,8 +376,13 @@ export function getQuizNextQuestion(
   });
 }
 
-export function getQuizSummary(quizSessionId: string): Promise<QuizSummaryResponse> {
-  return request<QuizSummaryResponse>(`/api/quizzes/${quizSessionId}`);
+export function getQuizSummary(
+  quizSessionId: string,
+  handoffToken?: string | null,
+): Promise<QuizSummaryResponse> {
+  return request<QuizSummaryResponse>(`/api/quizzes/${quizSessionId}`, {
+    headers: handoffHeaders(handoffToken),
+  });
 }
 
 export function flagQuestion(

@@ -277,6 +277,51 @@ def _guardian_owns_target(
     return learner is not None and learner.guardian_id == claims.account_id
 
 
+def _resolve_tier_gated_access(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    claims: SessionClaims | None,
+    handoff_token: str | None,
+) -> QuizSession | None:
+    """Shared tier/guardian/hand-off-token gating for both
+    `assert_quiz_session_access` (answering) and
+    `assert_quiz_summary_access` (viewing results afterward). Returns
+    `None` when the caller needs no further constraint (not
+    assignment-linked, or the owning guardian's own session); returns
+    the `QuizSession` once a hand-off token has been structurally
+    verified against this exact session, so the caller can layer its
+    own additional session-state constraint (if any) on top. Raises
+    `ForbiddenError` if neither credential is valid."""
+    target = (
+        db.query(QuizAssignmentTarget)
+        .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
+        .first()
+    )
+    if target is None:
+        return None
+
+    if _guardian_owns_target(db, target=target, claims=claims):
+        return None
+
+    quiz = db.get(QuizSession, quiz_session_id)
+    tier = (
+        resolve_mediation_tier(db, learner_id=target.learner_id, subject_id=quiz.subject_id)
+        if quiz is not None
+        else None
+    )
+    if tier in (None, MediationTier.CO_PRESENT):
+        raise ForbiddenError("not_learner_guardian")
+
+    if handoff_token is None:
+        raise ForbiddenError("not_learner_guardian")
+    token_quiz_session_id = verify_handoff_token(handoff_token)
+    if token_quiz_session_id is None or token_quiz_session_id != quiz_session_id:
+        raise ForbiddenError("invalid_handoff_token")
+    assert quiz is not None  # tier is None whenever quiz is None, handled above
+    return quiz
+
+
 def assert_quiz_session_access(
     db: Session,
     *,
@@ -303,33 +348,31 @@ def assert_quiz_session_access(
     Renamed from `assert_guardian_owns_assignment_session` -- spec 011's
     original name no longer describes what this function checks now
     that a non-guardian credential can also pass."""
-    target = (
-        db.query(QuizAssignmentTarget)
-        .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
-        .first()
+    quiz = _resolve_tier_gated_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=handoff_token
     )
-    if target is None:
-        return
-
-    if _guardian_owns_target(db, target=target, claims=claims):
-        return
-
-    quiz = db.get(QuizSession, quiz_session_id)
-    tier = (
-        resolve_mediation_tier(db, learner_id=target.learner_id, subject_id=quiz.subject_id)
-        if quiz is not None
-        else None
-    )
-    if tier in (None, MediationTier.CO_PRESENT):
-        raise ForbiddenError("not_learner_guardian")
-
-    if handoff_token is None:
-        raise ForbiddenError("not_learner_guardian")
-    token_quiz_session_id = verify_handoff_token(handoff_token)
-    if token_quiz_session_id is None or token_quiz_session_id != quiz_session_id:
-        raise ForbiddenError("invalid_handoff_token")
-    if quiz is None or quiz.status != QuizSessionStatus.IN_PROGRESS:
+    if quiz is not None and quiz.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError("quiz_session_not_in_progress")
+
+
+def assert_quiz_summary_access(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    claims: SessionClaims | None,
+    handoff_token: str | None = None,
+) -> None:
+    """Same tier/guardian/hand-off-token gating as
+    `assert_quiz_session_access`, for `GET /api/quizzes/{id}` (the
+    summary route) -- deliberately does *not* require the `QuizSession`
+    to still be `IN_PROGRESS` for a hand-off-token caller, unlike
+    `assert_quiz_session_access`: FR-005c's "token stops working once
+    the session is no longer in progress" guarantee is specifically
+    about continuing to *answer*, not about a learner's device reading
+    back its own just-finished results."""
+    _resolve_tier_gated_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=handoff_token
+    )
 
 
 def cancel_assignment(db: Session, *, assignment: QuizAssignment) -> QuizAssignment:

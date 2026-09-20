@@ -105,8 +105,12 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     };
   }, [learnerId]);
 
-  async function goToSummary(sessionId: string) {
-    const result = await getQuizSummary(sessionId);
+  // Takes `handoffTokenOverride` for the one call site (`handleStart`'s
+  // ended-early-at-start branch) that needs it before the `setHandoffToken`
+  // just called in the same tick has actually committed to state --
+  // every other call site is a later render/event and can rely on state.
+  async function goToSummary(sessionId: string, handoffTokenOverride?: string | null) {
+    const result = await getQuizSummary(sessionId, handoffTokenOverride ?? handoffToken);
     setSummary(result);
     setPhase("finished");
   }
@@ -125,7 +129,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         setReadAloudUsed(false);
         setPhase("answering");
       } else {
-        await goToSummary(result.quiz_session_id);
+        await goToSummary(result.quiz_session_id, result.handoff_token);
       }
     } catch (error) {
       setStartError(errorText(error));

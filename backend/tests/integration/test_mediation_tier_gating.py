@@ -166,3 +166,78 @@ def test_handoff_token_rejected_once_quiz_session_is_no_longer_in_progress(
     )
     assert response.status_code == 409, response.text
     assert response.json() == {"detail": "quiz_session_not_in_progress"}
+
+
+def test_co_present_tier_summary_requires_guardian(client, db_session, algebra_subject):
+    """`GET /api/quizzes/{id}` had no access gate at all before this
+    fix -- anyone who obtained a `quiz_session_id` could read any
+    learner's quiz summary. Same tier gating as `/next-question`."""
+    body, _guardian_email = _start_for_grade(
+        client, db_session, algebra_subject, grade=2, label="summary-co-present"
+    )
+    quiz_session_id = body["quiz_session_id"]
+
+    client.post("/api/auth/logout")
+    response = client.get(f"/api/quizzes/{quiz_session_id}")
+    assert response.status_code == 403, response.text
+    assert response.json() == {"detail": "not_learner_guardian"}
+
+
+def test_handoff_token_can_view_summary_after_quiz_session_completes(
+    client, db_session, algebra_subject
+):
+    """Unlike `/next-question` (FR-005c), a hand-off token stays valid
+    for reading the summary after the session is no longer in progress
+    -- that guarantee is about continuing to answer, not about a
+    learner's device reading back its own just-finished results."""
+    body, _guardian_email = _start_for_grade(
+        client,
+        db_session,
+        algebra_subject,
+        grade=10,
+        question_count=1,
+        label="summary-independent",
+    )
+    handoff_token = body["handoff_token"]
+    question_id = body["question"]["question_id"]
+    quiz_session_id = body["quiz_session_id"]
+
+    client.post("/api/auth/logout")
+    answer = client.post(
+        f"/api/questions/{question_id}/answer",
+        json={"response": 0},
+        headers={"X-Quiz-Handoff-Token": handoff_token},
+    )
+    assert answer.status_code == 200, answer.text
+
+    # Confirm the session really is no longer in progress (mirrors
+    # test_handoff_token_rejected_once_quiz_session_is_no_longer_in_progress).
+    next_question = client.get(
+        f"/api/quizzes/{quiz_session_id}/next-question",
+        headers={"X-Quiz-Handoff-Token": handoff_token},
+    )
+    assert next_question.status_code == 409, next_question.text
+
+    summary = client.get(
+        f"/api/quizzes/{quiz_session_id}", headers={"X-Quiz-Handoff-Token": handoff_token}
+    )
+    assert summary.status_code == 200, summary.text
+
+
+def test_handoff_token_rejected_for_a_different_quiz_session_on_summary(
+    client, db_session, algebra_subject
+):
+    body_a, _ = _start_for_grade(
+        client, db_session, algebra_subject, grade=7, label="summary-diff-a"
+    )
+    body_b, _ = _start_for_grade(
+        client, db_session, algebra_subject, grade=7, label="summary-diff-b"
+    )
+
+    client.post("/api/auth/logout")
+    response = client.get(
+        f"/api/quizzes/{body_b['quiz_session_id']}",
+        headers={"X-Quiz-Handoff-Token": body_a["handoff_token"]},
+    )
+    assert response.status_code == 403, response.text
+    assert response.json() == {"detail": "invalid_handoff_token"}

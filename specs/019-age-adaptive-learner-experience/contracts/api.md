@@ -89,6 +89,22 @@ shape change -- this is a side effect of an existing read, not a new
 field on it. Idempotent: a second view does not change
 `guardian_viewed_at` after it's first set.
 
+**Access gate added (code-review fix, post-implementation)**: this
+route originally shipped with no authorization check at all for an
+assignment-linked session -- since `quiz_session_id` is only a UUID,
+not practically guessable, this wasn't exploitable in practice, but it
+was still a real gap left by this milestone's own change (adding a
+mutating side effect, `guardian_viewed_at`, to a previously-read-only,
+ungated route). Now gated by the same tier logic as `/next-question`
+above (`assert_quiz_summary_access`), with one deliberate difference:
+a hand-off token remains valid here even after the `QuizSession` is no
+longer `in_progress` -- FR-005c's "token stops working once the
+session ends" guarantee is about continuing to *answer*, not about a
+learner's device reading back its own just-finished results. Failure
+modes: `403 not_learner_guardian`, `403 invalid_handoff_token` (same
+meaning as above). No `409 quiz_session_not_in_progress` here --
+that's the one check this route intentionally skips.
+
 ### `GET /api/learners/{learner_id}/assignments` (guardian-authenticated) -- list view (EXTENDED)
 
 Response gains one new boolean field per assignment:

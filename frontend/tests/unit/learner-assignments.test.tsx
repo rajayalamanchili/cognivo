@@ -337,6 +337,52 @@ describe("LearnerAssignments", () => {
     expect(api.getQuizSummary).not.toHaveBeenCalled();
   });
 
+  it("passes the start response's handoff_token to the summary call when the attempt ends early at start (stale-state regression)", async () => {
+    // handleStart's "ended early at start" branch calls goToSummary
+    // synchronously in the same tick as setHandoffToken -- the
+    // component's `handoffToken` *state* is still its old (null) value
+    // at that point, so goToSummary must use `result.handoff_token`
+    // directly rather than reading stale state (spec 019 FR-005b).
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+    vi.mocked(api.startAssignment).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      status: "ended_early",
+      handoff_token: "handoff-token-xyz",
+      question: null,
+    });
+    vi.mocked(api.getQuizSummary).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      subject_id: "integers-and-operations",
+      topic_ids: ["integers-and-operations"],
+      question_count: 5,
+      status: "ended_early",
+      started_at: "2026-09-20T00:00:00Z",
+      completed_at: "2026-09-20T00:00:01Z",
+      score: { correct: 0, total: 0 },
+      summary: [],
+    });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    fireEvent.click(await screen.findByText("Start"));
+
+    await waitFor(() =>
+      expect(api.getQuizSummary).toHaveBeenCalledWith("quiz-1", "handoff-token-xyz"),
+    );
+    expect(await screen.findByTestId("quiz-summary")).toBeInTheDocument();
+  });
+
   it("refetches the list when 'Refresh' is clicked", async () => {
     vi.mocked(api.listLearnerAssignments).mockResolvedValueOnce({ assignments: [] });
     render(<LearnerAssignments learnerId={LEARNER_ID} />);
