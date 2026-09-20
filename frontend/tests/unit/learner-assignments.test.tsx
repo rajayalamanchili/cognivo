@@ -123,6 +123,7 @@ describe("LearnerAssignments", () => {
         image_alt_text: null,
         steps: null,
         read_aloud_eligible: false,
+        unlocked_grade: null,
       },
     });
 
@@ -218,6 +219,7 @@ describe("LearnerAssignments", () => {
         image_alt_text: null,
         steps: null,
         read_aloud_eligible: false,
+        unlocked_grade: null,
       },
     });
     vi.mocked(api.answerQuestion).mockResolvedValue({
@@ -246,6 +248,7 @@ describe("LearnerAssignments", () => {
         image_alt_text: null,
         steps: null,
         read_aloud_eligible: false,
+        unlocked_grade: null,
       },
     });
 

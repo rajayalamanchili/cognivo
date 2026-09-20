@@ -137,6 +137,9 @@ export interface NextQuestion {
   // null for every other question_type.
   steps: string[] | null;
   read_aloud_eligible: boolean;
+  // spec 019 FR-009/research.md Decision 6 -- null when the learner has
+  // no GradeProgress row for this subject (ungraded, or not yet placed).
+  unlocked_grade: number | null;
 }
 
 // One step's outcome within a `multi_step` submission (spec 018

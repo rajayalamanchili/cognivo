@@ -18,6 +18,7 @@ const baseQuestion: NextQuestion = {
   image_alt_text: null,
   steps: null,
   read_aloud_eligible: true,
+  unlocked_grade: null,
 };
 
 function stubSpeechSynthesis() {

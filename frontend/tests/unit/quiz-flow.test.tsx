@@ -33,6 +33,7 @@ const question = {
   image_alt_text: null,
   steps: null,
   read_aloud_eligible: false,
+  unlocked_grade: null,
 };
 
 async function renderAndStartQuiz() {
@@ -202,5 +203,97 @@ describe("QuizFlow", () => {
     const summary = await screen.findByTestId("quiz-summary");
     expect(summary).toHaveTextContent(/ended early/i);
     await waitFor(() => expect(screen.queryByTestId("question-card")).not.toBeInTheDocument());
+  });
+});
+
+describe("QuizFlow session pacing (spec 019 FR-009, SC-009)", () => {
+  const answerResult = {
+    correct: true,
+    topic_id: "linear-equations",
+    prior_p_mastery: null,
+    posterior_p_mastery: 0.5,
+    band: "developing" as const,
+    graduated_score: null,
+    criteria_met: null,
+    criteria_missed: null,
+    grading_logic_version: null,
+    first_diverging_step_index: null,
+    step_results: null,
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.getDemoLearner).mockReset();
+    vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.getMasteryState).mockReset();
+    vi.mocked(api.startQuiz).mockReset();
+    vi.mocked(api.answerQuestion).mockReset();
+    vi.mocked(api.getQuizNextQuestion).mockReset();
+    vi.mocked(api.getQuizSummary).mockReset();
+  });
+
+  function questionAt(id: string, unlockedGrade: number | null) {
+    return { ...question, question_id: id, unlocked_grade: unlockedGrade };
+  }
+
+  it("shows a stopping-point prompt after the early band's recommended count, without ending the quiz (Acceptance Scenario 1)", async () => {
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 1),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 1) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 1) });
+
+    await renderAndStartQuiz();
+
+    // Grade 1's pacing profile recommends a checkpoint at 3 questions
+    // (frontend/src/lib/pacing.ts) -- answer three in a row.
+    for (let i = 0; i < 3; i++) {
+      await screen.findByTestId("question-card");
+      await userEvent.click(screen.getByLabelText("4"));
+      await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    const stoppingPoint = await screen.findByTestId("quiz-stopping-point");
+    expect(stoppingPoint).toBeInTheDocument();
+    expect(screen.queryByTestId("question-card")).not.toBeInTheDocument();
+    expect(api.getQuizSummary).not.toHaveBeenCalled();
+
+    // "Keep going" continues the same quiz session, not a new one.
+    vi.mocked(api.getQuizNextQuestion).mockResolvedValueOnce({
+      status: "in_progress",
+      question: questionAt("q4", 1),
+    });
+    await userEvent.click(screen.getByRole("button", { name: /keep going/i }));
+    await screen.findByText("2 + 2?");
+    expect(screen.getByTestId("question-card")).toBeInTheDocument();
+  });
+
+  it("never shows a stopping-point prompt for a late grade band (Acceptance Scenario 2)", async () => {
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 11),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 11) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 11) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q4", 11) });
+
+    await renderAndStartQuiz();
+
+    for (let i = 0; i < 3; i++) {
+      await screen.findByTestId("question-card");
+      await userEvent.click(screen.getByLabelText("4"));
+      await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    await screen.findByTestId("question-card");
+    expect(screen.queryByTestId("quiz-stopping-point")).not.toBeInTheDocument();
   });
 });

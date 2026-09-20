@@ -55,6 +55,7 @@ from src.services.grading_client.client import (
 )
 from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
+from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import record_quiz_answer
 from src.services.quiz_assignment.assignment import assert_quiz_session_access
@@ -80,6 +81,7 @@ class NextQuestionOut(BaseModel):
     image_alt_text: str | None = None
     steps: list[str] | None = None
     read_aloud_eligible: bool = False
+    unlocked_grade: int | None = None
 
 
 @router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
@@ -177,6 +179,7 @@ async def get_next_question(
         read_aloud_eligible=resolve_read_aloud_eligible(
             db, learner_id=learner_id, subject_id=subject_id
         ),
+        unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
     )
 
 

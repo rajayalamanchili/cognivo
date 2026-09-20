@@ -32,6 +32,7 @@ from src.observability.tracing import traced_request
 from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
 from src.services.demo_learner import get_demo_learner
+from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import (
     QuizEndedEarlyError,
@@ -91,6 +92,7 @@ class QuizQuestionOut(BaseModel):
     image_url: str | None = None
     image_alt_text: str | None = None
     read_aloud_eligible: bool = False
+    unlocked_grade: int | None = None
 
 
 class QuizStartIn(BaseModel):
@@ -157,6 +159,9 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
             read_aloud_eligible=resolve_read_aloud_eligible(
                 db, learner_id=learner.learner_id, subject_id=subject_id
             ),
+            unlocked_grade=resolve_unlocked_grade(
+                db, learner_id=learner.learner_id, subject_id=subject_id
+            ),
         ),
     )
 
@@ -216,6 +221,9 @@ async def get_quiz_next_question(
             image_url=result.image_url,
             image_alt_text=result.image_alt_text,
             read_aloud_eligible=resolve_read_aloud_eligible(
+                db, learner_id=quiz.learner_id, subject_id=quiz.subject_id
+            ),
+            unlocked_grade=resolve_unlocked_grade(
                 db, learner_id=quiz.learner_id, subject_id=quiz.subject_id
             ),
         ),

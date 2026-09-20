@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   ApiError,
   answerQuestion,
@@ -19,8 +20,17 @@ import {
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
 import { formatTopicId } from "@/lib/format-topic-id";
+import { getPacingProfile } from "@/lib/pacing";
 
-type Phase = "loading" | "start" | "starting" | "answering" | "submitting" | "finished" | "error";
+type Phase =
+  | "loading"
+  | "start"
+  | "starting"
+  | "answering"
+  | "submitting"
+  | "stopping-point"
+  | "finished"
+  | "error";
 
 const DEFAULT_QUESTION_COUNT = 5;
 
@@ -40,6 +50,12 @@ export default function QuizFlow() {
   const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Session pacing (spec 019 FR-009, research.md Decision 6) -- a soft,
+  // dismissible checkpoint only; the quiz itself is never ended by
+  // reaching it (Acceptance Scenario 1).
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [stoppingPointShown, setStoppingPointShown] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +118,8 @@ export default function QuizFlow() {
     try {
       const result = await startQuiz(selectedTopicIds, questionCount);
       setQuizSessionId(result.quiz_session_id);
+      setAnsweredCount(0);
+      setStoppingPointShown(false);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
         setReadAloudUsed(false);
@@ -136,6 +154,27 @@ export default function QuizFlow() {
     }
   }
 
+  // spec 019 FR-009: called after every answered question (both the
+  // MC/numeric path below and free-text/multi-step's own submission),
+  // before fetching the next question -- so a reached stopping point
+  // shows the checkpoint instead of an unnecessary extra fetch.
+  async function advanceAfterAnswer(sessionId: string, unlockedGrade: number | null) {
+    const newCount = answeredCount + 1;
+    setAnsweredCount(newCount);
+    const profile = getPacingProfile(unlockedGrade);
+    if (!stoppingPointShown && newCount >= profile.recommendedQuestionCount) {
+      setStoppingPointShown(true);
+      setPhase("stopping-point");
+      return;
+    }
+    await advanceToNextQuestion(sessionId);
+  }
+
+  async function handleContinueFromStoppingPoint() {
+    if (!quizSessionId) return;
+    await advanceToNextQuestion(quizSessionId);
+  }
+
   async function handleSubmitAnswer() {
     if (!currentQuestion || !quizSessionId || response === "") return;
     setPhase("submitting");
@@ -146,7 +185,7 @@ export default function QuizFlow() {
           : Number.parseInt(response, 10);
       await answerQuestion(currentQuestion.question_id, value, readAloudUsed);
       setResponse("");
-      await advanceToNextQuestion(quizSessionId);
+      await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
@@ -154,9 +193,9 @@ export default function QuizFlow() {
   }
 
   async function handleFreeTextGraded() {
-    if (!quizSessionId) return;
+    if (!quizSessionId || !currentQuestion) return;
     setResponse("");
-    await advanceToNextQuestion(quizSessionId);
+    await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
   }
 
   async function handleFlag(reason: string) {
@@ -186,6 +225,33 @@ export default function QuizFlow() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
         <QuizSummary summary={summary} />
+      </div>
+    );
+  }
+
+  if (phase === "stopping-point") {
+    return (
+      <div
+        className="mx-auto flex max-w-2xl flex-col gap-6 p-8"
+        data-testid="quiz-stopping-point"
+      >
+        <h1 className="text-2xl font-semibold">Great work! 🎉</h1>
+        <p>You&apos;ve answered {answeredCount} questions -- that&apos;s a nice stopping point.</p>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={handleContinueFromStoppingPoint}
+            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+          >
+            Keep going
+          </button>
+          <Link
+            href={selectedSubjectId ? `/mastery?subject=${selectedSubjectId}` : "/mastery"}
+            className="text-link underline"
+          >
+            I&apos;m done for now
+          </Link>
+        </div>
       </div>
     );
   }

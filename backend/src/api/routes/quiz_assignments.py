@@ -25,6 +25,7 @@ from src.models.quiz_session import QuizSession
 from src.models.real_guardian_account import RealGuardianAccount
 from src.observability.session import get_database_session_service
 from src.services.auth.dependencies import InstructorAccount, current_guardian, current_instructor
+from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.mediation.tier import resolve_mediation_tier
 from src.services.quiz.session import compute_quiz_summary, persist_quiz_question
@@ -399,6 +400,9 @@ async def start_assignment_attempt_route(
             image_url=result.image_url,
             image_alt_text=result.image_alt_text,
             read_aloud_eligible=resolve_read_aloud_eligible(
+                db, learner_id=learner_id, subject_id=assignment.subject_id
+            ),
+            unlocked_grade=resolve_unlocked_grade(
                 db, learner_id=learner_id, subject_id=assignment.subject_id
             ),
         ),
