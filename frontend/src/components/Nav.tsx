@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import CognivoMark from "@/components/CognivoMark";
 import { getWhoAmI, logout, type SessionAccountType } from "@/services/api";
 import {
   exitDemoLearnerMode,
@@ -142,8 +143,9 @@ export default function Nav() {
       <Link
         href={logoHref(accountType)}
         data-testid="nav-logo"
-        className="font-heading text-lg font-bold text-foreground"
+        className="flex items-center gap-2 font-heading text-lg font-bold text-foreground"
       >
+        <CognivoMark size={28} />
         Cognivo
       </Link>
       {bucket === "anonymous" && (
