@@ -44,6 +44,7 @@ from src.services.quiz.session import (
 from src.services.quiz_assignment.assignment import (
     assert_quiz_session_access,
     assert_quiz_summary_access,
+    guardian_owns_target,
 )
 
 router = APIRouter()
@@ -276,12 +277,25 @@ def get_quiz_summary_route(
     # no-op-for-demo/ad-hoc-sessions precedent) -- set for any tier,
     # unconditionally, since the badge's tier-gating happens at the
     # list-view read layer (`list_learner_assignments_route`), not here.
+    #
+    # Code-review fix: only when the *guardian's own* session made this
+    # call, not merely when `assert_quiz_summary_access` passed -- that
+    # check also accepts a hand-off token, and `LearnerAssignments.tsx`
+    # calls this route automatically the instant a quiz session ends,
+    # on the learner's own device. Stamping unconditionally meant a
+    # check-in/opt-in-nudges/independent learner's own device cleared
+    # the guardian's unviewed-activity indicator before the guardian
+    # ever looked at anything -- defeating FR-006/007/008's purpose.
     target = (
         db.query(QuizAssignmentTarget)
         .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
         .first()
     )
-    if target is not None and target.guardian_viewed_at is None:
+    if (
+        target is not None
+        and target.guardian_viewed_at is None
+        and guardian_owns_target(db, target=target, claims=claims)
+    ):
         target.guardian_viewed_at = datetime.datetime.now(datetime.UTC)
         db.commit()
 

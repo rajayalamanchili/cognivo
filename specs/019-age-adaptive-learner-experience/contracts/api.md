@@ -105,6 +105,19 @@ modes: `403 not_learner_guardian`, `403 invalid_handoff_token` (same
 meaning as above). No `409 quiz_session_not_in_progress` here --
 that's the one check this route intentionally skips.
 
+**`guardian_viewed_at` write scope narrowed (second code-review fix,
+same PR)**: the access gate above initially still stamped
+`guardian_viewed_at` for *any* caller who passed it, including a
+hand-off-token-authenticated learner device. Since
+`LearnerAssignments.tsx` calls this route automatically the instant a
+quiz session ends -- on the learner's own device, no guardian action
+involved, for every tier except `co_present` -- this meant the write
+almost always happened before the guardian ever saw anything,
+defeating FR-006/007/008's indicator entirely for opt-in-nudges. Now
+only stamped when the caller is the actual owning guardian's own
+session (`guardian_owns_target`); a hand-off-token view is
+authorized to *read* the summary but never sets `guardian_viewed_at`.
+
 ### `GET /api/learners/{learner_id}/assignments` (guardian-authenticated) -- list view (EXTENDED)
 
 Response gains one new boolean field per assignment:

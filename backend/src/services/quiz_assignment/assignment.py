@@ -268,9 +268,16 @@ async def start_assignment_attempt(
     return quiz, result, handoff_token
 
 
-def _guardian_owns_target(
+def guardian_owns_target(
     db: Session, *, target: QuizAssignmentTarget, claims: SessionClaims | None
 ) -> bool:
+    """Public (not `_`-prefixed): also used by `quiz.py`'s summary route
+    to distinguish an actual guardian view from a hand-off-token-
+    authenticated learner device viewing its own results, so only the
+    former stamps `guardian_viewed_at` (spec 019 FR-006/007/008 --
+    otherwise a check-in/opt-in-nudges/independent learner's own
+    automatic post-quiz summary fetch would clear the guardian's
+    unviewed-activity indicator before the guardian ever saw it)."""
     if claims is None or claims.account_type != "guardian":
         return False
     learner = db.get(LearnerProfile, target.learner_id)
@@ -301,7 +308,7 @@ def _resolve_tier_gated_access(
     if target is None:
         return None
 
-    if _guardian_owns_target(db, target=target, claims=claims):
+    if guardian_owns_target(db, target=target, claims=claims):
         return None
 
     quiz = db.get(QuizSession, quiz_session_id)

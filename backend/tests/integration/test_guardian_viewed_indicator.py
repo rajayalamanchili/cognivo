@@ -82,6 +82,7 @@ def _complete_one_question_attempt(client, db_session, algebra_subject, *, label
 
     return {
         "quiz_session_id": start.json()["quiz_session_id"],
+        "handoff_token": start.json()["handoff_token"],
         "guardian_email": guardian_email,
         "learner_id": learner_id,
     }
@@ -129,6 +130,37 @@ def test_viewing_the_summary_clears_the_indicator_and_is_idempotent(
     # A second view must not change anything further (idempotent).
     summary_again = client.get(f"/api/quizzes/{attempt['quiz_session_id']}")
     assert summary_again.status_code == 200, summary_again.text
+    assert _has_unviewed_activity(client, attempt["learner_id"]) is False
+
+
+def test_learner_viewing_via_handoff_token_does_not_clear_the_indicator(
+    client, db_session, algebra_subject
+):
+    """Code-review fix: `LearnerAssignments.tsx` calls this route
+    automatically the instant a quiz session ends, on the learner's own
+    device via hand-off token, for every tier except co-present. That
+    must not be mistaken for the guardian having seen anything, or the
+    opt-in-nudges indicator (the entire point of FR-006/007/008) would
+    always read as already-viewed by the time the guardian checks."""
+    attempt = _complete_one_question_attempt(
+        client, db_session, algebra_subject, label="handoff-view", unlocked_grade=7
+    )
+    handoff_token = attempt["handoff_token"]
+    assert handoff_token is not None
+
+    client.post("/api/auth/logout")
+    summary = client.get(
+        f"/api/quizzes/{attempt['quiz_session_id']}",
+        headers={"X-Quiz-Handoff-Token": handoff_token},
+    )
+    assert summary.status_code == 200, summary.text
+
+    login_guardian(client, attempt["guardian_email"])
+    assert _has_unviewed_activity(client, attempt["learner_id"]) is True
+
+    # The guardian's own view is what actually clears it.
+    guardian_summary = client.get(f"/api/quizzes/{attempt['quiz_session_id']}")
+    assert guardian_summary.status_code == 200, guardian_summary.text
     assert _has_unviewed_activity(client, attempt["learner_id"]) is False
 
 
