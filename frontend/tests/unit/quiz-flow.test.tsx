@@ -32,6 +32,7 @@ const question = {
   image_url: null,
   image_alt_text: null,
   steps: null,
+  read_aloud_eligible: false,
 };
 
 async function renderAndStartQuiz() {

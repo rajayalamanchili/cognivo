@@ -37,6 +37,7 @@ from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
 from src.services.demo_learner import get_demo_learner
 from src.services.mastery.grading import grade_answer, validate_response_shape
+from src.services.mediation.read_aloud import is_read_aloud_eligible
 from src.services.placement.starting_grade import determine_starting_grade
 
 router = APIRouter()
@@ -50,6 +51,7 @@ class PlacementQuestionOut(BaseModel):
     question_type: str
     stem: str
     options: list[str] | None = None
+    read_aloud_eligible: bool = False
 
 
 class PlacementStartResponse(BaseModel):
@@ -131,6 +133,11 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
                 question_type=placement_question.question_type.value,
                 stem=placement_question.draft.stem,
                 options=placement_question.draft.options,
+                # No GradeProgress row exists yet during placement (it's
+                # created once a starting grade is determined) -- the
+                # question's own declared grade is the right signal here
+                # instead (FR-001/FR-011, research.md Decision 1).
+                read_aloud_eligible=is_read_aloud_eligible(grade),
             )
         )
 
@@ -581,6 +588,7 @@ async def skip_placement_question(
             question_type=placement_question.question_type.value,
             stem=placement_question.draft.stem,
             options=placement_question.draft.options,
+            read_aloud_eligible=is_read_aloud_eligible(replacement_grade),
         )
 
     record_event(

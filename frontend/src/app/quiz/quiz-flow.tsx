@@ -37,6 +37,7 @@ export default function QuizFlow() {
   const [currentQuestion, setCurrentQuestion] = useState<NextQuestion | null>(null);
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
+  const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -103,6 +104,7 @@ export default function QuizFlow() {
       setQuizSessionId(result.quiz_session_id);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
+        setReadAloudUsed(false);
         setPhase("answering");
       } else {
         await goToSummary(result.quiz_session_id);
@@ -119,6 +121,7 @@ export default function QuizFlow() {
       if (next.status === "in_progress" && next.question) {
         setCurrentQuestion(next.question);
         setFlagged(false);
+        setReadAloudUsed(false);
         setPhase("answering");
       } else {
         await goToSummary(sessionId);
@@ -141,7 +144,7 @@ export default function QuizFlow() {
         currentQuestion.question_type === "numeric"
           ? Number(response)
           : Number.parseInt(response, 10);
-      await answerQuestion(currentQuestion.question_id, value);
+      await answerQuestion(currentQuestion.question_id, value, readAloudUsed);
       setResponse("");
       await advanceToNextQuestion(quizSessionId);
     } catch (error) {
@@ -193,6 +196,7 @@ export default function QuizFlow() {
       <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
         <h1 className="text-2xl font-semibold">Quiz</h1>
         <QuestionCard
+          key={currentQuestion.question_id}
           question={currentQuestion}
           response={response}
           onResponseChange={setResponse}
@@ -200,6 +204,8 @@ export default function QuizFlow() {
           flagged={flagged}
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
+          readAloudEnabled={currentQuestion.read_aloud_eligible}
+          onReadAloudUsed={() => setReadAloudUsed(true)}
         />
         {currentQuestion.question_type !== "free_text" &&
           currentQuestion.question_type !== "multi_step" && (

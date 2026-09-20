@@ -19,6 +19,7 @@ export interface MultiStepAnswerInputProps {
   steps: string[];
   onGraded: (result: AnswerResult) => void;
   disabled?: boolean;
+  readAloudUsed?: boolean;
 }
 
 type SubmitState =
@@ -45,6 +46,7 @@ export default function MultiStepAnswerInput({
   steps,
   onGraded,
   disabled,
+  readAloudUsed,
 }: MultiStepAnswerInputProps) {
   const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
   const [state, setState] = useState<SubmitState>("idle");
@@ -56,7 +58,7 @@ export default function MultiStepAnswerInput({
   async function handleSubmit() {
     setState("grading-in-progress");
     try {
-      const result = await answerQuestion(questionId, answers);
+      const result = await answerQuestion(questionId, answers, readAloudUsed);
       setState("idle");
       onGraded(result);
     } catch (error) {

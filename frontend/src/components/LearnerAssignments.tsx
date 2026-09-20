@@ -53,6 +53,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   const [currentQuestion, setCurrentQuestion] = useState<NextQuestion | null>(null);
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
+  const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [attemptError, setAttemptError] = useState<string | null>(null);
 
@@ -108,6 +109,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
       setQuizSessionId(result.quiz_session_id);
       if (result.status === "in_progress" && result.question) {
         setCurrentQuestion(result.question);
+        setReadAloudUsed(false);
         setPhase("answering");
       } else {
         await goToSummary(result.quiz_session_id);
@@ -125,6 +127,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
       if (next.status === "in_progress" && next.question) {
         setCurrentQuestion(next.question);
         setFlagged(false);
+        setReadAloudUsed(false);
         setPhase("answering");
       } else {
         await goToSummary(sessionId);
@@ -146,7 +149,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         currentQuestion.question_type === "numeric"
           ? Number(response)
           : Number.parseInt(response, 10);
-      await answerQuestion(currentQuestion.question_id, value);
+      await answerQuestion(currentQuestion.question_id, value, readAloudUsed);
       setResponse("");
       await advanceToNextQuestion(quizSessionId);
     } catch (error) {
@@ -204,6 +207,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           </p>
         )}
         <QuestionCard
+          key={currentQuestion.question_id}
           question={currentQuestion}
           response={response}
           onResponseChange={setResponse}
@@ -211,6 +215,8 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           flagged={flagged}
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
+          readAloudEnabled={currentQuestion.read_aloud_eligible}
+          onReadAloudUsed={() => setReadAloudUsed(true)}
         />
         {currentQuestion.question_type !== "free_text" &&
           currentQuestion.question_type !== "multi_step" && (

@@ -12,8 +12,19 @@ import {
   type PlacementQuestion,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import { canUseReadAloud, speak } from "@/lib/read-aloud";
 
 type Phase = "loading" | "answering" | "submitting" | "results" | "error";
+
+// FR-001: stem + every answer choice, same as QuestionCard's read-aloud
+// (research.md Decision 1) -- placement renders its own question UI
+// independently of QuestionCard, so this is a small, separate copy
+// rather than a shared abstraction over two different question shapes.
+function buildReadAloudText(question: PlacementQuestion): string {
+  const parts = [question.stem];
+  if (question.options) parts.push(...question.options);
+  return parts.join(". ");
+}
 
 export default function PlacementFlow() {
   const searchParams = useSearchParams();
@@ -174,6 +185,16 @@ export default function PlacementFlow() {
               </button>
             )}
           </legend>
+          {question.read_aloud_eligible && canUseReadAloud() && (
+            <button
+              type="button"
+              onClick={() => speak(buildReadAloudText(question))}
+              className="self-start rounded-lg border border-border px-3 py-1.5 text-sm"
+              data-testid="read-aloud-button"
+            >
+              🔊 Read aloud
+            </button>
+          )}
           {question.question_type === "multiple_choice" && question.options ? (
             <div className="flex flex-col gap-2">
               {question.options.map((option, optionIndex) => (

@@ -27,6 +27,7 @@ export default function PracticeFlow() {
   const [response, setResponse] = useState("");
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [flagged, setFlagged] = useState(false);
+  const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const loadNextQuestion = useCallback(
@@ -35,6 +36,7 @@ export default function PracticeFlow() {
       setResponse("");
       setResult(null);
       setFlagged(false);
+      setReadAloudUsed(false);
       getNextQuestion(currentLearnerId, subjectId)
         .then((nextQuestion) => {
           setQuestion(nextQuestion);
@@ -72,7 +74,7 @@ export default function PracticeFlow() {
     try {
       const value =
         question.question_type === "numeric" ? Number(response) : Number.parseInt(response, 10);
-      const answer = await answerQuestion(question.question_id, value);
+      const answer = await answerQuestion(question.question_id, value, readAloudUsed);
       setResult(answer);
       setPhase("result");
     } catch (error) {
@@ -141,6 +143,7 @@ export default function PracticeFlow() {
     <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
       <h1 className="text-2xl font-semibold">Practice</h1>
       <QuestionCard
+        key={question.question_id}
         question={question}
         response={response}
         onResponseChange={setResponse}
@@ -148,6 +151,8 @@ export default function PracticeFlow() {
         flagged={flagged}
         disabled={phase === "submitting"}
         onFreeTextGraded={handleFreeTextGraded}
+        readAloudEnabled={question.read_aloud_eligible}
+        onReadAloudUsed={() => setReadAloudUsed(true)}
       />
       {question.question_type !== "free_text" && question.question_type !== "multi_step" && (
         <button

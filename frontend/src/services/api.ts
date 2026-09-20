@@ -15,6 +15,7 @@ export interface PlacementQuestion {
   question_type: QuestionType;
   stem: string;
   options: string[] | null;
+  read_aloud_eligible: boolean;
 }
 
 export interface PlacementStartResponse {
@@ -135,6 +136,7 @@ export interface NextQuestion {
   // Step prompts only, for `multi_step` questions (spec 018 FR-002) --
   // null for every other question_type.
   steps: string[] | null;
+  read_aloud_eligible: boolean;
 }
 
 // One step's outcome within a `multi_step` submission (spec 018
@@ -337,10 +339,11 @@ export function getNextQuestion(learnerId: string, subjectId: string): Promise<N
 export function answerQuestion(
   questionId: string,
   response: string | number | string[],
+  readAloudUsed = false,
 ): Promise<AnswerResult> {
   return request<AnswerResult>(`/api/questions/${questionId}/answer`, {
     method: "POST",
-    body: JSON.stringify({ response }),
+    body: JSON.stringify({ response, read_aloud_used: readAloudUsed }),
   });
 }
 

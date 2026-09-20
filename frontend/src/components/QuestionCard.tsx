@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { AnswerResult, NextQuestion } from "@/services/api";
 import FreeTextAnswerInput from "@/components/FreeTextAnswerInput";
 import MultiStepAnswerInput from "@/components/MultiStepAnswerInput";
+import { canUseReadAloud, speak } from "@/lib/read-aloud";
 
 // Presentational + flag-affordance only (FR-011) -- answer submission and
 // question fetching stay owned by the page that renders this card, with
@@ -21,9 +22,27 @@ export interface QuestionCardProps {
   flagged: boolean;
   disabled?: boolean;
   onFreeTextGraded?: (result: AnswerResult) => void;
+  // Read-aloud (spec 019 FR-001/FR-002/FR-002a, research.md Decision 1)
+  // -- `readAloudEnabled` gates the control's visibility (grades 1-2
+  // only, per `question.read_aloud_eligible`); `onReadAloudUsed` fires
+  // once, the first time it's triggered for this question, so the
+  // parent flow can report `read_aloud_used` on answer submission
+  // (FR-012).
+  readAloudEnabled?: boolean;
+  onReadAloudUsed?: () => void;
 }
 
 const DEFAULT_FLAG_REASON = "Learner flagged this question's answer key as incorrect.";
+
+// Every answer choice, in the same order they're rendered (FR-001) --
+// covers multiple_choice's options and multi_step's step prompts;
+// free_text/numeric questions have neither, so just the stem is read.
+function buildReadAloudText(question: NextQuestion): string {
+  const parts = [question.stem];
+  if (question.options) parts.push(...question.options);
+  if (question.steps) parts.push(...question.steps);
+  return parts.join(". ");
+}
 
 export default function QuestionCard({
   question,
@@ -33,9 +52,12 @@ export default function QuestionCard({
   flagged,
   disabled,
   onFreeTextGraded,
+  readAloudEnabled,
+  onReadAloudUsed,
 }: QuestionCardProps) {
   const [showFlagForm, setShowFlagForm] = useState(false);
   const [reason, setReason] = useState("");
+  const [readAloudUsed, setReadAloudUsed] = useState(false);
 
   function handleFlagSubmit() {
     onFlag(reason.trim() || DEFAULT_FLAG_REASON);
@@ -43,9 +65,30 @@ export default function QuestionCard({
     setReason("");
   }
 
+  function handleReadAloud() {
+    speak(buildReadAloudText(question));
+    if (!readAloudUsed) {
+      setReadAloudUsed(true);
+      onReadAloudUsed?.();
+    }
+  }
+
+  const canReadAloud = readAloudEnabled && canUseReadAloud();
+
   return (
     <fieldset className="flex flex-col gap-3" disabled={disabled} data-testid="question-card">
       <legend className="font-medium">{question.stem}</legend>
+
+      {canReadAloud && (
+        <button
+          type="button"
+          onClick={handleReadAloud}
+          className="self-start rounded-lg border border-border px-3 py-1.5 text-sm"
+          data-testid="read-aloud-button"
+        >
+          🔊 {readAloudUsed ? "Replay" : "Read aloud"}
+        </button>
+      )}
 
       {question.image_url ? (
         <>
@@ -82,6 +125,7 @@ export default function QuestionCard({
           questionId={question.question_id}
           onGraded={(result) => onFreeTextGraded?.(result)}
           disabled={disabled}
+          readAloudUsed={readAloudUsed}
         />
       ) : question.question_type === "multi_step" ? (
         <MultiStepAnswerInput
@@ -89,6 +133,7 @@ export default function QuestionCard({
           steps={question.steps ?? []}
           onGraded={(result) => onFreeTextGraded?.(result)}
           disabled={disabled}
+          readAloudUsed={readAloudUsed}
         />
       ) : (
         <input
