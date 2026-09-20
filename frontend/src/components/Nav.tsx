@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getWhoAmI, logout, type SessionAccountType } from "@/services/api";
-import { exitDemoLearnerMode, isDemoLearnerMode, onSessionChanged } from "@/lib/visitor-state";
+import {
+  exitDemoLearnerMode,
+  isDemoLearnerMode,
+  notifySessionChanged,
+  onSessionChanged,
+} from "@/lib/visitor-state";
 
 // The nav's menu depends on who's actually visiting -- a server-verified
 // session type (`getWhoAmI`) for guardian/instructor/demo_instructor, or
@@ -93,6 +98,12 @@ export default function Nav() {
     await logout();
     setAccountType(null);
     setIdentifier(null);
+    // Every other session-changing action (login/register, entering or
+    // exiting demo learner mode) notifies other mounted components --
+    // sign-out was the one gap, leaving DemoBadge's own independent
+    // `accountType` state (a demo_instructor's OR condition, unrelated
+    // to pathname) stuck showing the badge everywhere after sign-out.
+    notifySessionChanged();
     router.push("/");
   }
 

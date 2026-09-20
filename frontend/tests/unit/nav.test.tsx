@@ -7,6 +7,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/components/Nav";
 import * as api from "@/services/api";
+import { onSessionChanged } from "@/lib/visitor-state";
 
 const push = vi.fn();
 
@@ -129,5 +130,23 @@ describe("Nav", () => {
 
     await waitFor(() => expect(api.logout).toHaveBeenCalled());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+
+  it("signing out notifies other mounted components the session changed (regression: DemoBadge stayed stuck showing a demo_instructor's badge after sign-out, since nothing told it to refetch)", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "demo_instructor",
+      identifier: "Demo Instructor",
+    });
+    vi.mocked(api.logout).mockResolvedValue(undefined);
+    render(<Nav />);
+
+    await screen.findByText("Sign Out");
+    const sessionChanged = vi.fn();
+    const unsubscribe = onSessionChanged(sessionChanged);
+
+    fireEvent.click(screen.getByText("Sign Out"));
+
+    await waitFor(() => expect(sessionChanged).toHaveBeenCalled());
+    unsubscribe();
   });
 });
