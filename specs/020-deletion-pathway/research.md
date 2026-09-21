@@ -180,3 +180,91 @@ the queue.
 accounts` job -- rejected as an unnecessary second moving part; nothing
 about the inactivity check needs to run on a different schedule than
 the executor that would immediately act on what it finds.
+
+## R9. Pre-deletion warning delivery surface: extend `GET /api/auth/whoami`, not a new dashboard
+
+**Decision** (2026-09-21 clarification, FR-011/SC-006): The 7-day
+pre-deletion warning is delivered by extending `GET /api/auth/whoami`'s
+existing response with an optional `pending_deletion_warnings` list.
+`whoami` is already called on every page load by `Nav.tsx` (present
+across the entire authenticated app, not one specific page), so this is
+the one truly "existing dashboard" surface a guardian or instructor is
+guaranteed to hit. For a guardian session, the list includes one entry
+per linked learner whose `RetentionRecord` has been warned -- a
+guardian has no `RetentionRecord` of their own (data-model.md already
+notes guardians are never a `RetentionRecord.account_type`; their
+account is only ever cascade-deleted via R4, never inactivity-swept
+directly). For an instructor session, the list includes only the
+instructor's own account warning (an instructor is never the "owning"
+party for a learner's inactivity clock).
+
+**Rationale**: This codebase has no guardian-account-level dashboard
+today (the only "dashboard" endpoints that exist are learner-scoped,
+`frontend/src/app/dashboard/`, and the instructor's roster-scoped `GET
+/api/rosters/{roster_id}/dashboard`) -- a guardian never calls either of
+those for the sole purpose of checking their own account's standing.
+Inventing a new guardian account-dashboard page purely to host this one
+warning would be a disproportionate amount of new UI for a single
+banner. `whoami` is small, already role-agnostic (returns `None` cleanly
+for no session), and already renders in the one component
+(`Nav.tsx`) present on every authenticated page.
+
+**Alternatives considered**: A new `GET /api/guardians/me/warnings`
+endpoint plus a new dashboard section -- rejected as more surface than
+a single banner needs, and it would still have to be wired into `Nav.tsx`
+(or some other every-page component) to satisfy "guaranteed to be
+seen," at which point extending `whoami` directly is simpler. Extending
+the instructor roster dashboard only -- rejected because guardians have
+no equivalent roster-dashboard page to extend.
+
+## R10. Warning timestamp lifecycle: set and cleared inside the existing cron sweep phase
+
+**Decision**: `RetentionRecord` gains one new nullable column,
+`inactivity_warning_sent_at`. The cron executor's inactivity-sweep phase
+(R8) reconciles it on every run, for every `RetentionRecord` it looks
+at, as two **mutually exclusive** conditions checked in this order:
+
+1. If `enrollment_status = "active"` and `inactivity_warning_sent_at`
+   is not `NULL`, clear it back to `NULL` (Acceptance Scenario 3) --
+   checked *first*, and unconditionally on any active record regardless
+   of what `became_inactive_at` still holds (data-model.md's Migration
+   note: `became_inactive_at` can be stale-but-non-null on a
+   since-reactivated record).
+2. Otherwise, if `enrollment_status = "inactive"` and
+   `inactivity_warning_sent_at` is `NULL` and the record's inactivity
+   age crosses `became_inactive_at + (1 year - 7 days)`, set
+   `inactivity_warning_sent_at = now()`.
+
+The explicit `enrollment_status = "inactive"` guard on branch 2 (not
+just "crosses the threshold") is required, not incidental: without it,
+an active record with a stale `became_inactive_at` from a prior
+inactive period would satisfy the threshold arithmetic too, and nothing
+would otherwise say which of the two branches should win. Checking
+"active" first and making the branches mutually exclusive removes that
+ambiguity entirely. No new cron phase, no new schedule -- both
+directions are handled inside the same sweep pass that already reads
+every `RetentionRecord`.
+
+**Rationale**: Nothing in this codebase today ever flips
+`RetentionRecord.enrollment_status` from `inactive` back to `active` --
+grepping `backend/src/` turns up only two call sites that ever write
+`enrollment_status`, both at account-creation time, always to `ACTIVE`
+(`api/routes/auth.py`, `api/routes/learners.py`). Detecting and acting
+on reactivation is not something any code path does yet, and building
+one is out of this spec's scope (Assumptions: this spec acts on
+`RetentionRecord` state, it doesn't decide when that state changes).
+Since there's no reactivation hook to piggyback on, the sweep
+reconciling the warning fresh on every run -- rather than only writing
+it once and trusting a nonexistent reactivation path to clear it -- is
+both simpler and the only option that's actually correct given what
+exists today.
+
+**Alternatives considered**: Clearing the warning inside whatever future
+code path eventually flips `enrollment_status` back to `active` --
+rejected because no such code path exists yet to extend; inventing one
+here would be scope creep into a mechanism spec 009 never specified and
+this spec's Assumptions explicitly decline to build. Computing "is this
+account in its warning window" on the fly with no stored timestamp --
+rejected because SC-006 requires verifying *when* a warning first
+became visible, which an unstored, purely-computed window can't answer
+after the fact.

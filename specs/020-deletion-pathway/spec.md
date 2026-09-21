@@ -8,6 +8,12 @@
 
 **Input**: User description: "deletion-pathway"
 
+## Clarifications
+
+### Session 2026-09-21
+
+- Q: Should a guardian or instructor be notified before their account is auto-deleted for inactivity? → A: One lightweight in-app warning (dashboard banner, no email) 7 days before deletion; requires a new field to track warned state.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Guardian requests deletion of their learner's account (Priority: P1)
@@ -83,7 +89,9 @@ sequenced second.
 `became_inactive_at` is more than one year in the past, run the
 inactivity sweep, and confirm the linked account is deleted through the
 same cascade as a manual request, with no dangling references left
-behind.
+behind. Separately, seed a `RetentionRecord` 7 days short of the
+one-year mark and confirm the owning guardian/instructor sees an
+in-app warning before any deletion occurs.
 
 **Acceptance Scenarios**:
 
@@ -97,7 +105,14 @@ behind.
    untouched.
 3. **Given** an account regains active enrollment before the one-year
    mark, **When** the inactivity check runs, **Then** the inactivity
-   clock is treated as reset and the account is not deleted.
+   clock is treated as reset, the account is not deleted, and any
+   in-app warning already shown for it is cleared.
+4. **Given** an account reaches 7 days before its one-year inactivity
+   deadline, **When** the owning guardian or instructor next views their
+   dashboard, **Then** they see an in-app warning that this account will
+   be deleted on a specific date unless it becomes active again -- no
+   email or other out-of-band notification is sent (no such channel
+   exists in this product today).
 
 ---
 
@@ -148,6 +163,14 @@ reality at each point.
   (`is_demo = true`)? Rejected -- demo accounts are reset on their own
   schedule (spec 009 FR-009), never through the real-account deletion
   SLA, since they carry no real person's data.
+- What happens if an account is warned (7 days from inactivity
+  deletion) and then hits the one-year mark without becoming active
+  again? Deletion proceeds on schedule -- the warning is informational
+  only and never blocks or delays FR-005's deletion.
+- What happens if the inactivity sweep runs more than once during an
+  account's 7-day warning window? The warning is shown/refreshed on
+  every run until either the account is deleted or becomes active
+  again; it is not a one-time, easy-to-miss notice.
 
 ## Requirements *(mandatory)*
 
@@ -199,6 +222,14 @@ reality at each point.
   cross-reference -- the `DeletionRequest` row itself is this record
   and is retained indefinitely as proof the SLA was met (never itself
   subject to this feature's own deletion mechanism).
+- **FR-011**: The system MUST display an in-app warning, visible to the
+  owning guardian or instructor on their existing dashboard, at least 7
+  days before an account is auto-deleted for inactivity (FR-005). The
+  warning MUST be cleared if the account's inactivity clock resets
+  (Acceptance Scenario 3) before deletion occurs, and MUST NOT block or
+  delay the deletion itself if the account remains inactive through the
+  deadline. No email or other out-of-band channel is required or
+  implied -- this product has no such channel today.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -208,7 +239,10 @@ reality at each point.
   rather than one nothing ever sets.
 - **RetentionRecord** (existing model, `specs/009-privacy-retention`):
   Read by this feature's inactivity check to decide when FR-010's
-  automatic deletion trigger fires. No new fields required.
+  automatic deletion trigger fires. Gains one new field to support
+  FR-011's warning: a nullable timestamp recording when the 7-day
+  in-app warning was first shown for this record, cleared back to null
+  if the account becomes active again (Acceptance Scenario 3).
 - **Deletion cascade scope**: Not a new entity, but the concrete set of
   existing tables (mastery, assessment events, generated questions,
   roster/enrollment membership, recommendation output, tutoring
@@ -237,6 +271,10 @@ reality at each point.
   verified by an automated check.
 - **SC-005**: A requester can confirm a deletion request's completion
   status without needing to inspect the database directly.
+- **SC-006**: 100% of accounts that reach the one-year inactivity mark
+  had an in-app warning visible to their owning guardian/instructor at
+  least 7 days beforehand, verified against a simulated `RetentionRecord`
+  timeline (warning-shown timestamp vs. actual deletion timestamp).
 
 ## Assumptions
 
@@ -264,3 +302,11 @@ reality at each point.
   it does not add a new self-service learner-initiated path, since
   spec 009's provisioning model has the parent/guardian holding the
   learner's login credential.
+- FR-011's pre-deletion warning (2026-09-21 clarification) is
+  deliberately in-app-only, shown on the guardian's/instructor's
+  existing dashboard -- this product has no email or other out-of-band
+  notification channel today, and standing up one is out of scope for
+  this milestone. A guardian/instructor who never logs back in during
+  the 7-day window simply never sees the warning before deletion
+  proceeds; this is an accepted limitation of an in-app-only warning,
+  not a defect this spec needs to solve.

@@ -78,6 +78,28 @@ Re-run against a learner whose `became_inactive_at` is only 30 days
 ago: **expected** no `DeletionRequest` is created (spec.md's Edge Cases,
 "account regains active enrollment"/"less than a year" scenarios).
 
+## Scenario 2b -- User Story 2: pre-deletion warning (FR-011, SC-006)
+
+```bash
+psql "$DATABASE_URL" -c "
+  UPDATE retention_records
+  SET enrollment_status = 'inactive', became_inactive_at = now() - interval '359 days'
+  WHERE account_id = '<learner-id>';
+"
+curl -s -X GET "$BACKEND_URL/api/cron/execute-deletions" \
+  -H "Authorization: Bearer $CRON_SECRET"
+curl -s "$BACKEND_URL/api/auth/whoami" -b guardian-session-cookie.txt
+```
+
+**Expected**: `pending_deletion_warnings` contains one entry for
+`<learner-id>` with a `scheduled_deletion_date` 6 days out, and
+`retention_records.inactivity_warning_sent_at` is now set. Confirm no
+`DeletionRequest` exists yet for this learner -- the warning fires
+before the deletion trigger, never at the same moment. Then reactivate
+the learner (`enrollment_status = 'active'`), re-run the cron, and
+confirm `whoami`'s list no longer includes this learner and
+`inactivity_warning_sent_at` is back to `NULL` (Acceptance Scenario 3).
+
 ## Scenario 3 -- User Story 3: requester checks completion status (SC-005)
 
 ```bash

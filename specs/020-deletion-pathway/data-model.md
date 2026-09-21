@@ -1,11 +1,13 @@
 # Data Model: Real-Account Deletion Pathway
 
-**Feature**: `020-deletion-pathway` | **Date**: 2026-09-21
+**Feature**: `020-deletion-pathway` | **Date**: 2026-09-21 (updated
+2026-09-21 for the FR-011 pre-deletion-warning clarification)
 
-No new tables and no new columns. This feature makes two already-modeled
-entities (`DeletionRequest`, `RetentionRecord`, both from spec 009) do
-real work for the first time, and defines the cascade order across
-tables that already exist.
+No new tables. This feature makes two already-modeled entities
+(`DeletionRequest`, `RetentionRecord`, both from spec 009) do real work
+for the first time, defines the cascade order across tables that
+already exist, and adds one new nullable column to `RetentionRecord`
+to support FR-011's warning (research.md R10).
 
 ## Existing entities this feature acts on
 
@@ -20,7 +22,7 @@ tables that already exist.
 | `requested_at` | Read by the cron executor to process oldest-first. |
 | `completed_at` | `NULL` = pending, set once the full cascade for this request has committed. This is the field this feature finally makes real -- previously nothing ever set it. |
 
-### RetentionRecord (`backend/src/models/retention_record.py`, unchanged)
+### RetentionRecord (`backend/src/models/retention_record.py`, +1 column: `inactivity_warning_sent_at`)
 
 | Field | Meaning for this feature |
 |---|---|
@@ -28,6 +30,7 @@ tables that already exist.
 | `account_id` | The learner or instructor this record tracks. |
 | `enrollment_status` | `active` \| `inactive`. |
 | `became_inactive_at` | The inactivity sweep (FR-005) compares this against "now - 1 year" (spec 009 FR-010). `NULL` or `enrollment_status = active` means never swept. |
+| `inactivity_warning_sent_at` **(NEW, nullable `DateTime`)** | Reconciled by the sweep on every run as two mutually exclusive, ordered checks (FR-011, research.md R10): **(1)** if `enrollment_status = "active"`, clear to `NULL` (Acceptance Scenario 3) -- checked first, regardless of what `became_inactive_at` still holds; **(2)** else, if `enrollment_status = "inactive"` and still `NULL`, set to `now()` once inactivity age crosses `became_inactive_at + (1 year - 7 days)`. The `enrollment_status = "inactive"` guard on (2) is required -- `became_inactive_at` can be stale-but-non-null on an already-reactivated record, so the threshold arithmetic alone isn't a safe trigger. Read by `GET /api/auth/whoami` (research.md R9) to populate `pending_deletion_warnings`. |
 
 ## Deletion cascade order
 
@@ -87,3 +90,14 @@ per linked `learner_id`, then:
 - Recommendation-report output -- computed on-the-fly from
   `mastery_states`/`assessment_events` (no persisted table); already
   covered once those are deleted in steps 4/6 above.
+
+## Migration
+
+One additive-only column, no backfill needed (defaults to `NULL` for
+every existing row, meaning "not currently warned" -- correct for every
+row that predates this feature):
+
+```
+ALTER TABLE retention_records
+  ADD COLUMN inactivity_warning_sent_at TIMESTAMPTZ NULL;
+```

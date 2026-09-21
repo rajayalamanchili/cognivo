@@ -4,7 +4,9 @@
 
 Extends `specs/010-instructor-classroom/`'s FastAPI backend and reuses
 its session-cookie auth (`src/services/auth/dependencies.py`) unchanged.
-Three new endpoints; no existing endpoint's shape changes.
+Three new endpoints, plus one additive extension to the existing
+`GET /api/auth/whoami` (FR-011, research.md R9) -- no existing field on
+any endpoint is removed or changes meaning.
 
 ## `POST /api/deletion-requests` (NEW)
 
@@ -119,7 +121,18 @@ Runs two phases per invocation:
    `enrollment_status = "inactive"` and `became_inactive_at` more than
    one year ago that has no existing pending `DeletionRequest` for its
    `(account_type, account_id)`, creates one (`requested_by =
-   "system:inactivity-sweep"`).
+   "system:inactivity-sweep"`). Before that check, also reconciles
+   `inactivity_warning_sent_at` on every `RetentionRecord` (FR-011,
+   research.md R10) via two mutually exclusive, ordered checks: first,
+   if `enrollment_status = "active"`, clear a set value back to `NULL`
+   regardless of `became_inactive_at`; otherwise, if
+   `enrollment_status = "inactive"` and the record crosses
+   `became_inactive_at + (1 year - 7 days)` while still `NULL`, set it
+   to `now()` (always at least 7 days before that same record becomes
+   eligible for the deletion-request creation later in this same
+   phase). The `enrollment_status = "inactive"` guard on the set branch
+   prevents a stale, pre-reactivation `became_inactive_at` from
+   re-triggering a warning on an active account.
 2. **Execution**: processes up to `MAX_DELETIONS_PER_RUN` pending
    `DeletionRequest` rows, oldest `requested_at` first, running the
    matching cascade from `data-model.md` for each inside its own
@@ -142,3 +155,33 @@ Runs two phases per invocation:
 watermark-deferral pattern (`tech-stack.md`) -- a nonzero value here is
 expected and fine as long as it clears within the 30-day SLA (SC-001),
 not evidence of a bug on its own.
+
+## `GET /api/auth/whoami` (EXTENDED)
+
+Unchanged for an unauthenticated caller and for every existing field.
+Adds one new optional field, populated only for a guardian or
+instructor session (FR-011, research.md R9):
+
+```json
+{
+  "account_type": "guardian",
+  "identifier": "parent@example.com",
+  "pending_deletion_warnings": [
+    {
+      "target_type": "learner",
+      "target_id": "5b1e...e9f2",
+      "warned_at": "2026-09-14T06:00:00Z",
+      "scheduled_deletion_date": "2026-09-21"
+    }
+  ]
+}
+```
+
+`pending_deletion_warnings` is an empty list (never omitted, never
+`null`) when the caller has no linked account with
+`inactivity_warning_sent_at` set -- the common case. `scheduled_deletion_date`
+is computed as `became_inactive_at + 1 year`, not stored separately.
+For a guardian, one entry per linked learner whose `RetentionRecord`
+carries a warning; for an instructor, at most one entry, for their own
+account. A demo session (`account_type: "demo_instructor"`) always gets
+an empty list -- demo accounts are never inactivity-tracked (FR-007).
