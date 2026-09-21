@@ -7,6 +7,7 @@ import {
   type AnswerResult,
   type FreeTextErrorBody,
 } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // Free-text owns its own submission (unlike MC/numeric, whose submit
 // button lives in the parent flow page) so it can render FR-018's five
@@ -17,6 +18,8 @@ export interface FreeTextAnswerInputProps {
   questionId: string;
   onGraded: (result: AnswerResult) => void;
   disabled?: boolean;
+  readAloudUsed?: boolean;
+  handoffToken?: string | null;
 }
 
 type SubmitState =
@@ -44,6 +47,8 @@ export default function FreeTextAnswerInput({
   questionId,
   onGraded,
   disabled,
+  readAloudUsed,
+  handoffToken,
 }: FreeTextAnswerInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SubmitState>("idle");
@@ -51,7 +56,7 @@ export default function FreeTextAnswerInput({
   async function handleSubmit() {
     setState("grading-in-progress");
     try {
-      const result = await answerQuestion(questionId, text);
+      const result = await answerQuestion(questionId, text, readAloudUsed, handoffToken);
       setState("idle");
       onGraded(result);
     } catch (error) {
@@ -77,7 +82,11 @@ export default function FreeTextAnswerInput({
         disabled={busy || text.trim() === ""}
         className="self-start rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
       >
-        {state === "grading-in-progress" ? "Grading…" : "Submit Answer"}
+        {state === "grading-in-progress" ? (
+          <LoadingIndicator message="Reading your answer…" compact />
+        ) : (
+          "Submit Answer"
+        )}
       </button>
 
       {state === "too-long" && (

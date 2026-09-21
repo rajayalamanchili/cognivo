@@ -62,6 +62,7 @@ def test_start_placement_response_shape(client, demo_learner, algebra_subject, m
             "question_type",
             "stem",
             "options",
+            "read_aloud_eligible",
         }
         assert question["grade"] in (6, 7, 8)
         # Every entry-level topic is "unknown" at placement time -> always "easy" (FR-006).

@@ -43,3 +43,10 @@ class QuizAssignmentTarget(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # spec 019 FR-007/research.md Decision 7: set the first time a
+    # guardian loads this attempt's summary, for any tier -- the
+    # in-app "new activity" badge's tier-gating happens at the API
+    # read layer, not here (this column's meaning stays uniform).
+    guardian_viewed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

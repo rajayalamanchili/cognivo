@@ -25,6 +25,13 @@ _ALGORITHM = "HS256"
 _TOKEN_TTL = datetime.timedelta(days=30)
 _COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60
 
+# spec 019 FR-005a/b/c, research.md Decision 4: a second, distinct JWT
+# purpose (a quiz-session hand-off, not a login session) -- same
+# signing key and library, own claim shape and expiry so it can never
+# be confused with (or substituted for) a real login token.
+_HANDOFF_TOKEN_TYPE = "quiz_handoff"
+_HANDOFF_TOKEN_TTL = datetime.timedelta(hours=2)
+
 # "demo_instructor" is a third, distinct account type from "instructor"
 # (research.md/`/speckit-clarify`, spec 010 Phase 7): `GET
 # /api/demo-instructor` issues a session the same way login does, but
@@ -74,6 +81,40 @@ def verify_token(token: str) -> SessionClaims | None:
         return None
     try:
         return SessionClaims(account_type=account_type, account_id=uuid.UUID(account_id))
+    except ValueError:
+        return None
+
+
+def issue_handoff_token(quiz_session_id: uuid.UUID) -> str:
+    """Scoped to exactly one `quiz_session_id` (spec 019 FR-005b) -- not
+    a login session, carries no `account_type`/`account_id` at all, so
+    `verify_token` can never accidentally accept one."""
+    now = datetime.datetime.now(datetime.UTC)
+    claims = {
+        "quiz_session_id": str(quiz_session_id),
+        "token_type": _HANDOFF_TOKEN_TYPE,
+        "iat": now,
+        "exp": now + _HANDOFF_TOKEN_TTL,
+    }
+    return jwt.encode(claims, _secret(), algorithm=_ALGORITHM)
+
+
+def verify_handoff_token(token: str) -> uuid.UUID | None:
+    """`None` on any invalid/expired/malformed/wrong-purpose token --
+    callers (`assert_quiz_session_access`) treat that identically to no
+    token being sent at all (FR-005c)."""
+    try:
+        payload = jwt.decode(token, _secret(), algorithms=[_ALGORITHM])
+    except jwt.InvalidTokenError:
+        return None
+
+    if payload.get("token_type") != _HANDOFF_TOKEN_TYPE:
+        return None
+    quiz_session_id = payload.get("quiz_session_id")
+    if not isinstance(quiz_session_id, str):
+        return None
+    try:
+        return uuid.UUID(quiz_session_id)
     except ValueError:
         return None
 

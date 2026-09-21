@@ -18,6 +18,7 @@ import {
 import MasteryView from "@/components/MasteryView";
 import WeakAreaSection from "@/components/WeakAreaSection";
 import PathVisualization from "@/components/PathVisualization";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 type SectionPhase = "loading" | "loaded" | "error";
 
@@ -111,19 +112,23 @@ export default function DashboardSubjectSection({
     >
       <h2 className="text-xl font-semibold">{displayName}</h2>
       <div data-testid="dashboard-mastery-slot">
-        {masteryPhase === "loading" && <p>Loading mastery state&hellip;</p>}
+        {masteryPhase === "loading" && (
+          <LoadingIndicator message="Gathering your progress…" compact />
+        )}
         {masteryPhase === "error" && <CouldntLoad what="mastery state" />}
         {masteryPhase === "loaded" && <MasteryView topics={masteryTopics} />}
       </div>
       <div data-testid="dashboard-weak-area-slot">
-        {weakAreaPhase === "loading" && <p>Loading weak areas&hellip;</p>}
+        {weakAreaPhase === "loading" && (
+          <LoadingIndicator message="Spotting areas to practice…" compact />
+        )}
         {weakAreaPhase === "error" && <CouldntLoad what="weak-area report" />}
         {weakAreaPhase === "loaded" && recommendations && (
           <WeakAreaSection recommendations={recommendations} />
         )}
       </div>
       <div data-testid="dashboard-path-slot">
-        {pathPhase === "loading" && <p>Loading path&hellip;</p>}
+        {pathPhase === "loading" && <LoadingIndicator message="Mapping your path…" compact />}
         {pathPhase === "error" && <CouldntLoad what="path visualization" />}
         {pathPhase === "loaded" && pathPreview && (
           <PathVisualization

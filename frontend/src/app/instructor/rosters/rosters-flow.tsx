@@ -23,6 +23,7 @@ import {
   type RosterSummary,
   type SubjectSummary,
 } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -252,7 +253,7 @@ export default function RostersFlow() {
   }
 
   if (loading) {
-    return <p className="p-8">Loading rosters&hellip;</p>;
+    return <LoadingIndicator message="Loading rosters…" variant="professional" />;
   }
 
   if (loadError) {
@@ -369,7 +370,7 @@ export default function RostersFlow() {
       {selectedRosterId && (
         <div className="flex flex-col gap-6 rounded-lg border border-border p-4">
           <h2 className="font-medium">Managing roster {selectedRosterId}</h2>
-          {detailLoading && <p className="text-sm">Loading&hellip;</p>}
+          {detailLoading && <LoadingIndicator variant="professional" compact />}
           {detailError && (
             <p className="text-sm text-error" data-testid="roster-detail-error">
               {detailError}
@@ -574,7 +575,7 @@ export default function RostersFlow() {
                   Close
                 </button>
               </div>
-              {resultsLoading && <p className="text-sm">Loading&hellip;</p>}
+              {resultsLoading && <LoadingIndicator variant="professional" compact />}
               {resultsError && (
                 <p className="text-sm text-error" data-testid="assignment-results-error">
                   {resultsError}

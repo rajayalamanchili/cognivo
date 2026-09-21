@@ -32,6 +32,8 @@ const question = {
   image_url: null,
   image_alt_text: null,
   steps: null,
+  read_aloud_eligible: false,
+  unlocked_grade: null,
 };
 
 async function renderAndStartQuiz() {
@@ -74,6 +76,7 @@ describe("QuizFlow", () => {
 
   it("renders the answering phase with the reused QuestionCard after starting a quiz", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "in_progress",
       question,
@@ -87,6 +90,7 @@ describe("QuizFlow", () => {
 
   it("transitions to the completed phase once the last question is answered", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "in_progress",
       question,
@@ -114,9 +118,7 @@ describe("QuizFlow", () => {
       started_at: "2026-08-18T12:00:00Z",
       completed_at: "2026-08-18T12:01:00Z",
       score: { correct: 1, total: 1 },
-      summary: [
-        { topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 },
-      ],
+      summary: [{ topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 }],
     });
 
     await renderAndStartQuiz();
@@ -132,6 +134,7 @@ describe("QuizFlow", () => {
 
   it("transitions to the ended_early phase when next-question reports it", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "in_progress",
       question,
@@ -162,9 +165,7 @@ describe("QuizFlow", () => {
       started_at: "2026-08-18T12:00:00Z",
       completed_at: "2026-08-18T12:01:00Z",
       score: { correct: 1, total: 1 },
-      summary: [
-        { topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 },
-      ],
+      summary: [{ topic_id: "linear-equations", difficulty: "easy", correct: 1, total: 1 }],
     });
 
     await renderAndStartQuiz();
@@ -180,6 +181,7 @@ describe("QuizFlow", () => {
 
   it("shows the ended_early phase immediately if the very first question can't be generated", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
       quiz_session_id: "quiz-1",
       status: "ended_early",
       question: null,
@@ -201,5 +203,168 @@ describe("QuizFlow", () => {
     const summary = await screen.findByTestId("quiz-summary");
     expect(summary).toHaveTextContent(/ended early/i);
     await waitFor(() => expect(screen.queryByTestId("question-card")).not.toBeInTheDocument());
+  });
+});
+
+describe("QuizFlow session pacing (spec 019 FR-009, SC-009)", () => {
+  const answerResult = {
+    correct: true,
+    topic_id: "linear-equations",
+    prior_p_mastery: null,
+    posterior_p_mastery: 0.5,
+    band: "developing" as const,
+    graduated_score: null,
+    criteria_met: null,
+    criteria_missed: null,
+    grading_logic_version: null,
+    first_diverging_step_index: null,
+    step_results: null,
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.getDemoLearner).mockReset();
+    vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.getMasteryState).mockReset();
+    vi.mocked(api.startQuiz).mockReset();
+    vi.mocked(api.answerQuestion).mockReset();
+    vi.mocked(api.getQuizNextQuestion).mockReset();
+    vi.mocked(api.getQuizSummary).mockReset();
+  });
+
+  function questionAt(id: string, unlockedGrade: number | null) {
+    return { ...question, question_id: id, unlocked_grade: unlockedGrade };
+  }
+
+  it("shows a stopping-point prompt after the early band's recommended count, without ending the quiz (Acceptance Scenario 1)", async () => {
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 1),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 1) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 1) });
+
+    await renderAndStartQuiz();
+
+    // Grade 1's pacing profile recommends a checkpoint at 3 questions
+    // (frontend/src/lib/pacing.ts) -- answer three in a row.
+    for (let i = 0; i < 3; i++) {
+      await screen.findByTestId("question-card");
+      await userEvent.click(screen.getByLabelText("4"));
+      await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    const stoppingPoint = await screen.findByTestId("quiz-stopping-point");
+    expect(stoppingPoint).toBeInTheDocument();
+    expect(screen.queryByTestId("question-card")).not.toBeInTheDocument();
+    expect(api.getQuizSummary).not.toHaveBeenCalled();
+
+    // "Keep going" continues the same quiz session, not a new one.
+    vi.mocked(api.getQuizNextQuestion).mockResolvedValueOnce({
+      status: "in_progress",
+      question: questionAt("q4", 1),
+    });
+    await userEvent.click(screen.getByRole("button", { name: /keep going/i }));
+    await screen.findByText("2 + 2?");
+    expect(screen.getByTestId("question-card")).toBeInTheDocument();
+  });
+
+  it("never shows a stopping-point prompt for a late grade band (Acceptance Scenario 2)", async () => {
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 11),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 11) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 11) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q4", 11) });
+
+    await renderAndStartQuiz();
+
+    for (let i = 0; i < 3; i++) {
+      await screen.findByTestId("question-card");
+      await userEvent.click(screen.getByLabelText("4"));
+      await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    await screen.findByTestId("question-card");
+    expect(screen.queryByTestId("quiz-stopping-point")).not.toBeInTheDocument();
+  });
+
+  it("shows a brief reinforcement message every reinforcementEveryN questions, cleared in between (FR-009's reinforcement cadence)", async () => {
+    // Grade 4's pacing profile is { recommendedQuestionCount: 5,
+    // reinforcementEveryN: 2 } (frontend/src/lib/pacing.ts).
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 4),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 4) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 4) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q4", 4) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q5", 4) });
+
+    await renderAndStartQuiz();
+
+    // q1 answered (count 1, not divisible by 2) -- no message on q2.
+    await screen.findByTestId("question-card");
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
+
+    // q2 answered (count 2, divisible by 2) -- message appears on q3.
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(await screen.findByTestId("reinforcement-message")).toHaveTextContent(/nice work/i);
+
+    // q3 answered (count 3, not divisible by 2) -- message clears on q4.
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
+
+    // q4 answered (count 4, divisible by 2) -- message reappears on q5.
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await screen.findByText("2 + 2?");
+    expect(await screen.findByTestId("reinforcement-message")).toBeInTheDocument();
+  });
+
+  it("suppresses the reinforcement message when the same answer also reaches the stopping point", async () => {
+    // Grade 1's profile is { recommendedQuestionCount: 3,
+    // reinforcementEveryN: 1 } -- every count is divisible by 1, but the
+    // 3rd answer must show the stopping point, not a reinforcement message.
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      handoff_token: null,
+      status: "in_progress",
+      question: questionAt("q1", 1),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2", 1) })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3", 1) });
+
+    await renderAndStartQuiz();
+
+    for (let i = 0; i < 3; i++) {
+      await screen.findByTestId("question-card");
+      await userEvent.click(screen.getByLabelText("4"));
+      await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    expect(await screen.findByTestId("quiz-stopping-point")).toBeInTheDocument();
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
   });
 });

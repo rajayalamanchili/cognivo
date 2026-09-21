@@ -3,8 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import CognivoMark from "@/components/CognivoMark";
 import { getWhoAmI, logout, type SessionAccountType } from "@/services/api";
-import { exitDemoLearnerMode, isDemoLearnerMode, onSessionChanged } from "@/lib/visitor-state";
+import {
+  exitDemoLearnerMode,
+  isDemoLearnerMode,
+  notifySessionChanged,
+  onSessionChanged,
+} from "@/lib/visitor-state";
 
 // The nav's menu depends on who's actually visiting -- a server-verified
 // session type (`getWhoAmI`) for guardian/instructor/demo_instructor, or
@@ -44,6 +50,17 @@ const INSTRUCTOR_LINKS: NavLink[] = [
   { href: "/instructor/dashboard", label: "Dashboard" },
   { href: "/instructor/review", label: "Review" },
 ];
+
+// The logo is a role-aware home link, not a bucket-derived one --
+// a demo_instructor is still a demo account (Constitution Principle
+// VIII), so it goes to the marketing homepage like every other
+// non-real-account visitor, while a real guardian/instructor lands on
+// their own role's home page.
+function logoHref(accountType: SessionAccountType | null | "loading"): string {
+  if (accountType === "guardian") return "/guardian/learners";
+  if (accountType === "instructor") return "/instructor/dashboard";
+  return "/";
+}
 
 function bucketFor(accountType: SessionAccountType | null, demoLearnerMode: boolean): Bucket {
   if (accountType === "guardian") return "guardian";
@@ -93,6 +110,12 @@ export default function Nav() {
     await logout();
     setAccountType(null);
     setIdentifier(null);
+    // Every other session-changing action (login/register, entering or
+    // exiting demo learner mode) notifies other mounted components --
+    // sign-out was the one gap, leaving DemoBadge's own independent
+    // `accountType` state (a demo_instructor's OR condition, unrelated
+    // to pathname) stuck showing the badge everywhere after sign-out.
+    notifySessionChanged();
     router.push("/");
   }
 
@@ -117,6 +140,14 @@ export default function Nav() {
 
   return (
     <nav className="flex flex-wrap items-center gap-4 border-b border-border px-8 py-3 text-sm">
+      <Link
+        href={logoHref(accountType)}
+        data-testid="nav-logo"
+        className="flex items-center gap-2 font-heading text-lg font-bold text-foreground"
+      >
+        <CognivoMark size={28} />
+        Cognivo
+      </Link>
       {bucket === "anonymous" && (
         <Link href="/demo" className="text-muted">
           Try Demo

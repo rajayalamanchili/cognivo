@@ -2,7 +2,7 @@
 
 **Project**: Cognivo
 **Status**: Locked for Milestone 1
-**Last amended**: 2026-08-31
+**Last amended**: 2026-09-20
 
 ## Purpose
 
@@ -109,6 +109,7 @@ obvious.
 | Session mechanism | A signed JWT (via `pyjwt`) in an `httpOnly`, `Secure`, `SameSite=Lax` cookie, verified per-request by a FastAPI dependency -- no server-side session table | Stateless verification fits Vercel's serverless execution model directly (Constitution Principle IX) -- no session store to keep warm or garbage-collect, matching this project's existing "no in-memory state assumed" discipline. A DB-backed session table (the ADK session-service pattern) was considered and rejected here: that pattern exists because ADK's own session abstraction needs a durable store across agent turns, not because every kind of session in this project must be DB-backed -- a login session has no equivalent turn-by-turn state to persist. |
 | Third-party auth provider (Clerk, Auth0, Supabase Auth, etc.) | Rejected | This project already rejected Supabase's bundled Auth for the same reason it rejected Supabase as the database (`tech-stack.md`'s Database row): the backend owns its own auth logic rather than delegating to a client SDK. A hand-rolled password+JWT flow is well within a FastAPI backend's normal scope and avoids a new external dependency/cost for a two-role (guardian, instructor), non-enterprise-SSO auth need. |
 | Two separate account tables, not one polymorphic `users` table | `RealGuardianAccount` and `RealInstructorAccount` stay two distinct tables (spec 009's data model), each with independently-unique email | Decided during `/speckit-clarify` on spec 010: the same person/email may hold both roles (a parent who also teaches), which a single email-unique-globally `users` table would block outright. Two tables cost one extra join at sign-in time (resolve which table the credentials matched) in exchange for never needing a migration to relax a wrongly-global uniqueness constraint later. |
+| Quiz-session hand-off token (Milestone 17, `specs/019-age-adaptive-learner-experience/`) | A second, distinct `pyjwt`-signed token purpose, scoped to one `quiz_session_id` with a fixed 2-hour ceiling, verified statelessly alongside (never instead of) the existing guardian session cookie | `specs/019-age-adaptive-learner-experience/research.md` Decision 4. Reuses the one signed-token mechanism this project already has rather than adding a second credential technology or a real learner-account system (rejected there as materially larger, separate scope) for a single, narrow need: letting a learner's device continue an already-guardian-started quiz session without a real learner login existing at all. |
 
 ## Tutor Agent grounding and delivery (Milestone 9)
 
@@ -211,7 +212,16 @@ obvious.
 - Semantic-caching layer (in-database via Postgres, or a dedicated cache like Redis/Upstash) -- Milestone 13 decision, made once Milestone 9's actual call volume is known well enough to size the cache correctly.
 - Whether Fluid Compute (for longer execution windows) is needed -- revisit if any agent call's typical latency approaches the default execution limit.
 
-**Version**: 1.7.0 -- Amended 2026-08-15 (Milestone 1 `/speckit-plan`:
+**Version**: 2.5.0 -- Amended 2026-09-20 (Milestone 17 `/speckit-plan`:
+locked a quiz-session-scoped hand-off token, a second `pyjwt` token
+purpose distinct from the existing guardian/instructor login session,
+as the mechanism letting a learner's device continue a
+guardian-started quiz session independently -- resolves the "how do
+check-in/opt-in-nudges/independent tiers actually differ from
+co-present" gap surfaced when `/speckit-plan` found real learners have
+no login of their own; see
+`specs/019-age-adaptive-learner-experience/research.md` Decision 4);
+1.7.0 -- Amended 2026-08-15 (Milestone 1 `/speckit-plan`:
 locked BKT parameters and three-band mastery model, LLM provider
 (LiteLLM + Claude Sonnet default) and near-duplicate detection approach
 for question generation, and backend/frontend/E2E testing frameworks;

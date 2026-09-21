@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import PlacementFlow from "./placement-flow";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 export default function PlacementPage() {
   return (
-    <Suspense fallback={<p className="p-8">Loading placement questions&hellip;</p>}>
+    <Suspense fallback={<LoadingIndicator message="Preparing your first questions…" />}>
       <PlacementFlow />
     </Suspense>
   );

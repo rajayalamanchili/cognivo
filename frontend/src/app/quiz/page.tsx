@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import QuizFlow from "./quiz-flow";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 export default function QuizPage() {
   return (
-    <Suspense fallback={<p className="p-8">Loading&hellip;</p>}>
+    <Suspense fallback={<LoadingIndicator message="Getting ready…" />}>
       <QuizFlow />
     </Suspense>
   );
