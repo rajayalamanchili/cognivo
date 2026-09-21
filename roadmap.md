@@ -1285,7 +1285,57 @@ Milestone 15); standards alignment.
 
 ---
 
+## Milestone 18: Real-Account Deletion Pathway
+
+**Spec**: `specs/020-deletion-pathway/spec.md`.
+**Status**: `/speckit-specify` complete (2026-09-21) on branch
+`030-deletion-pathway`; no `/speckit-clarify` needed -- spec 009 already
+settled the SLA, retention ceiling, hard-delete-only policy, and
+requester actors this milestone implements against. Promoted from the
+"Known gap" entry below (originally surfaced 2026-08-23) after today's
+roadmap review named it the highest-priority open item: unlike every
+entry in "Out of current roadmap," this one is a live Constitution
+Principle VIII violation on already-shipped, already-accumulating real
+account data, not a deferred nice-to-have.
+
+**Scope**: Makes spec 009's already-approved FR-004 (deletion request)
+and FR-005 (cascade) and FR-010 (1-year post-inactivity auto-deletion)
+actually execute, against the `DeletionRequest`/`RetentionRecord`
+models Milestone 7 created but never wired to a real deletion
+mechanism. No new privacy policy, no new data model -- this milestone
+is pure implementation of a already-specified requirement.
+
+**Why this comes next**: It depends on nothing beyond Milestone 7
+(already shipped) and fixes a compliance gap that only grows riskier
+the longer it sits open across every subsequent milestone that adds a
+new learner/guardian/instructor-linked table (most recently Milestone
+17's `grade_progress` and guardian-mediation tables).
+
+**Definition of done**:
+- All acceptance scenarios in `specs/020-deletion-pathway/spec.md`
+  pass.
+- SC-001 (zero dangling references/denormalized leftovers after any
+  deletion) is a hard gate with an automated check, not verified by
+  inspection.
+- `data-classification.md`'s "not yet implemented" cascade rows are
+  updated to reflect a real, working mechanism once this milestone
+  ships.
+- Milestones 1-17's full suites still pass.
+
+**Explicitly not included**: any change to the 30-day SLA, 1-year
+inactivity ceiling, or hard-delete-only policy (all already settled by
+spec 009); a self-service learner-initiated deletion path (spec 009's
+provisioning model has the parent/guardian holding the credential, not
+the learner).
+
+---
+
 ## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
+
+**Promoted to Milestone 18** (2026-09-21) -- see that entry above. This
+section is kept, not deleted, for the same reason struck-through "Out
+of current roadmap" entries are kept: an honest record of where this
+started, not a retroactively-tidied history.
 
 Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
 while checking whether Milestone 9's two new real-learner-linked
@@ -1501,6 +1551,11 @@ any table yet.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.9.0 -- 2026-09-21, added Milestone 18 (Real-Account
+Deletion Pathway), promoted from its prior "Known gap" entry;
+`/speckit-specify` complete, no `/speckit-clarify` needed since spec 009
+already settled the policy this milestone implements.
 
 **Version**: 3.8.0 -- 2026-09-20, added two items to "Out of current
 roadmap": per-question time-spent tracking, and a timed practice/quiz
