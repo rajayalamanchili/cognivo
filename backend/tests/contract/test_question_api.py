@@ -78,6 +78,8 @@ def test_next_question_response_shape(client, demo_learner, algebra_subject, moc
         "image_url",
         "image_alt_text",
         "steps",
+        "read_aloud_eligible",
+        "unlocked_grade",
     }
     assert body["difficulty"] in ("easy", "medium", "hard")
     assert "answer_key" not in body

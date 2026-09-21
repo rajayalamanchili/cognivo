@@ -7,6 +7,7 @@ import {
   type AnswerResult,
   type FreeTextErrorBody,
 } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // Multi-step owns its own submission, same reasoning as
 // `FreeTextAnswerInput` (spec 018 extends spec 007's Grading Agent): one
@@ -19,6 +20,8 @@ export interface MultiStepAnswerInputProps {
   steps: string[];
   onGraded: (result: AnswerResult) => void;
   disabled?: boolean;
+  readAloudUsed?: boolean;
+  handoffToken?: string | null;
 }
 
 type SubmitState =
@@ -45,6 +48,8 @@ export default function MultiStepAnswerInput({
   steps,
   onGraded,
   disabled,
+  readAloudUsed,
+  handoffToken,
 }: MultiStepAnswerInputProps) {
   const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
   const [state, setState] = useState<SubmitState>("idle");
@@ -56,7 +61,7 @@ export default function MultiStepAnswerInput({
   async function handleSubmit() {
     setState("grading-in-progress");
     try {
-      const result = await answerQuestion(questionId, answers);
+      const result = await answerQuestion(questionId, answers, readAloudUsed, handoffToken);
       setState("idle");
       onGraded(result);
     } catch (error) {
@@ -88,7 +93,11 @@ export default function MultiStepAnswerInput({
         disabled={busy || !allStepsFilled}
         className="self-start rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
       >
-        {state === "grading-in-progress" ? "Grading…" : "Submit Answer"}
+        {state === "grading-in-progress" ? (
+          <LoadingIndicator message="Checking each step…" compact />
+        ) : (
+          "Submit Answer"
+        )}
       </button>
 
       {state === "too-long" && (

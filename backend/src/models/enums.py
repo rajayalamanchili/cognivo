@@ -97,6 +97,18 @@ class TutoringSessionStatus(enum.StrEnum):
     ENDED = "ended"
 
 
+class MediationTier(enum.StrEnum):
+    """spec 019 FR-004/data-model.md. Never persisted as a database
+    column -- derived at read time from `GradeProgress.unlocked_grade`
+    (`services/mediation/tier.py`) and stored only as a string value
+    inside the `GUARDIAN_MEDIATION_APPLIED` event's JSON payload."""
+
+    CO_PRESENT = "co_present"
+    CHECK_IN = "check_in"
+    OPT_IN_NUDGES = "opt_in_nudges"
+    INDEPENDENT = "independent"
+
+
 class AssessmentEventType(enum.StrEnum):
     PLACEMENT_QUESTION_SHOWN = "placement_question_shown"
     ANSWER_SUBMITTED = "answer_submitted"
@@ -117,6 +129,7 @@ class AssessmentEventType(enum.StrEnum):
     GRADE_UNLOCKED = "grade_unlocked"
     PLACEMENT_QUESTION_SKIPPED = "placement_question_skipped"
     STEP_COUNT_MISMATCH_REJECTED = "step_count_mismatch_rejected"
+    GUARDIAN_MEDIATION_APPLIED = "guardian_mediation_applied"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required

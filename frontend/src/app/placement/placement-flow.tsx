@@ -12,8 +12,20 @@ import {
   type PlacementQuestion,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import LoadingIndicator from "@/components/LoadingIndicator";
+import { canUseReadAloud, speak } from "@/lib/read-aloud";
 
 type Phase = "loading" | "answering" | "submitting" | "results" | "error";
+
+// FR-001: stem + every answer choice, same as QuestionCard's read-aloud
+// (research.md Decision 1) -- placement renders its own question UI
+// independently of QuestionCard, so this is a small, separate copy
+// rather than a shared abstraction over two different question shapes.
+function buildReadAloudText(question: PlacementQuestion): string {
+  const parts = [question.stem];
+  if (question.options) parts.push(...question.options);
+  return parts.join(". ");
+}
 
 export default function PlacementFlow() {
   const searchParams = useSearchParams();
@@ -27,6 +39,7 @@ export default function PlacementFlow() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [skippingQuestionId, setSkippingQuestionId] = useState<string | null>(null);
   const [skipError, setSkipError] = useState<string | null>(null);
+  const [readAloudUsed, setReadAloudUsed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +85,7 @@ export default function PlacementFlow() {
         return {
           question_id: question.question_id,
           response: question.question_type === "numeric" ? Number(raw) : Number.parseInt(raw, 10),
+          read_aloud_used: readAloudUsed[question.question_id] ?? false,
         };
       });
       const result = await submitPlacement(placementSessionId, answers);
@@ -119,7 +133,7 @@ export default function PlacementFlow() {
   }
 
   if (phase === "loading") {
-    return <p className="p-8">Loading placement questions&hellip;</p>;
+    return <LoadingIndicator message="Preparing your first questions…" />;
   }
 
   if (phase === "error") {
@@ -163,17 +177,32 @@ export default function PlacementFlow() {
                 Grade {question.grade}
               </span>
             )}
-            {question.grade !== null && lowestShownGrade !== null && question.grade > lowestShownGrade && (
-              <button
-                type="button"
-                disabled={skippingQuestionId === question.question_id}
-                onClick={() => handleSkip(question.question_id)}
-                className="ml-2 text-xs font-normal text-link underline disabled:opacity-40"
-              >
-                {skippingQuestionId === question.question_id ? "Skipping…" : "Skip (too hard)"}
-              </button>
-            )}
+            {question.grade !== null &&
+              lowestShownGrade !== null &&
+              question.grade > lowestShownGrade && (
+                <button
+                  type="button"
+                  disabled={skippingQuestionId === question.question_id}
+                  onClick={() => handleSkip(question.question_id)}
+                  className="ml-2 text-xs font-normal text-link underline disabled:opacity-40"
+                >
+                  {skippingQuestionId === question.question_id ? "Skipping…" : "Skip (too hard)"}
+                </button>
+              )}
           </legend>
+          {question.read_aloud_eligible && canUseReadAloud() && (
+            <button
+              type="button"
+              onClick={() => {
+                speak(buildReadAloudText(question));
+                setReadAloudUsed((prev) => ({ ...prev, [question.question_id]: true }));
+              }}
+              className="self-start rounded-lg border border-border px-3 py-1.5 text-sm"
+              data-testid="read-aloud-button"
+            >
+              🔊 Read aloud
+            </button>
+          )}
           {question.question_type === "multiple_choice" && question.options ? (
             <div className="flex flex-col gap-2">
               {question.options.map((option, optionIndex) => (
@@ -216,7 +245,11 @@ export default function PlacementFlow() {
         onClick={handleSubmit}
         className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
       >
-        {phase === "submitting" ? "Submitting…" : "Submit Placement"}
+        {phase === "submitting" ? (
+          <LoadingIndicator message="Figuring out where to start you…" compact />
+        ) : (
+          "Submit Placement"
+        )}
       </button>
     </div>
   );

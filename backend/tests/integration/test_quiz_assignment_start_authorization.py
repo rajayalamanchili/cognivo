@@ -170,9 +170,9 @@ def test_non_assignment_quiz_next_question_unaffected_by_missing_session(
     client, demo_learner, algebra_subject
 ):
     """No guardian session at all, and the quiz isn't assignment-linked
-    -- confirms `assert_guardian_owns_assignment_session` stays a true
-    no-op for the pre-existing demo/M5 quiz path (research.md §2's hard
-    regression boundary, SC-002)."""
+    -- confirms `assert_quiz_session_access` stays a true no-op for the
+    pre-existing demo/M5 quiz path (research.md §2's hard regression
+    boundary, SC-002)."""
     with patch_generation(["plain quiz q1"]):
         start = client.post(
             "/api/quizzes", json={"topic_ids": [ENTRY_TOPIC], "question_count": 3}
@@ -183,3 +183,32 @@ def test_non_assignment_quiz_next_question_unaffected_by_missing_session(
     with patch_generation(["plain quiz q2"]):
         response = client.get(f"/api/quizzes/{quiz_session_id}/next-question")
     assert response.status_code == 200, response.text
+
+
+def test_demo_learner_quiz_session_never_gets_a_handoff_token_or_mediation_event(
+    client, db_session, demo_learner, algebra_subject
+):
+    """spec 019 FR-014/SC-008: a demo-learner quiz session is never
+    assignment-linked, so guardian-mediation-tier logic never runs at
+    all for it -- not even resolving to a tier of `None`. Distinct from
+    an ungraded *subject* (test_guardian_mediation_audit.py), which
+    *is* assignment-linked and does get a `tier: null` event logged."""
+    from src.models.assessment_event import AssessmentEvent
+    from src.models.enums import AssessmentEventType
+
+    with patch_generation(["demo quiz q1"]):
+        start = client.post(
+            "/api/quizzes", json={"topic_ids": [ENTRY_TOPIC], "question_count": 1}
+        )
+    assert start.status_code == 200, start.text
+    assert start.json()["handoff_token"] is None
+
+    event_count = (
+        db_session.query(AssessmentEvent)
+        .filter(
+            AssessmentEvent.learner_id == demo_learner.learner_id,
+            AssessmentEvent.event_type == AssessmentEventType.GUARDIAN_MEDIATION_APPLIED,
+        )
+        .count()
+    )
+    assert event_count == 0

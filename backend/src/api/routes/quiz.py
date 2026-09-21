@@ -6,22 +6,24 @@ reusing the exact same, unmodified grading/mastery-update mechanism a
 non-quiz answer already goes through.
 
 `get_quiz_next_question` gains one conditional check for spec 011
-(research.md §2): `assert_guardian_owns_assignment_session` is a no-op
-for a `QuizSession` that isn't linked to a `QuizAssignmentTarget` row,
-so this route's behavior for the pre-existing demo/capability-URL quiz
-path (this docstring's original scope) is completely unchanged.
+(research.md §2), extended by spec 019 with tier-aware hand-off-token
+support: `assert_quiz_session_access` is a no-op for a `QuizSession`
+that isn't linked to a `QuizAssignmentTarget` row, so this route's
+behavior for the pre-existing demo/capability-URL quiz path (this
+docstring's original scope) is completely unchanged.
 """
 
 import datetime
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
 from src.db import get_db
 from src.models.enums import QuizSessionStatus
+from src.models.quiz_assignment_target import QuizAssignmentTarget
 from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
@@ -30,6 +32,8 @@ from src.observability.tracing import traced_request
 from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
 from src.services.demo_learner import get_demo_learner
+from src.services.mediation.grade import resolve_unlocked_grade
+from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import (
     QuizEndedEarlyError,
     compute_quiz_summary,
@@ -37,7 +41,11 @@ from src.services.quiz.session import (
     persist_quiz_question,
     start_quiz,
 )
-from src.services.quiz_assignment.assignment import assert_guardian_owns_assignment_session
+from src.services.quiz_assignment.assignment import (
+    assert_quiz_session_access,
+    assert_quiz_summary_access,
+    guardian_owns_target,
+)
 
 router = APIRouter()
 
@@ -87,6 +95,8 @@ class QuizQuestionOut(BaseModel):
     options: list[str] | None = None
     image_url: str | None = None
     image_alt_text: str | None = None
+    read_aloud_eligible: bool = False
+    unlocked_grade: int | None = None
 
 
 class QuizStartIn(BaseModel):
@@ -98,6 +108,11 @@ class QuizStartOut(BaseModel):
     quiz_session_id: uuid.UUID
     status: str
     question: QuizQuestionOut | None = None
+    # spec 019 FR-005a/b, contracts/api.md: shared with the demo/ad-hoc
+    # `start_quiz_route` below, which never sets this (always `None`,
+    # since a non-assignment-linked session never goes through tier
+    # determination at all -- FR-014).
+    handoff_token: str | None = None
 
 
 @router.post("/api/quizzes", response_model=QuizStartOut)
@@ -145,6 +160,12 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
             options=result.draft.options,
             image_url=result.image_url,
             image_alt_text=result.image_alt_text,
+            read_aloud_eligible=resolve_read_aloud_eligible(
+                db, learner_id=learner.learner_id, subject_id=subject_id
+            ),
+            unlocked_grade=resolve_unlocked_grade(
+                db, learner_id=learner.learner_id, subject_id=subject_id
+            ),
         ),
     )
 
@@ -159,11 +180,14 @@ async def get_quiz_next_question(
     quiz_session_id: uuid.UUID,
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
 ) -> QuizNextQuestionOut:
     quiz = db.get(QuizSession, quiz_session_id)
     if quiz is None:
         raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
-    assert_guardian_owns_assignment_session(db, quiz_session_id=quiz_session_id, claims=claims)
+    assert_quiz_session_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
+    )
     if quiz.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
             f"quiz {quiz_session_id} is already {quiz.status.value} -- "
@@ -200,6 +224,12 @@ async def get_quiz_next_question(
             options=result.draft.options,
             image_url=result.image_url,
             image_alt_text=result.image_alt_text,
+            read_aloud_eligible=resolve_read_aloud_eligible(
+                db, learner_id=quiz.learner_id, subject_id=quiz.subject_id
+            ),
+            unlocked_grade=resolve_unlocked_grade(
+                db, learner_id=quiz.learner_id, subject_id=quiz.subject_id
+            ),
         ),
     )
 
@@ -230,11 +260,44 @@ class QuizSummaryOut(BaseModel):
 
 @router.get("/api/quizzes/{quiz_session_id}", response_model=QuizSummaryOut)
 def get_quiz_summary_route(
-    quiz_session_id: uuid.UUID, db: Session = Depends(get_db)
+    quiz_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
 ) -> QuizSummaryOut:
     quiz = db.get(QuizSession, quiz_session_id)
     if quiz is None:
         raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
+    assert_quiz_summary_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
+    )
+
+    # spec 019 FR-006/FR-007a, research.md Decision 7: a no-op unless
+    # assignment-linked (mirrors `assert_quiz_session_access`'s existing
+    # no-op-for-demo/ad-hoc-sessions precedent) -- set for any tier,
+    # unconditionally, since the badge's tier-gating happens at the
+    # list-view read layer (`list_learner_assignments_route`), not here.
+    #
+    # Code-review fix: only when the *guardian's own* session made this
+    # call, not merely when `assert_quiz_summary_access` passed -- that
+    # check also accepts a hand-off token, and `LearnerAssignments.tsx`
+    # calls this route automatically the instant a quiz session ends,
+    # on the learner's own device. Stamping unconditionally meant a
+    # check-in/opt-in-nudges/independent learner's own device cleared
+    # the guardian's unviewed-activity indicator before the guardian
+    # ever looked at anything -- defeating FR-006/007/008's purpose.
+    target = (
+        db.query(QuizAssignmentTarget)
+        .filter(QuizAssignmentTarget.quiz_session_id == quiz_session_id)
+        .first()
+    )
+    if (
+        target is not None
+        and target.guardian_viewed_at is None
+        and guardian_owns_target(db, target=target, claims=claims)
+    ):
+        target.guardian_viewed_at = datetime.datetime.now(datetime.UTC)
+        db.commit()
 
     summary = compute_quiz_summary(db, quiz_session_id=quiz_session_id)
 

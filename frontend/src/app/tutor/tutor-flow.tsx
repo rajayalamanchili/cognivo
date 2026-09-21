@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getDemoLearner, getSubjects, openTutorSession, type SubjectSummary } from "@/services/api";
 import TutorChat from "@/components/TutorChat";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // Mirrors quiz-flow.tsx's initial demo-learner/subject-picker setup
 // (FR-001's demo-learner path) -- once a subject is chosen, opens (or
@@ -57,7 +58,7 @@ export default function TutorFlow() {
   }
 
   if (phase === "loading" || phase === "opening") {
-    return <p className="p-8">Loading&hellip;</p>;
+    return <LoadingIndicator message="Waking up your tutor…" />;
   }
 
   if (phase === "error") {

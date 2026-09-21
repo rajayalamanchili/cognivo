@@ -15,6 +15,7 @@ export interface PlacementQuestion {
   question_type: QuestionType;
   stem: string;
   options: string[] | null;
+  read_aloud_eligible: boolean;
 }
 
 export interface PlacementStartResponse {
@@ -25,6 +26,7 @@ export interface PlacementStartResponse {
 export interface PlacementAnswer {
   question_id: string;
   response: string | number;
+  read_aloud_used?: boolean;
 }
 
 export interface MasteryStateEntry {
@@ -135,6 +137,10 @@ export interface NextQuestion {
   // Step prompts only, for `multi_step` questions (spec 018 FR-002) --
   // null for every other question_type.
   steps: string[] | null;
+  read_aloud_eligible: boolean;
+  // spec 019 FR-009/research.md Decision 6 -- null when the learner has
+  // no GradeProgress row for this subject (ungraded, or not yet placed).
+  unlocked_grade: number | null;
 }
 
 // One step's outcome within a `multi_step` submission (spec 018
@@ -172,6 +178,7 @@ export interface StartQuizResponse {
   quiz_session_id: string;
   status: QuizStatus;
   question: NextQuestion | null;
+  handoff_token: string | null;
 }
 
 export interface QuizNextQuestionResponse {
@@ -334,13 +341,23 @@ export function getNextQuestion(learnerId: string, subjectId: string): Promise<N
   );
 }
 
+// spec 019 FR-005b: attaches the quiz-session hand-off token when the
+// caller has one, letting a check-in/opt-in-nudges/independent-tier
+// learner's device continue without the guardian's own session.
+function handoffHeaders(handoffToken?: string | null): HeadersInit | undefined {
+  return handoffToken ? { "X-Quiz-Handoff-Token": handoffToken } : undefined;
+}
+
 export function answerQuestion(
   questionId: string,
   response: string | number | string[],
+  readAloudUsed = false,
+  handoffToken?: string | null,
 ): Promise<AnswerResult> {
   return request<AnswerResult>(`/api/questions/${questionId}/answer`, {
     method: "POST",
-    body: JSON.stringify({ response }),
+    body: JSON.stringify({ response, read_aloud_used: readAloudUsed }),
+    headers: handoffHeaders(handoffToken),
   });
 }
 
@@ -351,12 +368,22 @@ export function startQuiz(topicIds: string[], questionCount: number): Promise<St
   });
 }
 
-export function getQuizNextQuestion(quizSessionId: string): Promise<QuizNextQuestionResponse> {
-  return request<QuizNextQuestionResponse>(`/api/quizzes/${quizSessionId}/next-question`);
+export function getQuizNextQuestion(
+  quizSessionId: string,
+  handoffToken?: string | null,
+): Promise<QuizNextQuestionResponse> {
+  return request<QuizNextQuestionResponse>(`/api/quizzes/${quizSessionId}/next-question`, {
+    headers: handoffHeaders(handoffToken),
+  });
 }
 
-export function getQuizSummary(quizSessionId: string): Promise<QuizSummaryResponse> {
-  return request<QuizSummaryResponse>(`/api/quizzes/${quizSessionId}`);
+export function getQuizSummary(
+  quizSessionId: string,
+  handoffToken?: string | null,
+): Promise<QuizSummaryResponse> {
+  return request<QuizSummaryResponse>(`/api/quizzes/${quizSessionId}`, {
+    headers: handoffHeaders(handoffToken),
+  });
 }
 
 export function flagQuestion(
@@ -726,6 +753,7 @@ export interface LearnerAssignment {
   due_at: string | null;
   cancelled_at: string | null;
   status: AssignmentStatus;
+  has_unviewed_activity: boolean;
 }
 
 export interface ListLearnerAssignmentsResponse {

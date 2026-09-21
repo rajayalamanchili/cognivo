@@ -8,6 +8,7 @@ import {
   type RosterSummary,
 } from "@/services/api";
 import WeakAreaSection from "@/components/WeakAreaSection";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -68,7 +69,7 @@ export default function InstructorDashboardFlow() {
     selectedRosterId !== null && dashboard?.roster_id !== selectedRosterId && !dashboardError;
 
   if (loading) {
-    return <p className="p-8">Loading dashboard&hellip;</p>;
+    return <LoadingIndicator message="Loading dashboard…" variant="professional" />;
   }
 
   if (rosters.length === 0) {
@@ -103,7 +104,9 @@ export default function InstructorDashboardFlow() {
         <p className="text-sm text-error">Couldn&rsquo;t load this roster: {dashboardError}</p>
       )}
 
-      {dashboardLoading && <p className="text-sm">Loading roster data&hellip;</p>}
+      {dashboardLoading && (
+        <LoadingIndicator message="Loading roster data…" variant="professional" compact />
+      )}
 
       {!dashboardLoading && dashboard && dashboard.learners.length === 0 && (
         <p className="text-sm">No learners enrolled in this roster yet.</p>

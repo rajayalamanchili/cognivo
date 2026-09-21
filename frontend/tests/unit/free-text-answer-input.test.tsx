@@ -42,7 +42,12 @@ describe("FreeTextAnswerInput", () => {
     await userEvent.type(textarea, "The independent variable is x.");
     await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
 
-    expect(api.answerQuestion).toHaveBeenCalledWith("q1", "The independent variable is x.");
+    expect(api.answerQuestion).toHaveBeenCalledWith(
+      "q1",
+      "The independent variable is x.",
+      undefined,
+      undefined,
+    );
     expect(onGraded).toHaveBeenCalledWith(
       expect.objectContaining({ correct: true, topic_id: "linear-equations" }),
     );

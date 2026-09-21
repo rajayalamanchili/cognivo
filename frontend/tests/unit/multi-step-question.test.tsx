@@ -54,7 +54,12 @@ describe("MultiStepAnswerInput", () => {
     await userEvent.type(screen.getByTestId("multi-step-input-1"), "x = 4");
     await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
 
-    expect(api.answerQuestion).toHaveBeenCalledWith("q1", ["3x = 12", "x = 4"]);
+    expect(api.answerQuestion).toHaveBeenCalledWith(
+      "q1",
+      ["3x = 12", "x = 4"],
+      undefined,
+      undefined,
+    );
     expect(onGraded).toHaveBeenCalledWith(expect.objectContaining({ correct: true }));
   });
 

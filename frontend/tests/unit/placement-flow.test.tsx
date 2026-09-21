@@ -4,7 +4,7 @@
 
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PlacementFlow from "@/app/placement/placement-flow";
 import * as api from "@/services/api";
 
@@ -18,6 +18,7 @@ vi.mock("@/services/api", async () => {
     ...actual,
     startPlacement: vi.fn(),
     skipPlacementQuestion: vi.fn(),
+    submitPlacement: vi.fn(),
   };
 });
 
@@ -29,6 +30,7 @@ const gradedQuestion = {
   question_type: "multiple_choice" as const,
   stem: "What is -3 + 7?",
   options: ["4", "-4", "10", "-10"],
+  read_aloud_eligible: false,
 };
 
 const higherGradeQuestion = {
@@ -39,6 +41,7 @@ const higherGradeQuestion = {
   question_type: "multiple_choice" as const,
   stem: "Solve the system of equations.",
   options: ["(0, 0)", "(1, 2)", "(2, 3)", "(3, 4)"],
+  read_aloud_eligible: false,
 };
 
 const replacementQuestion = {
@@ -49,6 +52,7 @@ const replacementQuestion = {
   question_type: "multiple_choice" as const,
   stem: "Evaluate 3x + 2 for x = 4.",
   options: ["10", "12", "14", "16"],
+  read_aloud_eligible: false,
 };
 
 const ungradedQuestion = {
@@ -59,6 +63,7 @@ const ungradedQuestion = {
   question_type: "multiple_choice" as const,
   stem: "Which organelle produces energy?",
   options: ["Nucleus", "Mitochondria", "Ribosome", "Golgi"],
+  read_aloud_eligible: false,
 };
 
 describe("PlacementFlow grade label", () => {
@@ -88,6 +93,79 @@ describe("PlacementFlow grade label", () => {
 
     await screen.findByText(/Which organelle produces energy\?/);
     expect(screen.queryByText(/Grade/)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlacementFlow read-aloud (spec 019 FR-001/FR-003)", () => {
+  beforeEach(() => {
+    vi.mocked(api.startPlacement).mockReset();
+    // jsdom has no SpeechSynthesis implementation -- stub the minimum
+    // surface `canUseReadAloud`/`speak` (src/lib/read-aloud.ts) touch.
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: { speak: vi.fn(), cancel: vi.fn() },
+    });
+    vi.stubGlobal(
+      "SpeechSynthesisUtterance",
+      class {
+        constructor(public text: string) {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "speechSynthesis", { configurable: true, value: undefined });
+    vi.unstubAllGlobals();
+  });
+
+  it("shows a read-aloud control for a read-aloud-eligible question", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [{ ...gradedQuestion, read_aloud_eligible: true }],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+
+    expect(screen.getByTestId("read-aloud-button")).toBeInTheDocument();
+  });
+
+  it("shows no read-aloud control when the question is not eligible", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+
+    expect(screen.queryByTestId("read-aloud-button")).not.toBeInTheDocument();
+  });
+
+  it("submits read_aloud_used: true only for a question whose read-aloud control was clicked (SC-007)", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [{ ...gradedQuestion, read_aloud_eligible: true }, higherGradeQuestion],
+    });
+    vi.mocked(api.submitPlacement).mockResolvedValue({ mastery_state: [] });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+
+    await userEvent.click(screen.getByTestId("read-aloud-button"));
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByLabelText("(1, 2)"));
+    await userEvent.click(screen.getByText("Submit Placement"));
+
+    await waitFor(() =>
+      expect(api.submitPlacement).toHaveBeenCalledWith(
+        "session-1",
+        expect.arrayContaining([
+          expect.objectContaining({ question_id: "q1", read_aloud_used: true }),
+          expect.objectContaining({ question_id: "q3", read_aloud_used: false }),
+        ]),
+      ),
+    );
   });
 });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getEvaluationReport, type EvaluationReport } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 type Phase = "loading" | "loaded" | "error";
 
@@ -39,7 +40,7 @@ export default function PersonalizationEvalReport() {
   }, []);
 
   if (phase === "loading") {
-    return <p className="p-8">Loading evaluation results&hellip;</p>;
+    return <LoadingIndicator message="Loading evaluation results…" variant="professional" />;
   }
 
   if (phase === "error") {

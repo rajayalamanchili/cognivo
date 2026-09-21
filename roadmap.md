@@ -1211,6 +1211,80 @@ multi_step_replacement` added, mirroring the existing free-text test.
 
 ---
 
+## Milestone 17: Age-Adaptive Learner Experience
+
+**Spec**: `specs/019-age-adaptive-learner-experience/spec.md`.
+**Status**: Implementation-complete 2026-09-20 on branch
+`019-age-adaptive-learner-experience` (all three user stories plus
+Phase 6 Polish); not yet merged. Flagged 2026-09-14 during a K-12 STEM
+gap-analysis session as "Age-adaptive learner experience across the
+grade 1-12 range" in "Out of current roadmap"; promoted to its own
+milestone 2026-09-20 after it resurfaced as the top open gap in a
+follow-up product-thinking pass ("nothing currently adapts to grade
+band, only to mastery level"). Full backend (595) and frontend (96)
+regression suites pass; Milestone 15's grade-banding suite and the
+Constitution Principle III subject-conditional check both confirmed
+clean.
+
+**Pre-spec clarification (2026-09-20)**: formal `/speckit-clarify`
+requires an existing `spec.md`, which this milestone doesn't have yet,
+so the guardian-mediation-intensity question was resolved informally
+ahead of `/speckit-specify` instead (to be re-confirmed in the spec's
+own `## Clarifications` section once it exists). Decision: discrete
+mediation tiers keyed to Milestone 15's grade band, not a continuous
+function of `unlocked_grade` and not guardian-configurable in v1 --
+grades 1-2 co-present (guardian starts/sits with every session), 3-5
+check-in (guardian starts session, reviews summary after), 6-8 opt-in
+nudges (guardian notified, no action required), 9-12 independent
+(guardian stays a viewer only, same as today). Chosen over a continuous
+function for testability (four fixed tiers vs. an unbounded curve) and
+over guardian-configurable defaults to keep v1 scope bounded; a
+per-learner override is a natural v2 addition once the tiered default
+ships.
+
+**Scope**: The interaction model -- not the content -- adapts to a
+learner's grade band, layered onto Milestone 15's `grade_bands` entity:
+- Read-aloud/audio support for question text and answer choices, gated
+  to grade bands below a fluent-reading threshold, so a young learner's
+  math or science accuracy isn't accidentally testing reading ability
+  instead.
+- Session-length and motivation mechanics that differ by developmental
+  age -- short bursts with immediate positive reinforcement for younger
+  bands, longer autonomy-respecting sessions for older bands.
+- Guardian-mediation intensity that varies by grade band per the four
+  tiers above, layered onto the existing guardian role (Milestones 7/8)
+  rather than replacing it.
+
+**Why this comes after Milestone 15, not before**: Milestone 15 built
+the `grade_bands` data model this milestone pegs its bands to --
+without it, "session length by age" or "guardian mediation by age"
+would have no existing entity to key off and would risk inventing a
+second, competing notion of grade. This milestone deliberately leaves
+Milestone 15's content-difficulty adaptation untouched; it only changes
+the interaction model (UI, pacing, audio, how much the guardian role
+mediates a session), which Milestone 15 explicitly left identical
+across all ages.
+
+**Definition of done** (draft, to be formalized in its own `spec.md`):
+- All acceptance scenarios in the eventual
+  `specs/019-age-adaptive-learner-experience/spec.md` pass.
+- A hard gate proving read-aloud availability is driven by grade band
+  alone, never by subject or topic -- grade band must not become a
+  disguised subject-id conditional (Constitution Principle III).
+- A hard gate proving guardian-mediation intensity is derived from
+  `grade_bands`/`grade_progress` state, not a separate, driftable copy
+  of grade -- so it can't fall out of sync with Milestone 15's grade
+  progression the same way a duplicated mastery model would violate
+  Principle I.
+- Milestones 1-16's full suites still pass.
+
+**Explicitly not included**: English Language Learner / bilingual
+support (separate, lower-priority "Out of current roadmap" item); any
+change to content difficulty or topic selection (already owned by
+Milestone 15); standards alignment.
+
+---
+
 ## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
 
 Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
@@ -1371,16 +1445,10 @@ any table yet.
   grading both assume a fixed answer shape, not program behavior over
   test cases -- so this would need its own spec rather than reusing
   Milestone 6's grading path as-is.
-- Age-adaptive learner experience across the grade 1-12 range: read-
-  aloud/audio support for learners who aren't yet reading fluently,
-  session-length and motivation mechanics that differ by developmental
-  age, and a guardian-mediation model that's deliberately more active
-  for younger learners than older ones. Raised 2026-09-14. Distinct
-  from Milestone 15 (grade-banded curriculum), which adapts *content
-  difficulty* to grade level but leaves the *interaction model* (UI,
-  session pacing, audio, how much the existing `guardian` role mediates
-  a session) identical across all ages. Milestone 15's `grade_bands`
-  data model is the natural substrate to peg this to once scoped.
+- ~~Age-adaptive learner experience across the grade 1-12 range~~ --
+  promoted to Milestone 17 (2026-09-20), see that entry above the
+  "Known gap" section. This bullet is kept, struck through, for the
+  same reason Milestone 14's promotion left its bullet in place.
 - English Language Learner (ELL) support -- bilingual or translated
   question variants. Raised 2026-09-14. Lower priority than the items
   above; named explicitly rather than folded silently into a future
@@ -1395,10 +1463,58 @@ any table yet.
   week. Raised 2026-09-14. Depends on Milestone 7's instructor role and
   dashboard already existing; lower priority than the grading/content
   gaps above.
+- Per-question time-spent tracking -- recording how long a learner
+  takes to answer each question, for every learner, across practice and
+  quizzes. Raised 2026-09-20. Distinct from anything Milestone 17
+  builds: that milestone's pacing checkpoint (Story 3) is a static,
+  age-band-keyed recommendation, not a measurement of real per-question
+  timing. A small, generically useful instrumentation addition (a new
+  timestamp pair or a `time_spent_seconds` field alongside the existing
+  `ANSWER_SUBMITTED` audit event, per Constitution Principle V) that the
+  timed-practice-and-quiz item below would need as its underlying data,
+  and that a future pacing/fatigue-detection feature could also draw on
+  -- but not itself gated on that item.
+- Timed practice and quiz mode for exam preparation -- letting a
+  learner opt into a time-bound session (e.g. "20 questions in 30
+  minutes") for both ordinary practice and Milestone 5 quizzes, distinct
+  from today's untimed, learner-paced default. Raised 2026-09-20.
+  Deliberately not folded into Milestone 17: that milestone's Story 3
+  pacing is a soft, age-driven suggestion a learner can ignore, while
+  exam-style timing is a learner-opted-in, grade-band-independent hard
+  constraint -- a 3rd grader and a 10th grader preparing for a timed
+  test want the identical feature. Also deliberately not started
+  opportunistically alongside Milestone 17, even though the two are
+  related: Milestone 17's own `/speckit-plan` found that ordinary
+  (non-quiz) practice has no bounded session concept at all today, and
+  deliberately chose not to build one (see that milestone's
+  `research.md`/`data-model.md` and its "Quiz Sessions only" pre-plan
+  Clarification) -- a timed *practice* session would need exactly the
+  session boundary that decision explicitly punted on, so this item
+  inherits that same open design question rather than resolving it by
+  implication. Needs its own scoping pass: what happens when time
+  expires (auto-submit vs. lock further answers), whether score is
+  penalized or simply informational under a timer, and whether the new
+  practice-session boundary this would require is scoped narrowly (only
+  for timed sessions) or becomes a first-class concept ordinary practice
+  gains too.
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.8.0 -- 2026-09-20, added two items to "Out of current
+roadmap": per-question time-spent tracking, and a timed practice/quiz
+mode for exam preparation. Raised alongside Milestone 17 work but
+deliberately kept out of it -- not age-band-driven (a hard, opted-in
+timer is orthogonal to grade-band pacing) and the timed-practice half
+would need the same practice-session boundary Milestone 17's own
+`/speckit-plan` explicitly declined to build for that milestone's scope.
+
+**Version**: 3.7.0 -- 2026-09-20, added Milestone 17 (Age-Adaptive
+Learner Experience), promoted from its prior "Out of current roadmap"
+entry; scope drafted only -- no spec/plan/tasks yet, `/speckit-clarify`
+still needed on guardian-mediation intensity per grade band before
+`/speckit-specify`.
 
 **Version**: 3.6.0 -- 2026-09-18, added Milestone 16 (Process-Level STEM
 Grading), promoted from its prior "Out of current roadmap" entry;

@@ -12,7 +12,7 @@ import os
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError
@@ -55,8 +55,10 @@ from src.services.grading_client.client import (
 )
 from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
+from src.services.mediation.grade import resolve_unlocked_grade
+from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import record_quiz_answer
-from src.services.quiz_assignment.assignment import assert_guardian_owns_assignment_session
+from src.services.quiz_assignment.assignment import assert_quiz_session_access
 
 router = APIRouter()
 
@@ -78,6 +80,8 @@ class NextQuestionOut(BaseModel):
     image_url: str | None = None
     image_alt_text: str | None = None
     steps: list[str] | None = None
+    read_aloud_eligible: bool = False
+    unlocked_grade: int | None = None
 
 
 @router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
@@ -172,11 +176,16 @@ async def get_next_question(
             if result.question_type == QuestionType.MULTI_STEP
             else None
         ),
+        read_aloud_eligible=resolve_read_aloud_eligible(
+            db, learner_id=learner_id, subject_id=subject_id
+        ),
+        unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
     )
 
 
 class AnswerIn(BaseModel):
     response: Any
+    read_aloud_used: bool = False
 
 
 class StepResultOut(BaseModel):
@@ -359,16 +368,21 @@ async def answer_question(
     body: AnswerIn,
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
 ) -> JSONResponse:
     question = db.get(GeneratedQuestion, question_id)
     if question is None:
         raise NotFoundError(f"unknown question_id: {question_id}")
-    # spec 011, research.md §2: a no-op unless this question's quiz
+    # spec 011, research.md §2 (extended by spec 019 with tier-aware
+    # hand-off-token support): a no-op unless this question's quiz
     # session is assignment-linked -- the non-quiz and non-assigned-quiz
     # answer paths are completely unaffected.
     if question.quiz_session_id is not None:
-        assert_guardian_owns_assignment_session(
-            db, quiz_session_id=question.quiz_session_id, claims=claims
+        assert_quiz_session_access(
+            db,
+            quiz_session_id=question.quiz_session_id,
+            claims=claims,
+            handoff_token=x_quiz_handoff_token,
         )
     if _already_answered(db, question_id):
         raise ConflictError(f"question {question_id} already answered")
@@ -403,6 +417,7 @@ async def answer_question(
             "grading_logic_version": grading_result.grading_logic_version,
             "served_from_cache": cache_outcome.hit,
             "cache_miss_reason": cache_outcome.reason,
+            "read_aloud_used": body.read_aloud_used,
         }
     elif question.question_type == QuestionType.MULTI_STEP:
         with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
@@ -426,13 +441,18 @@ async def answer_question(
                 for s in stepwise_result.step_results
             ],
             "grading_logic_version": stepwise_result.grading_logic_version,
+            "read_aloud_used": body.read_aloud_used,
         }
     else:
         correct = grade_answer(
             {"question_type": question.question_type, "answer_key": question.answer_key},
             response=body.response,
         )
-        answer_payload = {"response": body.response, "correct": correct}
+        answer_payload = {
+            "response": body.response,
+            "correct": correct,
+            "read_aloud_used": body.read_aloud_used,
+        }
 
     result = apply_mastery_update(
         db,

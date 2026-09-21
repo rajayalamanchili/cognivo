@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { listFlaggedQuestions, resolveFlaggedQuestion, type FlaggedQuestion } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -54,7 +55,7 @@ export default function ReviewFlow() {
   }
 
   if (loading) {
-    return <p className="p-8">Loading review queue&hellip;</p>;
+    return <LoadingIndicator message="Loading review queue…" variant="professional" />;
   }
 
   if (loadError) {

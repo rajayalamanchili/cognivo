@@ -3,6 +3,7 @@
 import { useState, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
 import { ApiError, streamTutorMessage, type TutorMessageErrorBody } from "@/services/api";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 // Owns its own message list and streaming lifecycle (mirrors
 // FreeTextAnswerInput's self-contained submission pattern) so the
@@ -137,7 +138,9 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
             <RoleAvatar role={message.role} />
             <div
               data-testid={
-                message.role === "learner" ? "tutor-chat-learner-message" : "tutor-chat-tutor-message"
+                message.role === "learner"
+                  ? "tutor-chat-learner-message"
+                  : "tutor-chat-tutor-message"
               }
               data-exchange-id={message.exchangeId}
               className={
@@ -204,7 +207,7 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
           disabled={streaming || question.trim() === ""}
           className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
         >
-          {streaming ? "Answering…" : "Ask"}
+          {streaming ? <LoadingIndicator message="Thinking…" compact /> : "Ask"}
         </button>
       </div>
     </div>

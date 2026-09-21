@@ -42,6 +42,7 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: null,
           status: "not_started",
+          has_unviewed_activity: false,
         },
         {
           assignment_id: "a-in-progress",
@@ -50,6 +51,7 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: null,
           status: "in_progress",
+          has_unviewed_activity: false,
         },
         {
           assignment_id: "a-completed",
@@ -58,6 +60,7 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: "2026-08-01T00:00:00Z",
           status: "completed",
+          has_unviewed_activity: false,
         },
         {
           assignment_id: "a-cancelled-not-started",
@@ -66,6 +69,7 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: "2026-08-01T00:00:00Z",
           status: "not_started",
+          has_unviewed_activity: false,
         },
       ],
     });
@@ -100,12 +104,14 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: null,
           status: "not_started",
+          has_unviewed_activity: false,
         },
       ],
     });
     vi.mocked(api.startAssignment).mockResolvedValue({
       quiz_session_id: "quiz-1",
       status: "in_progress",
+      handoff_token: null,
       question: {
         question_id: "q1",
         topic_id: "integers-and-operations",
@@ -116,15 +122,15 @@ describe("LearnerAssignments", () => {
         image_url: null,
         image_alt_text: null,
         steps: null,
+        read_aloud_eligible: false,
+        unlocked_grade: null,
       },
     });
 
     render(<LearnerAssignments learnerId={LEARNER_ID} />);
     fireEvent.click(await screen.findByText("Start"));
 
-    await waitFor(() =>
-      expect(api.startAssignment).toHaveBeenCalledWith("a1", LEARNER_ID),
-    );
+    await waitFor(() => expect(api.startAssignment).toHaveBeenCalledWith("a1", LEARNER_ID));
     expect(await screen.findByText("What is 2 + 2?")).toBeInTheDocument();
     expect(screen.getByTestId("question-card")).toBeInTheDocument();
   });
@@ -139,6 +145,7 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: null,
           status: "not_started",
+          has_unviewed_activity: false,
         },
       ],
     });
@@ -151,6 +158,301 @@ describe("LearnerAssignments", () => {
       "already_attempted",
     );
     expect(screen.getByTestId("learner-assignments")).toBeInTheDocument();
+  });
+
+  it("shows an unviewed-activity badge only when has_unviewed_activity is true", async () => {
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a-unviewed",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "completed",
+          has_unviewed_activity: true,
+        },
+        {
+          assignment_id: "a-viewed",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "completed",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+
+    expect(await screen.findByTestId("learner-assignment-unviewed-a-unviewed")).toBeInTheDocument();
+    expect(screen.queryByTestId("learner-assignment-unviewed-a-viewed")).not.toBeInTheDocument();
+  });
+
+  it("passes the start response's handoff_token through to next-question and answer calls (spec 019 FR-005b)", async () => {
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+    vi.mocked(api.startAssignment).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      handoff_token: "handoff-token-abc",
+      question: {
+        question_id: "q1",
+        topic_id: "integers-and-operations",
+        difficulty: "easy",
+        question_type: "multiple_choice",
+        stem: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        image_url: null,
+        image_alt_text: null,
+        steps: null,
+        read_aloud_eligible: false,
+        unlocked_grade: null,
+      },
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue({
+      correct: true,
+      topic_id: "integers-and-operations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+    vi.mocked(api.getQuizNextQuestion).mockResolvedValue({
+      status: "in_progress",
+      question: {
+        question_id: "q2",
+        topic_id: "integers-and-operations",
+        difficulty: "easy",
+        question_type: "multiple_choice",
+        stem: "What is 3 + 3?",
+        options: ["3", "4", "5", "6"],
+        image_url: null,
+        image_alt_text: null,
+        steps: null,
+        read_aloud_eligible: false,
+        unlocked_grade: null,
+      },
+    });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    fireEvent.click(await screen.findByText("Start"));
+    await screen.findByText("What is 2 + 2?");
+
+    fireEvent.click(screen.getByLabelText("4"));
+    fireEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    await waitFor(() =>
+      expect(api.answerQuestion).toHaveBeenCalledWith("q1", 1, false, "handoff-token-abc"),
+    );
+    await waitFor(() =>
+      expect(api.getQuizNextQuestion).toHaveBeenCalledWith("quiz-1", "handoff-token-abc"),
+    );
+  });
+
+  it("shows a stopping-point prompt after the recommended count for the learner's grade band (spec 019 FR-009)", async () => {
+    const answerResult = {
+      correct: true,
+      topic_id: "integers-and-operations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing" as const,
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    };
+    function questionAt(id: string) {
+      return {
+        question_id: id,
+        topic_id: "integers-and-operations",
+        difficulty: "easy" as const,
+        question_type: "multiple_choice" as const,
+        stem: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        image_url: null,
+        image_alt_text: null,
+        steps: null,
+        read_aloud_eligible: false,
+        unlocked_grade: 1,
+      };
+    }
+
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+    vi.mocked(api.startAssignment).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      handoff_token: null,
+      question: questionAt("q1"),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2") })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3") });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    fireEvent.click(await screen.findByText("Start"));
+
+    // Grade 1's pacing profile recommends a checkpoint at 3 questions
+    // (frontend/src/lib/pacing.ts) -- answer three in a row.
+    for (let i = 0; i < 3; i++) {
+      await screen.findByText("What is 2 + 2?");
+      fireEvent.click(screen.getByLabelText("4"));
+      fireEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    }
+
+    expect(await screen.findByTestId("quiz-stopping-point")).toBeInTheDocument();
+    expect(screen.queryByTestId("question-card")).not.toBeInTheDocument();
+    expect(api.getQuizSummary).not.toHaveBeenCalled();
+  });
+
+  it("shows a brief reinforcement message every reinforcementEveryN questions (spec 019 FR-009)", async () => {
+    const answerResult = {
+      correct: true,
+      topic_id: "integers-and-operations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing" as const,
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    };
+    function questionAt(id: string) {
+      return {
+        question_id: id,
+        topic_id: "integers-and-operations",
+        difficulty: "easy" as const,
+        question_type: "multiple_choice" as const,
+        stem: "What is 2 + 2?",
+        options: ["3", "4", "5", "6"],
+        image_url: null,
+        image_alt_text: null,
+        steps: null,
+        read_aloud_eligible: false,
+        // Grade 4's pacing profile is { recommendedQuestionCount: 5,
+        // reinforcementEveryN: 2 } (frontend/src/lib/pacing.ts).
+        unlocked_grade: 4,
+      };
+    }
+
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+    vi.mocked(api.startAssignment).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      handoff_token: null,
+      question: questionAt("q1"),
+    });
+    vi.mocked(api.answerQuestion).mockResolvedValue(answerResult);
+    vi.mocked(api.getQuizNextQuestion)
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q2") })
+      .mockResolvedValueOnce({ status: "in_progress", question: questionAt("q3") });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    fireEvent.click(await screen.findByText("Start"));
+
+    // q1 answered (count 1) -- no message on q2.
+    await screen.findByText("What is 2 + 2?");
+    fireEvent.click(screen.getByLabelText("4"));
+    fireEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await waitFor(() => expect(api.getQuizNextQuestion).toHaveBeenCalledTimes(1));
+    expect(screen.queryByTestId("reinforcement-message")).not.toBeInTheDocument();
+
+    // q2 answered (count 2, divisible by 2) -- message appears on q3.
+    fireEvent.click(screen.getByLabelText("4"));
+    fireEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    expect(await screen.findByTestId("reinforcement-message")).toHaveTextContent(/nice work/i);
+  });
+
+  it("passes the start response's handoff_token to the summary call when the attempt ends early at start (stale-state regression)", async () => {
+    // handleStart's "ended early at start" branch calls goToSummary
+    // synchronously in the same tick as setHandoffToken -- the
+    // component's `handoffToken` *state* is still its old (null) value
+    // at that point, so goToSummary must use `result.handoff_token`
+    // directly rather than reading stale state (spec 019 FR-005b).
+    vi.mocked(api.listLearnerAssignments).mockResolvedValue({
+      assignments: [
+        {
+          assignment_id: "a1",
+          topic_ids: ["integers-and-operations"],
+          question_count: 5,
+          due_at: null,
+          cancelled_at: null,
+          status: "not_started",
+          has_unviewed_activity: false,
+        },
+      ],
+    });
+    vi.mocked(api.startAssignment).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      status: "ended_early",
+      handoff_token: "handoff-token-xyz",
+      question: null,
+    });
+    vi.mocked(api.getQuizSummary).mockResolvedValue({
+      quiz_session_id: "quiz-1",
+      subject_id: "integers-and-operations",
+      topic_ids: ["integers-and-operations"],
+      question_count: 5,
+      status: "ended_early",
+      started_at: "2026-09-20T00:00:00Z",
+      completed_at: "2026-09-20T00:00:01Z",
+      score: { correct: 0, total: 0 },
+      summary: [],
+    });
+
+    render(<LearnerAssignments learnerId={LEARNER_ID} />);
+    fireEvent.click(await screen.findByText("Start"));
+
+    await waitFor(() =>
+      expect(api.getQuizSummary).toHaveBeenCalledWith("quiz-1", "handoff-token-xyz"),
+    );
+    expect(await screen.findByTestId("quiz-summary")).toBeInTheDocument();
   });
 
   it("refetches the list when 'Refresh' is clicked", async () => {
@@ -168,6 +470,7 @@ describe("LearnerAssignments", () => {
           due_at: null,
           cancelled_at: null,
           status: "not_started",
+          has_unviewed_activity: false,
         },
       ],
     });

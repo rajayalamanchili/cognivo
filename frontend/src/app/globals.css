@@ -11,8 +11,10 @@
   --background: #ffffff;
   --foreground: #1e293b; /* slate-800 -- softer than near-black */
 
-  --color-primary: #0d9488; /* teal-600 */
+  --color-primary: oklch(0.58 0.15 300); /* lilac -- Cognivo Logo Concepts, turn 3 */
   --color-primary-foreground: #ffffff;
+  --color-accent: oklch(0.76 0.14 65); /* warm amber -- the mark's pupil */
+  --color-accent-foreground: #451a03; /* amber-950 */
 
   --color-border: #e4e4e7; /* zinc-200 */
   --color-muted: #71717a; /* zinc-500 */
@@ -34,6 +36,8 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--color-primary);
   --color-primary-foreground: var(--color-primary-foreground);
+  --color-accent: var(--color-accent);
+  --color-accent-foreground: var(--color-accent-foreground);
   --color-border: var(--color-border);
   --color-muted: var(--color-muted);
   --color-error: var(--color-error);
@@ -52,8 +56,10 @@
     --background: #0f172a; /* slate-900 */
     --foreground: #f1f5f9; /* slate-100 */
 
-    --color-primary: #2dd4bf; /* teal-400 */
-    --color-primary-foreground: #042f2e; /* teal-950 */
+    --color-primary: oklch(0.78 0.13 300); /* lilac, lightened for dark bg */
+    --color-primary-foreground: #2e1065; /* violet-950 */
+    --color-accent: oklch(0.82 0.13 68);
+    --color-accent-foreground: #451a03; /* amber-950 */
 
     --color-border: #3f3f46; /* zinc-700 */
     --color-muted: #a1a1aa; /* zinc-400 */

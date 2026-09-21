@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import MasteryFlow from "./mastery-flow";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 export default function MasteryPage() {
   return (
-    <Suspense fallback={<p className="p-8">Loading mastery state&hellip;</p>}>
+    <Suspense fallback={<LoadingIndicator message="Gathering your progress…" />}>
       <MasteryFlow />
     </Suspense>
   );

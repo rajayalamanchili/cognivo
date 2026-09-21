@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { getDemoLearner, getSubjects, type SubjectSummary } from "@/services/api";
 import DashboardSubjectSection from "@/components/DashboardSubjectSection";
+import LoadingIndicator from "@/components/LoadingIndicator";
 
 type Phase = "loading" | "loaded" | "error";
 
@@ -35,7 +36,7 @@ export default function DashboardFlow() {
   }, []);
 
   if (phase === "loading" || !learnerId) {
-    return <p className="p-8">Loading dashboard&hellip;</p>;
+    return <LoadingIndicator message="Getting your dashboard ready…" />;
   }
 
   if (phase === "error") {
