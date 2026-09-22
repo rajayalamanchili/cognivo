@@ -1640,9 +1640,36 @@ any table yet.
   for timed sessions) or becomes a first-class concept ordinary practice
   gains too.
 
+- Full K-12 STEM content catalog (elementary math/science for grades
+  1-5, then a real course-by-course spread across 6-12 -- pre-algebra,
+  algebra-2, geometry, physics, chemistry, earth science -- alongside
+  today's algebra-1 and biology). Raised 2026-09-22. Architecturally
+  this is not a new engineering problem: Constitution Principle III's
+  domain-agnostic engine is already validated by two structurally
+  different subjects (math vs. life science), and Milestone 15's
+  `grade_bands`/per-topic `grade` mechanism already supports a single
+  content artifact spanning any grade range, not just algebra-1's
+  6-8 -- `check_no_subject_conditionals.py` keeps this honest in CI.
+  The real cost is content-authoring volume: dozens of subject
+  artifacts, each needing a real topic/prerequisite graph and a
+  defensible per-topic skill definition and difficulty calibration
+  (Principle II's rubric discipline applies per topic, not per
+  subject), plus a per-`subject_id` misconception-classifier cold-start
+  gap (Milestone 11) for every new subject until it accumulates real
+  grading data. Needs its own scoping pass before it's a milestone:
+  whether content is hand-authored, LLM-assisted-then-human-reviewed,
+  or needs a dedicated authoring pipeline/tool -- that choice determines
+  most of the actual effort here, not the engine.
+
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.10.0 -- 2026-09-22, added "Full K-12 STEM content
+catalog" to "Out of current roadmap" -- confirmed the domain-agnostic
+engine (Principle III) and Milestone 15's grade-banding already support
+this with no new code; the open question is content-authoring approach
+and volume, not architecture.
 
 **Version**: 3.9.0 -- 2026-09-21, added Milestone 18 (Real-Account
 Deletion Pathway), promoted from its prior "Known gap" entry;
