@@ -485,11 +485,22 @@ export function logout(): Promise<void> {
 
 export type SessionAccountType = "guardian" | "instructor" | "demo_instructor";
 
+export interface PendingDeletionWarning {
+  target_type: "learner" | "instructor";
+  target_id: string;
+  warned_at: string;
+  scheduled_deletion_date: string;
+}
+
 export interface WhoAmIResponse {
   account_type: SessionAccountType | null;
   // Login email for a real guardian/instructor, or the seeded display
   // name for a demo instructor -- `null` for no session.
   identifier: string | null;
+  // spec 020 FR-011: non-empty only when the session's own account (or,
+  // for a guardian, a linked learner) is within 7 days of inactivity
+  // auto-deletion. Always present, always [] in the common case.
+  pending_deletion_warnings: PendingDeletionWarning[];
 }
 
 // Read-only session-identity check -- drives the nav's per-user-type

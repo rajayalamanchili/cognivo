@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CognivoMark from "@/components/CognivoMark";
-import { getWhoAmI, logout, type SessionAccountType } from "@/services/api";
+import {
+  getWhoAmI,
+  logout,
+  type PendingDeletionWarning,
+  type SessionAccountType,
+} from "@/services/api";
 import {
   exitDemoLearnerMode,
   isDemoLearnerMode,
@@ -78,6 +83,9 @@ function useVisitorState() {
   const [accountType, setAccountType] = useState<SessionAccountType | null | "loading">("loading");
   const [identifier, setIdentifier] = useState<string | null>(null);
   const [demoLearnerMode, setDemoLearnerMode] = useState(() => isDemoLearnerMode());
+  const [pendingDeletionWarnings, setPendingDeletionWarnings] = useState<PendingDeletionWarning[]>(
+    [],
+  );
 
   function refresh() {
     setDemoLearnerMode(isDemoLearnerMode());
@@ -85,20 +93,37 @@ function useVisitorState() {
       .then((result) => {
         setAccountType(result.account_type);
         setIdentifier(result.identifier);
+        setPendingDeletionWarnings(result.pending_deletion_warnings ?? []);
       })
       .catch(() => {
         setAccountType(null);
         setIdentifier(null);
+        setPendingDeletionWarnings([]);
       });
   }
 
-  return { accountType, identifier, demoLearnerMode, refresh, setAccountType, setIdentifier };
+  return {
+    accountType,
+    identifier,
+    demoLearnerMode,
+    pendingDeletionWarnings,
+    refresh,
+    setAccountType,
+    setIdentifier,
+  };
 }
 
 export default function Nav() {
   const router = useRouter();
-  const { accountType, identifier, demoLearnerMode, refresh, setAccountType, setIdentifier } =
-    useVisitorState();
+  const {
+    accountType,
+    identifier,
+    demoLearnerMode,
+    pendingDeletionWarnings,
+    refresh,
+    setAccountType,
+    setIdentifier,
+  } = useVisitorState();
 
   useEffect(() => {
     refresh();
@@ -139,50 +164,66 @@ export default function Nav() {
           : [];
 
   return (
-    <nav className="flex flex-wrap items-center gap-4 border-b border-border px-8 py-3 text-sm">
-      <Link
-        href={logoHref(accountType)}
-        data-testid="nav-logo"
-        className="flex items-center gap-2 font-heading text-lg font-bold text-foreground"
-      >
-        <CognivoMark size={28} />
-        Cognivo
-      </Link>
-      {bucket === "anonymous" && (
-        <Link href="/demo" className="text-muted">
-          Try Demo
+    <>
+      <nav className="flex flex-wrap items-center gap-4 border-b border-border px-8 py-3 text-sm">
+        <Link
+          href={logoHref(accountType)}
+          data-testid="nav-logo"
+          className="flex items-center gap-2 font-heading text-lg font-bold text-foreground"
+        >
+          <CognivoMark size={28} />
+          Cognivo
         </Link>
-      )}
-      <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-muted">
-        {PERSONALIZATION_EVIDENCE_LINK.label}
-      </Link>
-      {links.map((link) => (
-        <Link key={link.href} href={link.href} className="text-muted">
-          {link.label}
+        {bucket === "anonymous" && (
+          <Link href="/demo" className="text-muted">
+            Try Demo
+          </Link>
+        )}
+        <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-muted">
+          {PERSONALIZATION_EVIDENCE_LINK.label}
         </Link>
-      ))}
-      {bucket === "demo-learner" && (
-        <button type="button" onClick={handleExitDemo} className="text-muted underline">
-          Exit Demo
-        </button>
-      )}
-      {(bucket === "guardian" || bucket === "instructor") && (
-        <span className="ml-auto flex items-center gap-4">
-          {(accountType === "guardian" || accountType === "instructor") && identifier && (
-            <span className="text-muted" data-testid="nav-identity">
-              {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
-            </span>
-          )}
-          <button type="button" onClick={handleSignOut} className="text-muted underline">
-            Sign Out
+        {links.map((link) => (
+          <Link key={link.href} href={link.href} className="text-muted">
+            {link.label}
+          </Link>
+        ))}
+        {bucket === "demo-learner" && (
+          <button type="button" onClick={handleExitDemo} className="text-muted underline">
+            Exit Demo
           </button>
-        </span>
+        )}
+        {(bucket === "guardian" || bucket === "instructor") && (
+          <span className="ml-auto flex items-center gap-4">
+            {(accountType === "guardian" || accountType === "instructor") && identifier && (
+              <span className="text-muted" data-testid="nav-identity">
+                {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
+              </span>
+            )}
+            <button type="button" onClick={handleSignOut} className="text-muted underline">
+              Sign Out
+            </button>
+          </span>
+        )}
+        {(bucket === "anonymous" || bucket === "demo-learner") && (
+          <Link href="/sign-in" className="ml-auto text-muted">
+            Sign In
+          </Link>
+        )}
+      </nav>
+      {pendingDeletionWarnings.length > 0 && (
+        <div
+          data-testid="deletion-warning-banner"
+          className="border-b border-warning/30 bg-warning/15 px-8 py-2 text-sm text-warning"
+        >
+          {pendingDeletionWarnings.map((warning) => (
+            <p key={`${warning.target_type}-${warning.target_id}`}>
+              {warning.target_type === "learner" ? "This learner's" : "Your instructor"} account
+              will be deleted on {warning.scheduled_deletion_date} due to inactivity, unless it
+              becomes active again first.
+            </p>
+          ))}
+        </div>
       )}
-      {(bucket === "anonymous" || bucket === "demo-learner") && (
-        <Link href="/sign-in" className="ml-auto text-muted">
-          Sign In
-        </Link>
-      )}
-    </nav>
+    </>
   );
 }
