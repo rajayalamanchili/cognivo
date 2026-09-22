@@ -6,7 +6,7 @@ see specs/021-schema-drift-ci-check/research.md §4 for why.
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import Column, Integer, MetaData, Table, text
+from sqlalchemy import Column, Integer, MetaData, Table, inspect, text
 
 from src.models import Base
 from src.schema_comparison import include_object
@@ -36,23 +36,44 @@ def test_detects_missing_migration_for_a_new_table(_schema_engine):
     assert "schema_drift_test_new_table" in added_tables
 
 
-def test_ignores_tables_not_owned_by_our_models(_schema_engine):
-    # Simulates Google ADK's DatabaseSessionService tables (sessions,
-    # events, app_states, user_states, adk_internal_metadata) -- created
-    # directly against this same DB, outside Alembic entirely. Without
-    # src/schema_comparison.py's include_object filter, a table like
-    # this would show as a false "remove_table" diff on every PR.
+def test_ignores_only_known_externally_owned_tables(_schema_engine):
+    # `sessions` stands in for Google ADK's DatabaseSessionService tables
+    # -- created directly against this same DB, outside Alembic entirely.
+    # Without src/schema_comparison.py's include_object filter, a table
+    # like this would show as a false "remove_table" diff on every PR.
+    # If it already exists (a real one, from real ADK usage against this
+    # shared dev DB), leave it alone entirely -- never create or drop a
+    # table that might be live app state.
+    already_exists = inspect(_schema_engine).has_table("sessions")
+    if not already_exists:
+        with _schema_engine.begin() as connection:
+            connection.execute(text("CREATE TABLE sessions (id integer)"))
+    try:
+        diffs = _diffs(_schema_engine, Base.metadata)
+        removed_tables = [diff[1].name for diff in diffs if diff[0] == "remove_table"]
+        assert "sessions" not in removed_tables
+    finally:
+        if not already_exists:
+            with _schema_engine.begin() as connection:
+                connection.execute(text("DROP TABLE sessions"))
+
+
+def test_still_flags_genuinely_unexpected_tables_as_drift(_schema_engine):
+    # The allowlist above must stay narrow: a table this project actually
+    # owns being dropped from a model with no matching migration is
+    # exactly the drift FR-001 exists to catch, and must not be silently
+    # swallowed by the same filter that excuses ADK's own tables.
     with _schema_engine.begin() as connection:
         connection.execute(
-            text("CREATE TABLE schema_drift_test_unowned_table (id integer)")
+            text("CREATE TABLE schema_drift_test_genuinely_unexpected (id integer)")
         )
     try:
         diffs = _diffs(_schema_engine, Base.metadata)
         removed_tables = [diff[1].name for diff in diffs if diff[0] == "remove_table"]
-        assert "schema_drift_test_unowned_table" not in removed_tables
+        assert "schema_drift_test_genuinely_unexpected" in removed_tables
     finally:
         with _schema_engine.begin() as connection:
-            connection.execute(text("DROP TABLE schema_drift_test_unowned_table"))
+            connection.execute(text("DROP TABLE schema_drift_test_genuinely_unexpected"))
 
 
 def test_detects_incomplete_migration_for_a_changed_column(_schema_engine):
