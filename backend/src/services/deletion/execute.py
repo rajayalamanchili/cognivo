@@ -192,6 +192,15 @@ def _delete_guardian(db: Session, guardian_id: uuid.UUID) -> None:
     for learner_id in linked_learner_ids:
         _delete_learner(db, learner_id, _guardian_being_deleted=guardian_id)
 
+    # tutoring_sessions.guardian_id (PR #79 review, SC-001 gate
+    # column-granularity) -- every current session's guardian_id should
+    # already coincide with its learner's current guardian and so be
+    # gone via the loop above, but that's an invariant this doesn't
+    # enforce elsewhere; clearing it directly closes the FK regardless.
+    db.query(TutoringSession).filter(TutoringSession.guardian_id == guardian_id).update(
+        {TutoringSession.guardian_id: None}, synchronize_session=False
+    )
+
     db.query(RealGuardianAccount).filter(RealGuardianAccount.guardian_id == guardian_id).delete(
         synchronize_session=False
     )

@@ -32,7 +32,7 @@ from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
 from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
-from src.services.deletion.execute import _delete_learner
+from src.services.deletion.execute import _delete_guardian, _delete_learner
 
 
 def _now() -> datetime.datetime:
@@ -248,3 +248,40 @@ def test_cascade_removes_every_seeded_table_without_integrity_error(db_session, 
     assert surviving is not None
     assert surviving.flagged_by is None
     assert db_session.get(LearnerProfile, other_learner_id) is not None
+
+
+def test_delete_guardian_clears_orphaned_tutoring_session_guardian_id(
+    db_session, algebra_subject
+):
+    """SC-001 gate column-granularity (PR #79 review): `tutoring_sessions.
+    guardian_id` is a distinct FK from `tutoring_sessions.learner_id`
+    and isn't automatically cleared by the learner-scoped delete in
+    `_delete_learner` -- a session belonging to a still-existing learner
+    (owned by a different guardian) but stamped with this guardian's id
+    must not be left as a dangling reference once the guardian is gone."""
+    guardian_to_delete = _make_guardian(db_session)
+    other_guardian = _make_guardian(db_session)
+    other_learner = _make_real_learner(db_session, guardian_id=other_guardian.guardian_id)
+
+    stale_session = TutoringSession(
+        learner_id=other_learner.learner_id,
+        guardian_id=guardian_to_delete.guardian_id,
+        subject_id=algebra_subject.subject_id,
+    )
+    db_session.add(stale_session)
+    db_session.commit()
+    db_session.refresh(stale_session)
+    stale_session_id = stale_session.session_id
+
+    guardian_id = guardian_to_delete.guardian_id
+    other_learner_id = other_learner.learner_id
+
+    _delete_guardian(db_session, guardian_id)
+    db_session.commit()
+    db_session.expunge_all()
+
+    assert db_session.get(RealGuardianAccount, guardian_id) is None
+    assert db_session.get(LearnerProfile, other_learner_id) is not None
+    reloaded_session = db_session.get(TutoringSession, stale_session_id)
+    assert reloaded_session is not None
+    assert reloaded_session.guardian_id is None

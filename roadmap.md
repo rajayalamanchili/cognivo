@@ -1330,6 +1330,24 @@ tests this milestone itself required, not discovered after the fact):
    `tsc` pass did. Fixed by adding the field to every affected mock;
    confirmed with a clean `tsc --noEmit` and full frontend regression
    (109/109).
+6. A second round of PR review (against the already-fixed commit above)
+   found three more issues, all fixed: (a) `execute_deletions_route`'s
+   per-request loop had no error isolation, so one reliably-failing
+   deletion would sit at the front of the queue and block every other
+   pending request on every future cron run -- fixed with a per-item
+   try/except that rolls back and continues, mirroring
+   `run_classification_batch`'s existing per-pair isolation pattern;
+   (b) `check_deletion_cascade_coverage.py`'s gate was table-, not FK-
+   column-, granular, so `tutoring_sessions.guardian_id` (a second FK
+   into `real_guardian_accounts` alongside the already-walked
+   `learner_id`) was invisible to it -- tightened to `(table, column)`
+   tuples and closed the actual gap by having `_delete_guardian` clear
+   any orphaned `tutoring_sessions.guardian_id` directly; (c)
+   `transfer_rosters_to` equal to the instructor's own id was a silent
+   no-op that caused the roster to be hard-deleted instead of
+   transferred -- now rejected with a 422 before any roster is touched.
+   All three have regression tests; full backend regression re-run
+   clean at 647/647 (641 + this round's 6 new tests).
 
 **Scope**: Makes spec 009's already-approved FR-004 (deletion request)
 and FR-005 (cascade) and FR-010 (1-year post-inactivity auto-deletion)

@@ -211,3 +211,33 @@ def test_instructor_deletion_rejects_unknown_successor(client, db_session, algeb
     reloaded_roster = db_session.get(ClassroomRoster, roster_id)
     assert reloaded_roster is not None
     assert reloaded_roster.instructor_id == instructor_id
+
+
+def test_instructor_deletion_rejects_self_transfer(client, db_session, algebra_subject):
+    """`transfer_rosters_to` equal to the instructor's own id is a no-op
+    update (rosters stay pointed at the instructor about to be deleted),
+    which would then be hard-deleted as "never transferred" instead of
+    preserved -- must be rejected up front, not silently defeated."""
+    instructor_id = _register_instructor(client)
+    roster, _learner, _assignment = _seed_roster_with_learner_and_assignment(
+        db_session,
+        instructor_id=instructor_id,
+        subject_id=algebra_subject.subject_id,
+        topic_id=algebra_subject.topics[0].topic_id,
+    )
+    roster_id = roster.roster_id
+
+    submit = client.post(
+        "/api/deletion-requests",
+        json={
+            "target_type": "instructor",
+            "target_id": str(instructor_id),
+            "transfer_rosters_to": str(instructor_id),
+        },
+    )
+    assert submit.status_code == 422, submit.text
+
+    db_session.expunge_all()
+    reloaded_roster = db_session.get(ClassroomRoster, roster_id)
+    assert reloaded_roster is not None
+    assert reloaded_roster.instructor_id == instructor_id

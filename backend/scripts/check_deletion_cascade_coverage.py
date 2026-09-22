@@ -1,17 +1,23 @@
 #!/usr/bin/env python3
-"""Fails if a table has a foreign key to `learner_profiles`,
+"""Fails if a *column* has a foreign key to `learner_profiles`,
 `real_guardian_accounts`, or `real_instructor_accounts` that spec 020's
 deletion cascade doesn't account for (SC-001).
 
 data-model.md's cascade-order tables are the source of truth for what
 `_delete_learner`/`_delete_guardian`/`_delete_instructor`
 (`src/services/deletion/execute.py`) actually walk. This script doesn't
-re-implement that logic -- it just makes sure no *new* table introduces
-a direct FK to one of the three real-identity tables without either
-being added to that cascade or explicitly allowlisted (matching
-data-model.md's "Explicitly out of cascade scope" section), the same
-regression-prevention shape `check_no_subject_conditionals.py` already
-uses for a different Constitution gate.
+re-implement that logic -- it just makes sure no *new* FK column
+introduces a direct reference to one of the three real-identity tables
+without either being added to that cascade or explicitly allowlisted
+(matching data-model.md's "Explicitly out of cascade scope" section),
+the same regression-prevention shape `check_no_subject_conditionals.py`
+already uses for a different Constitution gate.
+
+Deliberately column-, not table-, granular (PR #79 review): a table can
+carry more than one FK into a target table (e.g. `tutoring_sessions`
+has both `learner_id` and `guardian_id`), and each one needs its own
+entry -- a table being "handled" for one column says nothing about
+whether a different column on that same table is actually walked.
 
 Walks the SQLAlchemy ORM metadata directly (`src/models/__init__.py`'s
 `Base.metadata`) rather than a live database -- every FK the schema
@@ -40,41 +46,47 @@ from src.models import Base  # noqa: E402
 
 TARGET_TABLES = {"learner_profiles", "real_guardian_accounts", "real_instructor_accounts"}
 
-# Tables whose FK to a target table is reached by execute.py's cascade
-# functions, per data-model.md's cascade-order tables.
-HANDLED_TABLES = {
-    "assessment_events",
-    "enrollments",
-    "enrollment_requests",
-    "generated_questions",
-    "grade_progress",
-    "learner_profiles",
-    "mastery_states",
-    "quiz_assignments",
-    "quiz_assignment_targets",
-    "quiz_sessions",
-    "tutoring_sessions",
+# (table, column) pairs whose FK to a target table is reached by
+# execute.py's cascade functions, per data-model.md's cascade-order
+# tables. Column-, not table-, granular: a table can carry more than
+# one FK into a target table, and each needs its own entry.
+HANDLED_COLUMNS = {
+    ("assessment_events", "learner_id"),
+    ("enrollments", "learner_id"),
+    ("enrollment_requests", "learner_id"),
+    ("generated_questions", "learner_id"),
+    ("generated_questions", "flagged_by"),
+    ("grade_progress", "learner_id"),
+    ("learner_profiles", "guardian_id"),
+    ("mastery_states", "learner_id"),
+    ("quiz_assignments", "instructor_id"),
+    ("quiz_assignment_targets", "learner_id"),
+    ("quiz_sessions", "learner_id"),
+    ("tutoring_sessions", "learner_id"),
+    ("tutoring_sessions", "guardian_id"),
 }
 
-# Tables that reference a target table's identity but deliberately carry
-# no data this feature needs to erase (data-model.md's "Explicitly out
-# of cascade scope"). Empty today -- every current direct FK is handled
-# above -- kept as the place a future exception gets documented rather
-# than silently added to HANDLED_TABLES.
-ALLOWLISTED_TABLES: set[str] = set()
+# (table, column) pairs that reference a target table's identity but
+# deliberately carry no data this feature needs to erase (data-model.md's
+# "Explicitly out of cascade scope"). Empty today -- every current
+# direct FK is handled above -- kept as the place a future exception
+# gets documented rather than silently added to HANDLED_COLUMNS.
+ALLOWLISTED_COLUMNS: set[tuple[str, str]] = set()
 
 
 def find_violations() -> list[str]:
-    """Every direct FK to a real-identity table (`TARGET_TABLES`) that
-    isn't in `HANDLED_TABLES`/`ALLOWLISTED_TABLES`, sorted for stable
-    output. Empty means SC-001's gate holds."""
+    """Every direct FK column to a real-identity table (`TARGET_TABLES`)
+    that isn't in `HANDLED_COLUMNS`/`ALLOWLISTED_COLUMNS`, sorted for
+    stable output. Empty means SC-001's gate holds."""
     violations = set()
     for table in Base.metadata.tables.values():
-        if table.name in HANDLED_TABLES or table.name in ALLOWLISTED_TABLES:
-            continue
         for fk in table.foreign_keys:
-            if fk.column.table.name in TARGET_TABLES:
-                violations.add(f"{table.name}.{fk.parent.name} -> {fk.column.table.name}")
+            if fk.column.table.name not in TARGET_TABLES:
+                continue
+            key = (table.name, fk.parent.name)
+            if key in HANDLED_COLUMNS or key in ALLOWLISTED_COLUMNS:
+                continue
+            violations.add(f"{table.name}.{fk.parent.name} -> {fk.column.table.name}")
     return sorted(violations)
 
 
@@ -86,8 +98,8 @@ def main() -> int:
         for violation in violations:
             print(f"  - {violation}")
         print(
-            "Add the referencing table to execute.py's cascade (and HANDLED_TABLES above), "
-            "or to ALLOWLISTED_TABLES with a comment explaining why it carries no data to erase."
+            "Add the referencing column to execute.py's cascade (and HANDLED_COLUMNS above), "
+            "or to ALLOWLISTED_COLUMNS with a comment explaining why it carries no data to erase."
         )
         return 1
 

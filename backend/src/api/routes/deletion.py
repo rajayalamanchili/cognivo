@@ -11,7 +11,12 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.api.errors import DeletionAlreadyPendingError, ForbiddenError, NotFoundError
+from src.api.errors import (
+    DeletionAlreadyPendingError,
+    ForbiddenError,
+    NotFoundError,
+    UnprocessableError,
+)
 from src.db import get_db
 from src.models.classroom_roster import ClassroomRoster
 from src.models.deletion_request import DeletionRequest
@@ -106,6 +111,13 @@ def submit_deletion_request(
         raise DeletionAlreadyPendingError(existing_pending.deletion_request_id)
 
     if body.target_type == DeletionTargetType.INSTRUCTOR and body.transfer_rosters_to is not None:
+        if body.transfer_rosters_to == body.target_id:
+            # A self-transfer is a no-op update (roster still points at
+            # the instructor about to be deleted), so the cascade would
+            # then find those rosters "never transferred" and hard-
+            # delete them -- silently defeating the caller's transfer
+            # intent instead of failing loudly.
+            raise UnprocessableError("self_transfer_not_allowed")
         successor = db.get(RealInstructorAccount, body.transfer_rosters_to)
         if successor is None or successor.is_demo:
             # classroom_rosters.instructor_id carries no FK (research.md

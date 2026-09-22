@@ -11,6 +11,7 @@ public caller can't trigger a reset of the live demo state on demand.
 """
 
 import hmac
+import logging
 import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -26,6 +27,8 @@ from src.models.real_instructor_account import RealInstructorAccount
 from src.services.deletion.execute import MAX_DELETIONS_PER_RUN, execute_deletion
 from src.services.deletion.inactivity import reconcile_inactivity_warnings, sweep_inactive_accounts
 from src.services.misconception.classify import run_classification_batch
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -96,7 +99,22 @@ def execute_deletions_route(
         target = db.get(target_model, deletion_request.target_id)
         if target is not None and target.is_demo:
             continue
-        execute_deletion(db, deletion_request)
+        try:
+            execute_deletion(db, deletion_request)
+        except Exception:
+            # One request that reliably fails to execute (cascade gap,
+            # transient DB error) must never block every other pending
+            # deletion behind it in the queue -- roll back just this
+            # request's partial work and keep going, same pattern as
+            # run_classification_batch's per-pair isolation.
+            db.rollback()
+            logger.exception(
+                "deletion execution failed for deletion_request=%s target_type=%s target_id=%s",
+                deletion_request.deletion_request_id,
+                deletion_request.target_type,
+                deletion_request.target_id,
+            )
+            continue
         processed_count += 1
 
     remaining_pending_count = (
