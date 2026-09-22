@@ -64,7 +64,10 @@ HANDLED_TABLES = {
 ALLOWLISTED_TABLES: set[str] = set()
 
 
-def main() -> int:
+def find_violations() -> list[str]:
+    """Every direct FK to a real-identity table (`TARGET_TABLES`) that
+    isn't in `HANDLED_TABLES`/`ALLOWLISTED_TABLES`, sorted for stable
+    output. Empty means SC-001's gate holds."""
     violations = set()
     for table in Base.metadata.tables.values():
         if table.name in HANDLED_TABLES or table.name in ALLOWLISTED_TABLES:
@@ -72,10 +75,15 @@ def main() -> int:
         for fk in table.foreign_keys:
             if fk.column.table.name in TARGET_TABLES:
                 violations.add(f"{table.name}.{fk.parent.name} -> {fk.column.table.name}")
+    return sorted(violations)
+
+
+def main() -> int:
+    violations = find_violations()
 
     if violations:
         print("FAIL: FK(s) to a real-identity table with no cascade coverage or allowlist entry:")
-        for violation in sorted(violations):
+        for violation in violations:
             print(f"  - {violation}")
         print(
             "Add the referencing table to execute.py's cascade (and HANDLED_TABLES above), "

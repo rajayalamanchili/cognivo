@@ -65,7 +65,16 @@ def execute_deletion(db: Session, deletion_request: DeletionRequest) -> None:
         raise
 
 
-def _delete_learner(db: Session, target_learner_id: uuid.UUID) -> None:
+def _delete_learner(
+    db: Session, target_learner_id: uuid.UUID, *, _guardian_being_deleted: uuid.UUID | None = None
+) -> None:
+    """`_guardian_being_deleted` is set only when this call came from
+    `_delete_guardian`'s own loop over its linked learners -- it skips
+    the last-learner auto-delete-guardian check below, since that same
+    guardian's row is already about to be removed by the caller's own
+    final delete. Without this guard, the last learner in that loop
+    would recurse back into `_delete_guardian` on a guardian still
+    mid-deletion (PR #79 review)."""
     learner = db.get(LearnerProfile, target_learner_id)
     if learner is None:
         return  # already deleted / never existed -- nothing to cascade
@@ -132,12 +141,41 @@ def _delete_learner(db: Session, target_learner_id: uuid.UUID) -> None:
             RetentionRecord.retention_record_id == retention_record_id
         ).delete(synchronize_session=False)
 
-    if guardian_id is not None:
+    if guardian_id is not None and guardian_id != _guardian_being_deleted:
         remaining_learners = (
             db.query(LearnerProfile).filter(LearnerProfile.guardian_id == guardian_id).count()
         )
         if remaining_learners == 0:
-            _delete_guardian(db, guardian_id)
+            _queue_guardian_deletion(db, guardian_id)
+
+
+def _queue_guardian_deletion(db: Session, guardian_id: uuid.UUID) -> None:
+    """data-classification.md's guardian-auto-deletion rule, made
+    traceable (Constitution Principle V, PR #79 review): rather than
+    deleting the guardian inline with no `DeletionRequest` of its own --
+    leaving no audit answer to "why was this guardian's account
+    deleted," and doing so synchronously inside whichever unrelated
+    actor's cascade (a guardian's own, or an instructor deleting one of
+    the guardian's other learners) happened to remove the last linked
+    learner -- this queues a real request for the executor's next pass
+    to pick up and run through the normal, logged path."""
+    already_pending = (
+        db.query(DeletionRequest)
+        .filter(
+            DeletionRequest.target_type == DeletionTargetType.GUARDIAN,
+            DeletionRequest.target_id == guardian_id,
+            DeletionRequest.completed_at.is_(None),
+        )
+        .first()
+    )
+    if already_pending is None:
+        db.add(
+            DeletionRequest(
+                target_type=DeletionTargetType.GUARDIAN,
+                target_id=guardian_id,
+                requested_by="system:last-learner-cascade",
+            )
+        )
 
 
 def _delete_guardian(db: Session, guardian_id: uuid.UUID) -> None:
@@ -152,7 +190,7 @@ def _delete_guardian(db: Session, guardian_id: uuid.UUID) -> None:
         .all()
     ]
     for learner_id in linked_learner_ids:
-        _delete_learner(db, learner_id)
+        _delete_learner(db, learner_id, _guardian_being_deleted=guardian_id)
 
     db.query(RealGuardianAccount).filter(RealGuardianAccount.guardian_id == guardian_id).delete(
         synchronize_session=False

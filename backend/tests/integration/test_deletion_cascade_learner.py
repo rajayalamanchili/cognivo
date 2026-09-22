@@ -16,6 +16,7 @@ from src.models.assessment_event import AssessmentEvent
 from src.models.deletion_request import DeletionRequest
 from src.models.enums import (
     AssessmentEventType,
+    DeletionTargetType,
     DifficultyBand,
     EnrollmentMode,
     QuestionType,
@@ -26,6 +27,7 @@ from src.models.generated_question import GeneratedQuestion
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
 from src.models.quiz_session import QuizSession
+from src.models.real_guardian_account import RealGuardianAccount
 from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
 
@@ -213,3 +215,84 @@ def test_learner_deletion_cascades_fully_and_read_paths_degrade_cleanly(
     reloaded_request = db_session.get(DeletionRequest, deletion_request_id)
     assert reloaded_request is not None
     assert reloaded_request.completed_at is not None
+
+
+def test_instructor_deleting_last_learner_queues_traceable_guardian_deletion(
+    instructor_client, guardian_client, algebra_subject, db_session, monkeypatch
+):
+    """When the learner deleted (here, by an instructor -- the least
+    obvious trigger, since the guardian never requested anything) is
+    their guardian's only remaining learner, the guardian's account
+    isn't deleted inline as a side effect of this cascade -- it's queued
+    as its own traceable `DeletionRequest` (PR #79 review, Constitution
+    Principle V) for the executor's next pass to pick up and run through
+    the normal, logged path."""
+    monkeypatch.setenv("CRON_SECRET", "the-real-secret")
+    subject_id = algebra_subject.subject_id
+
+    instructor_register = instructor_client.post(
+        "/api/auth/instructor/register",
+        json={"email": f"instructor-{uuid.uuid4()}@example.com", "password": "correct horse"},
+    )
+    assert instructor_register.status_code == 201, instructor_register.text
+
+    roster_response = instructor_client.post(
+        "/api/rosters",
+        json={"subject_id": subject_id, "enrollment_mode": EnrollmentMode.OPEN.value},
+    )
+    assert roster_response.status_code == 201, roster_response.text
+    roster = roster_response.json()
+
+    guardian_register = guardian_client.post(
+        "/api/auth/guardian/register",
+        json={"email": f"guardian-{uuid.uuid4()}@example.com", "password": "correct horse"},
+    )
+    assert guardian_register.status_code == 201, guardian_register.text
+    guardian_id = uuid.UUID(guardian_register.json()["guardian_id"])
+
+    learner_response = guardian_client.post("/api/learners", json={"display_name": "Only Child"})
+    assert learner_response.status_code == 201, learner_response.text
+    learner_id = uuid.UUID(learner_response.json()["learner_id"])
+
+    join_response = guardian_client.post(
+        "/api/rosters/join",
+        json={"learner_id": str(learner_id), "join_code": roster["join_code"]},
+    )
+    assert join_response.status_code == 201, join_response.text
+
+    submit = instructor_client.post(
+        "/api/deletion-requests", json={"target_type": "learner", "target_id": str(learner_id)}
+    )
+    assert submit.status_code == 201, submit.text
+
+    first_run = instructor_client.get(
+        "/api/cron/execute-deletions", headers={"Authorization": "Bearer the-real-secret"}
+    )
+    assert first_run.status_code == 200, first_run.text
+
+    db_session.expunge_all()
+
+    # The learner is gone, but the guardian is untouched by this same
+    # pass -- only a new pending request for it now exists.
+    assert db_session.get(LearnerProfile, learner_id) is None
+    assert db_session.get(RealGuardianAccount, guardian_id) is not None
+
+    queued = (
+        db_session.query(DeletionRequest)
+        .filter(
+            DeletionRequest.target_type == DeletionTargetType.GUARDIAN,
+            DeletionRequest.target_id == guardian_id,
+        )
+        .one()
+    )
+    assert queued.requested_by == "system:last-learner-cascade"
+    assert queued.completed_at is None
+
+    second_run = instructor_client.get(
+        "/api/cron/execute-deletions", headers={"Authorization": "Bearer the-real-secret"}
+    )
+    assert second_run.status_code == 200, second_run.text
+
+    db_session.expunge_all()
+    assert db_session.get(RealGuardianAccount, guardian_id) is None
+    assert db_session.get(DeletionRequest, queued.deletion_request_id).completed_at is not None
