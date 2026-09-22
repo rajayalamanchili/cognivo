@@ -17,6 +17,7 @@
   ],
   "crons": [
     { "path": "/api/cron/reset-demo-data", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/classify-misconceptions", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/classify-misconceptions", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/execute-deletions", "schedule": "0 8 * * *" }
   ]
 }

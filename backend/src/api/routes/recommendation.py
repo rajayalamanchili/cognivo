@@ -22,6 +22,7 @@ from src.agents.recommendation.agent import WeakAreaReport, build_weak_area_repo
 from src.api.errors import NotFoundError
 from src.db import get_db
 from src.models.enums import AssessmentEventType
+from src.models.learner_profile import LearnerProfile
 from src.models.subject import Subject
 from src.services.audit_log.writer import record_event
 
@@ -140,6 +141,12 @@ def get_recommendations(
     learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
 ) -> RecommendationsResponse:
     _get_validated_subject(db, subject_id)
+    if db.get(LearnerProfile, learner_id) is None:
+        # spec 020 Acceptance Scenario 2: a deleted/nonexistent learner
+        # must never error here -- in particular, never reach
+        # `record_event` below, whose `AssessmentEvent.learner_id` FK
+        # would otherwise fail against a row that no longer exists.
+        raise NotFoundError(f"unknown learner_id: {learner_id!r}")
 
     report = build_weak_area_report(db, learner_id=learner_id, subject_id=subject_id)
 
