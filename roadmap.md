@@ -1315,6 +1315,13 @@ tests this milestone itself required, not discovered after the fact):
    `became_inactive_at`, leaving undefined precedence against the
    "clear" condition. Resolved as two explicit, ordered, mutually
    exclusive checks (research.md R10).
+4. Post-close code review caught that `transfer_rosters_to` (`POST
+   /api/deletion-requests`, instructor target) was never validated
+   against `real_instructor_accounts` -- since `classroom_rosters.
+   instructor_id` carries no FK, a nonexistent or demo successor id
+   would silently orphan the roster instead of failing loudly. Fixed
+   with an existence/`is_demo` check before any roster is reassigned,
+   plus a regression test.
 
 **Scope**: Makes spec 009's already-approved FR-004 (deletion request)
 and FR-005 (cascade) and FR-010 (1-year post-inactivity auto-deletion)

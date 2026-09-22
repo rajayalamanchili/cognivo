@@ -106,6 +106,12 @@ def submit_deletion_request(
         raise DeletionAlreadyPendingError(existing_pending.deletion_request_id)
 
     if body.target_type == DeletionTargetType.INSTRUCTOR and body.transfer_rosters_to is not None:
+        successor = db.get(RealInstructorAccount, body.transfer_rosters_to)
+        if successor is None or successor.is_demo:
+            # classroom_rosters.instructor_id carries no FK (research.md
+            # R5), so an unvalidated successor would silently orphan the
+            # roster to a dead id instead of failing loudly.
+            raise NotFoundError("unknown successor_id")
         _transfer_instructor_rosters(
             db, instructor_id=body.target_id, successor_id=body.transfer_rosters_to
         )

@@ -181,3 +181,33 @@ def test_instructor_deletion_without_successor_deletes_roster_not_learner(
     # The enrolled learner's own account is never a side effect of the
     # instructor's deletion (FR-008).
     assert db_session.get(LearnerProfile, learner_id) is not None
+
+
+def test_instructor_deletion_rejects_unknown_successor(client, db_session, algebra_subject):
+    """A nonexistent `transfer_rosters_to` must be rejected before any
+    roster is touched -- `classroom_rosters.instructor_id` carries no FK,
+    so without this check the roster would be silently orphaned to a
+    dead id instead of failing loudly."""
+    instructor_id = _register_instructor(client)
+    roster, _learner, _assignment = _seed_roster_with_learner_and_assignment(
+        db_session,
+        instructor_id=instructor_id,
+        subject_id=algebra_subject.subject_id,
+        topic_id=algebra_subject.topics[0].topic_id,
+    )
+    roster_id = roster.roster_id
+
+    submit = client.post(
+        "/api/deletion-requests",
+        json={
+            "target_type": "instructor",
+            "target_id": str(instructor_id),
+            "transfer_rosters_to": str(uuid.uuid4()),
+        },
+    )
+    assert submit.status_code == 404, submit.text
+
+    db_session.expunge_all()
+    reloaded_roster = db_session.get(ClassroomRoster, roster_id)
+    assert reloaded_roster is not None
+    assert reloaded_roster.instructor_id == instructor_id
