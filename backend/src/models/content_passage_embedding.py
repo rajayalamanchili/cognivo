@@ -2,7 +2,7 @@ import datetime
 import uuid
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Enum, ForeignKeyConstraint, Text, UniqueConstraint, func
+from sqlalchemy import DateTime, Enum, ForeignKeyConstraint, Index, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,6 +55,15 @@ class ContentPassageEmbedding(Base):
             "field",
             "content_version",
             name="uq_content_passage_embeddings_subject_topic_field_version",
+        ),
+        # HNSW cosine index (de54cd54219e's migration creates it via raw
+        # op.create_index -- never declared here until spec 021 found the
+        # gap via a real migration-vs-model schema-drift comparison).
+        Index(
+            "ix_content_passage_embeddings_embedding_cosine",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
     )
 

@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import JSON, DateTime, Enum, ForeignKey, ForeignKeyConstraint, func
+from sqlalchemy import JSON, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Index, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,6 +25,16 @@ class AssessmentEvent(Base):
     __tablename__ = "assessment_events"
     __table_args__ = (
         ForeignKeyConstraint(["subject_id", "topic_id"], ["topics.subject_id", "topics.topic_id"]),
+        # Partial unique index (e04658523ea2's migration creates it via raw
+        # op.execute -- never declared here until spec 021 found the gap
+        # via a real migration-vs-model schema-drift comparison). PR #18's
+        # concurrent-double-submission race guard.
+        Index(
+            "ix_assessment_events_answer_submitted_question_id",
+            "question_id",
+            unique=True,
+            postgresql_where=text("event_type = 'answer_submitted'"),
+        ),
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(

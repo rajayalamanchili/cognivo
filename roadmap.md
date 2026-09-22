@@ -1471,6 +1471,82 @@ any table yet.
 
 ---
 
+## Milestone 19: Schema-Drift Detection CI Check
+
+**Spec**: `specs/021-schema-drift-ci-check/spec.md`.
+**Status**: `/speckit-implement` complete, all 5 user-story phases plus
+Polish (2026-09-22, branch `031-schema-drift-ci-check`). Not a promoted
+"Known gap" -- surfaced directly as a feature request, not tied to a
+prior milestone's deferred item.
+
+**Scope**: A CI-only gate, no product/learner-facing surface. Adds one
+`alembic check` step to `backend-tests.yml` (after migrations run,
+before pytest) that fails a PR when SQLAlchemy models drift from what
+the checked-in Alembic migration history actually produces -- the exact
+risk `tech-stack.md`'s "Migrations per environment" row already named
+for this project's Neon branch-per-environment model. Reuses the
+already-installed `alembic check` command directly; no custom diffing
+script written (research.md §1).
+
+**Bugs found and fixed during implementation**:
+1. Running the baseline regression test against a live database showed
+   6 false-positive `remove_table` diffs: Google ADK's own
+   `DatabaseSessionService` tables (`sessions`, `events`, `app_states`,
+   `user_states`, `adk_internal_metadata`) exist in every real deployed
+   database but are created outside Alembic entirely, never in
+   `Base.metadata`. Since CI's ephemeral Neon branch is a copy-on-write
+   child of `staging`, it would have inherited these too -- meaning the
+   new check would have failed on every single future PR, permanently,
+   before ever checking anything real. Fixed at the root with a shared
+   `include_object` filter (`backend/src/schema_comparison.py`), wired
+   into both `alembic/env.py` (the real path) and the regression test's
+   comparison helper so the two can't drift apart from each other.
+2. T005's manual end-to-end verification (comparing a *real*, fully
+   migration-replayed schema against models, not the structurally
+   weaker `create_all`-based comparison the automated regression tests
+   use) found two genuine, pre-existing drift bugs that predate this
+   branch: `assessment_events`' partial unique index (PR #18's
+   concurrent-double-submission race guard, `e04658523ea2`) and
+   `content_passage_embeddings`' HNSW cosine index (`de54cd54219e`)
+   were both created via raw migration SQL/`op.create_index` but never
+   declared on their models -- unlike the identical pattern
+   `GradingResponseCache` already gets right (Milestone 13). Without
+   fixing these, the new CI gate would have failed on its very first
+   real run, blocking every future PR regardless of what it changed.
+   Fixed by declaring both indexes on their models, matching the
+   already-correct precedent; no actual DB schema change, since both
+   indexes already exist via already-applied migrations.
+
+**Definition of done**:
+- All acceptance scenarios in `specs/021-schema-drift-ci-check/spec.md`
+  pass -- verified via 6 new regression tests
+  (`backend/tests/unit/test_schema_drift_check.py`, exercising
+  `alembic.autogenerate.compare_metadata` directly, plus one test that
+  drives Alembic's own `command.upgrade()` against an isolated
+  `tmp_path` copy of the migration history for FR-004's multiple-heads
+  behavior -- added after code-review flagged the original manual-only
+  verification as uncommitted) plus manual verification of the real
+  `alembic upgrade head` + `alembic check` code path (T005).
+- SC-003 (zero added CI time / zero false positives for PRs that don't
+  touch models or migrations) verified by design, not by a timing
+  benchmark: the step is an unconditional but fast local metadata diff
+  against an already-open DB connection (research.md §3) -- benchmarking
+  exact seconds was judged disproportionate to this feature's scope.
+- Full backend regression suite clean: 652/652 (Milestone 18's own
+  entry above records 647/647 after its round 6 review fixes, plus
+  further tests added in its round 7; exact intervening delta not
+  reverified here -- 652/652 is this milestone's own confirmed clean
+  run, 4 of which are this milestone's new schema-drift tests).
+
+**Explicitly not included**: auto-generating or auto-fixing a missing
+migration (a human still writes and reviews it); retroactively scanning
+already-merged migration history for pre-existing drift beyond what
+T005's manual check happened to surface; an allowlist/escape-hatch
+mechanism (no legitimate case exists where a model change should ship
+without a matching migration, per spec.md's Assumptions).
+
+---
+
 ## Out of current roadmap (not planned, not rejected)
 - A second, cross-language A2A agent purely to demonstrate
   interoperability (e.g. a Go-based Grading service) -- Milestone 6
@@ -1640,9 +1716,42 @@ any table yet.
   for timed sessions) or becomes a first-class concept ordinary practice
   gains too.
 
+- Full K-12 STEM content catalog (elementary math/science for grades
+  1-5, then a real course-by-course spread across 6-12 -- pre-algebra,
+  algebra-2, geometry, physics, chemistry, earth science -- alongside
+  today's algebra-1 and biology). Raised 2026-09-22. Architecturally
+  this is not a new engineering problem: Constitution Principle III's
+  domain-agnostic engine is already validated by two structurally
+  different subjects (math vs. life science), and Milestone 15's
+  `grade_bands`/per-topic `grade` mechanism already supports a single
+  content artifact spanning any grade range, not just algebra-1's
+  6-8 -- `check_no_subject_conditionals.py` keeps this honest in CI.
+  The real cost is content-authoring volume: dozens of subject
+  artifacts, each needing a real topic/prerequisite graph and a
+  defensible per-topic skill definition and difficulty calibration
+  (Principle II's rubric discipline applies per topic, not per
+  subject), plus a per-`subject_id` misconception-classifier cold-start
+  gap (Milestone 11) for every new subject until it accumulates real
+  grading data. Needs its own scoping pass before it's a milestone:
+  whether content is hand-authored, LLM-assisted-then-human-reviewed,
+  or needs a dedicated authoring pipeline/tool -- that choice determines
+  most of the actual effort here, not the engine.
+
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.11.0 -- 2026-09-22, added Milestone 19 (Schema-Drift
+Detection CI Check), `/speckit-implement` complete same day; found and
+fixed two real pre-existing schema-drift bugs (an ADK-table
+false-positive risk, and two indexes undeclared on their models) during
+implementation, both closed before merge.
+
+**Version**: 3.10.0 -- 2026-09-22, added "Full K-12 STEM content
+catalog" to "Out of current roadmap" -- confirmed the domain-agnostic
+engine (Principle III) and Milestone 15's grade-banding already support
+this with no new code; the open question is content-authoring approach
+and volume, not architecture.
 
 **Version**: 3.9.0 -- 2026-09-21, added Milestone 18 (Real-Account
 Deletion Pathway), promoted from its prior "Known gap" entry;
