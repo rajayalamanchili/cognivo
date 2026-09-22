@@ -73,9 +73,9 @@ per linked `learner_id`, then:
 
 | # | Table | Match | Note |
 |---|---|---|---|
-| 1 | `classroom_rosters` disposition | `instructor_id = target_id` | Resolved at **submission** time (research.md R5), before the `DeletionRequest` is even created: reassigned to `transfer_rosters_to` if given, otherwise left in place for step 2 below to delete. |
-| 2 | `quiz_assignment_targets` | via `quiz_assignments.assignment_id` where `quiz_assignments.roster_id` is one of the instructor's (still-owned, undeleted) rosters | Only for rosters not transferred away in step 1. |
-| 3 | `quiz_assignments` | `instructor_id = target_id` (and/or `roster_id` in the instructor's rosters) | |
+| 1 | `classroom_rosters` disposition, **and** `quiz_assignments.instructor_id` for every assignment on a transferred roster | `instructor_id = target_id` | Resolved at **submission** time (research.md R5), before the `DeletionRequest` is even created: if `transfer_rosters_to` is given, reassigns *both* `classroom_rosters.instructor_id` and `quiz_assignments.instructor_id` (for assignments on that roster) to the successor in the same step -- an assignment surviving under a transferred roster must never keep pointing at the instructor about to be deleted. Rosters with no successor are left in place for step 2 below to delete. |
+| 2 | `quiz_assignment_targets` | via `quiz_assignments.assignment_id` where `quiz_assignments.roster_id` is one of the instructor's remaining (untransferred) rosters | Only for rosters not transferred away in step 1. |
+| 3 | `quiz_assignments` | `roster_id` in the instructor's remaining (untransferred) rosters | Scoped by `roster_id` only, not `instructor_id` -- after a correct step-1 transfer, no live assignment still carries the deleted instructor's id, so this only ever reaches assignments on rosters about to be deleted anyway. |
 | 4 | `classroom_rosters` | `instructor_id = target_id` (rosters not transferred in step 1) | Learner `enrollments`/`enrollment_requests` pointing at a deleted roster are removed as part of this step (roster-scoped, not learner-scoped -- the learner's own account is never touched, FR-008). |
 | 5 | `real_instructor_accounts` | `instructor_id = target_id` | |
 | 6 | `retention_records` | `account_type = 'instructor' AND account_id = target_id` | Deleted last, same reasoning as the learner cascade's step 12. |
