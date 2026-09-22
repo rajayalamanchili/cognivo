@@ -140,11 +140,11 @@ reflects reality at each point (quickstart.md Scenario 3).
 
 ### Tests for User Story 3
 
-- [ ] T037 [P] [US3] Integration test in new `backend/tests/integration/test_deletion_status_check.py`: `GET /api/deletion-requests/{id}` returns `status: "pending"`, `completed_at: null` before the cron run, and `status: "completed"` with a real `completed_at` timestamp after -- and asserts the response body contains no key beyond `deletion_request_id`/`target_type`/`status`/`requested_at`/`completed_at` (i.e. never the target's own fields) (Acceptance Scenarios 1-2, SC-005)
+- [X] T037 [P] [US3] Integration test in new `backend/tests/integration/test_deletion_status_check.py`: `GET /api/deletion-requests/{id}` returns `status: "pending"`, `completed_at: null` before the cron run, and `status: "completed"` with a real `completed_at` timestamp after -- and asserts the response body contains no key beyond `deletion_request_id`/`target_type`/`status`/`requested_at`/`completed_at` (i.e. never the target's own fields) (Acceptance Scenarios 1-2, SC-005)
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Confirm `GET /api/deletion-requests/{deletion_request_id}` (T024) already satisfies T037 as written; add the explicit response-shape allowlist assertion if the existing implementation returns anything broader (depends on T024, T037)
+- [X] T038 [US3] Confirm `GET /api/deletion-requests/{deletion_request_id}` (T024) already satisfies T037 as written; add the explicit response-shape allowlist assertion if the existing implementation returns anything broader (depends on T024, T037)
 
 **Checkpoint**: All user stories independently functional. Full
 compliance gate: explicit requests, inactivity-triggered deletions,
