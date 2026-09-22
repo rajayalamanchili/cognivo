@@ -104,23 +104,35 @@ milestone's existing code:
 ```text
 backend/
 ├── alembic/
-│   ├── env.py                          # unchanged -- already binds target_metadata = Base.metadata
-│   └── versions/                       # unchanged -- no new migration ships with this feature
+│   ├── env.py                              # MODIFIED -- wires include_object into both context.configure() calls
+│   └── versions/                           # unchanged -- no new migration ships with this feature
 ├── src/
-│   └── models/                         # unchanged -- the thing this check measures drift against
+│   ├── schema_comparison.py                # NEW -- shared include_object filter (T001b, found mid-implementation)
+│   └── models/
+│       ├── assessment_event.py             # MODIFIED -- declares a previously-undeclared partial unique index
+│       └── content_passage_embedding.py    # MODIFIED -- declares a previously-undeclared HNSW cosine index
 └── tests/
     └── unit/
-        └── test_schema_drift_check.py  # NEW -- regression coverage (research.md §4)
+        └── test_schema_drift_check.py      # NEW -- regression coverage (research.md §4)
 
 .github/
 └── workflows/
-    └── backend-tests.yml               # MODIFIED -- one new `alembic check` step (research.md §3)
+    └── backend-tests.yml                   # MODIFIED -- one new `alembic check` step (research.md §3)
 ```
 
 **Structure Decision**: Web-application structure (Option 2), already
 locked by every prior milestone. No new top-level directory, no new
 package -- this feature is additive within `backend/`'s existing
 `tests/unit/` convention plus one CI workflow edit.
+
+**Note (updated post-implementation, per code-review)**: `env.py`, the
+two model files, and `schema_comparison.py` were originally planned as
+unchanged/nonexistent above -- they became MODIFIED/NEW mid-implementation
+once T005's live-DB verification found two real pre-existing
+model-vs-migration drift bugs (see `tasks.md` T005/T008 for the full
+story). This section is updated here to match the actual shipped diff,
+rather than left describing only what was planned before that was
+discovered.
 
 ## Complexity Tracking
 
