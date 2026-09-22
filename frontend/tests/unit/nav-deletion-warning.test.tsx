@@ -6,6 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/components/Nav";
 import * as api from "@/services/api";
+import type { WhoAmIResponse } from "@/services/api";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -57,7 +58,12 @@ describe("Nav deletion warning banner", () => {
   });
 
   it("renders no banner for a logged-out session with no warnings field at all", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
+    // Deliberately missing `pending_deletion_warnings` -- exercises Nav's
+    // `?? []` fallback for a response shape older than this field.
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: null,
+      identifier: null,
+    } as WhoAmIResponse);
     render(<Nav />);
 
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());

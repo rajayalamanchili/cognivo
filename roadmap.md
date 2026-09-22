@@ -1322,6 +1322,14 @@ tests this milestone itself required, not discovered after the fact):
    would silently orphan the roster instead of failing loudly. Fixed
    with an existence/`is_demo` check before any roster is reassigned,
    plus a regression test.
+5. The PR's Vercel build check failed on `tsc`: `pending_deletion_warnings`
+   was added to `WhoAmIResponse` as a required field, but the pre-
+   existing `nav.test.tsx` and `demo-badge.test.tsx` mock objects
+   predating this feature were never updated to include it -- vitest's
+   test run (no typechecking) never caught this, only the build's full
+   `tsc` pass did. Fixed by adding the field to every affected mock;
+   confirmed with a clean `tsc --noEmit` and full frontend regression
+   (109/109).
 
 **Scope**: Makes spec 009's already-approved FR-004 (deletion request)
 and FR-005 (cascade) and FR-010 (1-year post-inactivity auto-deletion)
