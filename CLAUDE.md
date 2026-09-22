@@ -18,6 +18,15 @@ of done, and `tech-stack.md` for locked technology decisions.
 - **Always run `/speckit-analyze` before `/speckit-implement`.** Report
   what it flags against `.specify/memory/constitution.md`; don't
   silently proceed past a flagged violation.
+- **Run `/code-review` locally before pushing/opening a PR, as part of
+  Polish.** `/speckit-analyze` checks spec/plan/tasks *consistency*, not
+  the implementation itself, and tests written during
+  `/speckit-implement` cover the happy paths and named acceptance
+  scenarios, not adversarial cases (races, poison messages, self-
+  referential edge cases) nobody thought to write a test for. Milestone
+  18's PR #79 needed three rounds of post-PR automated review to catch
+  exactly that class of bug; a local adversarial pass before the PR
+  exists is strictly cheaper than finding it after.
 - **Check `roadmap.md` before starting work.** It's the source of truth
   for milestone order and dependencies -- this order can change as scope
   is added mid-project, so don't assume an earlier conversation's

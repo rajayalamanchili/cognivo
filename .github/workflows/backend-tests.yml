@@ -99,6 +99,13 @@ jobs:
         run: uv run python scripts/batch_eval_questions.py --fresh
 
       - name: Run migrations against the ephemeral branch
+        # This step's position, before "Check for schema drift" below,
+        # is load-bearing for spec 021 FR-004: `alembic upgrade head`
+        # fails on its own if the migration history has multiple heads
+        # (Alembic's own CommandError), so a multi-head history never
+        # reaches the schema-drift check at all. Don't reorder these
+        # two steps -- also regression-tested directly in
+        # backend/tests/unit/test_schema_drift_check.py::test_fr004_multiple_migration_heads_fail_before_check_runs.
         env:
           # Direct (unpooled) connection, not db_url_pooled: this suite's
           # per-test drop_all/create_all churn recreates Postgres enum
@@ -111,6 +118,17 @@ jobs:
           # the app/alembic expect the psycopg3 driver spec explicitly
           # (backend/.env.example, src/db.py).
           DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run alembic upgrade head
+
+      - name: Check for schema drift (spec 021 FR-001/FR-002/FR-003)
+        # Unconditional, no path-diff gate like assessment-gen-changed
+        # above: this is a fast local metadata diff against the
+        # connection the previous step already opened, not a billed API
+        # call -- there's no cost here worth guarding with a conditional
+        # (specs/021-schema-drift-ci-check/research.md §3).
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+        run: |
+          DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run alembic check
 
       - name: Run pytest
         env:
