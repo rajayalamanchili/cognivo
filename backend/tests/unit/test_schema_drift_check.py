@@ -63,9 +63,17 @@ def test_still_flags_genuinely_unexpected_tables_as_drift(_schema_engine):
     # owns being dropped from a model with no matching migration is
     # exactly the drift FR-001 exists to catch, and must not be silently
     # swallowed by the same filter that excuses ADK's own tables.
+    # IF NOT EXISTS/IF EXISTS: this table is entirely test-owned (never
+    # real app data, unlike `sessions` above), so idempotent create/drop
+    # is safe -- guards against a killed process (CI timeout, OOM)
+    # leaving this behind between the CREATE and the finally's DROP,
+    # which would otherwise fail the next run's CREATE with "already
+    # exists" instead of testing anything (code-review finding).
     with _schema_engine.begin() as connection:
         connection.execute(
-            text("CREATE TABLE schema_drift_test_genuinely_unexpected (id integer)")
+            text(
+                "CREATE TABLE IF NOT EXISTS schema_drift_test_genuinely_unexpected (id integer)"
+            )
         )
     try:
         diffs = _diffs(_schema_engine, Base.metadata)
@@ -73,7 +81,9 @@ def test_still_flags_genuinely_unexpected_tables_as_drift(_schema_engine):
         assert "schema_drift_test_genuinely_unexpected" in removed_tables
     finally:
         with _schema_engine.begin() as connection:
-            connection.execute(text("DROP TABLE schema_drift_test_genuinely_unexpected"))
+            connection.execute(
+                text("DROP TABLE IF EXISTS schema_drift_test_genuinely_unexpected")
+            )
 
 
 def test_detects_incomplete_migration_for_a_changed_column(_schema_engine):
