@@ -29,7 +29,11 @@ def client(db_session, monkeypatch):
 def test_whoami_null_with_no_session(client):
     response = client.get("/api/auth/whoami")
     assert response.status_code == 200, response.text
-    assert response.json() == {"account_type": None, "identifier": None}
+    assert response.json() == {
+        "account_type": None,
+        "identifier": None,
+        "pending_deletion_warnings": [],
+    }
 
 
 def test_whoami_reports_guardian_session_with_email(client):
@@ -42,6 +46,7 @@ def test_whoami_reports_guardian_session_with_email(client):
     assert response.json() == {
         "account_type": "guardian",
         "identifier": "whoami-guardian@example.com",
+        "pending_deletion_warnings": [],
     }
 
 
@@ -58,6 +63,7 @@ def test_whoami_reports_instructor_session_with_email(client):
     assert response.json() == {
         "account_type": "instructor",
         "identifier": "whoami-instructor@example.com",
+        "pending_deletion_warnings": [],
     }
 
 
@@ -70,6 +76,7 @@ def test_whoami_reports_demo_instructor_session_with_display_name(client):
     assert response.json() == {
         "account_type": "demo_instructor",
         "identifier": seeded.display_name,
+        "pending_deletion_warnings": [],
     }
 
 
@@ -84,4 +91,8 @@ def test_whoami_null_after_logout(client):
     client.post("/api/auth/logout")
     response = client.get("/api/auth/whoami")
     assert response.status_code == 200, response.text
-    assert response.json() == {"account_type": None, "identifier": None}
+    assert response.json() == {
+        "account_type": None,
+        "identifier": None,
+        "pending_deletion_warnings": [],
+    }

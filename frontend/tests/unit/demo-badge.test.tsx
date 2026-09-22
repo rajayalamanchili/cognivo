@@ -29,7 +29,7 @@ describe("DemoBadge", () => {
   });
 
   it("is hidden on the bare landing page with no session", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null, pending_deletion_warnings: [] });
     render(<DemoBadge />);
 
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
@@ -40,7 +40,7 @@ describe("DemoBadge", () => {
     "is shown on %s regardless of session",
     async (pathname) => {
       mockPathname = pathname;
-      vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
+      vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null, pending_deletion_warnings: [] });
       render(<DemoBadge />);
 
       expect(await screen.findByTestId("demo-badge")).toBeInTheDocument();
@@ -52,6 +52,7 @@ describe("DemoBadge", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "demo_instructor",
       identifier: "Demo Instructor",
+      pending_deletion_warnings: [],
     });
     render(<DemoBadge />);
 
@@ -63,6 +64,7 @@ describe("DemoBadge", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "guardian",
       identifier: "parent@example.com",
+      pending_deletion_warnings: [],
     });
     render(<DemoBadge />);
 
@@ -75,6 +77,7 @@ describe("DemoBadge", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "instructor",
       identifier: "teacher@example.com",
+      pending_deletion_warnings: [],
     });
     render(<DemoBadge />);
 

@@ -15,11 +15,11 @@ from src.models.enums import (
 
 
 class RetentionRecord(Base):
-    """spec 009's retention-tracking row (unchanged by this spec): drives
-    FR-010's 1-year post-inactivity clock. `account_id` is deliberately
-    not a FK -- it points at either a `LearnerProfile` or a
-    `RealInstructorAccount` row depending on `account_type`, and a single
-    column can't carry two different FK targets."""
+    """spec 009's retention-tracking row: drives FR-010's 1-year
+    post-inactivity clock. `account_id` is deliberately not a FK -- it
+    points at either a `LearnerProfile` or a `RealInstructorAccount` row
+    depending on `account_type`, and a single column can't carry two
+    different FK targets."""
 
     __tablename__ = "retention_records"
 
@@ -47,3 +47,11 @@ class RetentionRecord(Base):
     became_inactive_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    inactivity_warning_sent_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    """spec 020 FR-011: set by the inactivity sweep 7 days before this
+    record becomes eligible for FR-010's auto-deletion, cleared back to
+    `NULL` if `enrollment_status` is found `active`
+    (`services/deletion/inactivity.py`'s `reconcile_inactivity_warnings`,
+    research.md R10)."""

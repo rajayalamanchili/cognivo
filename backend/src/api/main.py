@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from src.api.errors import (
     AuthenticationError,
     ConflictError,
+    DeletionAlreadyPendingError,
     ForbiddenError,
     GradingUnavailableError,
     ModerationRejectedError,
@@ -31,6 +32,7 @@ from src.api.routes import (
     auth,
     content_review,
     cron,
+    deletion,
     demo_instructor,
     demo_learner,
     evaluation,
@@ -69,6 +71,19 @@ def _handle_not_found(request: Request, exc: NotFoundError) -> JSONResponse:
 @app.exception_handler(ConflictError)
 def _handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": exc.message})
+
+
+@app.exception_handler(DeletionAlreadyPendingError)
+def _handle_deletion_already_pending(
+    request: Request, exc: DeletionAlreadyPendingError
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={
+            "error": "deletion_already_pending",
+            "deletion_request_id": str(exc.deletion_request_id),
+        },
+    )
 
 
 @app.exception_handler(AuthenticationError)
@@ -172,3 +187,4 @@ app.include_router(content_review.router)
 app.include_router(demo_instructor.router)
 app.include_router(cron.router)
 app.include_router(tutor.router)
+app.include_router(deletion.router)

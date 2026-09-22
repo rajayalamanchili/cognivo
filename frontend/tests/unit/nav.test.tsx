@@ -35,10 +35,10 @@ describe("Nav", () => {
   });
 
   it.each([
-    ["logged out", { account_type: null, identifier: null } as const, "/"],
-    ["demo_instructor (still a demo account)", { account_type: "demo_instructor" as const, identifier: "Demo Instructor" }, "/"],
-    ["a real guardian", { account_type: "guardian" as const, identifier: "parent@example.com" }, "/guardian/learners"],
-    ["a real instructor", { account_type: "instructor" as const, identifier: "teacher@example.com" }, "/instructor/dashboard"],
+    ["logged out", { account_type: null, identifier: null, pending_deletion_warnings: [] }, "/"],
+    ["demo_instructor (still a demo account)", { account_type: "demo_instructor" as const, identifier: "Demo Instructor", pending_deletion_warnings: [] }, "/"],
+    ["a real guardian", { account_type: "guardian" as const, identifier: "parent@example.com", pending_deletion_warnings: [] }, "/guardian/learners"],
+    ["a real instructor", { account_type: "instructor" as const, identifier: "teacher@example.com", pending_deletion_warnings: [] }, "/instructor/dashboard"],
   ])("the Cognivo logo links home appropriately for %s", async (_label, whoAmI, expectedHref) => {
     vi.mocked(api.getWhoAmI).mockResolvedValue(whoAmI);
     render(<Nav />);
@@ -48,7 +48,11 @@ describe("Nav", () => {
   });
 
   it("shows only Try Demo, Sign In, and Personalization Evidence when logged out", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: null,
+      identifier: null,
+      pending_deletion_warnings: [],
+    });
     render(<Nav />);
 
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
@@ -62,7 +66,11 @@ describe("Nav", () => {
   });
 
   it("shows the demo-learner bucket when demo-learner mode is set, with no real session", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: null,
+      identifier: null,
+      pending_deletion_warnings: [],
+    });
     window.localStorage.setItem(DEMO_LEARNER_MODE_KEY, "true");
     render(<Nav />);
 
@@ -78,7 +86,11 @@ describe("Nav", () => {
   });
 
   it("exiting demo mode clears the flag and navigates home", async () => {
-    vi.mocked(api.getWhoAmI).mockResolvedValue({ account_type: null, identifier: null });
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: null,
+      identifier: null,
+      pending_deletion_warnings: [],
+    });
     window.localStorage.setItem(DEMO_LEARNER_MODE_KEY, "true");
     render(<Nav />);
 
@@ -92,6 +104,7 @@ describe("Nav", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "guardian",
       identifier: "parent@example.com",
+      pending_deletion_warnings: [],
     });
     render(<Nav />);
 
@@ -106,6 +119,7 @@ describe("Nav", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "instructor",
       identifier: "teacher@example.com",
+      pending_deletion_warnings: [],
     });
     render(<Nav />);
 
@@ -122,6 +136,7 @@ describe("Nav", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "demo_instructor",
       identifier: "Demo Instructor",
+      pending_deletion_warnings: [],
     });
     render(<Nav />);
 
@@ -134,6 +149,7 @@ describe("Nav", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "guardian",
       identifier: "parent@example.com",
+      pending_deletion_warnings: [],
     });
     vi.mocked(api.logout).mockResolvedValue(undefined);
     render(<Nav />);
@@ -149,6 +165,7 @@ describe("Nav", () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: "demo_instructor",
       identifier: "Demo Instructor",
+      pending_deletion_warnings: [],
     });
     vi.mocked(api.logout).mockResolvedValue(undefined);
     render(<Nav />);

@@ -8,6 +8,7 @@ independently-unique email (research.md §2), so the same email may
 register as both.
 """
 
+import datetime
 import uuid
 
 from fastapi import APIRouter, Depends, Response
@@ -19,6 +20,7 @@ from src.api.errors import AuthenticationError, ConflictError
 from src.db import get_db
 from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEnrollmentStatus
+from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
@@ -31,6 +33,7 @@ from src.services.auth.tokens import (
     issue_token,
     set_session_cookie,
 )
+from src.services.deletion.inactivity import INACTIVITY_RETENTION_PERIOD
 
 router = APIRouter()
 
@@ -182,9 +185,76 @@ def logout(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
 
 
+class PendingDeletionWarningOut(BaseModel):
+    target_type: str
+    target_id: uuid.UUID
+    warned_at: datetime.datetime
+    scheduled_deletion_date: datetime.date
+
+
 class WhoAmIOut(BaseModel):
     account_type: AccountType | None
     identifier: str | None = None
+    pending_deletion_warnings: list[PendingDeletionWarningOut] = Field(default_factory=list)
+
+
+def _pending_deletion_warnings(
+    claims: SessionClaims, db: Session
+) -> list[PendingDeletionWarningOut]:
+    """spec 020 FR-011/research.md R9: a guardian sees one entry per
+    linked learner whose `RetentionRecord` has been warned; an
+    instructor sees at most one entry, for their own account. A demo
+    session never has a `RetentionRecord` to find (FR-007), so this
+    naturally returns an empty list for one."""
+    if claims.account_type == "guardian":
+        rows = (
+            db.query(LearnerProfile, RetentionRecord)
+            .join(
+                RetentionRecord,
+                LearnerProfile.retention_record_id == RetentionRecord.retention_record_id,
+            )
+            .filter(
+                LearnerProfile.guardian_id == claims.account_id,
+                RetentionRecord.inactivity_warning_sent_at.isnot(None),
+            )
+            .all()
+        )
+        return [
+            PendingDeletionWarningOut(
+                target_type="learner",
+                target_id=learner.learner_id,
+                warned_at=record.inactivity_warning_sent_at,
+                scheduled_deletion_date=(
+                    record.became_inactive_at + INACTIVITY_RETENTION_PERIOD
+                ).date(),
+            )
+            for learner, record in rows
+        ]
+
+    if claims.account_type == "instructor":
+        record = (
+            db.query(RetentionRecord)
+            .filter(
+                RetentionRecord.account_type == RetentionAccountType.INSTRUCTOR,
+                RetentionRecord.account_id == claims.account_id,
+                RetentionRecord.inactivity_warning_sent_at.isnot(None),
+            )
+            .first()
+        )
+        if record is None:
+            return []
+        return [
+            PendingDeletionWarningOut(
+                target_type="instructor",
+                target_id=claims.account_id,
+                warned_at=record.inactivity_warning_sent_at,
+                scheduled_deletion_date=(
+                    record.became_inactive_at + INACTIVITY_RETENTION_PERIOD
+                ).date(),
+            )
+        ]
+
+    return []
 
 
 @router.get("/api/auth/whoami", response_model=WhoAmIOut)
@@ -213,4 +283,8 @@ def whoami(
         demo_instructor = db.get(DemoInstructorProfile, claims.account_id)
         identifier = demo_instructor.display_name if demo_instructor else None
 
-    return WhoAmIOut(account_type=claims.account_type, identifier=identifier)
+    return WhoAmIOut(
+        account_type=claims.account_type,
+        identifier=identifier,
+        pending_deletion_warnings=_pending_deletion_warnings(claims, db),
+    )
