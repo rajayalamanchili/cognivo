@@ -1348,6 +1348,20 @@ tests this milestone itself required, not discovered after the fact):
    transferred -- now rejected with a 422 before any roster is touched.
    All three have regression tests; full backend regression re-run
    clean at 647/647 (641 + this round's 6 new tests).
+7. A third round of PR review (against commit `16b92c8`, round 6 above)
+   found no correctness bug or Constitution violation, only two minor,
+   non-blocking notes -- both fixed anyway: (a) the cron executor's
+   demo-account skip left a `DeletionRequest` silently `pending`
+   forever with no log line if ever hit -- added a `logger.warning`
+   (should be unreachable given the submission-time guard, but no
+   longer silent if it ever is); (b) `existing_pending`'s check-then-
+   insert had no DB-level constraint backing it, unlike `auth.py`'s
+   email-uniqueness pattern -- added a partial unique index
+   (`uq_deletion_requests_pending_target` on `(target_type, target_id)
+   WHERE completed_at IS NULL`, migration `1697587733ae`) plus an
+   `IntegrityError` handler that degrades a raced duplicate to the same
+   409 the check-then-act path already returns. Both have regression
+   tests; full backend regression re-run clean.
 
 **Scope**: Makes spec 009's already-approved FR-004 (deletion request)
 and FR-005 (cascade) and FR-010 (1-year post-inactivity auto-deletion)

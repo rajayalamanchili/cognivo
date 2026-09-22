@@ -51,11 +51,13 @@ def test_submission_rejects_demo_target(client, db_session):
     assert response.status_code == 403, response.text
 
 
-def test_cron_executor_refuses_a_pending_request_whose_target_is_demo(client, db_session):
+def test_cron_executor_refuses_a_pending_request_whose_target_is_demo(client, db_session, caplog):
     """Simulates a request that reached `pending` despite targeting a
     demo account (e.g. `is_demo` flipped after submission) -- the cron
     executor must still refuse to process it, not just the submission
-    endpoint."""
+    endpoint, and must log the skip (PR #79 review) rather than leave
+    the request silently stuck `pending` forever with no visible
+    signal."""
     demo_learner = LearnerProfile(display_name="Demo Learner", is_demo=True)
     db_session.add(demo_learner)
     db_session.commit()
@@ -70,11 +72,16 @@ def test_cron_executor_refuses_a_pending_request_whose_target_is_demo(client, db
     db_session.refresh(deletion_request)
     deletion_request_id = deletion_request.deletion_request_id
 
-    execute = client.get(
-        "/api/cron/execute-deletions", headers={"Authorization": "Bearer the-real-secret"}
-    )
+    with caplog.at_level("WARNING"):
+        execute = client.get(
+            "/api/cron/execute-deletions", headers={"Authorization": "Bearer the-real-secret"}
+        )
     assert execute.status_code == 200, execute.text
 
     db_session.expunge_all()
     assert db_session.get(LearnerProfile, learner_id) is not None
     assert db_session.get(DeletionRequest, deletion_request_id).completed_at is None
+    assert any(
+        str(deletion_request_id) in record.message and "demo account" in record.message
+        for record in caplog.records
+    )

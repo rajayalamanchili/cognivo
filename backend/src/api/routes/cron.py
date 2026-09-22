@@ -98,6 +98,17 @@ def execute_deletions_route(
         target_model = _DELETION_TARGET_MODEL[deletion_request.target_type]
         target = db.get(target_model, deletion_request.target_id)
         if target is not None and target.is_demo:
+            # Should be unreachable -- submission time already blocks
+            # demo targets (deletion.py) and is_demo is immutable -- but
+            # if this defense-in-depth check ever does trigger, the
+            # request otherwise sits `pending` forever with no visible
+            # signal that something is stuck (PR #79 review).
+            logger.warning(
+                "deletion request %s skipped: target %s %s is a demo account",
+                deletion_request.deletion_request_id,
+                deletion_request.target_type,
+                deletion_request.target_id,
+            )
             continue
         try:
             execute_deletion(db, deletion_request)

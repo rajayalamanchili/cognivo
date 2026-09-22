@@ -135,6 +135,47 @@ def test_duplicate_pending_request_returns_409_with_id(client):
     assert body["deletion_request_id"] == first.json()["deletion_request_id"]
 
 
+def test_concurrent_duplicate_submission_still_returns_409(client, db_session, monkeypatch):
+    """PR #79 review: the pre-insert SELECT is check-then-act, not
+    race-proof on its own -- uq_deletion_requests_pending_target is the
+    real arbiter. Simulates a true race by monkeypatching the pre-check
+    to see no existing row (as a genuinely concurrent request would),
+    so the insert itself hits the constraint -- must still degrade to a
+    409, not a 500."""
+    import src.api.routes.deletion as deletion_module
+
+    _register_guardian(client)
+    learner_id = _add_learner(client)
+
+    first = client.post(
+        "/api/deletion-requests", json={"target_type": "learner", "target_id": learner_id}
+    )
+    assert first.status_code == 201, first.text
+
+    # Only the pre-insert check needs to be blinded -- the post-conflict
+    # lookup (real `_existing_pending`) must still find the row the
+    # constraint collided with, so it's invoked once here then restored.
+    real_existing_pending = deletion_module._existing_pending
+    calls = []
+
+    def blind_once(*args, **kwargs):
+        calls.append(args)
+        if len(calls) == 1:
+            return None
+        return real_existing_pending(*args, **kwargs)
+
+    monkeypatch.setattr(deletion_module, "_existing_pending", blind_once)
+
+    second = client.post(
+        "/api/deletion-requests", json={"target_type": "learner", "target_id": learner_id}
+    )
+
+    assert second.status_code == 409, second.text
+    body = second.json()
+    assert body["error"] == "deletion_already_pending"
+    assert body["deletion_request_id"] == first.json()["deletion_request_id"]
+
+
 def test_demo_account_target_returns_403(client, db_session):
     # Self-targeting is otherwise unambiguously authorized, isolating the
     # is_demo guard as the only thing that could produce a 403 here.

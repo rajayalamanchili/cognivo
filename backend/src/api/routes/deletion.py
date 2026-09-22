@@ -9,6 +9,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from src.api.errors import (
@@ -60,6 +61,20 @@ class DeletionRequestStatusOut(BaseModel):
     completed_at: datetime.datetime | None
 
 
+def _existing_pending(
+    db: Session, target_type: DeletionTargetType, target_id: uuid.UUID
+) -> DeletionRequest | None:
+    return (
+        db.query(DeletionRequest)
+        .filter(
+            DeletionRequest.target_type == target_type,
+            DeletionRequest.target_id == target_id,
+            DeletionRequest.completed_at.is_(None),
+        )
+        .first()
+    )
+
+
 def _transfer_instructor_rosters(
     db: Session, *, instructor_id: uuid.UUID, successor_id: uuid.UUID
 ) -> None:
@@ -98,15 +113,7 @@ def submit_deletion_request(
     if not can_request_deletion(claims, body.target_type, body.target_id, db):
         raise ForbiddenError("not_authorized")
 
-    existing_pending = (
-        db.query(DeletionRequest)
-        .filter(
-            DeletionRequest.target_type == body.target_type,
-            DeletionRequest.target_id == body.target_id,
-            DeletionRequest.completed_at.is_(None),
-        )
-        .first()
-    )
+    existing_pending = _existing_pending(db, body.target_type, body.target_id)
     if existing_pending is not None:
         raise DeletionAlreadyPendingError(existing_pending.deletion_request_id)
 
@@ -134,7 +141,16 @@ def submit_deletion_request(
         requested_by=str(claims.account_id),
     )
     db.add(deletion_request)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # The SELECT above is check-then-act -- uq_deletion_requests_
+        # pending_target is the actual arbiter for a concurrent
+        # duplicate submission racing past it (PR #79 review), same
+        # pattern as auth.py's email-uniqueness race handling.
+        db.rollback()
+        existing_pending = _existing_pending(db, body.target_type, body.target_id)
+        raise DeletionAlreadyPendingError(existing_pending.deletion_request_id) from exc
     db.refresh(deletion_request)
 
     return SubmitDeletionRequestOut(
