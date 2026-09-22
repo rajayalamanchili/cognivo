@@ -112,6 +112,17 @@ jobs:
           # (backend/.env.example, src/db.py).
           DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run alembic upgrade head
 
+      - name: Check for schema drift (spec 021 FR-001/FR-002/FR-003)
+        # Unconditional, no path-diff gate like assessment-gen-changed
+        # above: this is a fast local metadata diff against the
+        # connection the previous step already opened, not a billed API
+        # call -- there's no cost here worth guarding with a conditional
+        # (specs/021-schema-drift-ci-check/research.md §3).
+        env:
+          DATABASE_URL: ${{ steps.neon-branch.outputs.db_url }}
+        run: |
+          DATABASE_URL="${DATABASE_URL/postgresql:/postgresql+psycopg:}" uv run alembic check
+
       - name: Run pytest
         env:
           # Direct (unpooled) connection, not db_url_pooled: this suite's
