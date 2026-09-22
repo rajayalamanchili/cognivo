@@ -4,12 +4,22 @@ internally (`compare_metadata`) rather than shelling out to the CLI --
 see specs/021-schema-drift-ci-check/research.md §4 for why.
 """
 
+import shutil
+from pathlib import Path
+
+import pytest
 from alembic.autogenerate import compare_metadata
+from alembic.command import upgrade
+from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
+from alembic.util.exc import CommandError
 from sqlalchemy import Column, Integer, MetaData, Table, inspect, text
 
 from src.models import Base
 from src.schema_comparison import include_object
+
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 def _diffs(engine, metadata):
@@ -84,6 +94,37 @@ def test_still_flags_genuinely_unexpected_tables_as_drift(_schema_engine):
             connection.execute(
                 text("DROP TABLE IF EXISTS schema_drift_test_genuinely_unexpected")
             )
+
+
+def test_fr004_multiple_migration_heads_fail_before_check_runs(database_available, tmp_path):
+    # FR-004: `backend-tests.yml`'s "Run migrations" step (`alembic
+    # upgrade head`) must already fail on an ambiguous multi-head
+    # history before the new `alembic check` step is ever reached
+    # (research.md §2) -- previously verified only once, manually, via
+    # a throwaway scratch check never committed anywhere (tasks.md
+    # T005/code-review). This is that check, permanent and automated.
+    #
+    # Copies the real migration history into an isolated tmp_path
+    # script location rather than writing scratch revisions into the
+    # real backend/alembic/versions/ -- a crash mid-test can never
+    # leave stray files in the actual migration history this way.
+    versions_copy = tmp_path / "versions"
+    shutil.copytree(BACKEND_DIR / "alembic" / "versions", versions_copy)
+
+    cfg = Config(str(BACKEND_DIR / "alembic.ini"))
+    cfg.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    cfg.set_main_option("version_locations", str(versions_copy))
+    cfg.set_main_option(
+        "sqlalchemy.url", database_available.replace("postgresql:", "postgresql+psycopg:")
+    )
+
+    script = ScriptDirectory.from_config(cfg)
+    current_head = script.get_current_head()
+    script.generate_revision("fr004brancha", "scratch head A", head=current_head, splice=True)
+    script.generate_revision("fr004branchb", "scratch head B", head=current_head, splice=True)
+
+    with pytest.raises(CommandError, match="Multiple head revisions"):
+        upgrade(cfg, "head")
 
 
 def test_detects_incomplete_migration_for_a_changed_column(_schema_engine):

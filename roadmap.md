@@ -1519,11 +1519,14 @@ script written (research.md §1).
 
 **Definition of done**:
 - All acceptance scenarios in `specs/021-schema-drift-ci-check/spec.md`
-  pass -- verified via 4 new regression tests
+  pass -- verified via 6 new regression tests
   (`backend/tests/unit/test_schema_drift_check.py`, exercising
-  `alembic.autogenerate.compare_metadata` directly) plus manual
-  verification of the real `alembic upgrade head` + `alembic check`
-  code path and FR-004's multiple-heads behavior (T005).
+  `alembic.autogenerate.compare_metadata` directly, plus one test that
+  drives Alembic's own `command.upgrade()` against an isolated
+  `tmp_path` copy of the migration history for FR-004's multiple-heads
+  behavior -- added after code-review flagged the original manual-only
+  verification as uncommitted) plus manual verification of the real
+  `alembic upgrade head` + `alembic check` code path (T005).
 - SC-003 (zero added CI time / zero false positives for PRs that don't
   touch models or migrations) verified by design, not by a timing
   benchmark: the step is an unconditional but fast local metadata diff
