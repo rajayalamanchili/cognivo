@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, Enum, func
+from sqlalchemy import DateTime, Enum, Index, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,9 +16,25 @@ class DeletionRequest(Base):
     these -- it only removes an `Enrollment` row; a `DeletionRequest`
     targeting a learner does cascade to remove that learner's
     `Enrollment`/`EnrollmentRequest` rows too, as one item in spec 009
-    FR-005's full cascade."""
+    FR-005's full cascade.
+
+    At most one pending (`completed_at IS NULL`) request may exist per
+    `(target_type, target_id)` -- enforced by the partial unique index
+    below, not just the app-level check-then-insert in `deletion.py`/
+    `inactivity.py`/`execute.py`'s `_queue_guardian_deletion` (PR #79
+    review: that check alone isn't race-proof), same pattern as
+    `TutoringSession`'s active-session constraint."""
 
     __tablename__ = "deletion_requests"
+    __table_args__ = (
+        Index(
+            "uq_deletion_requests_pending_target",
+            "target_type",
+            "target_id",
+            unique=True,
+            postgresql_where="completed_at IS NULL",
+        ),
+    )
 
     deletion_request_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4

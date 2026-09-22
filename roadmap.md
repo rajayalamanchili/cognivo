@@ -1285,7 +1285,149 @@ Milestone 15); standards alignment.
 
 ---
 
-## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII)
+## Milestone 18: Real-Account Deletion Pathway
+
+**Spec**: `specs/020-deletion-pathway/spec.md`.
+**Status**: `/speckit-implement` complete, all 6 phases (2026-09-21,
+branch `030-deletion-pathway`). Promoted from the "Known gap" entry
+below (originally surfaced 2026-08-23) after a roadmap review named it
+the highest-priority open item: unlike every entry in "Out of current
+roadmap," this one was a live Constitution Principle VIII violation on
+already-shipped, already-accumulating real account data, not a
+deferred nice-to-have. One `/speckit-clarify` round mid-stream added
+FR-011 (a 7-day in-app pre-deletion warning) -- otherwise no scope
+change from spec 009's already-approved policy.
+
+**Bugs found and fixed during implementation** (all caught by the
+tests this milestone itself required, not discovered after the fact):
+1. The instructor-transfer design only reassigned `classroom_rosters.
+   instructor_id`, leaving `quiz_assignments.instructor_id` (a `NOT
+   NULL` FK) pointing at the deleted instructor -- fixed before any
+   code was written, while implementing `_delete_instructor`.
+2. `GET /api/learners/{id}/recommendations` unconditionally wrote an
+   audit-log event keyed to `learner_id`, which would `500` on an FK
+   violation for a just-deleted learner -- fixed by checking learner
+   existence first, matching the endpoint's own existing
+   `_get_validated_subject` pattern.
+3. `/speckit-analyze` (run twice) caught an ambiguity in the warning
+   set/clear logic before implementation: the "set" condition didn't
+   exclude an already-reactivated record with a stale
+   `became_inactive_at`, leaving undefined precedence against the
+   "clear" condition. Resolved as two explicit, ordered, mutually
+   exclusive checks (research.md R10).
+4. Post-close code review caught that `transfer_rosters_to` (`POST
+   /api/deletion-requests`, instructor target) was never validated
+   against `real_instructor_accounts` -- since `classroom_rosters.
+   instructor_id` carries no FK, a nonexistent or demo successor id
+   would silently orphan the roster instead of failing loudly. Fixed
+   with an existence/`is_demo` check before any roster is reassigned,
+   plus a regression test.
+5. The PR's Vercel build check failed on `tsc`: `pending_deletion_warnings`
+   was added to `WhoAmIResponse` as a required field, but the pre-
+   existing `nav.test.tsx` and `demo-badge.test.tsx` mock objects
+   predating this feature were never updated to include it -- vitest's
+   test run (no typechecking) never caught this, only the build's full
+   `tsc` pass did. Fixed by adding the field to every affected mock;
+   confirmed with a clean `tsc --noEmit` and full frontend regression
+   (109/109).
+6. A second round of PR review (against the already-fixed commit above)
+   found three more issues, all fixed: (a) `execute_deletions_route`'s
+   per-request loop had no error isolation, so one reliably-failing
+   deletion would sit at the front of the queue and block every other
+   pending request on every future cron run -- fixed with a per-item
+   try/except that rolls back and continues, mirroring
+   `run_classification_batch`'s existing per-pair isolation pattern;
+   (b) `check_deletion_cascade_coverage.py`'s gate was table-, not FK-
+   column-, granular, so `tutoring_sessions.guardian_id` (a second FK
+   into `real_guardian_accounts` alongside the already-walked
+   `learner_id`) was invisible to it -- tightened to `(table, column)`
+   tuples and closed the actual gap by having `_delete_guardian` clear
+   any orphaned `tutoring_sessions.guardian_id` directly; (c)
+   `transfer_rosters_to` equal to the instructor's own id was a silent
+   no-op that caused the roster to be hard-deleted instead of
+   transferred -- now rejected with a 422 before any roster is touched.
+   All three have regression tests; full backend regression re-run
+   clean at 647/647 (641 + this round's 6 new tests).
+7. A third round of PR review (against commit `16b92c8`, round 6 above)
+   found no correctness bug or Constitution violation, only two minor,
+   non-blocking notes -- both fixed anyway: (a) the cron executor's
+   demo-account skip left a `DeletionRequest` silently `pending`
+   forever with no log line if ever hit -- added a `logger.warning`
+   (should be unreachable given the submission-time guard, but no
+   longer silent if it ever is); (b) `existing_pending`'s check-then-
+   insert had no DB-level constraint backing it, unlike `auth.py`'s
+   email-uniqueness pattern -- added a partial unique index
+   (`uq_deletion_requests_pending_target` on `(target_type, target_id)
+   WHERE completed_at IS NULL`, migration `1697587733ae`) plus an
+   `IntegrityError` handler that degrades a raced duplicate to the same
+   409 the check-then-act path already returns. Both have regression
+   tests; full backend regression re-run clean.
+
+**Scope**: Makes spec 009's already-approved FR-004 (deletion request)
+and FR-005 (cascade) and FR-010 (1-year post-inactivity auto-deletion)
+actually execute, against the `DeletionRequest`/`RetentionRecord`
+models Milestone 7 created but never wired to a real deletion
+mechanism. No new privacy policy, no new data model -- this milestone
+is pure implementation of a already-specified requirement.
+
+**Why this comes next**: It depends on nothing beyond Milestone 7
+(already shipped) and fixes a compliance gap that only grows riskier
+the longer it sits open across every subsequent milestone that adds a
+new learner/guardian/instructor-linked table (most recently Milestone
+17's `grade_progress` and guardian-mediation tables).
+
+**Definition of done**:
+- All acceptance scenarios in `specs/020-deletion-pathway/spec.md`
+  pass -- verified end to end via 40 new backend tests (unit +
+  contract + integration) and 3 new frontend tests, all passing.
+- SC-001 (zero dangling references/denormalized leftovers after any
+  deletion) is a hard gate with an automated check, not verified by
+  inspection: `backend/scripts/check_deletion_cascade_coverage.py`
+  (new, T040) walks the ORM's own FK metadata and fails if any table
+  gains a direct FK to `learner_profiles`/`real_guardian_accounts`/
+  `real_instructor_accounts` without either cascade coverage or an
+  explicit allowlist entry -- confirmed clean, and confirmed to
+  actually catch a gap when one of the currently-handled tables is
+  removed from its coverage list.
+- SC-006 (7-day pre-deletion warning, added by the mid-stream
+  `/speckit-clarify`) verified the same way: warning appears via
+  `GET /api/auth/whoami` before any `DeletionRequest` exists, clears on
+  reactivation, and never blocks or delays the eventual deletion.
+- `data-classification.md`'s two "not yet implemented" cascade rows
+  (mastery/assessment/questions, and Milestone 9's tutoring
+  transcripts) updated to point at the now-real mechanism.
+- Milestones 1-17's full suites still pass: full backend regression
+  641/641, full frontend regression 109/109. Two things surfaced along
+  the way, neither a real regression: (1) `test_auth_whoami.py`'s five
+  pre-existing exact-equality assertions needed updating for the new
+  always-present `pending_deletion_warnings` field, the same class of
+  fix Milestone 10's `image_url`/`image_alt_text` and Milestone 16's
+  `steps` field needed before it; (2) one full-suite run hit a single
+  `cache lookup failed for type` failure in
+  `test_placement_api.py::test_submit_placement_twice_returns_409` --
+  confirmed transient on isolated retry (both alone and as part of its
+  own file, both clean), the same documented Neon/PgBouncer pooled-
+  connection OID-cache-churn flake Milestones 15/16 already recorded,
+  unrelated to this feature.
+
+**Explicitly not included**: any change to the 30-day SLA, 1-year
+inactivity ceiling, or hard-delete-only policy (all already settled by
+spec 009); a self-service learner-initiated deletion path (spec 009's
+provisioning model has the parent/guardian holding the credential, not
+the learner).
+
+---
+
+## Known gap: real-account deletion pathway is unimplemented (Constitution Principle VIII) -- RESOLVED
+
+**Promoted to Milestone 18** (2026-09-21) and **closed the same day**
+-- `/speckit-implement` complete, see that entry above for the full
+Definition of Done record. This section is kept, not deleted, for the
+same reason struck-through "Out of current roadmap" entries are kept:
+an honest record of where this started, not a retroactively-tidied
+history. Every real guardian/learner/instructor account now has a
+working right-to-erasure path; the gap this section describes no
+longer exists in the shipped product.
 
 Surfaced 2026-08-23 during `012-tutor-agent`'s `/speckit-analyze` pass,
 while checking whether Milestone 9's two new real-learner-linked
@@ -1501,6 +1643,11 @@ any table yet.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.9.0 -- 2026-09-21, added Milestone 18 (Real-Account
+Deletion Pathway), promoted from its prior "Known gap" entry;
+`/speckit-specify` complete, no `/speckit-clarify` needed since spec 009
+already settled the policy this milestone implements.
 
 **Version**: 3.8.0 -- 2026-09-20, added two items to "Out of current
 roadmap": per-question time-spent tracking, and a timed practice/quiz

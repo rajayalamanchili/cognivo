@@ -113,6 +113,18 @@ class StillAnsweringError(DomainError):
         self.exchange_id = exchange_id
 
 
+class DeletionAlreadyPendingError(DomainError):
+    """Maps to HTTP 409 (spec 020 contracts/api.md): `{"error":
+    "deletion_already_pending", "deletion_request_id": "..."}` -- a
+    distinct shape from `ConflictError`'s generic `{"detail": ...}`,
+    carrying the id of the already-pending request targeting the same
+    `(target_type, target_id)`."""
+
+    def __init__(self, deletion_request_id: uuid.UUID):
+        super().__init__("deletion_already_pending")
+        self.deletion_request_id = deletion_request_id
+
+
 class TutorUnavailableError(DomainError):
     """Maps to HTTP 503 (spec 012 contracts/api.md) -- either retrieval
     failed after its own internal retry (`services/retrieval/
