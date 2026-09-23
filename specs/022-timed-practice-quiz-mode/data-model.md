@@ -74,6 +74,16 @@ per timed session, on transition out of `in_progress`, for both
 transition time (`completed_at - started_at`), not re-derived on every
 read.
 
+## `assessment_events` payload extension for `answer_submitted` (FR-011, research.md §6)
+
+No new column, no new table, no migration. `time_spent_seconds`
+(integer, `round(answered_at - shown_at)`) is added as one new key in
+the existing `answer_submitted` event's `payload` JSON, alongside its
+existing `response`/`correct`/`read_aloud_used` keys. Written for every
+answered question -- placement, untimed practice, untimed quiz, timed
+practice, timed quiz alike (FR-011) -- not conditioned on
+`quiz_session_id`/`practice_session_id` being set.
+
 ## State transitions (both `quiz_sessions` and `practice_sessions`)
 
 ```

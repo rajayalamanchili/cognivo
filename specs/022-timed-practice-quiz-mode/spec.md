@@ -8,6 +8,16 @@
 
 **Input**: User description: "timed practice quiz mode"
 
+## Clarifications
+
+### Session 2026-09-23 (post-plan)
+
+- Q: Every question (timed or untimed, quiz or practice) should record
+  how long the learner took to submit an answer. How is that duration
+  measured? → A: Server-derived -- `answered_at - shown_at`, computed
+  at submission time from timestamps the system already has, no new
+  client-reported field.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Timed quiz attempt (Priority: P1)
@@ -159,9 +169,17 @@ session results are already shown (learner dashboard, guardian view).
   explicitly declined to build a general-purpose practice-session
   boundary).
 - **FR-009**: System MUST leave today's untimed, learner-paced practice
-  and quiz flows completely unchanged in behavior, scoring, and
+  and quiz flows unchanged in session behavior, scoring, and
   question-selection logic for any learner who does not opt into a
-  timer.
+  timer -- no session boundary, no countdown, no expiry. This does not
+  exempt untimed sessions from FR-011's per-question timing record,
+  which applies uniformly regardless of timer opt-in.
+- **FR-011**: System MUST record, for every answered question
+  (timed or untimed, quiz or practice, no exceptions), how long the
+  learner took between the question being shown and their answer being
+  submitted, computed server-side from timestamps the system already
+  records -- never from a client-reported duration (Clarifications,
+  2026-09-23).
 - **FR-010**: System MUST let a learner end a timed session manually
   before the time limit or question count is reached. This is a new
   capability scoped to timed sessions only -- neither today's untimed
@@ -186,6 +204,11 @@ session results are already shown (learner dashboard, guardian view).
   timed session's configured duration, actual elapsed time, and
   completion reason -- extends the existing pedagogical audit log
   rather than creating a separate, parallel record.
+- **Per-Question Time Spent**: A duration recorded against every
+  answered question, timed or untimed (FR-011) -- extends the existing
+  answer-submission audit record rather than creating a separate,
+  parallel one; unlike the Session Timing Record above, this applies
+  even when no timer is involved at all.
 
 ## Success Criteria *(mandatory)*
 
@@ -203,10 +226,16 @@ session results are already shown (learner dashboard, guardian view).
   sequences.
 - **SC-004**: Every existing untimed practice and quiz acceptance
   scenario from Milestones 1-19 continues to pass unchanged -- zero
-  regression in behavior for learners who don't opt into a timer.
+  regression in session, scoring, or question-selection behavior for
+  learners who don't opt into a timer (FR-011's timing record is
+  additive audit data, not a behavior change to any of those three).
 - **SC-005**: After a timed session ends, a learner (or their guardian,
   where applicable) can find the configured time limit, actual time
   used, and how the session ended, without needing to ask anyone.
+- **SC-006**: For 100% of answered questions across every Milestone
+  1-19 flow (placement, untimed practice, untimed quiz, timed practice,
+  timed quiz), a per-question time-spent value is recorded and
+  retrievable (FR-011).
 
 ## Assumptions
 
@@ -222,10 +251,10 @@ session results are already shown (learner dashboard, guardian view).
   underlying attempt mechanism is unchanged.
 - The "Per-question time-spent tracking" item already named in
   `roadmap.md`'s backlog (a `time_spent_seconds` field on
-  `ANSWER_SUBMITTED`) is a candidate dependency, not counted as
-  in-scope here -- this feature only needs session-level elapsed/
-  remaining time, not per-question timing, unless `/speckit-plan` finds
-  otherwise.
+  `ANSWER_SUBMITTED`) is now in scope here per the 2026-09-23
+  post-plan Clarification (FR-011) -- absorbed into this milestone
+  rather than left as a separate future item, since it shares this
+  feature's exact timing/audit-log surface.
 - Time-limit choices default to a small fixed preset list (e.g.
   15/30/45/60 minutes) rather than an arbitrary custom-duration input,
   keeping the UI simple; no evidence of a real need for arbitrary

@@ -35,3 +35,6 @@
 - All 3 [NEEDS CLARIFICATION] markers (FR-003, FR-004, FR-008) resolved 2026-09-23:
   auto-submit at expiry, scoring identical to untimed sessions, practice-session
   boundary scoped narrowly to timed sessions only.
+- Post-plan /speckit-clarify (2026-09-23): added FR-011/SC-006 (per-question
+  time-spent recording, server-derived, applies to every answered question
+  regardless of timer opt-in). All 16 items re-validated, still passing.

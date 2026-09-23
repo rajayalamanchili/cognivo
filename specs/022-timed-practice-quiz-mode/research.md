@@ -160,7 +160,39 @@ answers. Inventing a parallel auth path for "timed" sessions
 specifically would be scope creep with no requirement in spec.md
 driving it.
 
-## §6. No new dependency, no `tech-stack.md` amendment
+## §6. Per-question time spent (FR-011, added post-plan `/speckit-clarify`)
+
+**Decision**: `time_spent_seconds` is computed inline in the existing
+`POST /api/questions/{question_id}/answer` handler as
+`round((now() - question.shown_at).total_seconds())` and added as one
+new key in the `ANSWER_SUBMITTED` event's existing JSON `payload`
+column -- no new table, no new column on `generated_questions` or
+`assessment_events`, no schema migration at all. Applies uniformly to
+every answered question (placement, untimed practice, untimed quiz,
+timed practice, timed quiz) since all five flows already converge on
+this one answer endpoint and this one event type.
+
+**Rationale**: `shown_at` (`GeneratedQuestion.shown_at`) is already set
+the moment a validated question is delivered, and the `ANSWER_SUBMITTED`
+event is already written at submission time with a JSON payload that
+already carries type-specific extra fields (`graduated_score`,
+`step_results`, etc.) -- adding one more key to an already-open write is
+the smallest possible change, and matches this codebase's own
+established "extend the existing append-only audit log" precedent
+(same one research.md §3 and `tech-stack.md`'s Misconception classifier
+table already use) rather than a parallel timing table. Confirms
+Clarifications' (2026-09-23) server-derived decision: no client-trust
+surface, no new field on the request body.
+
+**Interaction with §1's lazy expiry check**: For a question answered
+after its session's `expires_at` has passed, the answer is rejected
+before scoring (contracts/api.md) -- so no `ANSWER_SUBMITTED` event, and
+thus no `time_spent_seconds`, is ever recorded for a rejected,
+post-expiry answer. This is intentional, not a gap: FR-011 records time
+spent on *answered* questions; a rejected submission was never actually
+answered.
+
+## §7. No new dependency, no `tech-stack.md` amendment
 
 **Decision**: Implemented entirely with the already-locked stack
 (FastAPI, SQLAlchemy/Alembic, Postgres/Neon, pytest, Next.js/TypeScript,

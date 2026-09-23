@@ -64,6 +64,13 @@ an intervening `next-question` call. Scoring for an answer accepted
 before expiry is computed identically to an untimed answer (FR-004) --
 no new field in the response body.
 
+**New behavior (FR-011, applies to every call, timed or not)**: The
+`answer_submitted` audit event this route already writes gains one new
+`time_spent_seconds` payload key (data-model.md), computed from
+`GeneratedQuestion.shown_at` to now. Not visible in this route's
+response body -- it is audit-log-only, read back via the same event
+query any existing dashboard already uses.
+
 ---
 
 ## `POST /api/quizzes/{quiz_session_id}/end` (NEW)

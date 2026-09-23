@@ -1572,7 +1572,16 @@ corrected a factual error in the original spec draft: today's untimed
 quiz has no learner-initiated "end now" action (`ended_early` today
 only fires from automatic dedup-exhaustion) -- FR-010's manual-early-end
 is new, not a reuse of existing behavior (research.md §4). No new
-dependency, no `tech-stack.md` amendment needed. `tasks.md` not yet
+dependency, no `tech-stack.md` amendment needed. A post-plan
+`/speckit-clarify` (2026-09-23) then added FR-011: every answered
+question, across all five question-answering flows (placement,
+untimed/timed practice, untimed/timed quiz), now records how long the
+learner took to answer -- server-derived from `shown_at`, added as one
+new payload key on the existing `answer_submitted` audit event, no
+schema migration of its own (research.md §6, absorbing the "Per-question
+time-spent tracking" backlog item into this milestone rather than
+leaving it separate). `/speckit-plan` re-run same day to fold this into
+`research.md`/`data-model.md`/`contracts/api.md`. `tasks.md` not yet
 generated.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
@@ -1597,12 +1606,12 @@ Functional Requirements FR-003/FR-004/FR-008 for the normative text):
   "Quiz Sessions only" pre-plan Clarification) -- this milestone leaves
   that decision undisturbed for untimed practice.
 
-**Likely dependency**: the backlog's "Per-question time-spent tracking"
-item (still in "Out of current roadmap" below, not itself promoted) was
-raised as the underlying instrumentation this milestone would need
-(`time_spent_seconds` alongside the `ANSWER_SUBMITTED` audit event) --
-confirm during `/speckit-plan` whether it must land first or can be
-folded into this milestone's own tasks.
+**Resolved dependency**: the backlog's "Per-question time-spent
+tracking" item, raised as the underlying instrumentation this milestone
+would need, was folded directly into this milestone's own scope via a
+post-plan `/speckit-clarify` (2026-09-23, FR-011) rather than landing
+as a separate prerequisite -- see that section's "Out of current
+roadmap" bullet below, now struck through.
 
 **Definition of done** (draft, to be formalized in its own `spec.md`):
 - All acceptance scenarios in the eventual spec pass.
@@ -1752,17 +1761,14 @@ timer.
   week. Raised 2026-09-14. Depends on Milestone 7's instructor role and
   dashboard already existing; lower priority than the grading/content
   gaps above.
-- Per-question time-spent tracking -- recording how long a learner
-  takes to answer each question, for every learner, across practice and
-  quizzes. Raised 2026-09-20. Distinct from anything Milestone 17
-  builds: that milestone's pacing checkpoint (Story 3) is a static,
-  age-band-keyed recommendation, not a measurement of real per-question
-  timing. A small, generically useful instrumentation addition (a new
-  timestamp pair or a `time_spent_seconds` field alongside the existing
-  `ANSWER_SUBMITTED` audit event, per Constitution Principle V) that the
-  timed-practice-and-quiz item below would need as its underlying data,
-  and that a future pacing/fatigue-detection feature could also draw on
-  -- but not itself gated on that item.
+- ~~Per-question time-spent tracking~~ -- absorbed into Milestone 20
+  (2026-09-23, FR-011) via a post-plan `/speckit-clarify` rather than
+  landing as its own separate item, since it shares that milestone's
+  exact `answer_submitted` audit-log surface. Raised 2026-09-20; this
+  bullet is kept, struck through, for the same reason Milestone 17's
+  promotion left its bullet in place. (A future pacing/fatigue-detection
+  feature can still draw on the resulting data -- that remains a
+  distinct, not-yet-scoped idea.)
 - ~~Timed practice and quiz mode for exam preparation~~ -- promoted to
   Milestone 20 (2026-09-23), see that entry above this section. This
   bullet is kept, struck through, for the same reason Milestone 17's
@@ -1792,6 +1798,17 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.14.0 -- 2026-09-23, Milestone 20: post-plan
+`/speckit-clarify` added FR-011/SC-006 (per-question time-spent
+recording, server-derived, applies to every answered question across
+all five flows regardless of timer opt-in), absorbing the "Per-question
+time-spent tracking" backlog item into this milestone rather than
+leaving it separate (that bullet now struck through in "Out of current
+roadmap"); `/speckit-plan` re-run same day to fold FR-011 into
+`research.md`/`data-model.md`/`contracts/api.md` -- a JSON payload-only
+extension of the existing `answer_submitted` audit event, no schema
+migration of its own.
 
 **Version**: 3.13.0 -- 2026-09-23, Milestone 20 `/speckit-plan`
 complete same day: locked lazy, per-request expiry enforcement (no

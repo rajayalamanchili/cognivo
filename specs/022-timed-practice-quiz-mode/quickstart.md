@@ -75,6 +75,21 @@ returns non-null `time_limit_seconds`, `elapsed_seconds`, and
 `end_reason` -- validates SC-005. Repeat with an untimed quiz and
 confirm all three fields are `null`.
 
+## Scenario 6: Per-question time spent, every flow (FR-011/SC-006)
+
+1. Answer one question each via: placement, ordinary untimed practice
+   (`GET /api/learners/{learner_id}/next-question` +
+   `POST /api/questions/{question_id}/answer`), an untimed quiz, a
+   timed quiz (Scenario 1), and a timed practice session (Scenario 3).
+2. For each, query the `answer_submitted` audit event for that
+   question and confirm `payload.time_spent_seconds` is present and
+   roughly matches the real wall-clock gap between the question being
+   fetched and the answer being submitted.
+
+**Expected**: All five flows record a value -- no exceptions, no
+dependency on timer opt-in. A rejected post-expiry answer (Scenario 2)
+records nothing, since it was never actually answered (research.md §6).
+
 ## Regression check
 
 Run the full backend suite (`uv run pytest`) and confirm every
