@@ -1,0 +1,238 @@
+---
+
+description: "Task list for Timed Practice and Quiz Mode"
+---
+
+# Tasks: Timed Practice and Quiz Mode
+
+**Input**: Design documents from `specs/022-timed-practice-quiz-mode/`
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api.md, quickstart.md
+
+**Tests**: Included per this repo's established convention (every prior
+milestone's `tasks.md` writes unit/integration/contract tests alongside
+implementation, matched to specific FR/SC IDs).
+
+**Organization**: Tasks are grouped by user story (spec.md's US1/US2/US3,
+priority order) to enable independent implementation and testing of each.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
+- **[Story]**: US1, US2, or US3 -- Foundational/Polish tasks carry no story label
+
+## Path Conventions
+
+Existing `backend/` + `frontend/` split, unchanged (plan.md's Structure
+Decision). No new project or service.
+
+---
+
+## Phase 1: Setup
+
+**No new setup required.** This feature introduces no new dependency,
+package, or service (research.md §7) -- FastAPI, SQLAlchemy/Alembic,
+and the Sequencing Agent are already installed and already wired.
+Proceed directly to Phase 2.
+
+---
+
+## Phase 2: Foundational (Blocking Prerequisites)
+
+**Purpose**: The schema changes and shared session-timing logic every
+user story's endpoints depend on.
+
+**⚠️ CRITICAL**: No user story work can begin until this phase is complete
+
+- [ ] T001 [P] Add `time_limit_seconds: Mapped[int | None]` (nullable `Integer`) to `QuizSession` in `backend/src/models/quiz_session.py` (data-model.md, FR-001/FR-009)
+- [ ] T002 [P] Create `PracticeSession` model in `backend/src/models/practice_session.py`: `practice_session_id` (UUID PK), `learner_id` (FK), `subject_id` (FK), `time_limit_seconds` (NOT NULL `Integer`), `status` (reused `QuizSessionStatus` enum), `started_at`, `completed_at` (data-model.md)
+- [ ] T003 [P] Add `practice_session_id: Mapped[uuid.UUID | None]` (nullable FK → `practice_sessions.practice_session_id`) to `GeneratedQuestion` in `backend/src/models/generated_question.py` (data-model.md)
+- [ ] T004 [P] Add `TIMED_SESSION_ENDED = "timed_session_ended"` to `AssessmentEventType` in `backend/src/models/enums.py` (data-model.md, research.md §3)
+- [ ] T005 Generate the Alembic migration for T001-T004 (`practice_sessions` table, two new nullable/NOT NULL columns, one new enum value) via `uv run alembic revision --autogenerate`; run `uv run alembic check` locally to confirm zero drift (Milestone 19's own gate) before marking this done (depends on T001-T004)
+- [ ] T006 Implement `check_and_expire_if_needed(db, session, session_type)` in `backend/src/services/quiz/session.py`: no-op if `time_limit_seconds` is null or `status != in_progress`; else compares `now() >= started_at + time_limit_seconds`; if past, transitions `status` to `ended_early`, sets `completed_at`, writes one `timed_session_ended` event (`end_reason=timer_expired`) -- idempotent, a second call after the first does nothing further (research.md §1, data-model.md)
+- [ ] T007 Implement `end_session_manually(db, session, session_type)` in `backend/src/services/quiz/session.py`: raises/rejects unless `time_limit_seconds` is set and `status == in_progress`; else transitions to `ended_early`, sets `completed_at`, writes `timed_session_ended` (`end_reason=manually_ended_early`) (research.md §4, FR-010) (same file as T006, sequential)
+- [ ] T008 Generalize `compute_quiz_summary` in `backend/src/services/quiz/session.py` to accept either a `QuizSession` or `PracticeSession` and include `time_limit_seconds`/`elapsed_seconds`/`end_reason` in its return shape, read from the session's `timed_session_ended` event if one exists, else all three `null` (data-model.md, contracts/api.md) (same file as T006/T007, sequential)
+- [ ] T009 [P] Add `time_spent_seconds` to the `answer_submitted` event payload in `backend/src/api/routes/questions.py`'s `answer_question` handler: `round((now() - question.shown_at).total_seconds())`, written for every answered question regardless of session type -- placement, untimed practice, untimed quiz alike (FR-011, research.md §6). No schema change, JSON payload key only; independent of T001-T008
+- [ ] T010 [P] Unit tests for `check_and_expire_if_needed` in `backend/tests/unit/test_timed_session_expiry.py`: untimed session (`time_limit_seconds` null) is a no-op; timed session before expiry is untouched; timed session past expiry transitions to `ended_early` with exactly one `timed_session_ended(timer_expired)` event; calling it again past expiry writes no second event (depends on T005, T006)
+- [ ] T011 [P] Unit tests for `end_session_manually` in `backend/tests/unit/test_timed_session_manual_end.py`: timed `in_progress` session ends correctly with `manually_ended_early`; an untimed session is rejected (nothing to end early); an already-terminal session is rejected (depends on T005, T007)
+- [ ] T012 [P] Unit test for FR-011 in `backend/tests/unit/test_answer_time_spent.py`: answering a question records `time_spent_seconds` on its `answer_submitted` event, matching a controlled elapsed interval, for a placement question, an untimed practice question, and an untimed quiz question -- no timer involved in any of the three (depends on T009)
+
+**Checkpoint**: Schema, shared expiry/manual-end/summary logic, and
+FR-011's timing record all exist and are tested. User story
+implementation can now begin.
+
+---
+
+## Phase 3: User Story 1 - Timed quiz attempt (Priority: P1) 🎯 MVP
+
+**Goal**: A learner can opt into a fixed time limit on a quiz, see a
+countdown, and have the session end correctly whether they finish,
+time out, or stop early.
+
+**Independent Test**: Start a timed quiz, let the clock run out
+mid-attempt, and verify the session ends per the resolved expiry
+policy with a score computed exactly like an untimed quiz's would be.
+
+### Tests for User Story 1
+
+- [ ] T013 [P] [US1] Contract tests for `POST /api/quizzes` timed request/response in `backend/tests/contract/test_quiz_timed_start.py`: `time_limit_seconds` omitted/null → unchanged untimed response, `expires_at: null`; valid preset value → `QuizSession.time_limit_seconds` set, `expires_at` present and correct; value outside the preset list → `422` (contracts/api.md, FR-001)
+- [ ] T014 [P] [US1] Contract tests for `GET /api/quizzes/{id}/next-question` expiry handling in `backend/tests/contract/test_quiz_timed_next_question.py`: before expiry, generates a question normally; past expiry, returns `409` and the session transitions to `ended_early` with a `timer_expired` event (contracts/api.md, FR-003)
+- [ ] T015 [P] [US1] Contract tests for `POST /api/questions/{id}/answer` expiry rejection in `backend/tests/contract/test_quiz_timed_answer.py`: an answer submitted before expiry scores identically to an untimed answer (FR-004); an answer submitted after the session's `expires_at` has passed is rejected `409` before any scoring (contracts/api.md)
+- [ ] T016 [P] [US1] Contract tests for `POST /api/quizzes/{id}/end` in `backend/tests/contract/test_quiz_manual_end.py`: `200` + `ended_early` for an `in_progress` timed quiz; `404` for an untimed quiz; `409` for an already-terminal quiz (contracts/api.md, FR-010)
+- [ ] T017 [P] [US1] Integration test in `backend/tests/integration/test_timed_quiz_full_attempt.py`: quickstart.md Scenario 1 (learner completes before expiry, score matches an identical untimed quiz) and Scenario 2 (timer expires mid-attempt, auto-submits, unanswered questions scored as unanswered) end to end (spec.md Acceptance Scenarios 1-3)
+
+### Implementation for User Story 1
+
+- [ ] T018 [US1] Add optional `time_limit_seconds` to `POST /api/quizzes`'s request model and `expires_at` to its response model in `backend/src/api/routes/quiz.py`; wire `time_limit_seconds` onto the created `QuizSession` (contracts/api.md) (depends on T001)
+- [ ] T019 [US1] Call `check_and_expire_if_needed` at the top of `GET /api/quizzes/{id}/next-question` in `backend/src/api/routes/quiz.py`, returning `409` if it just expired the session (depends on T006)
+- [ ] T020 [US1] Call `check_and_expire_if_needed` in `POST /api/questions/{id}/answer` (`backend/src/api/routes/questions.py`) when the answered question's `quiz_session_id` is set, rejecting the answer with `409` before scoring if the session is (or just became) past expiry (depends on T006)
+- [ ] T021 [US1] Add `POST /api/quizzes/{quiz_session_id}/end` route in `backend/src/api/routes/quiz.py`, calling `end_session_manually` (contracts/api.md, FR-010) (depends on T007)
+- [ ] T022 [P] [US1] Create `SessionCountdown.tsx` in `frontend/src/components/SessionCountdown.tsx`: a client-side countdown built from a server-provided `expires_at` timestamp, never a client-guessed duration (FR-002, research.md §1)
+- [ ] T023 [US1] Add a time-limit picker (preset list), the `SessionCountdown` display, and an "End quiz now" button to the existing quiz start/attempt UI in `frontend/src/` (FR-001/FR-002/FR-010) (depends on T018, T021, T022)
+
+**Checkpoint**: A learner can start, play through or time-expire out of,
+and manually end a timed quiz. MVP deliverable.
+
+---
+
+## Phase 4: User Story 2 - Timed practice session (Priority: P2)
+
+**Goal**: A learner can opt into a fixed time limit for ordinary
+practice, turning it into a bounded exam-style session.
+
+**Independent Test**: Start a timed practice session, answer questions
+until time expires, and verify the session ends and reports a summary
+the same way a timed quiz does, without altering the untimed practice
+path for learners who don't opt in.
+
+### Tests for User Story 2
+
+- [ ] T024 [P] [US2] Contract tests for `POST /api/practice-sessions` in `backend/tests/contract/test_practice_session_start.py`: valid `subject_id` + `time_limit_seconds` → `200`, `practice_session_id`/`expires_at`/first question returned, topic selection matches ordinary practice's Sequencing Agent behavior; unknown/unvalidated `subject_id` → `404`; missing/invalid `time_limit_seconds` → `422` (contracts/api.md, FR-001/FR-008)
+- [ ] T025 [P] [US2] Contract tests for `GET /api/practice-sessions/{id}/next-question` in `backend/tests/contract/test_practice_session_next_question.py`: mirrors T014's expiry behavior for the practice route (contracts/api.md, FR-003)
+- [ ] T026 [P] [US2] Contract tests for `POST /api/practice-sessions/{id}/end` in `backend/tests/contract/test_practice_session_manual_end.py`: `200` + `ended_early` for `in_progress`; `409` if already terminal (no "untimed" `404` case -- every `practice_sessions` row is timed) (contracts/api.md, FR-010)
+- [ ] T027 [P] [US2] Integration test in `backend/tests/integration/test_ordinary_practice_unaffected.py`: `GET /api/learners/{learner_id}/next-question` (ordinary untimed practice) generates questions with `practice_session_id: null`, writes no `timed_session_ended` event, and behaves identically to before this feature -- validates FR-009 (quickstart.md Scenario 3 step 4)
+- [ ] T028 [P] [US2] Integration test in `backend/tests/integration/test_timed_practice_full_session.py`: quickstart.md Scenario 3 end to end -- start, answer questions with `practice_session_id` set on each, topic hopping within the one subject via the Sequencing Agent (spec.md Acceptance Scenarios, User Story 2)
+
+### Implementation for User Story 2
+
+- [ ] T029 [US2] Create `backend/src/api/routes/practice_sessions.py`: `POST /api/practice-sessions` (start + first question, reusing the Sequencing Agent's existing selection call), `GET /api/practice-sessions/{id}/next-question` (with T006's expiry check), `POST /api/practice-sessions/{id}/end` (calling T007), and a baseline `GET /api/practice-sessions/{id}` returning `status`/`started_at`/`completed_at`/score (contracts/api.md) (depends on T002, T006, T007, T008)
+- [ ] T030 [US2] Register `practice_sessions.py`'s router in `backend/src/api/main.py` (depends on T029)
+- [ ] T031 [US2] Extend `POST /api/questions/{id}/answer` (`backend/src/api/routes/questions.py`) to also call `check_and_expire_if_needed` when the answered question's `practice_session_id` is set, mirroring T020 for the practice path (depends on T006)
+- [ ] T032 [P] [US2] Add a "start timed practice" entry point (subject picker, time-limit picker, reusing `SessionCountdown`) to the practice UI in `frontend/src/`, calling T029's start route (FR-001/FR-002) (depends on T022, T029)
+
+**Checkpoint**: Both timed quiz and timed practice work end to end;
+ordinary untimed practice is provably unaffected.
+
+---
+
+## Phase 5: User Story 3 - Post-session time summary (Priority: P3)
+
+**Goal**: After a timed session ends, the learner (and guardian, where
+applicable) can see the configured limit, actual time used, and how it
+ended.
+
+**Independent Test**: Complete a timed session and confirm the
+elapsed-time-vs-limit summary appears wherever session results are
+already shown.
+
+### Tests for User Story 3
+
+- [ ] T033 [P] [US3] Contract test extension in `backend/tests/contract/test_quiz_timed_summary.py`: `GET /api/quizzes/{id}` returns non-null `time_limit_seconds`/`elapsed_seconds`/`end_reason` for a timed quiz (any of `completed`/`timer_expired`/`manually_ended_early`), and all three `null` for an untimed quiz (contracts/api.md, SC-005)
+- [ ] T034 [P] [US3] Contract test for `GET /api/practice-sessions/{id}` summary in `backend/tests/contract/test_practice_session_summary.py`: returns the same three fields, always non-null, plus a correct/total score derived the same way as the quiz summary (contracts/api.md, SC-005)
+
+### Implementation for User Story 3
+
+- [ ] T035 [US3] Extend `GET /api/quizzes/{id}`'s response model in `backend/src/api/routes/quiz.py` with `time_limit_seconds`/`elapsed_seconds`/`end_reason`, sourced from T008's generalized summary helper (contracts/api.md) (depends on T008)
+- [ ] T036 [US3] Extend `practice_sessions.py`'s baseline `GET /api/practice-sessions/{id}` (T029) with the same three fields via T008's helper (contracts/api.md) (depends on T008, T029)
+- [ ] T037 [P] [US3] Add a post-session summary display (time limit, time used, end reason) to the quiz/practice result UI in `frontend/src/`, reading T035/T036's new fields (SC-005) (depends on T035, T036)
+
+**Checkpoint**: All three user stories independently functional -- a
+learner can see how a timed session actually went.
+
+---
+
+## Phase 6: Polish & Cross-Cutting Concerns
+
+- [ ] T038 [P] Run Constitution Principle III's extensibility check (`check_no_subject_conditionals.py`) against every file touched above -- this feature has no subject-id-keyed logic, should pass trivially, but must still run per this repo's convention
+- [ ] T039 Run `uv run alembic check` (Milestone 19's own schema-drift gate) against the final migration state -- confirm zero drift before opening a PR
+- [ ] T040 Run `quickstart.md` Scenarios 1-6 plus the regression check end to end against a real, migrated dev database
+- [ ] T041 Run the full backend (`pytest`) and frontend (`Vitest`) suites -- confirm Milestones 1-19 pass unmodified (SC-004 regression). Per this project's convention, only touched test files were run per phase above; this is the one full, unfiltered run
+- [ ] T042 Update `roadmap.md`'s Milestone 20 status line with `/speckit-implement` completion, full Definition of Done recorded against spec.md's SC-001-006 and this feature's actual test results
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Setup (Phase 1)**: Nothing to do -- proceed straight to Foundational.
+- **Foundational (Phase 2)**: BLOCKS all user stories -- the schema
+  changes and shared expiry/manual-end/summary helpers must exist
+  before any route can call them. T009 (FR-011) is independent of the
+  rest of this phase and could ship on its own.
+- **User Stories (Phase 3-5)**: All depend on Foundational. US1 is the
+  MVP and delivers the core timed-quiz mechanism on its own. US2
+  depends on US1's `check_and_expire_if_needed`/`end_session_manually`
+  calling convention already being proven out in `quiz.py`, but adds
+  its own route file and is independently testable. US3 depends on
+  US1's and US2's summary routes already existing -- it only extends
+  their response shape, adding no new route of its own.
+- **Polish (Phase 6)**: Depends on all three user stories being
+  complete.
+
+### Within Each User Story
+
+- Tests written first, confirmed to fail before implementation.
+- Foundational schema + shared session-timing logic before the routes
+  that call them (User Story 1) before the parallel practice route
+  (User Story 2) before both routes' summary extension (User Story 3).
+
+### Parallel Opportunities
+
+- T001-T004 (four different model files) in parallel; T005 (migration)
+  follows once all four exist.
+- T009 (FR-011, `questions.py`) in parallel with T006-T008 (all in
+  `session.py`, sequential with each other).
+- T010-T012 (three different test files) in parallel once their
+  respective implementation tasks exist.
+- T013-T017 (all US1 tests, different files) once Foundational is done.
+- T024-T028 (all US2 tests, different files) can be written alongside
+  US1 implementation once Foundational is done.
+- T022 (`SessionCountdown.tsx`) has no backend dependency and can start
+  as soon as Foundational is done, in parallel with T018-T021.
+
+---
+
+## Parallel Example: User Story 1
+
+```bash
+# Launch all US1 tests together:
+Task: "Contract tests for POST /api/quizzes timed request/response in backend/tests/contract/test_quiz_timed_start.py"
+Task: "Contract tests for GET /api/quizzes/{id}/next-question expiry handling in backend/tests/contract/test_quiz_timed_next_question.py"
+Task: "Contract tests for POST /api/questions/{id}/answer expiry rejection in backend/tests/contract/test_quiz_timed_answer.py"
+Task: "Contract tests for POST /api/quizzes/{id}/end in backend/tests/contract/test_quiz_manual_end.py"
+Task: "Integration test for full timed-quiz attempt in backend/tests/integration/test_timed_quiz_full_attempt.py"
+```
+
+---
+
+## Implementation Strategy
+
+### MVP First (User Story 1 Only)
+
+1. Complete Phase 2: Foundational (schema + shared expiry/manual-end/
+   summary logic + FR-011's timing record).
+2. Complete Phase 3: User Story 1.
+3. **STOP and VALIDATE**: Run quickstart.md Scenarios 1-2 and 4 (quiz
+   half) independently.
+4. Deploy/demo if ready -- timed quiz mode alone is a complete,
+   demoable increment.
+
+### Incremental Delivery
+
+1. Complete Setup + Foundational → foundation ready.
+2. Add User Story 1 → validate independently → deploy/demo (MVP!).
+3. Add User Story 2 → validate independently (quickstart.md Scenario 3)
+   → deploy/demo.
+4. Add User Story 3 → validate independently (quickstart.md Scenario 5)
+   → deploy/demo.
+5. Each story adds value without breaking the previous ones.

@@ -1581,8 +1581,13 @@ new payload key on the existing `answer_submitted` audit event, no
 schema migration of its own (research.md §6, absorbing the "Per-question
 time-spent tracking" backlog item into this milestone rather than
 leaving it separate). `/speckit-plan` re-run same day to fold this into
-`research.md`/`data-model.md`/`contracts/api.md`. `tasks.md` not yet
-generated.
+`research.md`/`data-model.md`/`contracts/api.md`. `/speckit-tasks`
+complete (2026-09-23): 42 tasks across Setup (none needed), Foundational
+(schema + shared expiry/manual-end/summary logic + FR-011, T001-T012),
+and three user-story phases (US1 timed quiz T013-T023, US2 timed
+practice T024-T032, US3 post-session summary T033-T037), plus Polish
+(T038-T042). US1 alone is a demoable MVP increment. `/speckit-implement`
+not yet run.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5
@@ -1798,6 +1803,11 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.15.0 -- 2026-09-23, Milestone 20 `/speckit-tasks`
+complete: 42 tasks generated across Foundational + 3 user-story phases
++ Polish; US1 (timed quiz) alone is a demoable MVP increment,
+independently testable per spec.md.
 
 **Version**: 3.14.0 -- 2026-09-23, Milestone 20: post-plan
 `/speckit-clarify` added FR-011/SC-006 (per-question time-spent
