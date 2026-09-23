@@ -111,7 +111,7 @@ backend/
 │       └── routes/
 │           ├── quiz.py               # EXTENDED: time_limit_seconds, /end route
 │           ├── practice_sessions.py  # NEW: mirrors quiz.py's route shape
-│           └── questions.py          # EXTENDED: FR-011 time_spent_seconds in answer_submitted payload (every flow)
+│           └── questions.py          # EXTENDED: FR-011 time_spent_seconds in answer_submitted payload (every flow), + timed-session expiry rejection (US1/US2)
 ├── alembic/versions/
 │   └── <new migration>.py            # practice_sessions table, 2 new columns, 1 new enum value
 └── tests/

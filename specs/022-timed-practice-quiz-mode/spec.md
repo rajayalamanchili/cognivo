@@ -105,7 +105,8 @@ session results are already shown (learner dashboard, guardian view).
 1. **Given** a timed session has ended (by completion or expiry),
    **When** the learner views their result, **Then** they see the
    configured time limit, the actual time used, and how the session
-   ended (finished early, auto-submitted/locked at expiry).
+   ended (completed, auto-submitted at expiry, or manually ended
+   early).
 
 ---
 
@@ -174,12 +175,6 @@ session results are already shown (learner dashboard, guardian view).
   timer -- no session boundary, no countdown, no expiry. This does not
   exempt untimed sessions from FR-011's per-question timing record,
   which applies uniformly regardless of timer opt-in.
-- **FR-011**: System MUST record, for every answered question
-  (timed or untimed, quiz or practice, no exceptions), how long the
-  learner took between the question being shown and their answer being
-  submitted, computed server-side from timestamps the system already
-  records -- never from a client-reported duration (Clarifications,
-  2026-09-23).
 - **FR-010**: System MUST let a learner end a timed session manually
   before the time limit or question count is reached. This is a new
   capability scoped to timed sessions only -- neither today's untimed
@@ -188,6 +183,12 @@ session results are already shown (learner dashboard, guardian view).
   `ended_early` trigger is automatic question-variety exhaustion, never
   a learner action), and untimed sessions have no time pressure that
   would motivate adding one.
+- **FR-011**: System MUST record, for every answered question
+  (timed or untimed, quiz or practice, no exceptions), how long the
+  learner took between the question being shown and their answer being
+  submitted, computed server-side from timestamps the system already
+  records -- never from a client-reported duration (Clarifications,
+  2026-09-23).
 
 ### Key Entities *(include if feature involves data)*
 

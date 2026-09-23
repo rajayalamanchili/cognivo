@@ -1586,8 +1586,15 @@ complete (2026-09-23): 42 tasks across Setup (none needed), Foundational
 (schema + shared expiry/manual-end/summary logic + FR-011, T001-T012),
 and three user-story phases (US1 timed quiz T013-T023, US2 timed
 practice T024-T032, US3 post-session summary T033-T037), plus Polish
-(T038-T042). US1 alone is a demoable MVP increment. `/speckit-implement`
-not yet run.
+(T038-T042). US1 alone is a demoable MVP increment. `/speckit-analyze`
+complete (2026-09-23): 0 CRITICAL, 2 HIGH (a stale "locked at expiry"
+phrase in US3's acceptance scenario left over from before the
+expiry-behavior clarification was integrated; SC-006's timed-quiz/
+timed-practice halves had no automated test, only a manual quickstart
+run), 5 MEDIUM/LOW (missing FR-005/006/007/SC-002/003 task citations,
+an FR numbering-order cosmetic issue, two dependency-note wording
+inaccuracies) -- all 7 fixed in place before `/speckit-implement`.
+`/speckit-implement` not yet run.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5
@@ -1803,6 +1810,13 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.16.0 -- 2026-09-23, Milestone 20 `/speckit-analyze`
+complete: 0 CRITICAL findings, 2 HIGH (stale "locked at expiry" wording
+contradicting the resolved auto-submit decision; SC-006's timed-flow
+half untested by automation) and 5 MEDIUM/LOW (uncited FR/SC task
+traceability, one cosmetic FR-ordering issue, two dependency-note
+wording inaccuracies), all fixed before `/speckit-implement`.
 
 **Version**: 3.15.0 -- 2026-09-23, Milestone 20 `/speckit-tasks`
 complete: 42 tasks generated across Foundational + 3 user-story phases
