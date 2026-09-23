@@ -11,16 +11,19 @@ import {
   getDemoLearner,
   getNextQuestion,
   getPracticeNextQuestion,
+  getPracticeSessionSummary,
   getSubjects,
   startPracticeSession,
   type AnswerResult,
   type NextQuestion,
+  type PracticeSessionSummaryResponse,
   type SubjectSummary,
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import SessionCountdown from "@/components/SessionCountdown";
+import SessionTimingSummary from "@/components/SessionTimingSummary";
 import { TIME_LIMIT_OPTIONS } from "@/lib/time-limit-options";
 
 type Phase =
@@ -47,6 +50,7 @@ export default function PracticeFlow() {
   // untimed practice, identical to before this feature (FR-009).
   const [practiceSessionId, setPracticeSessionId] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [endedSummary, setEndedSummary] = useState<PracticeSessionSummaryResponse | null>(null);
 
   const [question, setQuestion] = useState<NextQuestion | null>(null);
   const [response, setResponse] = useState("");
@@ -119,6 +123,19 @@ export default function PracticeFlow() {
     }
   }
 
+  // Spec 022 SC-005: fetches the session summary (time limit, time
+  // used, end reason) before showing the ended screen, so a learner
+  // can see how the timed session actually went.
+  async function goToEnded(sessionId: string) {
+    try {
+      const summary = await getPracticeSessionSummary(sessionId);
+      setEndedSummary(summary);
+    } catch {
+      setEndedSummary(null);
+    }
+    setPhase("ended");
+  }
+
   async function advanceToNextQuestion() {
     if (practiceSessionId) {
       setResponse("");
@@ -132,11 +149,11 @@ export default function PracticeFlow() {
           setQuestion(next.question);
           setPhase("answering");
         } else {
-          setPhase("ended");
+          await goToEnded(practiceSessionId);
         }
       } catch (error) {
         if (error instanceof ApiError && error.status === 409) {
-          setPhase("ended");
+          await goToEnded(practiceSessionId);
           return;
         }
         setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -160,7 +177,7 @@ export default function PracticeFlow() {
     if (!practiceSessionId) return;
     try {
       await endPracticeSession(practiceSessionId);
-      setPhase("ended");
+      await goToEnded(practiceSessionId);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
@@ -170,6 +187,7 @@ export default function PracticeFlow() {
   function handleStartOver() {
     setPracticeSessionId(null);
     setExpiresAt(null);
+    setEndedSummary(null);
     setQuestion(null);
     setPhase("start");
   }
@@ -230,8 +248,19 @@ export default function PracticeFlow() {
   if (phase === "ended") {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-ended">
-        <h1 className="text-2xl font-semibold">Time&apos;s up!</h1>
-        <p>Your timed practice session has ended.</p>
+        <h1 className="text-2xl font-semibold">Practice session ended</h1>
+        {endedSummary && (
+          <>
+            <p className="text-lg">
+              Score: <strong>{endedSummary.score.correct}</strong> / {endedSummary.score.total}
+            </p>
+            <SessionTimingSummary
+              timeLimitSeconds={endedSummary.time_limit_seconds}
+              elapsedSeconds={endedSummary.elapsed_seconds}
+              endReason={endedSummary.end_reason}
+            />
+          </>
+        )}
         <div className="flex items-center gap-4">
           <button
             type="button"

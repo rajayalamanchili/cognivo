@@ -24,6 +24,7 @@ vi.mock("@/services/api", async () => {
     startPracticeSession: vi.fn(),
     getPracticeNextQuestion: vi.fn(),
     endPracticeSession: vi.fn(),
+    getPracticeSessionSummary: vi.fn(),
   };
 });
 
@@ -54,6 +55,7 @@ beforeEach(() => {
   vi.mocked(api.startPracticeSession).mockReset();
   vi.mocked(api.getPracticeNextQuestion).mockReset();
   vi.mocked(api.endPracticeSession).mockReset();
+  vi.mocked(api.getPracticeSessionSummary).mockReset();
 });
 
 describe("PracticeFlow start screen", () => {
@@ -116,6 +118,17 @@ describe("PracticeFlow start screen", () => {
     vi.mocked(api.getPracticeNextQuestion).mockRejectedValue(
       new ApiError(409, "session has ended"),
     );
+    vi.mocked(api.getPracticeSessionSummary).mockResolvedValue({
+      practice_session_id: "practice-1",
+      subject_id: "algebra-1",
+      status: "ended_early",
+      started_at: "2026-09-23T12:00:00Z",
+      completed_at: "2026-09-23T12:30:00Z",
+      score: { correct: 1, total: 1 },
+      time_limit_seconds: 1800,
+      elapsed_seconds: 1800,
+      end_reason: "timer_expired",
+    });
 
     render(<PracticeFlow />);
     await screen.findByTestId("practice-start-form");
@@ -127,6 +140,11 @@ describe("PracticeFlow start screen", () => {
     await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
     await userEvent.click(await screen.findByRole("button", { name: /next question/i }));
 
+    // SC-005: the configured time limit, actual time used, and how the
+    // session ended are all visible on the ended screen.
     expect(await screen.findByTestId("practice-ended")).toBeInTheDocument();
+    expect(screen.getByTestId("session-timing-summary")).toHaveTextContent(/30 min/);
+    expect(screen.getByTestId("session-timing-summary")).toHaveTextContent(/time ran out/i);
+    expect(screen.getByText(/Score:/).parentElement).toHaveTextContent("Score: 1 / 1");
   });
 });

@@ -208,6 +208,9 @@ export interface QuizSummaryEntry {
   total: number;
 }
 
+// Spec 022 SC-005: all three null for an untimed quiz.
+export type SessionEndReason = "completed" | "timer_expired" | "manually_ended_early" | null;
+
 export interface QuizSummaryResponse {
   quiz_session_id: string;
   subject_id: string;
@@ -218,6 +221,9 @@ export interface QuizSummaryResponse {
   completed_at: string | null;
   score: QuizScore;
   summary: QuizSummaryEntry[];
+  time_limit_seconds?: number | null;
+  elapsed_seconds?: number | null;
+  end_reason?: SessionEndReason;
 }
 
 // Free-text's four distinct rejection responses (contracts/api.md) --
@@ -398,6 +404,26 @@ export function endPracticeSession(practiceSessionId: string): Promise<EndPracti
   return request<EndPracticeSessionResponse>(`/api/practice-sessions/${practiceSessionId}/end`, {
     method: "POST",
   });
+}
+
+// Spec 022 SC-005 (US3): always non-null -- every PracticeSession row
+// is timed by construction.
+export interface PracticeSessionSummaryResponse {
+  practice_session_id: string;
+  subject_id: string;
+  status: QuizStatus;
+  started_at: string;
+  completed_at: string | null;
+  score: QuizScore;
+  time_limit_seconds: number | null;
+  elapsed_seconds: number | null;
+  end_reason: SessionEndReason;
+}
+
+export function getPracticeSessionSummary(
+  practiceSessionId: string,
+): Promise<PracticeSessionSummaryResponse> {
+  return request<PracticeSessionSummaryResponse>(`/api/practice-sessions/${practiceSessionId}`);
 }
 
 // spec 019 FR-005b: attaches the quiz-session hand-off token when the

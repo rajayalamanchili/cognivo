@@ -125,6 +125,8 @@ backend/
 │           │                         # payload (placement's own submit route -- found during
 │           │                         # implementation, not in the original file list)
 │           └── main.py               # EXTENDED: registers practice_sessions.router
+│           (quiz.py + practice_sessions.py also EXTENDED again, US3: summary routes
+│           gain time_limit_seconds/elapsed_seconds/end_reason via T008's helper)
 ├── alembic/versions/
 │   └── 5033078cfc81_timed_practice_quiz_mode.py  # practice_sessions table, 2 new
 │                                                   # columns, 1 new enum value
@@ -132,7 +134,7 @@ backend/
     ├── unit/                          # test_timed_session_expiry.py,
     │                                   # test_timed_session_manual_end.py, test_answer_time_spent.py
     ├── contract/                      # test_quiz_timed_*.py, test_quiz_manual_end.py,
-    │                                   # test_practice_session_*.py
+    │                                   # test_practice_session_*.py, test_quiz_timed_summary.py
     └── integration/                   # test_timed_quiz_full_attempt.py,
                                         # test_timed_practice_full_session.py,
                                         # test_ordinary_practice_unaffected.py
@@ -140,17 +142,22 @@ backend/
 frontend/
 ├── src/
 │   ├── components/
-│   │   └── SessionCountdown.tsx      # NEW: client-side countdown built from server expires_at
+│   │   ├── SessionCountdown.tsx      # NEW: client-side countdown built from server expires_at
+│   │   └── SessionTimingSummary.tsx  # NEW (US3): shared time-limit/time-used/end-reason
+│   │                                 # display, reused by QuizSummary.tsx and practice-flow's
+│   │                                 # new ended screen -- not in the original file list
 │   ├── lib/
 │   │   └── time-limit-options.ts     # NEW: shared TIME_LIMIT_OPTIONS (quiz + practice pickers
 │   │                                 # can't drift apart) -- not in the original file list
 │   ├── services/
 │   │   └── api.ts                    # EXTENDED: expires_at, time_limit_seconds, endQuiz(),
-│   │                                 # startPracticeSession/getPracticeNextQuestion/endPracticeSession
+│   │                                 # startPracticeSession/getPracticeNextQuestion/
+│   │                                 # endPracticeSession/getPracticeSessionSummary
 │   └── app/
 │       ├── quiz/quiz-flow.tsx         # EXTENDED: time-limit picker, countdown, end-now button
 │       └── practice/practice-flow.tsx # EXTENDED: new "start" screen (subject + time-limit
-│                                       # picker) before either untimed or timed practice begins
+│                                       # picker) before either untimed or timed practice
+│                                       # begins; US3 adds a fetched summary on the ended screen
 └── tests/unit/                        # session-countdown.test.tsx, practice-flow.test.tsx
                                         # (actual location: tests/unit/, kebab-case, matching
                                         # this repo's real convention, not this row's original guess)

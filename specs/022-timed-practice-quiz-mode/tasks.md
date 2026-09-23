@@ -136,14 +136,14 @@ already shown.
 
 ### Tests for User Story 3
 
-- [ ] T033 [P] [US3] Contract test extension in `backend/tests/contract/test_quiz_timed_summary.py`: `GET /api/quizzes/{id}` returns non-null `time_limit_seconds`/`elapsed_seconds`/`end_reason` for a timed quiz (any of `completed`/`timer_expired`/`manually_ended_early`), and all three `null` for an untimed quiz (contracts/api.md, SC-005)
-- [ ] T034 [P] [US3] Contract test for `GET /api/practice-sessions/{id}` summary in `backend/tests/contract/test_practice_session_summary.py`: returns the same three fields, always non-null, plus a correct/total score derived the same way as the quiz summary (contracts/api.md, SC-005)
+- [X] T033 [P] [US3] Contract test extension in `backend/tests/contract/test_quiz_timed_summary.py`: `GET /api/quizzes/{id}` returns non-null `time_limit_seconds`/`elapsed_seconds`/`end_reason` for a timed quiz (any of `completed`/`timer_expired`/`manually_ended_early`), and all three `null` for an untimed quiz (contracts/api.md, SC-005)
+- [X] T034 [P] [US3] Contract test for `GET /api/practice-sessions/{id}` summary in `backend/tests/contract/test_practice_session_summary.py`: returns the same three fields, always non-null, plus a correct/total score derived the same way as the quiz summary (contracts/api.md, SC-005)
 
 ### Implementation for User Story 3
 
-- [ ] T035 [US3] Extend `GET /api/quizzes/{id}`'s response model in `backend/src/api/routes/quiz.py` with `time_limit_seconds`/`elapsed_seconds`/`end_reason`, sourced from T008's generalized summary helper (contracts/api.md) (depends on T008)
-- [ ] T036 [US3] Extend `practice_sessions.py`'s baseline `GET /api/practice-sessions/{id}` (T029) with the same three fields via T008's helper (contracts/api.md) (depends on T008, T029)
-- [ ] T037 [P] [US3] Add a post-session summary display (time limit, time used, end reason) to the quiz/practice result UI in `frontend/src/`, reading T035/T036's new fields (SC-005) (depends on T035, T036)
+- [X] T035 [US3] Extend `GET /api/quizzes/{id}`'s response model in `backend/src/api/routes/quiz.py` with `time_limit_seconds`/`elapsed_seconds`/`end_reason`, sourced from T008's generalized summary helper (contracts/api.md) (depends on T008)
+- [X] T036 [US3] Extend `practice_sessions.py`'s baseline `GET /api/practice-sessions/{id}` (T029) with the same three fields via T008's helper (contracts/api.md) (depends on T008, T029)
+- [X] T037 [P] [US3] Add a post-session summary display (time limit, time used, end reason) to the quiz/practice result UI in `frontend/src/`, reading T035/T036's new fields (SC-005) (depends on T035, T036). New shared `SessionTimingSummary.tsx` component (renders nothing for an untimed session) reused by both `QuizSummary.tsx` and practice-flow's new "ended" screen -- the practice flow previously had no ended-screen summary at all (just a plain message), so this also added the `getPracticeSessionSummary` fetch that feeds it. Test coverage extended in `practice-flow.test.tsx`.
 
 **Checkpoint**: All three user stories independently functional -- a
 learner can see how a timed session actually went.

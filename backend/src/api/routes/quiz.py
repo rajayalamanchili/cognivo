@@ -40,6 +40,7 @@ from src.services.quiz.session import (
     SessionNotTimedError,
     check_and_expire_if_needed,
     compute_quiz_summary,
+    compute_timed_session_timing,
     end_session_manually,
     generate_quiz_question,
     persist_quiz_question,
@@ -315,6 +316,10 @@ class QuizSummaryOut(BaseModel):
     completed_at: str | None
     score: QuizScoreOut
     summary: list[QuizSummaryEntryOut]
+    # Spec 022 SC-005: all three `None` for an untimed quiz.
+    time_limit_seconds: int | None = None
+    elapsed_seconds: int | None = None
+    end_reason: str | None = None
 
 
 @router.get("/api/quizzes/{quiz_session_id}", response_model=QuizSummaryOut)
@@ -359,6 +364,7 @@ def get_quiz_summary_route(
         db.commit()
 
     summary = compute_quiz_summary(db, quiz_session_id=quiz_session_id)
+    timing = compute_timed_session_timing(db, session=quiz, session_type="quiz")
 
     return QuizSummaryOut(
         quiz_session_id=quiz.quiz_session_id,
@@ -378,4 +384,7 @@ def get_quiz_summary_route(
             )
             for entry in summary.breakdown
         ],
+        time_limit_seconds=timing.time_limit_seconds,
+        elapsed_seconds=timing.elapsed_seconds,
+        end_reason=timing.end_reason,
     )

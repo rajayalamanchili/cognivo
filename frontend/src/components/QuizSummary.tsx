@@ -1,5 +1,6 @@
 import type { Difficulty, QuizSummaryResponse } from "@/services/api";
 import { formatTopicId } from "@/lib/format-topic-id";
+import SessionTimingSummary from "@/components/SessionTimingSummary";
 
 // Presentational only -- FR-005's score + per-topic/difficulty summary,
 // rendered identically whether the quiz reached a normal `completed`
@@ -30,6 +31,11 @@ export default function QuizSummary({ summary }: QuizSummaryProps) {
       <p className="text-lg">
         Score: <strong>{summary.score.correct}</strong> / {summary.score.total}
       </p>
+      <SessionTimingSummary
+        timeLimitSeconds={summary.time_limit_seconds}
+        elapsedSeconds={summary.elapsed_seconds}
+        endReason={summary.end_reason}
+      />
       {summary.summary.length > 0 && (
         <ul className="flex flex-col gap-2">
           {summary.summary.map((entry) => (

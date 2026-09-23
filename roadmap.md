@@ -1615,7 +1615,18 @@ before either untimed or timed practice begins -- confirmed with the
 user first, since ordinary untimed practice previously loaded a
 question with zero clicks. 11 new backend tests + 4 new frontend tests,
 all passing against a real DB; full frontend suite 116/116. Phase 5
-(US3, post-session summary) and Polish not yet run.
+(User Story 3, post-session summary, T033-T037) also complete
+(2026-09-23): `GET /api/quizzes/{id}` and `GET /api/practice-sessions/
+{id}` both extended with `time_limit_seconds`/`elapsed_seconds`/
+`end_reason`, sourced from T008's `compute_timed_session_timing`
+helper; a new shared `SessionTimingSummary.tsx` component renders this
+on both the quiz summary and a newly-added practice "ended" screen
+(practice previously had no post-session summary view at all). 4 new
+backend tests + summary assertions added to the practice-flow frontend
+test, all passing. All three user stories are now independently
+functional -- only Phase 6 (Polish: subject-conditional check, schema-
+drift check, quickstart run, full regression suite, this status line)
+remains before the milestone is fully shipped.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5

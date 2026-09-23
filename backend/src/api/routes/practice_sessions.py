@@ -31,6 +31,7 @@ from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import (
     SessionAlreadyEndedError,
     check_and_expire_if_needed,
+    compute_timed_session_timing,
     end_session_manually,
     validate_time_limit_seconds,
 )
@@ -245,16 +246,17 @@ class PracticeScoreOut(BaseModel):
 
 
 class PracticeSummaryOut(BaseModel):
-    """Baseline shape (spec 022 T029) -- extended with
-    `time_limit_seconds`/`elapsed_seconds`/`end_reason` by User Story 3
-    (T036), not here."""
-
     practice_session_id: uuid.UUID
     subject_id: str
     status: str
     started_at: str
     completed_at: str | None
     score: PracticeScoreOut
+    # Spec 022 SC-005 (US3, T036): always non-null -- every
+    # PracticeSession row is timed by construction.
+    time_limit_seconds: int | None = None
+    elapsed_seconds: int | None = None
+    end_reason: str | None = None
 
 
 @router.get("/api/practice-sessions/{practice_session_id}", response_model=PracticeSummaryOut)
@@ -263,6 +265,7 @@ def get_practice_summary(
 ) -> PracticeSummaryOut:
     practice_session = _get_practice_session(db, practice_session_id)
     correct, total = _compute_practice_score(db, practice_session_id=practice_session_id)
+    timing = compute_timed_session_timing(db, session=practice_session, session_type="practice")
 
     return PracticeSummaryOut(
         practice_session_id=practice_session.practice_session_id,
@@ -273,4 +276,7 @@ def get_practice_summary(
             practice_session.completed_at.isoformat() if practice_session.completed_at else None
         ),
         score=PracticeScoreOut(correct=correct, total=total),
+        time_limit_seconds=timing.time_limit_seconds,
+        elapsed_seconds=timing.elapsed_seconds,
+        end_reason=timing.end_reason,
     )
