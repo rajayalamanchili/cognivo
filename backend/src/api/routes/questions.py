@@ -32,9 +32,10 @@ from src.api.errors import (
 )
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, QuestionType, ValidationStatus
+from src.models.enums import AssessmentEventType, QuestionType, QuizSessionStatus, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
+from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.observability.session import get_database_session_service
@@ -57,7 +58,7 @@ from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
-from src.services.quiz.session import record_quiz_answer
+from src.services.quiz.session import check_and_expire_if_needed, record_quiz_answer
 from src.services.quiz_assignment.assignment import assert_quiz_session_access
 
 router = APIRouter()
@@ -384,6 +385,21 @@ async def answer_question(
             claims=claims,
             handoff_token=x_quiz_handoff_token,
         )
+        # Spec 022 FR-003/FR-006, research.md §1: rejects an answer that
+        # arrives after the quiz's expires_at, even without an
+        # intervening next-question call. Scoped to timed quizzes only
+        # (time_limit_seconds is not None) -- an untimed quiz's answer
+        # behavior is completely unchanged (FR-009), including today's
+        # pre-existing lack of any status check here at all.
+        quiz = db.get(QuizSession, question.quiz_session_id)
+        if quiz.time_limit_seconds is not None:
+            check_and_expire_if_needed(db, session=quiz, session_type="quiz")
+            if quiz.status != QuizSessionStatus.IN_PROGRESS:
+                db.commit()
+                raise ConflictError(
+                    f"quiz {question.quiz_session_id}: session has ended "
+                    f"(status={quiz.status.value})"
+                )
     if _already_answered(db, question_id):
         raise ConflictError(f"question {question_id} already answered")
     try:

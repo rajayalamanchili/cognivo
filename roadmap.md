@@ -1594,7 +1594,16 @@ timed-practice halves had no automated test, only a manual quickstart
 run), 5 MEDIUM/LOW (missing FR-005/006/007/SC-002/003 task citations,
 an FR numbering-order cosmetic issue, two dependency-note wording
 inaccuracies) -- all 7 fixed in place before `/speckit-implement`.
-`/speckit-implement` not yet run.
+`/speckit-implement` Phase 1-2 (Foundational, T001-T012) and Phase 3
+(User Story 1, timed quiz, T013-T023) both complete (2026-09-23),
+verified against a real Postgres DB throughout: `alembic check` passed
+with zero drift; 13 new backend contract/integration tests plus 3 new
+frontend tests all pass; full backend regression subset (121/123,
+2 explained) and full frontend suite (112/112) both clean. US1 alone
+is now a demoable MVP -- a learner can start a timed quiz, see a live
+countdown, have it auto-submit at expiry or complete normally, or end
+it manually, with every transition audited. Phases 4-5 (US2 timed
+practice, US3 post-session summary) and Polish not yet run.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ApiError,
   answerQuestion,
+  endQuiz,
   flagQuestion,
   getDemoLearner,
   getMasteryState,
@@ -20,6 +21,7 @@ import {
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SessionCountdown from "@/components/SessionCountdown";
 import { formatTopicId } from "@/lib/format-topic-id";
 import { getPacingProfile } from "@/lib/pacing";
 
@@ -35,6 +37,16 @@ type Phase =
 
 const DEFAULT_QUESTION_COUNT = 5;
 
+// Spec 022 FR-001/Assumptions: a small fixed preset, matching the
+// backend's own allowed values (quiz.py's _ALLOWED_TIME_LIMIT_SECONDS).
+const TIME_LIMIT_OPTIONS: { label: string; seconds: number | null }[] = [
+  { label: "Untimed", seconds: null },
+  { label: "15 minutes", seconds: 900 },
+  { label: "30 minutes", seconds: 1800 },
+  { label: "45 minutes", seconds: 2700 },
+  { label: "60 minutes", seconds: 3600 },
+];
+
 // FR-009's "more frequent positive reinforcement for younger bands" --
 // a brief, non-blocking encouragement shown above the next question
 // every `reinforcementEveryN` answered questions, distinct from (and
@@ -49,8 +61,10 @@ export default function QuizFlow() {
   const [topics, setTopics] = useState<MasteryTopicEntry[]>([]);
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(DEFAULT_QUESTION_COUNT);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState<number | null>(null);
 
   const [quizSessionId, setQuizSessionId] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<NextQuestion | null>(null);
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
@@ -124,8 +138,9 @@ export default function QuizFlow() {
     if (selectedTopicIds.length === 0) return;
     setPhase("starting");
     try {
-      const result = await startQuiz(selectedTopicIds, questionCount);
+      const result = await startQuiz(selectedTopicIds, questionCount, timeLimitSeconds);
       setQuizSessionId(result.quiz_session_id);
+      setExpiresAt(result.expires_at ?? null);
       setAnsweredCount(0);
       setStoppingPointShown(false);
       setReinforcementMessage(null);
@@ -145,6 +160,7 @@ export default function QuizFlow() {
   async function advanceToNextQuestion(sessionId: string) {
     try {
       const next = await getQuizNextQuestion(sessionId);
+      setExpiresAt(next.expires_at ?? null);
       if (next.status === "in_progress" && next.question) {
         setCurrentQuestion(next.question);
         setFlagged(false);
@@ -161,6 +177,27 @@ export default function QuizFlow() {
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
     }
+  }
+
+  // Spec 022 FR-010: a new "end now" action, timed quizzes only.
+  async function handleEndQuizNow() {
+    if (!quizSessionId) return;
+    try {
+      await endQuiz(quizSessionId);
+      await goToSummary(quizSessionId);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setPhase("error");
+    }
+  }
+
+  // Spec 022 FR-003: the countdown reaching zero doesn't itself end the
+  // session -- it just triggers the same request the learner's next
+  // action would have, and the server's own lazy expiry check (already
+  // wired into next-question/answer) does the real work.
+  function handleCountdownExpire() {
+    if (!quizSessionId) return;
+    void advanceToNextQuestion(quizSessionId);
   }
 
   // spec 019 FR-009: called after every answered question (both the
@@ -271,6 +308,18 @@ export default function QuizFlow() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
         <h1 className="text-2xl font-semibold">Quiz</h1>
+        {expiresAt && (
+          <div className="flex items-center justify-between gap-4">
+            <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
+            <button
+              type="button"
+              onClick={handleEndQuizNow}
+              className="text-sm text-link underline"
+            >
+              End quiz now
+            </button>
+          </div>
+        )}
         {reinforcementMessage && (
           <p
             data-testid="reinforcement-message"
@@ -353,6 +402,22 @@ export default function QuizFlow() {
           onChange={(event) => setQuestionCount(Number(event.target.value))}
           className="rounded-lg border border-border px-3 py-2"
         />
+      </label>
+      <label className="flex flex-col gap-1">
+        Time limit
+        <select
+          value={timeLimitSeconds ?? ""}
+          onChange={(event) =>
+            setTimeLimitSeconds(event.target.value === "" ? null : Number(event.target.value))
+          }
+          className="rounded-lg border border-border px-3 py-2"
+        >
+          {TIME_LIMIT_OPTIONS.map((option) => (
+            <option key={option.label} value={option.seconds ?? ""}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
       <button
         type="button"

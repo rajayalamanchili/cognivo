@@ -125,11 +125,13 @@ frontend/
 ├── src/
 │   ├── components/
 │   │   └── SessionCountdown.tsx      # NEW: client-side countdown built from server expires_at
-│   └── pages/ (or app/ routes)
-│       ├── quiz start/attempt UI      # EXTENDED: time-limit picker, countdown, end-now button
-│       └── practice start/attempt UI  # EXTENDED: opt-in timed-practice entry point
-└── tests/
-    └── SessionCountdown.test.tsx      # NEW
+│   ├── services/
+│   │   └── api.ts                    # EXTENDED: expires_at, time_limit_seconds, endQuiz()
+│   └── app/quiz/quiz-flow.tsx        # EXTENDED: time-limit picker, countdown, end-now button
+└── tests/unit/
+    └── session-countdown.test.tsx     # NEW (actual location/naming: tests/unit/, kebab-case,
+                                        # matching this repo's real convention, not the
+                                        # co-located PascalCase guess this row originally had)
 ```
 
 **Structure Decision**: Existing `backend/` + `frontend/` split,

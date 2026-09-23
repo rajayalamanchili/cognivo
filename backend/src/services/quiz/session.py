@@ -180,17 +180,22 @@ def start_quiz(
     subject_id: str,
     topic_ids: list[str],
     question_count: int,
+    time_limit_seconds: int | None = None,
 ) -> QuizSession:
     """Persists a new `QuizSession` row (`status=in_progress`). Does not
-    commit, and does not validate `topic_ids`/`question_count` -- the
-    caller (the API route) is responsible for FR-001's request-shape
-    validation before calling this, matching this codebase's existing
-    convention of validating in the route layer."""
+    commit, and does not validate `topic_ids`/`question_count`/
+    `time_limit_seconds` -- the caller (the API route) is responsible
+    for FR-001's request-shape validation before calling this, matching
+    this codebase's existing convention of validating in the route
+    layer. `time_limit_seconds` defaults to `None` (untimed, spec 022
+    FR-009) -- `quiz_assignment/assignment.py`'s `start_assignment_
+    attempt` doesn't pass it, unaffected by this addition."""
     quiz = QuizSession(
         learner_id=learner_id,
         subject_id=subject_id,
         topic_ids=list(topic_ids),
         question_count=question_count,
+        time_limit_seconds=time_limit_seconds,
     )
     db.add(quiz)
     db.flush()

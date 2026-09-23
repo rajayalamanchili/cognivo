@@ -179,11 +179,21 @@ export interface StartQuizResponse {
   status: QuizStatus;
   question: NextQuestion | null;
   handoff_token: string | null;
+  // spec 022 FR-002: null/absent for an untimed quiz -- optional here
+  // (rather than required) so existing mocks/callers that predate this
+  // feature don't all need updating just to satisfy the type.
+  expires_at?: string | null;
 }
 
 export interface QuizNextQuestionResponse {
   status: QuizStatus;
   question: NextQuestion | null;
+  expires_at?: string | null;
+}
+
+export interface EndQuizResponse {
+  quiz_session_id: string;
+  status: QuizStatus;
 }
 
 export interface QuizScore {
@@ -361,10 +371,24 @@ export function answerQuestion(
   });
 }
 
-export function startQuiz(topicIds: string[], questionCount: number): Promise<StartQuizResponse> {
+export function startQuiz(
+  topicIds: string[],
+  questionCount: number,
+  timeLimitSeconds?: number | null,
+): Promise<StartQuizResponse> {
   return request<StartQuizResponse>("/api/quizzes", {
     method: "POST",
-    body: JSON.stringify({ topic_ids: topicIds, question_count: questionCount }),
+    body: JSON.stringify({
+      topic_ids: topicIds,
+      question_count: questionCount,
+      time_limit_seconds: timeLimitSeconds ?? null,
+    }),
+  });
+}
+
+export function endQuiz(quizSessionId: string): Promise<EndQuizResponse> {
+  return request<EndQuizResponse>(`/api/quizzes/${quizSessionId}/end`, {
+    method: "POST",
   });
 }
 
