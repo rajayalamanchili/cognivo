@@ -1475,9 +1475,11 @@ any table yet.
 
 **Spec**: `specs/021-schema-drift-ci-check/spec.md`.
 **Status**: `/speckit-implement` complete, all 5 user-story phases plus
-Polish (2026-09-22, branch `031-schema-drift-ci-check`). Not a promoted
-"Known gap" -- surfaced directly as a feature request, not tied to a
-prior milestone's deferred item.
+Polish (2026-09-22, branch `031-schema-drift-ci-check`). Merged to
+`staging` via PR #81 and promoted to `main` via PR #82 (both
+2026-09-22) -- milestone fully shipped. Not a promoted "Known gap" --
+surfaced directly as a feature request, not tied to a prior milestone's
+deferred item.
 
 **Scope**: A CI-only gate, no product/learner-facing surface. Adds one
 `alembic check` step to `backend-tests.yml` (after migrations run,
@@ -1544,6 +1546,63 @@ already-merged migration history for pre-existing drift beyond what
 T005's manual check happened to surface; an allowlist/escape-hatch
 mechanism (no legitimate case exists where a model change should ship
 without a matching migration, per spec.md's Assumptions).
+
+---
+
+## Milestone 20: Timed Practice and Quiz Mode
+
+**Spec**: `specs/022-timed-practice-quiz-mode/spec.md`.
+**Status**: `/speckit-specify` complete (2026-09-23, branch
+`032-timed-practice-quiz-mode`). The three open design questions below
+were resolved during `/speckit-specify`'s own clarification loop rather
+than needing a separate `/speckit-clarify` pass: timer expiry
+auto-submits using whatever answers exist (no lock-and-manual-end);
+scoring stays identical to an untimed session (purely informational
+timer, no penalty/cutoff); the new practice-session boundary is scoped
+narrowly to timed practice only -- untimed practice stays exactly as
+stateless and unbounded as it is today. No `/speckit-plan`/`tasks.md`
+yet.
+
+**Scope**: Let a learner opt into a time-bound session (e.g. "20
+questions in 30 minutes") for both ordinary practice and Milestone 5
+quizzes, distinct from today's untimed, learner-paced default.
+Deliberately not folded into Milestone 17: that milestone's Story 3
+pacing is a soft, age-driven suggestion a learner can ignore, while
+exam-style timing is a learner-opted-in, grade-band-independent hard
+constraint -- a 3rd grader and a 10th grader preparing for a timed test
+want the identical feature.
+
+**Design questions, resolved 2026-09-23** (see spec.md's own
+Functional Requirements FR-003/FR-004/FR-008 for the normative text):
+- Timer expiry: auto-submit using whatever answers exist at that
+  moment, not lock-and-manual-end.
+- Scoring under a timer: identical to an untimed session given the
+  same answers -- purely informational, no penalty or cutoff.
+- Practice-session boundary: scoped narrowly to timed practice only.
+  Milestone 17's own `/speckit-plan` found ordinary (non-quiz) practice
+  has no bounded session concept at all today and deliberately chose
+  not to build one (see that milestone's `research.md`/`data-model.md`,
+  "Quiz Sessions only" pre-plan Clarification) -- this milestone leaves
+  that decision undisturbed for untimed practice.
+
+**Likely dependency**: the backlog's "Per-question time-spent tracking"
+item (still in "Out of current roadmap" below, not itself promoted) was
+raised as the underlying instrumentation this milestone would need
+(`time_spent_seconds` alongside the `ANSWER_SUBMITTED` audit event) --
+confirm during `/speckit-plan` whether it must land first or can be
+folded into this milestone's own tasks.
+
+**Definition of done** (draft, to be formalized in its own `spec.md`):
+- All acceptance scenarios in the eventual spec pass.
+- Timed-session behavior (expiry handling, scoring) verified identical
+  across practice and Milestone 5 quizzes -- no divergent logic per
+  entry point.
+- Milestones 1-19's full suites still pass.
+
+**Explicitly not included**: spaced repetition/mastery decay (separate
+"Out of current roadmap" item); any change to Milestone 17's age-driven
+pacing suggestion, which stays a soft nudge independent of this hard
+timer.
 
 ---
 
@@ -1692,29 +1751,10 @@ without a matching migration, per spec.md's Assumptions).
   timed-practice-and-quiz item below would need as its underlying data,
   and that a future pacing/fatigue-detection feature could also draw on
   -- but not itself gated on that item.
-- Timed practice and quiz mode for exam preparation -- letting a
-  learner opt into a time-bound session (e.g. "20 questions in 30
-  minutes") for both ordinary practice and Milestone 5 quizzes, distinct
-  from today's untimed, learner-paced default. Raised 2026-09-20.
-  Deliberately not folded into Milestone 17: that milestone's Story 3
-  pacing is a soft, age-driven suggestion a learner can ignore, while
-  exam-style timing is a learner-opted-in, grade-band-independent hard
-  constraint -- a 3rd grader and a 10th grader preparing for a timed
-  test want the identical feature. Also deliberately not started
-  opportunistically alongside Milestone 17, even though the two are
-  related: Milestone 17's own `/speckit-plan` found that ordinary
-  (non-quiz) practice has no bounded session concept at all today, and
-  deliberately chose not to build one (see that milestone's
-  `research.md`/`data-model.md` and its "Quiz Sessions only" pre-plan
-  Clarification) -- a timed *practice* session would need exactly the
-  session boundary that decision explicitly punted on, so this item
-  inherits that same open design question rather than resolving it by
-  implication. Needs its own scoping pass: what happens when time
-  expires (auto-submit vs. lock further answers), whether score is
-  penalized or simply informational under a timer, and whether the new
-  practice-session boundary this would require is scoped narrowly (only
-  for timed sessions) or becomes a first-class concept ordinary practice
-  gains too.
+- ~~Timed practice and quiz mode for exam preparation~~ -- promoted to
+  Milestone 20 (2026-09-23), see that entry above this section. This
+  bullet is kept, struck through, for the same reason Milestone 17's
+  promotion left its bullet in place.
 
 - Full K-12 STEM content catalog (elementary math/science for grades
   1-5, then a real course-by-course spread across 6-12 -- pre-algebra,
@@ -1740,6 +1780,15 @@ without a matching migration, per spec.md's Assumptions).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.12.0 -- 2026-09-23, added Milestone 20 (Timed Practice
+and Quiz Mode), promoted from its prior "Out of current roadmap" entry;
+`/speckit-specify` complete same day (branch
+`032-timed-practice-quiz-mode`), all three open design questions
+(expiry behavior, scoring, practice-session boundary scope) resolved
+during the spec's own clarification loop -- no separate
+`/speckit-clarify` pass needed. Also recorded Milestone 19's PR #81/#82
+merge to staging+main in its status line.
 
 **Version**: 3.11.0 -- 2026-09-22, added Milestone 19 (Schema-Drift
 Detection CI Check), `/speckit-implement` complete same day; found and
