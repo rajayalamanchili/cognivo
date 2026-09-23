@@ -1552,16 +1552,28 @@ without a matching migration, per spec.md's Assumptions).
 ## Milestone 20: Timed Practice and Quiz Mode
 
 **Spec**: `specs/022-timed-practice-quiz-mode/spec.md`.
-**Status**: `/speckit-specify` complete (2026-09-23, branch
-`032-timed-practice-quiz-mode`). The three open design questions below
-were resolved during `/speckit-specify`'s own clarification loop rather
-than needing a separate `/speckit-clarify` pass: timer expiry
-auto-submits using whatever answers exist (no lock-and-manual-end);
-scoring stays identical to an untimed session (purely informational
-timer, no penalty/cutoff); the new practice-session boundary is scoped
-narrowly to timed practice only -- untimed practice stays exactly as
-stateless and unbounded as it is today. No `/speckit-plan`/`tasks.md`
-yet.
+**Status**: `/speckit-plan` complete (2026-09-23, branch
+`032-timed-practice-quiz-mode`). `/speckit-specify`'s three open design
+questions were resolved during its own clarification loop rather than
+needing a separate `/speckit-clarify` pass: timer expiry auto-submits
+using whatever answers exist (no lock-and-manual-end); scoring stays
+identical to an untimed session (purely informational timer, no
+penalty/cutoff); the new practice-session boundary is scoped narrowly
+to timed practice only -- untimed practice stays exactly as stateless
+and unbounded as it is today. `/speckit-plan` locked expiry enforcement
+as a lazy, per-request server-side check (`expires_at = started_at +
+time_limit_seconds`, checked on the next request that touches the
+session) rather than a background timer process -- required by
+Constitution Principle IX's no-persistent-process constraint on Vercel;
+reuses the same stateless-expiry shape the JWT session cookie and
+Milestone 17's quiz-session hand-off token already use
+(`specs/022-timed-practice-quiz-mode/research.md` §1). Also found and
+corrected a factual error in the original spec draft: today's untimed
+quiz has no learner-initiated "end now" action (`ended_early` today
+only fires from automatic dedup-exhaustion) -- FR-010's manual-early-end
+is new, not a reuse of existing behavior (research.md §4). No new
+dependency, no `tech-stack.md` amendment needed. `tasks.md` not yet
+generated.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5
@@ -1780,6 +1792,14 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.13.0 -- 2026-09-23, Milestone 20 `/speckit-plan`
+complete same day: locked lazy, per-request expiry enforcement (no
+background timer process, required by Principle IX on Vercel) as the
+mechanism resolving how a timed session actually ends; corrected a
+factual error found in the spec's original FR-010 (today's untimed
+quiz has no learner-initiated early-end action, so this is new
+behavior, not a reuse); no new dependency, no `tech-stack.md` amendment.
 
 **Version**: 3.12.0 -- 2026-09-23, added Milestone 20 (Timed Practice
 and Quiz Mode), promoted from its prior "Out of current roadmap" entry;

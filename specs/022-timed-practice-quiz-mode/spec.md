@@ -163,8 +163,13 @@ session results are already shown (learner dashboard, guardian view).
   question-selection logic for any learner who does not opt into a
   timer.
 - **FR-010**: System MUST let a learner end a timed session manually
-  before the time limit or question count is reached, exactly as
-  today's untimed quiz already supports ending early.
+  before the time limit or question count is reached. This is a new
+  capability scoped to timed sessions only -- neither today's untimed
+  quiz nor untimed practice currently offers a learner-initiated "end
+  now" action (confirmed during `/speckit-plan`: today's only
+  `ended_early` trigger is automatic question-variety exhaustion, never
+  a learner action), and untimed sessions have no time pressure that
+  would motivate adding one.
 
 ### Key Entities *(include if feature involves data)*
 
