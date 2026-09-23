@@ -40,6 +40,7 @@ from src.api.routes import (
     learners,
     mastery,
     placement,
+    practice_sessions,
     questions,
     quiz,
     quiz_assignments,
@@ -178,6 +179,7 @@ app.include_router(evaluation.router)
 app.include_router(subjects.router)
 app.include_router(sequencing_preview.router)
 app.include_router(quiz.router)
+app.include_router(practice_sessions.router)
 app.include_router(auth.router)
 app.include_router(learners.router)
 app.include_router(rosters.router)

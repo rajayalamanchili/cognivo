@@ -35,6 +35,7 @@ from src.models.assessment_event import AssessmentEvent
 from src.models.enums import AssessmentEventType, QuestionType, QuizSessionStatus, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
+from src.models.practice_session import PracticeSession
 from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
@@ -71,6 +72,15 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
     return subject
 
 
+def _has_placement_data(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> bool:
+    return (
+        db.query(MasteryState)
+        .filter(MasteryState.learner_id == learner_id, MasteryState.subject_id == subject_id)
+        .first()
+        is not None
+    )
+
+
 class NextQuestionOut(BaseModel):
     question_id: uuid.UUID
     topic_id: str
@@ -85,24 +95,22 @@ class NextQuestionOut(BaseModel):
     unlocked_grade: int | None = None
 
 
-@router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
-async def get_next_question(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
-) -> NextQuestionOut:
-    _get_validated_subject(db, subject_id)
-
-    has_placement_data = (
-        db.query(MasteryState)
-        .filter(MasteryState.learner_id == learner_id, MasteryState.subject_id == subject_id)
-        .first()
-        is not None
-    )
-    if not has_placement_data:
-        raise NotFoundError(
-            f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
-            "complete placement first"
-        )
-
+async def generate_and_persist_next_question(
+    db: Session,
+    *,
+    learner_id: uuid.UUID,
+    subject_id: str,
+    practice_session_id: uuid.UUID | None = None,
+):
+    """Generates a question via the Sequencing Agent and persists it,
+    recording `next_topic_selected` -- shared by ordinary untimed
+    practice (`get_next_question` below) and timed practice
+    (`api/routes/practice_sessions.py`, spec 022); `practice_session_id`
+    tagging is the only difference between the two callers. Does not
+    commit -- same convention as `services/quiz/session.py`'s
+    `persist_quiz_question`. Returns `(question, result)`; `result`
+    carries `.selection`/`.draft`/`.question_type`/`.image_url`/etc.
+    for the caller's own response model."""
     with traced_request(learner_id=learner_id):
         result = await generate_next_question(
             db,
@@ -134,6 +142,7 @@ async def get_next_question(
         validation_status=ValidationStatus.VALID,
         shown_at=now,
         generation_prompt_version=GENERATION_PROMPT_VERSION,
+        practice_session_id=practice_session_id,
     )
     db.add(question)
     db.flush()
@@ -158,7 +167,24 @@ async def get_next_question(
             "cache_miss_reason": result.cache_outcome.reason,
         },
     )
+    return question, result
 
+
+@router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
+async def get_next_question(
+    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+) -> NextQuestionOut:
+    _get_validated_subject(db, subject_id)
+
+    if not _has_placement_data(db, learner_id=learner_id, subject_id=subject_id):
+        raise NotFoundError(
+            f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
+            "complete placement first"
+        )
+
+    question, result = await generate_and_persist_next_question(
+        db, learner_id=learner_id, subject_id=subject_id
+    )
     db.commit()
     return NextQuestionOut(
         question_id=question.question_id,
@@ -400,6 +426,18 @@ async def answer_question(
                     f"quiz {question.quiz_session_id}: session has ended "
                     f"(status={quiz.status.value})"
                 )
+    if question.practice_session_id is not None:
+        # Spec 022 FR-003, mirrors the quiz block above: every
+        # `PracticeSession` is timed by construction (FR-008), so no
+        # `time_limit_seconds is not None` guard is needed here.
+        practice_session = db.get(PracticeSession, question.practice_session_id)
+        check_and_expire_if_needed(db, session=practice_session, session_type="practice")
+        if practice_session.status != QuizSessionStatus.IN_PROGRESS:
+            db.commit()
+            raise ConflictError(
+                f"practice session {question.practice_session_id}: session has ended "
+                f"(status={practice_session.status.value})"
+            )
     if _already_answered(db, question_id):
         raise ConflictError(f"question {question_id} already answered")
     try:

@@ -106,32 +106,54 @@ backend/
 │   │   └── enums.py                 # EXTENDED: + AssessmentEventType.TIMED_SESSION_ENDED
 │   ├── services/
 │   │   └── quiz/
-│   │       └── session.py           # EXTENDED: lazy-expiry check, end-reason logic, reused by both session types
+│   │       └── session.py           # EXTENDED: lazy-expiry check, end-reason logic, reused by
+│   │                                 # both session types; also now owns the shared
+│   │                                 # ALLOWED_TIME_LIMIT_SECONDS/validate_time_limit_seconds
+│   │                                 # (moved out of quiz.py so quiz + practice can't drift)
 │   └── api/
 │       └── routes/
 │           ├── quiz.py               # EXTENDED: time_limit_seconds, /end route
-│           ├── practice_sessions.py  # NEW: mirrors quiz.py's route shape
-│           ├── questions.py          # EXTENDED: FR-011 time_spent_seconds in answer_submitted payload (practice/quiz), + timed-session expiry rejection (US1/US2)
-│           └── placement.py          # EXTENDED: FR-011 time_spent_seconds in answer_submitted payload (placement's own submit route -- found during implementation, not in the original file list)
+│           ├── practice_sessions.py  # NEW: start/next-question/end/summary, reuses
+│           │                         # questions.py's generate_and_persist_next_question
+│           ├── questions.py          # EXTENDED: FR-011 time_spent_seconds in answer_submitted
+│           │                         # payload (practice/quiz), timed-session expiry rejection
+│           │                         # (US1/US2), and a new exported
+│           │                         # generate_and_persist_next_question (extracted from
+│           │                         # get_next_question so practice_sessions.py can reuse it
+│           │                         # rather than duplicating ~50 lines)
+│           ├── placement.py          # EXTENDED: FR-011 time_spent_seconds in answer_submitted
+│           │                         # payload (placement's own submit route -- found during
+│           │                         # implementation, not in the original file list)
+│           └── main.py               # EXTENDED: registers practice_sessions.router
 ├── alembic/versions/
-│   └── <new migration>.py            # practice_sessions table, 2 new columns, 1 new enum value
+│   └── 5033078cfc81_timed_practice_quiz_mode.py  # practice_sessions table, 2 new
+│                                                   # columns, 1 new enum value
 └── tests/
-    ├── unit/
-    │   └── test_timed_session_expiry.py   # NEW
-    └── integration/
-        └── test_timed_quiz_and_practice.py  # NEW
+    ├── unit/                          # test_timed_session_expiry.py,
+    │                                   # test_timed_session_manual_end.py, test_answer_time_spent.py
+    ├── contract/                      # test_quiz_timed_*.py, test_quiz_manual_end.py,
+    │                                   # test_practice_session_*.py
+    └── integration/                   # test_timed_quiz_full_attempt.py,
+                                        # test_timed_practice_full_session.py,
+                                        # test_ordinary_practice_unaffected.py
 
 frontend/
 ├── src/
 │   ├── components/
 │   │   └── SessionCountdown.tsx      # NEW: client-side countdown built from server expires_at
+│   ├── lib/
+│   │   └── time-limit-options.ts     # NEW: shared TIME_LIMIT_OPTIONS (quiz + practice pickers
+│   │                                 # can't drift apart) -- not in the original file list
 │   ├── services/
-│   │   └── api.ts                    # EXTENDED: expires_at, time_limit_seconds, endQuiz()
-│   └── app/quiz/quiz-flow.tsx        # EXTENDED: time-limit picker, countdown, end-now button
-└── tests/unit/
-    └── session-countdown.test.tsx     # NEW (actual location/naming: tests/unit/, kebab-case,
-                                        # matching this repo's real convention, not the
-                                        # co-located PascalCase guess this row originally had)
+│   │   └── api.ts                    # EXTENDED: expires_at, time_limit_seconds, endQuiz(),
+│   │                                 # startPracticeSession/getPracticeNextQuestion/endPracticeSession
+│   └── app/
+│       ├── quiz/quiz-flow.tsx         # EXTENDED: time-limit picker, countdown, end-now button
+│       └── practice/practice-flow.tsx # EXTENDED: new "start" screen (subject + time-limit
+│                                       # picker) before either untimed or timed practice begins
+└── tests/unit/                        # session-countdown.test.tsx, practice-flow.test.tsx
+                                        # (actual location: tests/unit/, kebab-case, matching
+                                        # this repo's real convention, not this row's original guess)
 ```
 
 **Structure Decision**: Existing `backend/` + `frontend/` split,

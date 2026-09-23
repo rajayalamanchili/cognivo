@@ -24,6 +24,7 @@ from src.agents.assessment_gen.agent import (
     generate_question,
 )
 from src.agents.diagnostic.agent import difficulty_guidance, preferred_question_type, skill_summary
+from src.api.errors import UnprocessableError
 from src.models.assessment_event import AssessmentEvent
 from src.models.enums import (
     AssessmentEventType,
@@ -50,6 +51,19 @@ from src.services.quiz.difficulty import (
 )
 
 DEFAULT_MAX_DEDUP_ATTEMPTS = 3
+
+# Spec 022 FR-001/Assumptions: a small fixed preset (15/30/45/60
+# minutes), not an arbitrary custom duration -- shared by both
+# `POST /api/quizzes` and `POST /api/practice-sessions` (FR-001 is one
+# requirement, not two independently-drifting lists).
+ALLOWED_TIME_LIMIT_SECONDS = {900, 1800, 2700, 3600}
+
+
+def validate_time_limit_seconds(time_limit_seconds: int | None) -> None:
+    if time_limit_seconds is not None and time_limit_seconds not in ALLOWED_TIME_LIMIT_SECONDS:
+        raise UnprocessableError(
+            f"time_limit_seconds must be one of {sorted(ALLOWED_TIME_LIMIT_SECONDS)} or omitted"
+        )
 
 
 class QuizEndedEarlyError(Exception):

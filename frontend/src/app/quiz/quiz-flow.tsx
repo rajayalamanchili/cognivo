@@ -24,6 +24,7 @@ import LoadingIndicator from "@/components/LoadingIndicator";
 import SessionCountdown from "@/components/SessionCountdown";
 import { formatTopicId } from "@/lib/format-topic-id";
 import { getPacingProfile } from "@/lib/pacing";
+import { TIME_LIMIT_OPTIONS } from "@/lib/time-limit-options";
 
 type Phase =
   | "loading"
@@ -36,16 +37,6 @@ type Phase =
   | "error";
 
 const DEFAULT_QUESTION_COUNT = 5;
-
-// Spec 022 FR-001/Assumptions: a small fixed preset, matching the
-// backend's own allowed values (quiz.py's _ALLOWED_TIME_LIMIT_SECONDS).
-const TIME_LIMIT_OPTIONS: { label: string; seconds: number | null }[] = [
-  { label: "Untimed", seconds: null },
-  { label: "15 minutes", seconds: 900 },
-  { label: "30 minutes", seconds: 1800 },
-  { label: "45 minutes", seconds: 2700 },
-  { label: "60 minutes", seconds: 3600 },
-];
 
 // FR-009's "more frequent positive reinforcement for younger bands" --
 // a brief, non-blocking encouragement shown above the next question

@@ -351,6 +351,55 @@ export function getNextQuestion(learnerId: string, subjectId: string): Promise<N
   );
 }
 
+// Spec 022: timed practice only -- ordinary untimed practice keeps
+// using getNextQuestion above, unchanged (FR-009).
+export interface StartPracticeSessionResponse {
+  practice_session_id: string;
+  status: QuizStatus;
+  expires_at: string;
+  question: NextQuestion;
+}
+
+export function startPracticeSession(
+  learnerId: string,
+  subjectId: string,
+  timeLimitSeconds: number,
+): Promise<StartPracticeSessionResponse> {
+  return request<StartPracticeSessionResponse>("/api/practice-sessions", {
+    method: "POST",
+    body: JSON.stringify({
+      learner_id: learnerId,
+      subject_id: subjectId,
+      time_limit_seconds: timeLimitSeconds,
+    }),
+  });
+}
+
+export interface PracticeNextQuestionResponse {
+  status: QuizStatus;
+  question: NextQuestion | null;
+  expires_at: string | null;
+}
+
+export function getPracticeNextQuestion(
+  practiceSessionId: string,
+): Promise<PracticeNextQuestionResponse> {
+  return request<PracticeNextQuestionResponse>(
+    `/api/practice-sessions/${practiceSessionId}/next-question`,
+  );
+}
+
+export interface EndPracticeSessionResponse {
+  practice_session_id: string;
+  status: QuizStatus;
+}
+
+export function endPracticeSession(practiceSessionId: string): Promise<EndPracticeSessionResponse> {
+  return request<EndPracticeSessionResponse>(`/api/practice-sessions/${practiceSessionId}/end`, {
+    method: "POST",
+  });
+}
+
 // spec 019 FR-005b: attaches the quiz-session hand-off token when the
 // caller has one, letting a check-in/opt-in-nudges/independent-tier
 // learner's device continue without the guardian's own session.

@@ -1602,8 +1602,20 @@ frontend tests all pass; full backend regression subset (121/123,
 2 explained) and full frontend suite (112/112) both clean. US1 alone
 is now a demoable MVP -- a learner can start a timed quiz, see a live
 countdown, have it auto-submit at expiry or complete normally, or end
-it manually, with every transition audited. Phases 4-5 (US2 timed
-practice, US3 post-session summary) and Polish not yet run.
+it manually, with every transition audited. Phase 4 (User Story 2,
+timed practice, T024-T032) also complete (2026-09-23): a new
+`practice_sessions.py` route module (start/next-question/end/summary)
+reuses `questions.py`'s question-generation logic via a newly-extracted
+`generate_and_persist_next_question` rather than duplicating it; the
+timed-limit preset (`ALLOWED_TIME_LIMIT_SECONDS`) was moved out of
+`quiz.py` into the shared `services/quiz/session.py` so quiz and
+practice can't drift onto different allowed durations. Frontend gained
+a new "start" screen on the practice page (subject + time-limit picker)
+before either untimed or timed practice begins -- confirmed with the
+user first, since ordinary untimed practice previously loaded a
+question with zero clicks. 11 new backend tests + 4 new frontend tests,
+all passing against a real DB; full frontend suite 116/116. Phase 5
+(US3, post-session summary) and Polish not yet run.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5

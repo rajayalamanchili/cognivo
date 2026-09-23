@@ -44,6 +44,7 @@ from src.services.quiz.session import (
     generate_quiz_question,
     persist_quiz_question,
     start_quiz,
+    validate_time_limit_seconds,
 )
 from src.services.quiz_assignment.assignment import (
     assert_quiz_session_access,
@@ -55,16 +56,6 @@ router = APIRouter()
 
 _MIN_QUESTION_COUNT = 1
 _MAX_QUESTION_COUNT = 50
-# Spec 022 FR-001/Assumptions: a small fixed preset (15/30/45/60
-# minutes), not an arbitrary custom duration.
-_ALLOWED_TIME_LIMIT_SECONDS = {900, 1800, 2700, 3600}
-
-
-def _validate_time_limit_seconds(time_limit_seconds: int | None) -> None:
-    if time_limit_seconds is not None and time_limit_seconds not in _ALLOWED_TIME_LIMIT_SECONDS:
-        raise UnprocessableError(
-            f"time_limit_seconds must be one of {sorted(_ALLOWED_TIME_LIMIT_SECONDS)} or omitted"
-        )
 
 
 def _quiz_expires_at(quiz: QuizSession) -> str | None:
@@ -144,7 +135,7 @@ class QuizStartOut(BaseModel):
 @router.post("/api/quizzes", response_model=QuizStartOut)
 async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> QuizStartOut:
     _validate_quiz_start_request(body.topic_ids, body.question_count)
-    _validate_time_limit_seconds(body.time_limit_seconds)
+    validate_time_limit_seconds(body.time_limit_seconds)
     subject_id = _resolve_quiz_subject_id(db, body.topic_ids)
     learner = get_demo_learner(db)
 
