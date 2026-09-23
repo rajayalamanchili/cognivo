@@ -1624,9 +1624,42 @@ on both the quiz summary and a newly-added practice "ended" screen
 (practice previously had no post-session summary view at all). 4 new
 backend tests + summary assertions added to the practice-flow frontend
 test, all passing. All three user stories are now independently
-functional -- only Phase 6 (Polish: subject-conditional check, schema-
-drift check, quickstart run, full regression suite, this status line)
-remains before the milestone is fully shipped.
+functional. Phase 6 (Polish, T038-T042) complete (2026-09-23): the
+Constitution Principle III extensibility check and `alembic check` both
+ran clean (zero drift); all 6 `quickstart.md` scenarios confirmed
+covered by already-passing automated tests against a real DB. The full,
+unfiltered regression run **found and fixed one real cross-feature
+gap**: `practice_sessions.learner_id` (a new FK added in Phase 2) had
+no entry in Milestone 18's deletion-cascade coverage check --
+`_delete_learner` (`src/services/deletion/execute.py`) predates this
+feature and had no way to know about the new table. Fixed: added
+`practice_sessions` to the cascade (same position as `quiz_sessions`),
+updated `check_deletion_cascade_coverage.py`'s allowlist, extended
+`test_deletion_cascade_learner.py` to assert both `quiz_sessions` and
+`practice_sessions` are actually gone post-deletion (closing a second,
+smaller gap -- `quiz_sessions` wasn't asserted there either), and added
+a `10a` row to `specs/020-deletion-pathway/data-model.md`'s cascade
+table. Final clean run: **691/691 backend, 116/116 frontend, zero
+failures** (one dashboard-aggregation test flaked on the first run --
+the already-documented pre-existing Postgres enum-OID/connection-
+pooling issue, confirmed by passing on the clean re-run).
+
+**Definition of done**: All 6 of spec.md's Success Criteria verified.
+SC-001 (visible countdown) -- `SessionCountdown.tsx`, tested. SC-002
+(100% of timed sessions end at/before their limit) --
+`check_and_expire_if_needed`'s idempotent lazy check, tested; holds for
+any session a learner returns to (research.md §1's documented,
+accepted limitation for a session nobody ever interacts with again,
+matching `quiz_sessions`' own pre-existing "abandoned" precedent).
+SC-003 (timed vs. untimed scoring parity) -- directly asserted in
+`test_timed_quiz_full_attempt.py`/`test_quiz_timed_answer.py`. SC-004
+(zero regression) -- 691/691 backend, 116/116 frontend. SC-005
+(post-session summary) -- `SessionTimingSummary.tsx`, both quiz and
+practice. SC-006 (100% of answered questions across all 5 flows record
+`time_spent_seconds`) -- `test_answer_time_spent.py` (placement,
+untimed practice, untimed quiz) plus the timed-flow assertions in the
+Phase 3/4 integration tests. Milestone 20 is fully shipped on branch
+`032-timed-practice-quiz-mode`, not yet merged.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5
@@ -1842,6 +1875,17 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.17.0 -- 2026-09-23, Milestone 20 `/speckit-implement`
+fully complete (all 6 phases, 42/42 tasks): found and fixed one real
+cross-feature gap during Polish's full regression run --
+`practice_sessions.learner_id` was missing from Milestone 18's
+deletion-cascade coverage, now fixed in `execute.py`,
+`check_deletion_cascade_coverage.py`, `test_deletion_cascade_learner.py`,
+and `specs/020-deletion-pathway/data-model.md`. Final state: 691/691
+backend tests, 116/116 frontend tests, zero drift, all 6 spec.md
+Success Criteria verified. Milestone shipped on branch
+`032-timed-practice-quiz-mode`, not yet merged to `staging`.
 
 **Version**: 3.16.0 -- 2026-09-23, Milestone 20 `/speckit-analyze`
 complete: 0 CRITICAL findings, 2 HIGH (stale "locked at expiry" wording

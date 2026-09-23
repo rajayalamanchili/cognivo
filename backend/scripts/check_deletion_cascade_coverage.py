@@ -59,6 +59,7 @@ HANDLED_COLUMNS = {
     ("grade_progress", "learner_id"),
     ("learner_profiles", "guardian_id"),
     ("mastery_states", "learner_id"),
+    ("practice_sessions", "learner_id"),
     ("quiz_assignments", "instructor_id"),
     ("quiz_assignment_targets", "learner_id"),
     ("quiz_sessions", "learner_id"),
