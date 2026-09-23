@@ -12,6 +12,7 @@ from src.models.grade_progress import GradeProgress
 from src.models.grading_response_cache import GradingResponseCache
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
+from src.models.practice_session import PracticeSession
 from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.question_generation_cache import QuestionGenerationCache
 from src.models.quiz_assignment import QuizAssignment
@@ -40,6 +41,7 @@ __all__ = [
     "GradingResponseCache",
     "LearnerProfile",
     "MasteryState",
+    "PracticeSession",
     "PrerequisiteEdge",
     "QuestionGenerationCache",
     "QuizAssignment",

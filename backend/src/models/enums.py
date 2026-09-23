@@ -130,6 +130,7 @@ class AssessmentEventType(enum.StrEnum):
     PLACEMENT_QUESTION_SKIPPED = "placement_question_skipped"
     STEP_COUNT_MISMATCH_REJECTED = "step_count_mismatch_rejected"
     GUARDIAN_MEDIATION_APPLIED = "guardian_mediation_applied"
+    TIMED_SESSION_ENDED = "timed_session_ended"
 
 
 # Consecutive post-update observations with p_mastery >= 0.7 required

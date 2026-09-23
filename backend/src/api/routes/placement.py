@@ -370,6 +370,19 @@ async def submit_placement(
                 correct=correct,
                 question_type=question.question_type,
             )
+            answer_payload = {
+                "response": answer.response,
+                "correct": correct,
+                "placement_session_id": str(placement_session_id),
+                "read_aloud_used": answer.read_aloud_used,
+            }
+            # Spec 022 FR-011: same addition as questions.py's
+            # answer_question -- placement is one of the "no exceptions"
+            # flows. shown_at is always set at start_placement time.
+            if question.shown_at is not None:
+                answer_payload["time_spent_seconds"] = round(
+                    (datetime.datetime.now(datetime.UTC) - question.shown_at).total_seconds()
+                )
             record_event(
                 db,
                 learner_id=question.learner_id,
@@ -377,12 +390,7 @@ async def submit_placement(
                 subject_id=question.subject_id,
                 topic_id=question.topic_id,
                 question_id=question.question_id,
-                payload={
-                    "response": answer.response,
-                    "correct": correct,
-                    "placement_session_id": str(placement_session_id),
-                    "read_aloud_used": answer.read_aloud_used,
-                },
+                payload=answer_payload,
             )
             record_event(
                 db,

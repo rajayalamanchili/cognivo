@@ -454,6 +454,18 @@ async def answer_question(
             "read_aloud_used": body.read_aloud_used,
         }
 
+    # Spec 022 FR-011: recorded for every answered question -- placement,
+    # untimed practice, untimed quiz, timed practice, timed quiz alike,
+    # no exceptions. Server-derived from a timestamp already on the row
+    # (never a client-reported duration, research.md §6); `shown_at` is
+    # always set by the time a question can be answered at all (a
+    # question must reach VALID before `shown_at` may be set), so this
+    # guard is defensive only.
+    if question.shown_at is not None:
+        answer_payload["time_spent_seconds"] = round(
+            (datetime.datetime.now(datetime.UTC) - question.shown_at).total_seconds()
+        )
+
     result = apply_mastery_update(
         db,
         learner_id=question.learner_id,

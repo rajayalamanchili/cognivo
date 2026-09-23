@@ -12,6 +12,7 @@ import datetime
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Literal
 
 from google.adk.sessions import BaseSessionService
 from sqlalchemy.orm import Session
@@ -32,6 +33,7 @@ from src.models.enums import (
     ValidationStatus,
 )
 from src.models.generated_question import GeneratedQuestion
+from src.models.practice_session import PracticeSession
 from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
@@ -55,6 +57,113 @@ class QuizEndedEarlyError(Exception):
     topic after exhausting dedup retries (FR-008) -- the caller must
     transition `QuizSession.status` to `ended_early` rather than serve
     a near-duplicate (research.md §3)."""
+
+
+class SessionNotTimedError(Exception):
+    """Raised by `end_session_manually` (spec 022 FR-010) when the
+    target session has no `time_limit_seconds` set -- there is nothing
+    to manually end early on an untimed session (contracts/api.md's
+    `404` case for quiz; every `PracticeSession` is timed by
+    construction, so this never applies to practice)."""
+
+
+class SessionAlreadyEndedError(Exception):
+    """Raised by `end_session_manually` (spec 022 FR-010) when the
+    target session is not `in_progress` (contracts/api.md's `409`
+    case)."""
+
+
+# Spec 022: a "timed session" is either a QuizSession or a
+# PracticeSession with `time_limit_seconds` set. `session_type` picks
+# which id field/audit-log label applies, since the two models share no
+# common base beyond both being thin session header rows.
+TimedSession = QuizSession | PracticeSession
+SessionKind = Literal["quiz", "practice"]
+
+
+def _timed_session_id(session: TimedSession, session_type: SessionKind) -> uuid.UUID:
+    return session.quiz_session_id if session_type == "quiz" else session.practice_session_id
+
+
+def _end_timed_session(
+    db: Session,
+    *,
+    session: TimedSession,
+    session_type: SessionKind,
+    status: QuizSessionStatus,
+    end_reason: Literal["completed", "timer_expired", "manually_ended_early"],
+) -> None:
+    """Shared transition + audit-event write for every way a timed
+    session can end (spec 022 research.md §1/§3/§4): timer expiry,
+    manual early-end, or (quiz only) reaching its configured question
+    count -- `record_quiz_answer` below calls this for that third case
+    instead of setting `status`/`completed_at` inline, so a *timed*
+    quiz's completion is just as audited as its other two end reasons
+    (FR-007 -- "every timed session", not just the expiry/manual-end
+    ones). Never called for an untimed session -- FR-009's zero-
+    behavior-change guarantee depends on that. Does not commit, same
+    convention as the rest of this module."""
+    now = datetime.datetime.now(datetime.UTC)
+    session.status = status
+    session.completed_at = now
+    elapsed_seconds = round((now - session.started_at).total_seconds())
+    record_event(
+        db,
+        learner_id=session.learner_id,
+        event_type=AssessmentEventType.TIMED_SESSION_ENDED,
+        subject_id=session.subject_id,
+        topic_id=None,
+        payload={
+            "session_type": session_type,
+            "session_id": str(_timed_session_id(session, session_type)),
+            "time_limit_seconds": session.time_limit_seconds,
+            "elapsed_seconds": elapsed_seconds,
+            "end_reason": end_reason,
+        },
+    )
+    db.flush()
+
+
+def check_and_expire_if_needed(
+    db: Session, *, session: TimedSession, session_type: SessionKind
+) -> bool:
+    """Lazy, per-request expiry check (spec 022 research.md §1) -- never
+    a background timer process, per Constitution Principle IX's
+    stateless-Vercel constraint. No-op (returns `False`) if the session
+    is untimed or already not `in_progress`; idempotent once expired --
+    a second call after the first also returns `False`, since `status`
+    is no longer `in_progress` by then. Returns `True` only on the call
+    that actually just transitioned the session to `ended_early`."""
+    if session.time_limit_seconds is None or session.status != QuizSessionStatus.IN_PROGRESS:
+        return False
+    expires_at = session.started_at + datetime.timedelta(seconds=session.time_limit_seconds)
+    if datetime.datetime.now(datetime.UTC) < expires_at:
+        return False
+    _end_timed_session(
+        db,
+        session=session,
+        session_type=session_type,
+        status=QuizSessionStatus.ENDED_EARLY,
+        end_reason="timer_expired",
+    )
+    return True
+
+
+def end_session_manually(db: Session, *, session: TimedSession, session_type: SessionKind) -> None:
+    """Manual early-end (spec 022 FR-010) -- a new capability that
+    exists only for timed sessions (research.md §4: today's untimed
+    quiz/practice has no learner-initiated "end now" action at all)."""
+    if session.time_limit_seconds is None:
+        raise SessionNotTimedError(f"{session_type} session has no time limit to end early")
+    if session.status != QuizSessionStatus.IN_PROGRESS:
+        raise SessionAlreadyEndedError(f"{session_type} session is already {session.status.value}")
+    _end_timed_session(
+        db,
+        session=session,
+        session_type=session_type,
+        status=QuizSessionStatus.ENDED_EARLY,
+        end_reason="manually_ended_early",
+    )
 
 
 def next_quiz_topic(topic_ids: Sequence[str], *, questions_generated_so_far: int) -> str:
@@ -318,9 +427,20 @@ def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: boo
         .count()
     )
     if answered_count_before + 1 >= quiz.question_count:
-        quiz.status = QuizSessionStatus.COMPLETED
-        quiz.completed_at = datetime.datetime.now(datetime.UTC)
-        db.flush()
+        if quiz.time_limit_seconds is not None:
+            # Spec 022 FR-007: a timed quiz's completion is audited the
+            # same as its other two end reasons, not just set inline.
+            _end_timed_session(
+                db,
+                session=quiz,
+                session_type="quiz",
+                status=QuizSessionStatus.COMPLETED,
+                end_reason="completed",
+            )
+        else:
+            quiz.status = QuizSessionStatus.COMPLETED
+            quiz.completed_at = datetime.datetime.now(datetime.UTC)
+            db.flush()
 
 
 @dataclass(frozen=True)
@@ -379,4 +499,56 @@ def compute_quiz_summary(db: Session, *, quiz_session_id: uuid.UUID) -> QuizSumm
             QuizSummaryEntry(topic_id=topic_id, difficulty=difficulty, correct=c, total=t)
             for (topic_id, difficulty), (c, t) in breakdown.items()
         ],
+    )
+
+
+@dataclass(frozen=True)
+class TimedSessionTiming:
+    time_limit_seconds: int | None
+    elapsed_seconds: int | None
+    end_reason: str | None
+
+
+def compute_timed_session_timing(
+    db: Session, *, session: TimedSession, session_type: SessionKind
+) -> TimedSessionTiming:
+    """`time_limit_seconds`/`elapsed_seconds`/`end_reason` for a
+    session's summary response (spec 022 data-model.md, contracts/
+    api.md) -- all three `None` for an untimed session or a timed
+    session still `in_progress` (FR-009; a partial-tally-style read,
+    not an error, same precedent as `compute_quiz_summary` above).
+    Reads the session's own `timed_session_ended` event -- always
+    present once the session has ended, since every transition out of
+    `in_progress` for a timed session writes one (`_end_timed_session`
+    above, including `record_quiz_answer`'s timed-completion case).
+
+    Deliberately a new, separate function rather than a
+    `compute_quiz_summary` signature change: that function has two
+    existing callers (`api/routes/quiz.py`, `api/routes/
+    quiz_assignments.py`) outside this feature's Foundational-phase
+    scope (spec 022 tasks.md T035/T036, not yet implemented) -- this
+    keeps their current, passing behavior completely untouched (FR-009/
+    SC-004) rather than breaking them mid-migration."""
+    if session.time_limit_seconds is None:
+        return TimedSessionTiming(time_limit_seconds=None, elapsed_seconds=None, end_reason=None)
+
+    session_id = str(_timed_session_id(session, session_type))
+    candidates = (
+        db.query(AssessmentEvent)
+        .filter(
+            AssessmentEvent.learner_id == session.learner_id,
+            AssessmentEvent.subject_id == session.subject_id,
+            AssessmentEvent.event_type == AssessmentEventType.TIMED_SESSION_ENDED,
+        )
+        .all()
+    )
+    event = next((e for e in candidates if e.payload.get("session_id") == session_id), None)
+    if event is None:
+        return TimedSessionTiming(
+            time_limit_seconds=session.time_limit_seconds, elapsed_seconds=None, end_reason=None
+        )
+    return TimedSessionTiming(
+        time_limit_seconds=session.time_limit_seconds,
+        elapsed_seconds=event.payload["elapsed_seconds"],
+        end_reason=event.payload["end_reason"],
     )

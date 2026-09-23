@@ -42,3 +42,7 @@ class QuizSession(Base):
     completed_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    time_limit_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    """`NULL` = untimed (spec 022 FR-001/FR-009, unchanged default).
+    `expires_at` is derived as `started_at + time_limit_seconds`, never
+    stored (research.md §1)."""

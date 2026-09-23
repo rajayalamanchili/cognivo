@@ -162,15 +162,25 @@ driving it.
 
 ## §6. Per-question time spent (FR-011, added post-plan `/speckit-clarify`)
 
-**Decision**: `time_spent_seconds` is computed inline in the existing
-`POST /api/questions/{question_id}/answer` handler as
+**Decision**: `time_spent_seconds` is computed inline as
 `round((now() - question.shown_at).total_seconds())` and added as one
 new key in the `ANSWER_SUBMITTED` event's existing JSON `payload`
 column -- no new table, no new column on `generated_questions` or
 `assessment_events`, no schema migration at all. Applies uniformly to
 every answered question (placement, untimed practice, untimed quiz,
-timed practice, timed quiz) since all five flows already converge on
-this one answer endpoint and this one event type.
+timed practice, timed quiz), added at **both** of the two real write
+sites for this event type -- `POST /api/questions/{question_id}/answer`
+(`questions.py`, covers practice/quiz) and `POST /api/placement/
+{placement_session_id}/submit` (`placement.py`, covers placement's own
+batch-submit path). Corrected during `/speckit-implement`: the original
+draft of this decision assumed "all five flows already converge on
+this one answer endpoint," which is false -- placement has always had
+its own separate submit route with its own `ANSWER_SUBMITTED` payload
+builder (confirmed by `tests/integration/test_answer_read_aloud_logging.py`'s
+existing precedent for `read_aloud_used`, the same per-flow-duplicated
+field this decision now follows). Missing the second site would have
+silently broken SC-006's "100% ... across every flow" claim for
+placement specifically.
 
 **Rationale**: `shown_at` (`GeneratedQuestion.shown_at`) is already set
 the moment a validated question is delivered, and the `ANSWER_SUBMITTED`
