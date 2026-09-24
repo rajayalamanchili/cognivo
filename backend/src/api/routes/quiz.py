@@ -204,11 +204,11 @@ async def get_quiz_next_question(
         db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
     )
     # Spec 022 FR-003/research.md §1: a no-op for an untimed quiz or one
-    # already not in_progress; commits only when it actually just
-    # transitioned the session, so that transition survives even though
-    # the ConflictError below aborts the rest of this request.
-    if check_and_expire_if_needed(db, session=quiz, session_type="quiz"):
-        db.commit()
+    # already not in_progress. Always commits internally (and releases
+    # its row lock) before this function returns, so that transition
+    # survives even though the ConflictError below aborts the rest of
+    # this request.
+    check_and_expire_if_needed(db, session=quiz, session_type="quiz")
     if quiz.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
             f"quiz {quiz_session_id} is already {quiz.status.value} -- "
@@ -359,8 +359,7 @@ def get_quiz_summary_route(
     # Spec 022 FR-003: a timed quiz whose deadline passed with no
     # intervening next-question/answer call must still show as expired
     # here, not just on those other two endpoints.
-    if check_and_expire_if_needed(db, session=quiz, session_type="quiz"):
-        db.commit()
+    check_and_expire_if_needed(db, session=quiz, session_type="quiz")
 
     summary = compute_quiz_summary(db, quiz_session_id=quiz_session_id)
     timing = compute_timed_session_timing(db, session=quiz, session_type="quiz")

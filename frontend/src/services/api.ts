@@ -461,9 +461,13 @@ export function startQuiz(
   });
 }
 
-export function endQuiz(quizSessionId: string): Promise<EndQuizResponse> {
+export function endQuiz(
+  quizSessionId: string,
+  handoffToken?: string | null,
+): Promise<EndQuizResponse> {
   return request<EndQuizResponse>(`/api/quizzes/${quizSessionId}/end`, {
     method: "POST",
+    headers: handoffHeaders(handoffToken),
   });
 }
 

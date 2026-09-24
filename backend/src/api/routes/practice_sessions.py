@@ -149,8 +149,7 @@ async def get_practice_next_question(
     practice_session_id: uuid.UUID, db: Session = Depends(get_db)
 ) -> PracticeNextQuestionOut:
     practice_session = _get_practice_session(db, practice_session_id)
-    if check_and_expire_if_needed(db, session=practice_session, session_type="practice"):
-        db.commit()
+    check_and_expire_if_needed(db, session=practice_session, session_type="practice")
     if practice_session.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
             f"practice session {practice_session_id} is already "
@@ -230,8 +229,7 @@ def get_practice_summary(
     # Spec 022 FR-003: a timed practice session whose deadline passed with
     # no intervening next-question/answer call must still show as expired
     # here, not just on those other two endpoints.
-    if check_and_expire_if_needed(db, session=practice_session, session_type="practice"):
-        db.commit()
+    check_and_expire_if_needed(db, session=practice_session, session_type="practice")
     correct, total = _compute_practice_score(db, practice_session_id=practice_session_id)
     timing = compute_timed_session_timing(db, session=practice_session, session_type="practice")
 

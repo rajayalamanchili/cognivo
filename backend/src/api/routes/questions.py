@@ -72,6 +72,17 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
     return subject
 
 
+def time_spent_seconds(shown_at: datetime.datetime | None) -> int | None:
+    """Spec 022 FR-011: server-derived answer duration from a timestamp
+    already on the row (never a client-reported duration, research.md
+    §6) -- shared by this route's own `answer_question` and
+    `api/routes/placement.py`'s `submit_placement`, the two other places
+    that formula used to be copy-pasted."""
+    if shown_at is None:
+        return None
+    return round((datetime.datetime.now(datetime.UTC) - shown_at).total_seconds())
+
+
 def has_placement_data(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> bool:
     return (
         db.query(MasteryState)
@@ -432,9 +443,11 @@ async def answer_question(
         # pre-existing lack of any status check here at all.
         quiz = db.get(QuizSession, question.quiz_session_id)
         if quiz.time_limit_seconds is not None:
+            # Always commits internally (and releases its row lock)
+            # before returning, so this transition survives even though
+            # the ConflictError below aborts the rest of this request.
             check_and_expire_if_needed(db, session=quiz, session_type="quiz")
             if quiz.status != QuizSessionStatus.IN_PROGRESS:
-                db.commit()
                 raise ConflictError(
                     f"quiz {question.quiz_session_id}: session has ended "
                     f"(status={quiz.status.value})"
@@ -446,7 +459,6 @@ async def answer_question(
         practice_session = db.get(PracticeSession, question.practice_session_id)
         check_and_expire_if_needed(db, session=practice_session, session_type="practice")
         if practice_session.status != QuizSessionStatus.IN_PROGRESS:
-            db.commit()
             raise ConflictError(
                 f"practice session {question.practice_session_id}: session has ended "
                 f"(status={practice_session.status.value})"
@@ -523,15 +535,12 @@ async def answer_question(
 
     # Spec 022 FR-011: recorded for every answered question -- placement,
     # untimed practice, untimed quiz, timed practice, timed quiz alike,
-    # no exceptions. Server-derived from a timestamp already on the row
-    # (never a client-reported duration, research.md §6); `shown_at` is
-    # always set by the time a question can be answered at all (a
-    # question must reach VALID before `shown_at` may be set), so this
-    # guard is defensive only.
-    if question.shown_at is not None:
-        answer_payload["time_spent_seconds"] = round(
-            (datetime.datetime.now(datetime.UTC) - question.shown_at).total_seconds()
-        )
+    # no exceptions. `shown_at` is always set by the time a question can
+    # be answered at all (a question must reach VALID before `shown_at`
+    # may be set), so this guard is defensive only.
+    spent = time_spent_seconds(question.shown_at)
+    if spent is not None:
+        answer_payload["time_spent_seconds"] = spent
 
     result = apply_mastery_update(
         db,

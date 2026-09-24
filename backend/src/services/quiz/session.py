@@ -153,14 +153,22 @@ def check_and_expire_if_needed(
     concurrent requests against the same expired session could otherwise
     both observe `in_progress` and both write a competing
     `TIMED_SESSION_ENDED` event) -- skipped for the common untimed case,
-    where there is nothing to race over."""
+    where there is nothing to race over. Always commits before
+    returning, even when nothing changed, so that lock is released
+    immediately rather than held for the rest of the request (PR
+    feedback): every caller runs this before a possibly-slow LLM-bound
+    call (next-question generation, answer grading), which would
+    otherwise hold the lock across it and block a concurrent manual
+    "end now"/expiry check on the same session for the whole duration."""
     if session.time_limit_seconds is None:
         return False
     db.refresh(session, with_for_update=True)
     if session.status != QuizSessionStatus.IN_PROGRESS:
+        db.commit()
         return False
     expires_at = session.started_at + datetime.timedelta(seconds=session.time_limit_seconds)
     if datetime.datetime.now(datetime.UTC) < expires_at:
+        db.commit()
         return False
     _end_timed_session(
         db,
@@ -169,6 +177,7 @@ def check_and_expire_if_needed(
         status=QuizSessionStatus.ENDED_EARLY,
         end_reason="timer_expired",
     )
+    db.commit()
     return True
 
 
