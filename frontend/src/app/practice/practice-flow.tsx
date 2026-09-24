@@ -179,6 +179,10 @@ export default function PracticeFlow() {
       await endPracticeSession(practiceSessionId);
       await goToEnded(practiceSessionId);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        await goToEnded(practiceSessionId);
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
     }
