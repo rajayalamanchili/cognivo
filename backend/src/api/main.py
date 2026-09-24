@@ -13,6 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from src.api.errors import (
+    AlreadyAnsweredError,
     AuthenticationError,
     ConflictError,
     DeletionAlreadyPendingError,
@@ -72,6 +73,14 @@ def _handle_not_found(request: Request, exc: NotFoundError) -> JSONResponse:
 @app.exception_handler(ConflictError)
 def _handle_conflict(request: Request, exc: ConflictError) -> JSONResponse:
     return JSONResponse(status_code=409, content={"detail": exc.message})
+
+
+@app.exception_handler(AlreadyAnsweredError)
+def _handle_already_answered(request: Request, exc: AlreadyAnsweredError) -> JSONResponse:
+    return JSONResponse(
+        status_code=409,
+        content={"error": "already_answered", "question_id": str(exc.question_id)},
+    )
 
 
 @app.exception_handler(DeletionAlreadyPendingError)

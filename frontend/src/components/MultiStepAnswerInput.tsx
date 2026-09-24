@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   answerQuestion,
   ApiError,
+  isAlreadyAnsweredError,
   type AnswerResult,
   type FreeTextErrorBody,
 } from "@/services/api";
@@ -72,7 +73,10 @@ export default function MultiStepAnswerInput({
       setState("idle");
       onGraded(result);
     } catch (error) {
-      if (onSessionEnded && error instanceof ApiError && error.status === 409) {
+      // PR feedback: a duplicate-submit 409 isn't a session-ended 409 --
+      // falls through to stateFromError below, same as any other
+      // unrecognized error shape (resets to "idle").
+      if (!isAlreadyAnsweredError(error) && onSessionEnded && error instanceof ApiError && error.status === 409) {
         onSessionEnded();
         return;
       }

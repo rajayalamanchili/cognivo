@@ -266,6 +266,26 @@ export class ApiError extends Error {
   }
 }
 
+// PR feedback: `POST /api/questions/{id}/answer` returns 409 both for a
+// timed session that's already ended and for a plain duplicate/
+// double-submit of the same question (unrelated to timed sessions at
+// all) -- every caller below used to treat any 409 from this endpoint
+// as "the session ended" and navigate to the summary/ended screen,
+// which is wrong for a fast double-click on a still-in_progress
+// session. The backend now tags the duplicate case distinctly
+// (`{"error": "already_answered", ...}`) so callers can tell them
+// apart; a duplicate-submit 409 is a no-op here since the original
+// (real) request's own resolution already carries the UI forward.
+export function isAlreadyAnsweredError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    typeof error.body === "object" &&
+    error.body !== null &&
+    (error.body as { error?: string }).error === "already_answered"
+  );
+}
+
 async function fetchOrThrow(path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(path, {
     ...init,

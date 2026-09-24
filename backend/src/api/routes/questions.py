@@ -22,6 +22,7 @@ from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_
 from src.agents.sequencing.agent import generate_next_question
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import (
+    AlreadyAnsweredError,
     ConflictError,
     ModerationRejectedError,
     NotFoundError,
@@ -477,7 +478,7 @@ async def answer_question(
         )
     _reject_if_timed_session_ended(db, question=question)
     if _already_answered(db, question_id):
-        raise ConflictError(f"question {question_id} already answered")
+        raise AlreadyAnsweredError(question_id)
     try:
         validate_response_shape(question.question_type, body.response)
     except ValueError as exc:
@@ -594,7 +595,7 @@ async def answer_question(
         # here, and its whole transaction (including the mastery update
         # above) rolls back rather than double-recording (PR #18 review).
         db.rollback()
-        raise ConflictError(f"question {question_id}: already answered") from exc
+        raise AlreadyAnsweredError(question_id) from exc
     record_event(
         db,
         learner_id=question.learner_id,

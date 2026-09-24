@@ -13,6 +13,7 @@ import {
   getPracticeNextQuestion,
   getPracticeSessionSummary,
   getSubjects,
+  isAlreadyAnsweredError,
   startPracticeSession,
   type AnswerResult,
   type NextQuestion,
@@ -217,6 +218,10 @@ export default function PracticeFlow() {
       setResult(answer);
       setPhase("result");
     } catch (error) {
+      // PR feedback: a duplicate-submit 409 isn't a session-ended 409 --
+      // no-op, the original request's own resolution above already
+      // carries the UI forward.
+      if (isAlreadyAnsweredError(error)) return;
       if (practiceSessionId && error instanceof ApiError && error.status === 409) {
         await goToEnded(practiceSessionId);
         return;

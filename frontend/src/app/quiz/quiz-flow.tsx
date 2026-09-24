@@ -12,6 +12,7 @@ import {
   getQuizNextQuestion,
   getQuizSummary,
   getSubjects,
+  isAlreadyAnsweredError,
   startQuiz,
   type MasteryTopicEntry,
   type NextQuestion,
@@ -244,6 +245,10 @@ export default function QuizFlow() {
       setResponse("");
       await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
+      // PR feedback: a duplicate-submit 409 isn't a session-ended 409 --
+      // no-op, the original request's own resolution above already
+      // carries the UI forward.
+      if (isAlreadyAnsweredError(error)) return;
       if (error instanceof ApiError && error.status === 409) {
         await goToSummary(quizSessionId);
         return;

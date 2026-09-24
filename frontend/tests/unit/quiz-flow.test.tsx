@@ -334,6 +334,31 @@ describe("QuizFlow", () => {
     expect(api.getQuizNextQuestion).toHaveBeenCalledTimes(1);
   }, 10000);
 
+  it("ignores an already_answered 409 without treating it as the session having ended (PR feedback)", async () => {
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      question,
+    });
+    vi.mocked(api.answerQuestion).mockRejectedValue(
+      new ApiError(409, "already answered", {
+        error: "already_answered",
+        question_id: question.question_id,
+      }),
+    );
+
+    await renderAndStartQuiz();
+    await screen.findByTestId("question-card");
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    await waitFor(() => expect(api.answerQuestion).toHaveBeenCalledTimes(1));
+    expect(api.getQuizSummary).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("quiz-summary")).not.toBeInTheDocument();
+  });
+
   it("shows the ended_early phase immediately if the very first question can't be generated", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
       handoff_token: null,

@@ -2,7 +2,7 @@
 // default behaves like before this feature, timed practice uses the
 // new session endpoints and shows a countdown.
 
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import PracticeFlow from "@/app/practice/practice-flow";
@@ -204,6 +204,29 @@ describe("PracticeFlow start screen", () => {
     await screen.findByTestId("answer-result-view");
     expect(api.getPracticeNextQuestion).not.toHaveBeenCalled();
   }, 10000);
+
+  it("ignores an already_answered 409 without treating it as the session having ended (PR feedback)", async () => {
+    vi.mocked(api.getNextQuestion).mockResolvedValue(question);
+    vi.mocked(api.answerQuestion).mockRejectedValue(
+      new ApiError(409, "already answered", {
+        error: "already_answered",
+        question_id: question.question_id,
+      }),
+    );
+
+    render(<PracticeFlow />);
+    await screen.findByTestId("practice-start-form");
+    await userEvent.click(screen.getByRole("button", { name: /start practicing/i }));
+    await screen.findByTestId("question-card");
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    await waitFor(() => expect(api.answerQuestion).toHaveBeenCalledTimes(1));
+    expect(api.getPracticeSessionSummary).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("practice-ended")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("answer-result-view")).not.toBeInTheDocument();
+  });
 
   it("shows the ended screen when next-question reports the session has ended (409)", async () => {
     vi.mocked(api.startPracticeSession).mockResolvedValue({
