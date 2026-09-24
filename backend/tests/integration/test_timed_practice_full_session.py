@@ -36,7 +36,6 @@ def test_timed_practice_session_topic_hops_within_one_subject(
         start = client.post(
             "/api/practice-sessions",
             json={
-                "learner_id": str(demo_learner.learner_id),
                 "subject_id": algebra_subject.subject_id,
                 "time_limit_seconds": 1800,
             },

@@ -26,6 +26,7 @@ from src.models.enums import AssessmentEventType, QuizSessionStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.practice_session import PracticeSession
 from src.models.subject import Subject
+from src.services.demo_learner import get_demo_learner
 from src.services.quiz.session import (
     SessionAlreadyEndedError,
     check_and_expire_if_needed,
@@ -77,7 +78,6 @@ def _compute_practice_score(db: Session, *, practice_session_id: uuid.UUID) -> t
 
 
 class PracticeStartIn(BaseModel):
-    learner_id: uuid.UUID
     subject_id: str
     time_limit_seconds: int
 
@@ -98,15 +98,16 @@ async def start_practice_session(
     # preset-membership check is left to do here.
     validate_time_limit_seconds(body.time_limit_seconds)
     _get_validated_subject(db, body.subject_id)
+    learner = get_demo_learner(db)
 
-    if not has_placement_data(db, learner_id=body.learner_id, subject_id=body.subject_id):
+    if not has_placement_data(db, learner_id=learner.learner_id, subject_id=body.subject_id):
         raise NotFoundError(
-            f"learner {body.learner_id} has no placement data for subject "
+            f"learner {learner.learner_id} has no placement data for subject "
             f"{body.subject_id!r} yet -- complete placement first"
         )
 
     practice_session = PracticeSession(
-        learner_id=body.learner_id,
+        learner_id=learner.learner_id,
         subject_id=body.subject_id,
         time_limit_seconds=body.time_limit_seconds,
         status=QuizSessionStatus.IN_PROGRESS,
@@ -116,7 +117,7 @@ async def start_practice_session(
 
     question, result = await generate_and_persist_next_question(
         db,
-        learner_id=body.learner_id,
+        learner_id=learner.learner_id,
         subject_id=body.subject_id,
         practice_session_id=practice_session.practice_session_id,
     )
@@ -134,7 +135,7 @@ async def start_practice_session(
             db,
             question=question,
             result=result,
-            learner_id=body.learner_id,
+            learner_id=learner.learner_id,
             subject_id=body.subject_id,
         ),
     )
