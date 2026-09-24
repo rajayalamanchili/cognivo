@@ -487,13 +487,26 @@ def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: boo
         if quiz.time_limit_seconds is not None:
             # Spec 022 FR-007: a timed quiz's completion is audited the
             # same as its other two end reasons, not just set inline.
-            _end_timed_session(
-                db,
-                session=quiz,
-                session_type="quiz",
-                status=QuizSessionStatus.COMPLETED,
-                end_reason="completed",
-            )
+            #
+            # Row-locks + re-checks status (PR feedback): this is the
+            # third way `_end_timed_session` can be reached, alongside
+            # `check_and_expire_if_needed`/`end_session_manually`, which
+            # already guard against a concurrent transition the same
+            # way. Without it, a manual "end now"/expiry racing ahead of
+            # this request's own final-answer submission could already
+            # have transitioned the session by the time this branch
+            # runs, and unconditionally completing it here would
+            # clobber that with a second, contradictory
+            # `TIMED_SESSION_ENDED` event.
+            db.refresh(quiz, with_for_update=True)
+            if quiz.status == QuizSessionStatus.IN_PROGRESS:
+                _end_timed_session(
+                    db,
+                    session=quiz,
+                    session_type="quiz",
+                    status=QuizSessionStatus.COMPLETED,
+                    end_reason="completed",
+                )
         else:
             quiz.status = QuizSessionStatus.COMPLETED
             quiz.completed_at = datetime.datetime.now(datetime.UTC)
