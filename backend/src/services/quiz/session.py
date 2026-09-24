@@ -181,6 +181,30 @@ def check_and_expire_if_needed(
     return True
 
 
+def session_still_in_progress(db: Session, *, session: TimedSession) -> bool:
+    """Re-checks `session.status` under a fresh row lock (PR feedback).
+
+    `check_and_expire_if_needed` deliberately commits and releases its
+    own lock before a caller's slow, LLM-bound question-generation call
+    runs, so that call doesn't block a concurrent manual end-now/expiry
+    on the same session. That leaves a TOCTOU window open on the other
+    side: a concurrent request can end the session while generation is
+    in flight, and without this re-check, the generated question would
+    still get persisted and returned for a session that had already
+    ended by the time it was ready. Callers should call this
+    immediately before persisting/returning a freshly-generated
+    question, and hold the resulting lock through that write (same
+    convention as `record_quiz_answer`'s own re-check before its
+    completion write).
+
+    No-op (returns `True` immediately, no lock taken) for an untimed
+    session -- there's nothing to race over."""
+    if session.time_limit_seconds is None:
+        return True
+    db.refresh(session, with_for_update=True)
+    return session.status == QuizSessionStatus.IN_PROGRESS
+
+
 def session_expires_at(session: TimedSession) -> str | None:
     """`expires_at = started_at + time_limit_seconds` (spec 022
     research.md §1), `None` for an untimed session -- shared by

@@ -32,6 +32,7 @@ from src.services.quiz.session import (
     compute_timed_session_timing,
     end_session_manually,
     session_expires_at,
+    session_still_in_progress,
     validate_time_limit_seconds,
 )
 
@@ -167,6 +168,24 @@ async def get_practice_next_question(
         subject_id=practice_session.subject_id,
         practice_session_id=practice_session.practice_session_id,
     )
+
+    # PR feedback: a concurrent manual end-now/expiry could have ended
+    # this session while the LLM-bound generation call above was in
+    # flight (check_and_expire_if_needed above already released its own
+    # lock before that call, by design) -- re-check before returning so
+    # a question is never returned for an already-ended session, same
+    # 409 this route already raises for a session found ended up front.
+    # `generate_and_persist_next_question` has already flushed (but not
+    # committed) the new question by this point -- roll back rather than
+    # commit so that write is discarded, not persisted for a session
+    # that's already over.
+    if not session_still_in_progress(db, session=practice_session):
+        db.rollback()
+        raise ConflictError(
+            f"practice session {practice_session_id}: session ended while "
+            "generating the next question"
+        )
+
     db.commit()
 
     return PracticeNextQuestionOut(

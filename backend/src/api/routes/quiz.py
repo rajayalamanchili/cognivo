@@ -46,6 +46,7 @@ from src.services.quiz.session import (
     generate_quiz_question,
     persist_quiz_question,
     session_expires_at,
+    session_still_in_progress,
     start_quiz,
     validate_time_limit_seconds,
 )
@@ -224,6 +225,15 @@ async def get_quiz_next_question(
         end_quiz_for_dedup_exhaustion(db, quiz=quiz)
         db.commit()
         return QuizNextQuestionOut(status="ended_early")
+
+    # PR feedback: a concurrent manual end-now/expiry could have ended
+    # this quiz while the LLM-bound generation call above was in flight
+    # (check_and_expire_if_needed above already released its own lock
+    # before that call, by design) -- re-check before persisting so a
+    # question is never generated for an already-ended session.
+    if not session_still_in_progress(db, session=quiz):
+        db.commit()
+        return QuizNextQuestionOut(status=quiz.status.value)
 
     question = persist_quiz_question(
         db,
