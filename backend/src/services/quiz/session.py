@@ -187,9 +187,17 @@ def session_expires_at(session: TimedSession) -> str | None:
 def end_session_manually(db: Session, *, session: TimedSession, session_type: SessionKind) -> None:
     """Manual early-end (spec 022 FR-010) -- a new capability that
     exists only for timed sessions (research.md §4: today's untimed
-    quiz/practice has no learner-initiated "end now" action at all)."""
+    quiz/practice has no learner-initiated "end now" action at all).
+
+    Row-locks `session` before checking `status` (PR feedback), same as
+    `check_and_expire_if_needed` -- without it, this could race that
+    function's own lock and clobber an already-terminal session with a
+    second, contradictory `TIMED_SESSION_ENDED` event (e.g. the
+    countdown's auto-fired expiry request landing at the same moment as
+    a manual "end now" click)."""
     if session.time_limit_seconds is None:
         raise SessionNotTimedError(f"{session_type} session has no time limit to end early")
+    db.refresh(session, with_for_update=True)
     if session.status != QuizSessionStatus.IN_PROGRESS:
         raise SessionAlreadyEndedError(f"{session_type} session is already {session.status.value}")
     _end_timed_session(
@@ -581,6 +589,10 @@ def compute_timed_session_timing(
             AssessmentEvent.event_type == AssessmentEventType.TIMED_SESSION_ENDED,
             AssessmentEvent.payload["session_id"].as_string() == session_id,
         )
+        # PR feedback: deterministic even in the (now row-lock-prevented)
+        # case of two such events existing for one session -- the most
+        # recent one is the one that actually stuck.
+        .order_by(AssessmentEvent.created_at.desc())
         .first()
     )
     if event is None:
