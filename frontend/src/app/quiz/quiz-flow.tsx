@@ -62,6 +62,10 @@ export default function QuizFlow() {
   const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // PR feedback: free_text/multi_step submit themselves, so `phase` alone
+  // doesn't cover their grading call being in flight -- tracked separately
+  // so the countdown-expiry/end-now guards below see it too.
+  const [answerBusy, setAnswerBusy] = useState(false);
 
   // Session pacing (spec 019 FR-009, research.md Decision 6) -- a soft,
   // dismissible checkpoint only; the quiz itself is never ended by
@@ -174,8 +178,9 @@ export default function QuizFlow() {
   async function handleEndQuizNow() {
     // Guard against racing a submit that's already in flight (PR
     // feedback): its own advanceAfterAnswer -> advanceToNextQuestion
-    // call would otherwise land concurrently with this one.
-    if (!quizSessionId || phase !== "answering") return;
+    // call would otherwise land concurrently with this one. `answerBusy`
+    // covers free_text/multi_step, whose grading call doesn't move `phase`.
+    if (!quizSessionId || phase !== "answering" || answerBusy) return;
     try {
       await endQuiz(quizSessionId);
       await goToSummary(quizSessionId);
@@ -196,8 +201,9 @@ export default function QuizFlow() {
   function handleCountdownExpire() {
     // PR feedback: skip while a submit is already in flight -- its own
     // advanceAfterAnswer -> advanceToNextQuestion call once it resolves
-    // would otherwise race this one for the same session.
-    if (!quizSessionId || phase !== "answering") return;
+    // would otherwise race this one for the same session. `answerBusy`
+    // covers free_text/multi_step, whose grading call doesn't move `phase`.
+    if (!quizSessionId || phase !== "answering" || answerBusy) return;
     void advanceToNextQuestion(quizSessionId);
   }
 
@@ -318,7 +324,7 @@ export default function QuizFlow() {
             <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
             <button
               type="button"
-              disabled={phase === "submitting"}
+              disabled={phase === "submitting" || answerBusy}
               onClick={handleEndQuizNow}
               className="text-sm text-link underline disabled:opacity-40"
             >
@@ -345,6 +351,7 @@ export default function QuizFlow() {
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
           onSessionEnded={() => quizSessionId && void goToSummary(quizSessionId)}
+          onBusyChange={setAnswerBusy}
           readAloudEnabled={currentQuestion.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
         />

@@ -27,6 +27,10 @@ export interface FreeTextAnswerInputProps {
   // ended screen, same as the MC/numeric submit path) should take over
   // instead of this component falling through to a silent idle state.
   onSessionEnded?: () => void;
+  // PR feedback: free_text/multi_step submit themselves, so the parent's
+  // `phase` never reflects a grading call in flight here -- this lets the
+  // parent's countdown-expiry/end-now guards see it too.
+  onBusyChange?: (busy: boolean) => void;
 }
 
 type SubmitState =
@@ -57,12 +61,14 @@ export default function FreeTextAnswerInput({
   readAloudUsed,
   handoffToken,
   onSessionEnded,
+  onBusyChange,
 }: FreeTextAnswerInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SubmitState>("idle");
 
   async function handleSubmit() {
     setState("grading-in-progress");
+    onBusyChange?.(true);
     try {
       const result = await answerQuestion(questionId, text, readAloudUsed, handoffToken);
       setState("idle");
@@ -73,6 +79,8 @@ export default function FreeTextAnswerInput({
         return;
       }
       setState(stateFromError(error));
+    } finally {
+      onBusyChange?.(false);
     }
   }
 

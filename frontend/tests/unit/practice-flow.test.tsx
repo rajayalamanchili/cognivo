@@ -147,6 +147,64 @@ describe("PracticeFlow start screen", () => {
     expect(api.getPracticeNextQuestion).not.toHaveBeenCalled();
   }, 10000);
 
+  it("ignores a countdown expiry that fires while a free-text submission is already in flight (PR feedback)", async () => {
+    const freeTextQuestion = {
+      ...question,
+      question_id: "q1-free",
+      question_type: "free_text" as const,
+      options: null,
+    };
+    vi.mocked(api.startPracticeSession).mockResolvedValue({
+      practice_session_id: "practice-1",
+      status: "in_progress",
+      expires_at: new Date(Date.now() + 1200).toISOString(),
+      question: freeTextQuestion,
+    });
+    let resolveAnswer: (value: Awaited<ReturnType<typeof api.answerQuestion>>) => void;
+    vi.mocked(api.answerQuestion).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAnswer = resolve;
+        }),
+    );
+
+    render(<PracticeFlow />);
+    await screen.findByTestId("practice-start-form");
+    await userEvent.selectOptions(screen.getByLabelText("Time limit"), "1800");
+    await userEvent.click(screen.getByRole("button", { name: /start timed practice/i }));
+    await screen.findByTestId("free-text-answer-input");
+
+    await userEvent.type(screen.getByRole("textbox"), "four");
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    // "End practice now" is disabled while the free-text grading call is
+    // in flight, even though `phase` itself never left "answering" for
+    // this question type (PR feedback: the earlier "submitting"-phase-
+    // only guard missed this).
+    expect(screen.getByRole("button", { name: /end practice now/i })).toBeDisabled();
+
+    // Let the real countdown interval fire onExpire while still grading.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(api.getPracticeNextQuestion).not.toHaveBeenCalled();
+
+    resolveAnswer!({
+      correct: true,
+      topic_id: "linear-equations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+
+    await screen.findByTestId("answer-result-view");
+    expect(api.getPracticeNextQuestion).not.toHaveBeenCalled();
+  }, 10000);
+
   it("shows the ended screen when next-question reports the session has ended (409)", async () => {
     vi.mocked(api.startPracticeSession).mockResolvedValue({
       practice_session_id: "practice-1",

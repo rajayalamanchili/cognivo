@@ -58,6 +58,10 @@ export default function PracticeFlow() {
   const [flagged, setFlagged] = useState(false);
   const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // PR feedback: free_text/multi_step submit themselves, so `phase` alone
+  // doesn't cover their grading call being in flight -- tracked separately
+  // so the countdown-expiry/end-now guards below see it too.
+  const [answerBusy, setAnswerBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -173,14 +177,15 @@ export default function PracticeFlow() {
     // PR feedback: skip while a submit is already in flight -- otherwise
     // this fires a concurrent next-question fetch while handleSubmit's
     // own answerQuestion call is still pending for the same session,
-    // racing which one lands first.
-    if (phase !== "answering") return;
+    // racing which one lands first. `answerBusy` covers free_text/
+    // multi_step, whose grading call doesn't move `phase`.
+    if (phase !== "answering" || answerBusy) return;
     void advanceToNextQuestion();
   }
 
   async function handleEndPracticeNow() {
     // Same guard as handleCountdownExpire above.
-    if (!practiceSessionId || phase !== "answering") return;
+    if (!practiceSessionId || phase !== "answering" || answerBusy) return;
     try {
       await endPracticeSession(practiceSessionId);
       await goToEnded(practiceSessionId);
@@ -325,7 +330,7 @@ export default function PracticeFlow() {
             <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
             <button
               type="button"
-              disabled={phase === "submitting"}
+              disabled={phase === "submitting" || answerBusy}
               onClick={handleEndPracticeNow}
               className="text-sm text-link underline disabled:opacity-40"
             >
@@ -345,6 +350,7 @@ export default function PracticeFlow() {
           onSessionEnded={
             practiceSessionId ? () => void goToEnded(practiceSessionId) : undefined
           }
+          onBusyChange={setAnswerBusy}
           readAloudEnabled={question.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
         />

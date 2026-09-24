@@ -24,6 +24,8 @@ export interface MultiStepAnswerInputProps {
   handoffToken?: string | null;
   // Spec 022: same reasoning as FreeTextAnswerInput's own onSessionEnded.
   onSessionEnded?: () => void;
+  // PR feedback: same reasoning as FreeTextAnswerInput's own onBusyChange.
+  onBusyChange?: (busy: boolean) => void;
 }
 
 type SubmitState =
@@ -53,6 +55,7 @@ export default function MultiStepAnswerInput({
   readAloudUsed,
   handoffToken,
   onSessionEnded,
+  onBusyChange,
 }: MultiStepAnswerInputProps) {
   const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
   const [state, setState] = useState<SubmitState>("idle");
@@ -63,6 +66,7 @@ export default function MultiStepAnswerInput({
 
   async function handleSubmit() {
     setState("grading-in-progress");
+    onBusyChange?.(true);
     try {
       const result = await answerQuestion(questionId, answers, readAloudUsed, handoffToken);
       setState("idle");
@@ -73,6 +77,8 @@ export default function MultiStepAnswerInput({
         return;
       }
       setState(stateFromError(error));
+    } finally {
+      onBusyChange?.(false);
     }
   }
 
