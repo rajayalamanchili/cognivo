@@ -65,6 +65,46 @@ from src.services.quiz_assignment.assignment import assert_quiz_session_access
 router = APIRouter()
 
 
+def _reject_if_timed_session_ended(db: Session, *, question: GeneratedQuestion) -> None:
+    """Spec 022 FR-003/FR-006, research.md §1: "an answer submitted
+    after expiry is rejected, not silently scored" -- rejects (409) an
+    answer for a timed quiz/practice session that has expired or been
+    manually ended. A no-op for an untimed quiz/a question with no
+    session at all, same as before this feature.
+
+    Called both before grading starts (`answer_question`'s original
+    check) and, for `free_text`/`multi_step`, again right after (PR
+    feedback): those two question types' grading is an LLM-bound A2A
+    call wide enough (this file's own comment near the `IntegrityError`
+    handler below: "several seconds... with retries") for the session
+    to expire or be manually ended on a concurrent request while
+    grading is still in flight -- without this second call, the answer
+    would still get scored and recorded for a session that had already
+    ended by the time grading finished."""
+    if question.quiz_session_id is not None:
+        quiz = db.get(QuizSession, question.quiz_session_id)
+        if quiz.time_limit_seconds is not None:
+            # Always commits internally (and releases its row lock)
+            # before returning, so this transition survives even though
+            # the ConflictError below aborts the rest of this request.
+            check_and_expire_if_needed(db, session=quiz, session_type="quiz")
+            if quiz.status != QuizSessionStatus.IN_PROGRESS:
+                raise ConflictError(
+                    f"quiz {question.quiz_session_id}: session has ended "
+                    f"(status={quiz.status.value})"
+                )
+    if question.practice_session_id is not None:
+        # Every `PracticeSession` is timed by construction (FR-008), so
+        # no `time_limit_seconds is not None` guard is needed here.
+        practice_session = db.get(PracticeSession, question.practice_session_id)
+        check_and_expire_if_needed(db, session=practice_session, session_type="practice")
+        if practice_session.status != QuizSessionStatus.IN_PROGRESS:
+            raise ConflictError(
+                f"practice session {question.practice_session_id}: session has ended "
+                f"(status={practice_session.status.value})"
+            )
+
+
 def _get_validated_subject(db: Session, subject_id: str) -> Subject:
     subject = db.get(Subject, subject_id)
     if subject is None or subject.validated_at is None:
@@ -435,34 +475,7 @@ async def answer_question(
             claims=claims,
             handoff_token=x_quiz_handoff_token,
         )
-        # Spec 022 FR-003/FR-006, research.md §1: rejects an answer that
-        # arrives after the quiz's expires_at, even without an
-        # intervening next-question call. Scoped to timed quizzes only
-        # (time_limit_seconds is not None) -- an untimed quiz's answer
-        # behavior is completely unchanged (FR-009), including today's
-        # pre-existing lack of any status check here at all.
-        quiz = db.get(QuizSession, question.quiz_session_id)
-        if quiz.time_limit_seconds is not None:
-            # Always commits internally (and releases its row lock)
-            # before returning, so this transition survives even though
-            # the ConflictError below aborts the rest of this request.
-            check_and_expire_if_needed(db, session=quiz, session_type="quiz")
-            if quiz.status != QuizSessionStatus.IN_PROGRESS:
-                raise ConflictError(
-                    f"quiz {question.quiz_session_id}: session has ended "
-                    f"(status={quiz.status.value})"
-                )
-    if question.practice_session_id is not None:
-        # Spec 022 FR-003, mirrors the quiz block above: every
-        # `PracticeSession` is timed by construction (FR-008), so no
-        # `time_limit_seconds is not None` guard is needed here.
-        practice_session = db.get(PracticeSession, question.practice_session_id)
-        check_and_expire_if_needed(db, session=practice_session, session_type="practice")
-        if practice_session.status != QuizSessionStatus.IN_PROGRESS:
-            raise ConflictError(
-                f"practice session {question.practice_session_id}: session has ended "
-                f"(status={practice_session.status.value})"
-            )
+    _reject_if_timed_session_ended(db, question=question)
     if _already_answered(db, question_id):
         raise ConflictError(f"question {question_id} already answered")
     try:
@@ -532,6 +545,16 @@ async def answer_question(
             "correct": correct,
             "read_aloud_used": body.read_aloud_used,
         }
+
+    # PR feedback: re-run the same expiry/status check from before
+    # grading started -- see `_reject_if_timed_session_ended`'s
+    # docstring. A near-instant no-op for MC/numeric (the `else` branch
+    # above awaits nothing), but free_text/multi_step's grading call
+    # above can take long enough for the session to have expired or been
+    # manually ended while it was in flight; this must run (and reject,
+    # discarding the grading result above) before anything below scores
+    # or records this answer.
+    _reject_if_timed_session_ended(db, question=question)
 
     # Spec 022 FR-011: recorded for every answered question -- placement,
     # untimed practice, untimed quiz, timed practice, timed quiz alike,
