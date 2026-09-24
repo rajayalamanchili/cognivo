@@ -26,6 +26,7 @@ from src.models.enums import (
 from src.models.generated_question import GeneratedQuestion
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
+from src.models.practice_session import PracticeSession
 from src.models.quiz_session import QuizSession
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.tutor_exchange import TutorExchange
@@ -128,15 +129,27 @@ def test_learner_deletion_cascades_fully_and_read_paths_degrade_cleanly(
             payload={"correct": True},
         )
     )
-    db_session.add(
-        QuizSession(
-            learner_id=learner_id,
-            subject_id=subject_id,
-            topic_ids=[topic_id],
-            question_count=1,
-            status=QuizSessionStatus.IN_PROGRESS,
-        )
+    quiz_session = QuizSession(
+        learner_id=learner_id,
+        subject_id=subject_id,
+        topic_ids=[topic_id],
+        question_count=1,
+        status=QuizSessionStatus.IN_PROGRESS,
     )
+    db_session.add(quiz_session)
+    # Spec 022: practice_sessions carries the same learner_id FK shape.
+    practice_session = PracticeSession(
+        learner_id=learner_id,
+        subject_id=subject_id,
+        time_limit_seconds=1800,
+        status=QuizSessionStatus.IN_PROGRESS,
+    )
+    db_session.add(practice_session)
+    db_session.commit()
+    db_session.refresh(quiz_session)
+    db_session.refresh(practice_session)
+    quiz_session_id = quiz_session.quiz_session_id
+    practice_session_id = practice_session.practice_session_id
     tutoring_session = TutoringSession(learner_id=learner_id, subject_id=subject_id)
     db_session.add(tutoring_session)
     db_session.commit()
@@ -184,6 +197,8 @@ def test_learner_deletion_cascades_fully_and_read_paths_degrade_cleanly(
         == 0
     )
     assert db_session.get(TutoringSession, tutoring_session_id) is None
+    assert db_session.get(QuizSession, quiz_session_id) is None
+    assert db_session.get(PracticeSession, practice_session_id) is None
     assert db_session.get(LearnerProfile, sibling_id) is not None
 
     # 6. Read paths named in Acceptance Scenario 2 all degrade cleanly.

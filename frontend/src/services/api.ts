@@ -179,11 +179,21 @@ export interface StartQuizResponse {
   status: QuizStatus;
   question: NextQuestion | null;
   handoff_token: string | null;
+  // spec 022 FR-002: null/absent for an untimed quiz -- optional here
+  // (rather than required) so existing mocks/callers that predate this
+  // feature don't all need updating just to satisfy the type.
+  expires_at?: string | null;
 }
 
 export interface QuizNextQuestionResponse {
   status: QuizStatus;
   question: NextQuestion | null;
+  expires_at?: string | null;
+}
+
+export interface EndQuizResponse {
+  quiz_session_id: string;
+  status: QuizStatus;
 }
 
 export interface QuizScore {
@@ -198,6 +208,14 @@ export interface QuizSummaryEntry {
   total: number;
 }
 
+// Spec 022 SC-005: all three null for an untimed quiz.
+export type SessionEndReason =
+  | "completed"
+  | "timer_expired"
+  | "manually_ended_early"
+  | "dedup_exhausted"
+  | null;
+
 export interface QuizSummaryResponse {
   quiz_session_id: string;
   subject_id: string;
@@ -208,6 +226,9 @@ export interface QuizSummaryResponse {
   completed_at: string | null;
   score: QuizScore;
   summary: QuizSummaryEntry[];
+  time_limit_seconds?: number | null;
+  elapsed_seconds?: number | null;
+  end_reason?: SessionEndReason;
 }
 
 // Free-text's four distinct rejection responses (contracts/api.md) --
@@ -243,6 +264,26 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+// PR feedback: `POST /api/questions/{id}/answer` returns 409 both for a
+// timed session that's already ended and for a plain duplicate/
+// double-submit of the same question (unrelated to timed sessions at
+// all) -- every caller below used to treat any 409 from this endpoint
+// as "the session ended" and navigate to the summary/ended screen,
+// which is wrong for a fast double-click on a still-in_progress
+// session. The backend now tags the duplicate case distinctly
+// (`{"error": "already_answered", ...}`) so callers can tell them
+// apart; a duplicate-submit 409 is a no-op here since the original
+// (real) request's own resolution already carries the UI forward.
+export function isAlreadyAnsweredError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status === 409 &&
+    typeof error.body === "object" &&
+    error.body !== null &&
+    (error.body as { error?: string }).error === "already_answered"
+  );
 }
 
 async function fetchOrThrow(path: string, init?: RequestInit): Promise<Response> {
@@ -341,6 +382,75 @@ export function getNextQuestion(learnerId: string, subjectId: string): Promise<N
   );
 }
 
+// Spec 022: timed practice only -- ordinary untimed practice keeps
+// using getNextQuestion above, unchanged (FR-009).
+export interface StartPracticeSessionResponse {
+  practice_session_id: string;
+  status: QuizStatus;
+  expires_at: string;
+  question: NextQuestion;
+}
+
+export function startPracticeSession(
+  learnerId: string,
+  subjectId: string,
+  timeLimitSeconds: number,
+): Promise<StartPracticeSessionResponse> {
+  return request<StartPracticeSessionResponse>("/api/practice-sessions", {
+    method: "POST",
+    body: JSON.stringify({
+      learner_id: learnerId,
+      subject_id: subjectId,
+      time_limit_seconds: timeLimitSeconds,
+    }),
+  });
+}
+
+export interface PracticeNextQuestionResponse {
+  status: QuizStatus;
+  question: NextQuestion | null;
+  expires_at: string | null;
+}
+
+export function getPracticeNextQuestion(
+  practiceSessionId: string,
+): Promise<PracticeNextQuestionResponse> {
+  return request<PracticeNextQuestionResponse>(
+    `/api/practice-sessions/${practiceSessionId}/next-question`,
+  );
+}
+
+export interface EndPracticeSessionResponse {
+  practice_session_id: string;
+  status: QuizStatus;
+}
+
+export function endPracticeSession(practiceSessionId: string): Promise<EndPracticeSessionResponse> {
+  return request<EndPracticeSessionResponse>(`/api/practice-sessions/${practiceSessionId}/end`, {
+    method: "POST",
+  });
+}
+
+// Spec 022 SC-005 (US3): always non-null -- every PracticeSession row
+// is timed by construction.
+export interface PracticeSessionSummaryResponse {
+  practice_session_id: string;
+  subject_id: string;
+  status: QuizStatus;
+  started_at: string;
+  completed_at: string | null;
+  score: QuizScore;
+  time_limit_seconds: number | null;
+  elapsed_seconds: number | null;
+  end_reason: SessionEndReason;
+}
+
+export function getPracticeSessionSummary(
+  practiceSessionId: string,
+): Promise<PracticeSessionSummaryResponse> {
+  return request<PracticeSessionSummaryResponse>(`/api/practice-sessions/${practiceSessionId}`);
+}
+
 // spec 019 FR-005b: attaches the quiz-session hand-off token when the
 // caller has one, letting a check-in/opt-in-nudges/independent-tier
 // learner's device continue without the guardian's own session.
@@ -361,10 +471,28 @@ export function answerQuestion(
   });
 }
 
-export function startQuiz(topicIds: string[], questionCount: number): Promise<StartQuizResponse> {
+export function startQuiz(
+  topicIds: string[],
+  questionCount: number,
+  timeLimitSeconds?: number | null,
+): Promise<StartQuizResponse> {
   return request<StartQuizResponse>("/api/quizzes", {
     method: "POST",
-    body: JSON.stringify({ topic_ids: topicIds, question_count: questionCount }),
+    body: JSON.stringify({
+      topic_ids: topicIds,
+      question_count: questionCount,
+      time_limit_seconds: timeLimitSeconds ?? null,
+    }),
+  });
+}
+
+export function endQuiz(
+  quizSessionId: string,
+  handoffToken?: string | null,
+): Promise<EndQuizResponse> {
+  return request<EndQuizResponse>(`/api/quizzes/${quizSessionId}/end`, {
+    method: "POST",
+    headers: handoffHeaders(handoffToken),
   });
 }
 

@@ -36,10 +36,19 @@ from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import (
     QuizEndedEarlyError,
+    SessionAlreadyEndedError,
+    SessionNotTimedError,
+    check_and_expire_if_needed,
     compute_quiz_summary,
+    compute_timed_session_timing,
+    end_quiz_for_dedup_exhaustion,
+    end_session_manually,
     generate_quiz_question,
     persist_quiz_question,
+    session_expires_at,
+    session_still_in_progress,
     start_quiz,
+    validate_time_limit_seconds,
 )
 from src.services.quiz_assignment.assignment import (
     assert_quiz_session_access,
@@ -102,6 +111,8 @@ class QuizQuestionOut(BaseModel):
 class QuizStartIn(BaseModel):
     topic_ids: list[str]
     question_count: int
+    # Spec 022 FR-001/FR-009: omitted/null = untimed, unchanged default.
+    time_limit_seconds: int | None = None
 
 
 class QuizStartOut(BaseModel):
@@ -113,11 +124,14 @@ class QuizStartOut(BaseModel):
     # since a non-assignment-linked session never goes through tier
     # determination at all -- FR-014).
     handoff_token: str | None = None
+    # Spec 022 FR-002/contracts/api.md: `None` for an untimed quiz.
+    expires_at: str | None = None
 
 
 @router.post("/api/quizzes", response_model=QuizStartOut)
 async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> QuizStartOut:
     _validate_quiz_start_request(body.topic_ids, body.question_count)
+    validate_time_limit_seconds(body.time_limit_seconds)
     subject_id = _resolve_quiz_subject_id(db, body.topic_ids)
     learner = get_demo_learner(db)
 
@@ -127,6 +141,7 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
         subject_id=subject_id,
         topic_ids=body.topic_ids,
         question_count=body.question_count,
+        time_limit_seconds=body.time_limit_seconds,
     )
 
     try:
@@ -135,8 +150,7 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
                 db, quiz=quiz, session_service=get_database_session_service()
             )
     except QuizEndedEarlyError:
-        quiz.status = QuizSessionStatus.ENDED_EARLY
-        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        end_quiz_for_dedup_exhaustion(db, quiz=quiz)
         db.commit()
         return QuizStartOut(quiz_session_id=quiz.quiz_session_id, status="ended_early")
 
@@ -167,12 +181,14 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
                 db, learner_id=learner.learner_id, subject_id=subject_id
             ),
         ),
+        expires_at=session_expires_at(quiz),
     )
 
 
 class QuizNextQuestionOut(BaseModel):
     status: str
     question: QuizQuestionOut | None = None
+    expires_at: str | None = None
 
 
 @router.get("/api/quizzes/{quiz_session_id}/next-question", response_model=QuizNextQuestionOut)
@@ -188,6 +204,12 @@ async def get_quiz_next_question(
     assert_quiz_session_access(
         db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
     )
+    # Spec 022 FR-003/research.md §1: a no-op for an untimed quiz or one
+    # already not in_progress. Always commits internally (and releases
+    # its row lock) before this function returns, so that transition
+    # survives even though the ConflictError below aborts the rest of
+    # this request.
+    check_and_expire_if_needed(db, session=quiz, session_type="quiz")
     if quiz.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
             f"quiz {quiz_session_id} is already {quiz.status.value} -- "
@@ -200,10 +222,18 @@ async def get_quiz_next_question(
                 db, quiz=quiz, session_service=get_database_session_service()
             )
     except QuizEndedEarlyError:
-        quiz.status = QuizSessionStatus.ENDED_EARLY
-        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        end_quiz_for_dedup_exhaustion(db, quiz=quiz)
         db.commit()
         return QuizNextQuestionOut(status="ended_early")
+
+    # PR feedback: a concurrent manual end-now/expiry could have ended
+    # this quiz while the LLM-bound generation call above was in flight
+    # (check_and_expire_if_needed above already released its own lock
+    # before that call, by design) -- re-check before persisting so a
+    # question is never generated for an already-ended session.
+    if not session_still_in_progress(db, session=quiz):
+        db.commit()
+        return QuizNextQuestionOut(status=quiz.status.value)
 
     question = persist_quiz_question(
         db,
@@ -231,7 +261,44 @@ async def get_quiz_next_question(
                 db, learner_id=quiz.learner_id, subject_id=quiz.subject_id
             ),
         ),
+        expires_at=session_expires_at(quiz),
     )
+
+
+class QuizEndOut(BaseModel):
+    quiz_session_id: uuid.UUID
+    status: str
+
+
+@router.post("/api/quizzes/{quiz_session_id}/end", response_model=QuizEndOut)
+def end_quiz_route(
+    quiz_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+    x_quiz_handoff_token: str | None = Header(default=None),
+) -> QuizEndOut:
+    """Manual early-end (spec 022 FR-010, research.md §4) -- new for
+    timed quizzes only; `404` for an untimed quiz (nothing to end
+    early), `409` if already `completed`/`ended_early`."""
+    quiz = db.get(QuizSession, quiz_session_id)
+    if quiz is None:
+        raise NotFoundError(f"unknown quiz_session_id: {quiz_session_id}")
+    assert_quiz_session_access(
+        db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
+    )
+    # PR feedback: run the lazy expiry check first so a deadline that
+    # already silently passed is recorded as `timer_expired`, not
+    # mislabeled `manually_ended_early` just because this click reached
+    # the server first.
+    check_and_expire_if_needed(db, session=quiz, session_type="quiz")
+    try:
+        end_session_manually(db, session=quiz, session_type="quiz")
+    except SessionNotTimedError as exc:
+        raise NotFoundError(str(exc)) from exc
+    except SessionAlreadyEndedError as exc:
+        raise ConflictError(str(exc)) from exc
+    db.commit()
+    return QuizEndOut(quiz_session_id=quiz.quiz_session_id, status=quiz.status.value)
 
 
 class QuizScoreOut(BaseModel):
@@ -256,6 +323,10 @@ class QuizSummaryOut(BaseModel):
     completed_at: str | None
     score: QuizScoreOut
     summary: list[QuizSummaryEntryOut]
+    # Spec 022 SC-005: all three `None` for an untimed quiz.
+    time_limit_seconds: int | None = None
+    elapsed_seconds: int | None = None
+    end_reason: str | None = None
 
 
 @router.get("/api/quizzes/{quiz_session_id}", response_model=QuizSummaryOut)
@@ -299,7 +370,13 @@ def get_quiz_summary_route(
         target.guardian_viewed_at = datetime.datetime.now(datetime.UTC)
         db.commit()
 
+    # Spec 022 FR-003: a timed quiz whose deadline passed with no
+    # intervening next-question/answer call must still show as expired
+    # here, not just on those other two endpoints.
+    check_and_expire_if_needed(db, session=quiz, session_type="quiz")
+
     summary = compute_quiz_summary(db, quiz_session_id=quiz_session_id)
+    timing = compute_timed_session_timing(db, session=quiz, session_type="quiz")
 
     return QuizSummaryOut(
         quiz_session_id=quiz.quiz_session_id,
@@ -319,4 +396,7 @@ def get_quiz_summary_route(
             )
             for entry in summary.breakdown
         ],
+        time_limit_seconds=timing.time_limit_seconds,
+        elapsed_seconds=timing.elapsed_seconds,
+        end_reason=timing.end_reason,
     )

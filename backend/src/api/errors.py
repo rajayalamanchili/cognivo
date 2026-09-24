@@ -125,6 +125,24 @@ class DeletionAlreadyPendingError(DomainError):
         self.deletion_request_id = deletion_request_id
 
 
+class AlreadyAnsweredError(DomainError):
+    """Maps to HTTP 409: `{"error": "already_answered", "question_id":
+    "..."}` -- a distinct shape from `ConflictError`'s generic
+    `{"detail": ...}` (PR feedback, spec 022). `POST /api/questions/
+    {question_id}/answer` also returns a generic `ConflictError` 409
+    when a *timed* session has ended (`_reject_if_timed_session_ended`)
+    -- every frontend caller of this endpoint treats any 409 as "the
+    timed session ended" and navigates to the summary/ended screen.
+    Without this distinction, a duplicate/double-submit 409 (which can
+    happen for any question, timed or not, and doesn't mean the session
+    ended) would incorrectly trigger that same navigation for a session
+    that's actually still `in_progress`."""
+
+    def __init__(self, question_id: uuid.UUID):
+        super().__init__("already_answered")
+        self.question_id = question_id
+
+
 class TutorUnavailableError(DomainError):
     """Maps to HTTP 503 (spec 012 contracts/api.md) -- either retrieval
     failed after its own internal retry (`services/retrieval/

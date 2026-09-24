@@ -54,6 +54,7 @@ gone. All deletes for one target happen in a single DB transaction
 | 8 | `enrollments` | `learner_id = target_id` | |
 | 9 | `grade_progress` | `learner_id = target_id` | Milestone 17 table. |
 | 10 | `quiz_sessions` | `learner_id = target_id` | Safe once #3 and #5 (which FK to `quiz_session_id`) are gone. |
+| 10a | `practice_sessions` | `learner_id = target_id` | Added by spec 022 (Milestone 20). Safe once #5 (which FK to `practice_session_id`) is gone -- same shape as `quiz_sessions` above. |
 | 11 | `learner_profiles` | `learner_id = target_id` | The identity row itself. |
 | 12 | `retention_records` | `account_type = 'learner' AND account_id = target_id` | Deleted last -- `learner_profiles.retention_record_id` pointed at it (spec 009 `data-classification.md`: "deleted alongside the account it describes"). |
 | 13 | *(conditional)* `real_guardian_accounts` | the deleted learner's `guardian_id`, only if that guardian has zero remaining linked learners | Implements `data-classification.md`'s existing guardian-auto-deletion rule; when it fires, also runs the `guardian` cascade below for that guardian's own identity fields (a guardian has no other data). |

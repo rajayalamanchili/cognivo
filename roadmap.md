@@ -1475,9 +1475,11 @@ any table yet.
 
 **Spec**: `specs/021-schema-drift-ci-check/spec.md`.
 **Status**: `/speckit-implement` complete, all 5 user-story phases plus
-Polish (2026-09-22, branch `031-schema-drift-ci-check`). Not a promoted
-"Known gap" -- surfaced directly as a feature request, not tied to a
-prior milestone's deferred item.
+Polish (2026-09-22, branch `031-schema-drift-ci-check`). Merged to
+`staging` via PR #81 and promoted to `main` via PR #82 (both
+2026-09-22) -- milestone fully shipped. Not a promoted "Known gap" --
+surfaced directly as a feature request, not tied to a prior milestone's
+deferred item.
 
 **Scope**: A CI-only gate, no product/learner-facing surface. Adds one
 `alembic check` step to `backend-tests.yml` (after migrations run,
@@ -1544,6 +1546,161 @@ already-merged migration history for pre-existing drift beyond what
 T005's manual check happened to surface; an allowlist/escape-hatch
 mechanism (no legitimate case exists where a model change should ship
 without a matching migration, per spec.md's Assumptions).
+
+---
+
+## Milestone 20: Timed Practice and Quiz Mode
+
+**Spec**: `specs/022-timed-practice-quiz-mode/spec.md`.
+**Status**: `/speckit-plan` complete (2026-09-23, branch
+`032-timed-practice-quiz-mode`). `/speckit-specify`'s three open design
+questions were resolved during its own clarification loop rather than
+needing a separate `/speckit-clarify` pass: timer expiry auto-submits
+using whatever answers exist (no lock-and-manual-end); scoring stays
+identical to an untimed session (purely informational timer, no
+penalty/cutoff); the new practice-session boundary is scoped narrowly
+to timed practice only -- untimed practice stays exactly as stateless
+and unbounded as it is today. `/speckit-plan` locked expiry enforcement
+as a lazy, per-request server-side check (`expires_at = started_at +
+time_limit_seconds`, checked on the next request that touches the
+session) rather than a background timer process -- required by
+Constitution Principle IX's no-persistent-process constraint on Vercel;
+reuses the same stateless-expiry shape the JWT session cookie and
+Milestone 17's quiz-session hand-off token already use
+(`specs/022-timed-practice-quiz-mode/research.md` §1). Also found and
+corrected a factual error in the original spec draft: today's untimed
+quiz has no learner-initiated "end now" action (`ended_early` today
+only fires from automatic dedup-exhaustion) -- FR-010's manual-early-end
+is new, not a reuse of existing behavior (research.md §4). No new
+dependency, no `tech-stack.md` amendment needed. A post-plan
+`/speckit-clarify` (2026-09-23) then added FR-011: every answered
+question, across all five question-answering flows (placement,
+untimed/timed practice, untimed/timed quiz), now records how long the
+learner took to answer -- server-derived from `shown_at`, added as one
+new payload key on the existing `answer_submitted` audit event, no
+schema migration of its own (research.md §6, absorbing the "Per-question
+time-spent tracking" backlog item into this milestone rather than
+leaving it separate). `/speckit-plan` re-run same day to fold this into
+`research.md`/`data-model.md`/`contracts/api.md`. `/speckit-tasks`
+complete (2026-09-23): 42 tasks across Setup (none needed), Foundational
+(schema + shared expiry/manual-end/summary logic + FR-011, T001-T012),
+and three user-story phases (US1 timed quiz T013-T023, US2 timed
+practice T024-T032, US3 post-session summary T033-T037), plus Polish
+(T038-T042). US1 alone is a demoable MVP increment. `/speckit-analyze`
+complete (2026-09-23): 0 CRITICAL, 2 HIGH (a stale "locked at expiry"
+phrase in US3's acceptance scenario left over from before the
+expiry-behavior clarification was integrated; SC-006's timed-quiz/
+timed-practice halves had no automated test, only a manual quickstart
+run), 5 MEDIUM/LOW (missing FR-005/006/007/SC-002/003 task citations,
+an FR numbering-order cosmetic issue, two dependency-note wording
+inaccuracies) -- all 7 fixed in place before `/speckit-implement`.
+`/speckit-implement` Phase 1-2 (Foundational, T001-T012) and Phase 3
+(User Story 1, timed quiz, T013-T023) both complete (2026-09-23),
+verified against a real Postgres DB throughout: `alembic check` passed
+with zero drift; 13 new backend contract/integration tests plus 3 new
+frontend tests all pass; full backend regression subset (121/123,
+2 explained) and full frontend suite (112/112) both clean. US1 alone
+is now a demoable MVP -- a learner can start a timed quiz, see a live
+countdown, have it auto-submit at expiry or complete normally, or end
+it manually, with every transition audited. Phase 4 (User Story 2,
+timed practice, T024-T032) also complete (2026-09-23): a new
+`practice_sessions.py` route module (start/next-question/end/summary)
+reuses `questions.py`'s question-generation logic via a newly-extracted
+`generate_and_persist_next_question` rather than duplicating it; the
+timed-limit preset (`ALLOWED_TIME_LIMIT_SECONDS`) was moved out of
+`quiz.py` into the shared `services/quiz/session.py` so quiz and
+practice can't drift onto different allowed durations. Frontend gained
+a new "start" screen on the practice page (subject + time-limit picker)
+before either untimed or timed practice begins -- confirmed with the
+user first, since ordinary untimed practice previously loaded a
+question with zero clicks. 11 new backend tests + 4 new frontend tests,
+all passing against a real DB; full frontend suite 116/116. Phase 5
+(User Story 3, post-session summary, T033-T037) also complete
+(2026-09-23): `GET /api/quizzes/{id}` and `GET /api/practice-sessions/
+{id}` both extended with `time_limit_seconds`/`elapsed_seconds`/
+`end_reason`, sourced from T008's `compute_timed_session_timing`
+helper; a new shared `SessionTimingSummary.tsx` component renders this
+on both the quiz summary and a newly-added practice "ended" screen
+(practice previously had no post-session summary view at all). 4 new
+backend tests + summary assertions added to the practice-flow frontend
+test, all passing. All three user stories are now independently
+functional. Phase 6 (Polish, T038-T042) complete (2026-09-23): the
+Constitution Principle III extensibility check and `alembic check` both
+ran clean (zero drift); all 6 `quickstart.md` scenarios confirmed
+covered by already-passing automated tests against a real DB. The full,
+unfiltered regression run **found and fixed one real cross-feature
+gap**: `practice_sessions.learner_id` (a new FK added in Phase 2) had
+no entry in Milestone 18's deletion-cascade coverage check --
+`_delete_learner` (`src/services/deletion/execute.py`) predates this
+feature and had no way to know about the new table. Fixed: added
+`practice_sessions` to the cascade (same position as `quiz_sessions`),
+updated `check_deletion_cascade_coverage.py`'s allowlist, extended
+`test_deletion_cascade_learner.py` to assert both `quiz_sessions` and
+`practice_sessions` are actually gone post-deletion (closing a second,
+smaller gap -- `quiz_sessions` wasn't asserted there either), and added
+a `10a` row to `specs/020-deletion-pathway/data-model.md`'s cascade
+table. Final clean run: **691/691 backend, 116/116 frontend, zero
+failures** (one dashboard-aggregation test flaked on the first run --
+the already-documented pre-existing Postgres enum-OID/connection-
+pooling issue, confirmed by passing on the clean re-run).
+
+**Definition of done**: All 6 of spec.md's Success Criteria verified.
+SC-001 (visible countdown) -- `SessionCountdown.tsx`, tested. SC-002
+(100% of timed sessions end at/before their limit) --
+`check_and_expire_if_needed`'s idempotent lazy check, tested; holds for
+any session a learner returns to (research.md §1's documented,
+accepted limitation for a session nobody ever interacts with again,
+matching `quiz_sessions`' own pre-existing "abandoned" precedent).
+SC-003 (timed vs. untimed scoring parity) -- directly asserted in
+`test_timed_quiz_full_attempt.py`/`test_quiz_timed_answer.py`. SC-004
+(zero regression) -- 691/691 backend, 116/116 frontend. SC-005
+(post-session summary) -- `SessionTimingSummary.tsx`, both quiz and
+practice. SC-006 (100% of answered questions across all 5 flows record
+`time_spent_seconds`) -- `test_answer_time_spent.py` (placement,
+untimed practice, untimed quiz) plus the timed-flow assertions in the
+Phase 3/4 integration tests. Milestone 20 is fully shipped on branch
+`032-timed-practice-quiz-mode`, not yet merged.
+
+**Scope**: Let a learner opt into a time-bound session (e.g. "20
+questions in 30 minutes") for both ordinary practice and Milestone 5
+quizzes, distinct from today's untimed, learner-paced default.
+Deliberately not folded into Milestone 17: that milestone's Story 3
+pacing is a soft, age-driven suggestion a learner can ignore, while
+exam-style timing is a learner-opted-in, grade-band-independent hard
+constraint -- a 3rd grader and a 10th grader preparing for a timed test
+want the identical feature.
+
+**Design questions, resolved 2026-09-23** (see spec.md's own
+Functional Requirements FR-003/FR-004/FR-008 for the normative text):
+- Timer expiry: auto-submit using whatever answers exist at that
+  moment, not lock-and-manual-end.
+- Scoring under a timer: identical to an untimed session given the
+  same answers -- purely informational, no penalty or cutoff.
+- Practice-session boundary: scoped narrowly to timed practice only.
+  Milestone 17's own `/speckit-plan` found ordinary (non-quiz) practice
+  has no bounded session concept at all today and deliberately chose
+  not to build one (see that milestone's `research.md`/`data-model.md`,
+  "Quiz Sessions only" pre-plan Clarification) -- this milestone leaves
+  that decision undisturbed for untimed practice.
+
+**Resolved dependency**: the backlog's "Per-question time-spent
+tracking" item, raised as the underlying instrumentation this milestone
+would need, was folded directly into this milestone's own scope via a
+post-plan `/speckit-clarify` (2026-09-23, FR-011) rather than landing
+as a separate prerequisite -- see that section's "Out of current
+roadmap" bullet below, now struck through.
+
+**Definition of done** (draft, to be formalized in its own `spec.md`):
+- All acceptance scenarios in the eventual spec pass.
+- Timed-session behavior (expiry handling, scoring) verified identical
+  across practice and Milestone 5 quizzes -- no divergent logic per
+  entry point.
+- Milestones 1-19's full suites still pass.
+
+**Explicitly not included**: spaced repetition/mastery decay (separate
+"Out of current roadmap" item); any change to Milestone 17's age-driven
+pacing suggestion, which stays a soft nudge independent of this hard
+timer.
 
 ---
 
@@ -1681,40 +1838,18 @@ without a matching migration, per spec.md's Assumptions).
   week. Raised 2026-09-14. Depends on Milestone 7's instructor role and
   dashboard already existing; lower priority than the grading/content
   gaps above.
-- Per-question time-spent tracking -- recording how long a learner
-  takes to answer each question, for every learner, across practice and
-  quizzes. Raised 2026-09-20. Distinct from anything Milestone 17
-  builds: that milestone's pacing checkpoint (Story 3) is a static,
-  age-band-keyed recommendation, not a measurement of real per-question
-  timing. A small, generically useful instrumentation addition (a new
-  timestamp pair or a `time_spent_seconds` field alongside the existing
-  `ANSWER_SUBMITTED` audit event, per Constitution Principle V) that the
-  timed-practice-and-quiz item below would need as its underlying data,
-  and that a future pacing/fatigue-detection feature could also draw on
-  -- but not itself gated on that item.
-- Timed practice and quiz mode for exam preparation -- letting a
-  learner opt into a time-bound session (e.g. "20 questions in 30
-  minutes") for both ordinary practice and Milestone 5 quizzes, distinct
-  from today's untimed, learner-paced default. Raised 2026-09-20.
-  Deliberately not folded into Milestone 17: that milestone's Story 3
-  pacing is a soft, age-driven suggestion a learner can ignore, while
-  exam-style timing is a learner-opted-in, grade-band-independent hard
-  constraint -- a 3rd grader and a 10th grader preparing for a timed
-  test want the identical feature. Also deliberately not started
-  opportunistically alongside Milestone 17, even though the two are
-  related: Milestone 17's own `/speckit-plan` found that ordinary
-  (non-quiz) practice has no bounded session concept at all today, and
-  deliberately chose not to build one (see that milestone's
-  `research.md`/`data-model.md` and its "Quiz Sessions only" pre-plan
-  Clarification) -- a timed *practice* session would need exactly the
-  session boundary that decision explicitly punted on, so this item
-  inherits that same open design question rather than resolving it by
-  implication. Needs its own scoping pass: what happens when time
-  expires (auto-submit vs. lock further answers), whether score is
-  penalized or simply informational under a timer, and whether the new
-  practice-session boundary this would require is scoped narrowly (only
-  for timed sessions) or becomes a first-class concept ordinary practice
-  gains too.
+- ~~Per-question time-spent tracking~~ -- absorbed into Milestone 20
+  (2026-09-23, FR-011) via a post-plan `/speckit-clarify` rather than
+  landing as its own separate item, since it shares that milestone's
+  exact `answer_submitted` audit-log surface. Raised 2026-09-20; this
+  bullet is kept, struck through, for the same reason Milestone 17's
+  promotion left its bullet in place. (A future pacing/fatigue-detection
+  feature can still draw on the resulting data -- that remains a
+  distinct, not-yet-scoped idea.)
+- ~~Timed practice and quiz mode for exam preparation~~ -- promoted to
+  Milestone 20 (2026-09-23), see that entry above this section. This
+  bullet is kept, struck through, for the same reason Milestone 17's
+  promotion left its bullet in place.
 
 - Full K-12 STEM content catalog (elementary math/science for grades
   1-5, then a real course-by-course spread across 6-12 -- pre-algebra,
@@ -1740,6 +1875,57 @@ without a matching migration, per spec.md's Assumptions).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.17.0 -- 2026-09-23, Milestone 20 `/speckit-implement`
+fully complete (all 6 phases, 42/42 tasks): found and fixed one real
+cross-feature gap during Polish's full regression run --
+`practice_sessions.learner_id` was missing from Milestone 18's
+deletion-cascade coverage, now fixed in `execute.py`,
+`check_deletion_cascade_coverage.py`, `test_deletion_cascade_learner.py`,
+and `specs/020-deletion-pathway/data-model.md`. Final state: 691/691
+backend tests, 116/116 frontend tests, zero drift, all 6 spec.md
+Success Criteria verified. Milestone shipped on branch
+`032-timed-practice-quiz-mode`, not yet merged to `staging`.
+
+**Version**: 3.16.0 -- 2026-09-23, Milestone 20 `/speckit-analyze`
+complete: 0 CRITICAL findings, 2 HIGH (stale "locked at expiry" wording
+contradicting the resolved auto-submit decision; SC-006's timed-flow
+half untested by automation) and 5 MEDIUM/LOW (uncited FR/SC task
+traceability, one cosmetic FR-ordering issue, two dependency-note
+wording inaccuracies), all fixed before `/speckit-implement`.
+
+**Version**: 3.15.0 -- 2026-09-23, Milestone 20 `/speckit-tasks`
+complete: 42 tasks generated across Foundational + 3 user-story phases
++ Polish; US1 (timed quiz) alone is a demoable MVP increment,
+independently testable per spec.md.
+
+**Version**: 3.14.0 -- 2026-09-23, Milestone 20: post-plan
+`/speckit-clarify` added FR-011/SC-006 (per-question time-spent
+recording, server-derived, applies to every answered question across
+all five flows regardless of timer opt-in), absorbing the "Per-question
+time-spent tracking" backlog item into this milestone rather than
+leaving it separate (that bullet now struck through in "Out of current
+roadmap"); `/speckit-plan` re-run same day to fold FR-011 into
+`research.md`/`data-model.md`/`contracts/api.md` -- a JSON payload-only
+extension of the existing `answer_submitted` audit event, no schema
+migration of its own.
+
+**Version**: 3.13.0 -- 2026-09-23, Milestone 20 `/speckit-plan`
+complete same day: locked lazy, per-request expiry enforcement (no
+background timer process, required by Principle IX on Vercel) as the
+mechanism resolving how a timed session actually ends; corrected a
+factual error found in the spec's original FR-010 (today's untimed
+quiz has no learner-initiated early-end action, so this is new
+behavior, not a reuse); no new dependency, no `tech-stack.md` amendment.
+
+**Version**: 3.12.0 -- 2026-09-23, added Milestone 20 (Timed Practice
+and Quiz Mode), promoted from its prior "Out of current roadmap" entry;
+`/speckit-specify` complete same day (branch
+`032-timed-practice-quiz-mode`), all three open design questions
+(expiry behavior, scoring, practice-session boundary scope) resolved
+during the spec's own clarification loop -- no separate
+`/speckit-clarify` pass needed. Also recorded Milestone 19's PR #81/#82
+merge to staging+main in its status line.
 
 **Version**: 3.11.0 -- 2026-09-22, added Milestone 19 (Schema-Drift
 Detection CI Check), `/speckit-implement` complete same day; found and

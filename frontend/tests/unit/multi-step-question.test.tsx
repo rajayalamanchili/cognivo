@@ -89,6 +89,28 @@ describe("MultiStepAnswerInput", () => {
 
     expect(await screen.findByTestId("multi-step-error-unavailable")).toBeInTheDocument();
   });
+
+  it("calls onSessionEnded instead of showing a rejection state on a 409", async () => {
+    vi.mocked(api.answerQuestion).mockRejectedValue(
+      new ApiError(409, "practice session 1: session has ended (status=ended_early)"),
+    );
+    const onSessionEnded = vi.fn();
+    render(
+      <MultiStepAnswerInput
+        questionId="q1"
+        steps={STEPS}
+        onGraded={vi.fn()}
+        onSessionEnded={onSessionEnded}
+      />,
+    );
+
+    await userEvent.type(screen.getByTestId("multi-step-input-0"), "3x = 12");
+    await userEvent.type(screen.getByTestId("multi-step-input-1"), "x = 4");
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId("multi-step-error-unavailable")).not.toBeInTheDocument();
+  });
 });
 
 describe("AnswerResultView step-by-step result", () => {

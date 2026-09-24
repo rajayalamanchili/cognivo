@@ -179,6 +179,186 @@ describe("QuizFlow", () => {
     expect(screen.queryByTestId("question-card")).not.toBeInTheDocument();
   });
 
+  it("ignores a countdown expiry that fires while a submit is already in flight (PR feedback)", async () => {
+    vi.mocked(api.getDemoLearner).mockResolvedValue({
+      learner_id: "learner-1",
+      display_name: "Demo Learner",
+    });
+    vi.mocked(api.getSubjects).mockResolvedValue({
+      subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
+    });
+    vi.mocked(api.getMasteryState).mockResolvedValue({
+      topics: [
+        {
+          topic_id: "linear-equations",
+          status: "unknown",
+          p_mastery: null,
+          band: null,
+          last_updated_at: null,
+        },
+      ],
+    });
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      question,
+      expires_at: new Date(Date.now() + 1200).toISOString(),
+    });
+    let resolveAnswer: (value: Awaited<ReturnType<typeof api.answerQuestion>>) => void;
+    vi.mocked(api.answerQuestion).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAnswer = resolve;
+        }),
+    );
+    vi.mocked(api.getQuizNextQuestion).mockResolvedValue({
+      status: "in_progress",
+      question: { ...question, question_id: "q2" },
+    });
+
+    render(<QuizFlow />);
+    const checkbox = await screen.findByLabelText("Linear Equations");
+    await userEvent.click(checkbox);
+    await userEvent.selectOptions(screen.getByLabelText("Time limit"), "1800");
+    await userEvent.click(screen.getByRole("button", { name: /start quiz/i }));
+
+    await screen.findByTestId("question-card");
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    // "End quiz now" is disabled while the submit is in flight.
+    expect(screen.getByRole("button", { name: /end quiz now/i })).toBeDisabled();
+
+    // Let the real countdown interval fire onExpire while still submitting.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(api.getQuizNextQuestion).not.toHaveBeenCalled();
+
+    resolveAnswer!({
+      correct: true,
+      topic_id: "linear-equations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+
+    await screen.findByText("2 + 2?");
+    expect(api.getQuizNextQuestion).toHaveBeenCalledTimes(1);
+  }, 10000);
+
+  it("ignores a countdown expiry that fires while a free-text submission is already in flight (PR feedback)", async () => {
+    const freeTextQuestion = {
+      ...question,
+      question_id: "q1-free",
+      question_type: "free_text" as const,
+      options: null,
+    };
+    vi.mocked(api.getDemoLearner).mockResolvedValue({
+      learner_id: "learner-1",
+      display_name: "Demo Learner",
+    });
+    vi.mocked(api.getSubjects).mockResolvedValue({
+      subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
+    });
+    vi.mocked(api.getMasteryState).mockResolvedValue({
+      topics: [
+        {
+          topic_id: "linear-equations",
+          status: "unknown",
+          p_mastery: null,
+          band: null,
+          last_updated_at: null,
+        },
+      ],
+    });
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      question: freeTextQuestion,
+      expires_at: new Date(Date.now() + 1200).toISOString(),
+    });
+    let resolveAnswer: (value: Awaited<ReturnType<typeof api.answerQuestion>>) => void;
+    vi.mocked(api.answerQuestion).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAnswer = resolve;
+        }),
+    );
+    vi.mocked(api.getQuizNextQuestion).mockResolvedValue({
+      status: "in_progress",
+      question: { ...question, question_id: "q2" },
+    });
+
+    render(<QuizFlow />);
+    const checkbox = await screen.findByLabelText("Linear Equations");
+    await userEvent.click(checkbox);
+    await userEvent.selectOptions(screen.getByLabelText("Time limit"), "1800");
+    await userEvent.click(screen.getByRole("button", { name: /start quiz/i }));
+
+    await screen.findByTestId("free-text-answer-input");
+    await userEvent.type(screen.getByRole("textbox"), "four");
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    // "End quiz now" is disabled while the free-text grading call is in
+    // flight, even though `phase` itself never left "answering" for this
+    // question type (PR feedback: the earlier "submitting"-phase-only
+    // guard missed this).
+    expect(screen.getByRole("button", { name: /end quiz now/i })).toBeDisabled();
+
+    // Let the real countdown interval fire onExpire while still grading.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(api.getQuizNextQuestion).not.toHaveBeenCalled();
+
+    resolveAnswer!({
+      correct: true,
+      topic_id: "linear-equations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+
+    await screen.findByText("2 + 2?");
+    expect(api.getQuizNextQuestion).toHaveBeenCalledTimes(1);
+  }, 10000);
+
+  it("ignores an already_answered 409 without treating it as the session having ended (PR feedback)", async () => {
+    vi.mocked(api.startQuiz).mockResolvedValue({
+      handoff_token: null,
+      quiz_session_id: "quiz-1",
+      status: "in_progress",
+      question,
+    });
+    vi.mocked(api.answerQuestion).mockRejectedValue(
+      new ApiError(409, "already answered", {
+        error: "already_answered",
+        question_id: question.question_id,
+      }),
+    );
+
+    await renderAndStartQuiz();
+    await screen.findByTestId("question-card");
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    await waitFor(() => expect(api.answerQuestion).toHaveBeenCalledTimes(1));
+    expect(api.getQuizSummary).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("quiz-summary")).not.toBeInTheDocument();
+  });
+
   it("shows the ended_early phase immediately if the very first question can't be generated", async () => {
     vi.mocked(api.startQuiz).mockResolvedValue({
       handoff_token: null,

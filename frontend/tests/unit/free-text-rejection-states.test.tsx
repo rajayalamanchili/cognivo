@@ -116,4 +116,27 @@ describe("FreeTextAnswerInput rejection states", () => {
     await screen.findByTestId("free-text-error-unavailable");
     expectOnlyVisible("free-text-error-unavailable");
   });
+
+  it("calls onSessionEnded instead of showing a rejection state on a 409", async () => {
+    vi.mocked(api.answerQuestion).mockRejectedValue(
+      new ApiError(409, "quiz 1: session has ended (status=ended_early)"),
+    );
+    const onSessionEnded = vi.fn();
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} onSessionEnded={onSessionEnded} />);
+    await submit();
+    await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledOnce());
+    expectOnlyVisible(null);
+  });
+
+  it("falls back to idle on a 409 when no onSessionEnded is given", async () => {
+    vi.mocked(api.answerQuestion).mockRejectedValue(
+      new ApiError(409, "question already answered"),
+    );
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    await submit();
+    await vi.waitFor(() =>
+      expect(screen.getByRole("button", { name: /submit answer/i })).not.toBeDisabled(),
+    );
+    expectOnlyVisible(null);
+  });
 });

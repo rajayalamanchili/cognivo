@@ -22,6 +22,7 @@ from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_
 from src.agents.sequencing.agent import generate_next_question
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import (
+    AlreadyAnsweredError,
     ConflictError,
     ModerationRejectedError,
     NotFoundError,
@@ -32,9 +33,11 @@ from src.api.errors import (
 )
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, QuestionType, ValidationStatus
+from src.models.enums import AssessmentEventType, QuestionType, QuizSessionStatus, ValidationStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.mastery_state import MasteryState
+from src.models.practice_session import PracticeSession
+from src.models.quiz_session import QuizSession
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.observability.session import get_database_session_service
@@ -57,10 +60,50 @@ from src.services.grading_client.moderation import check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
-from src.services.quiz.session import record_quiz_answer
+from src.services.quiz.session import check_and_expire_if_needed, record_quiz_answer
 from src.services.quiz_assignment.assignment import assert_quiz_session_access
 
 router = APIRouter()
+
+
+def _reject_if_timed_session_ended(db: Session, *, question: GeneratedQuestion) -> None:
+    """Spec 022 FR-003/FR-006, research.md §1: "an answer submitted
+    after expiry is rejected, not silently scored" -- rejects (409) an
+    answer for a timed quiz/practice session that has expired or been
+    manually ended. A no-op for an untimed quiz/a question with no
+    session at all, same as before this feature.
+
+    Called both before grading starts (`answer_question`'s original
+    check) and, for `free_text`/`multi_step`, again right after (PR
+    feedback): those two question types' grading is an LLM-bound A2A
+    call wide enough (this file's own comment near the `IntegrityError`
+    handler below: "several seconds... with retries") for the session
+    to expire or be manually ended on a concurrent request while
+    grading is still in flight -- without this second call, the answer
+    would still get scored and recorded for a session that had already
+    ended by the time grading finished."""
+    if question.quiz_session_id is not None:
+        quiz = db.get(QuizSession, question.quiz_session_id)
+        if quiz.time_limit_seconds is not None:
+            # Always commits internally (and releases its row lock)
+            # before returning, so this transition survives even though
+            # the ConflictError below aborts the rest of this request.
+            check_and_expire_if_needed(db, session=quiz, session_type="quiz")
+            if quiz.status != QuizSessionStatus.IN_PROGRESS:
+                raise ConflictError(
+                    f"quiz {question.quiz_session_id}: session has ended "
+                    f"(status={quiz.status.value})"
+                )
+    if question.practice_session_id is not None:
+        # Every `PracticeSession` is timed by construction (FR-008), so
+        # no `time_limit_seconds is not None` guard is needed here.
+        practice_session = db.get(PracticeSession, question.practice_session_id)
+        check_and_expire_if_needed(db, session=practice_session, session_type="practice")
+        if practice_session.status != QuizSessionStatus.IN_PROGRESS:
+            raise ConflictError(
+                f"practice session {question.practice_session_id}: session has ended "
+                f"(status={practice_session.status.value})"
+            )
 
 
 def _get_validated_subject(db: Session, subject_id: str) -> Subject:
@@ -68,6 +111,26 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
     if subject is None or subject.validated_at is None:
         raise NotFoundError(f"unknown or unvalidated subject_id: {subject_id!r}")
     return subject
+
+
+def time_spent_seconds(shown_at: datetime.datetime | None) -> int | None:
+    """Spec 022 FR-011: server-derived answer duration from a timestamp
+    already on the row (never a client-reported duration, research.md
+    §6) -- shared by this route's own `answer_question` and
+    `api/routes/placement.py`'s `submit_placement`, the two other places
+    that formula used to be copy-pasted."""
+    if shown_at is None:
+        return None
+    return round((datetime.datetime.now(datetime.UTC) - shown_at).total_seconds())
+
+
+def has_placement_data(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> bool:
+    return (
+        db.query(MasteryState)
+        .filter(MasteryState.learner_id == learner_id, MasteryState.subject_id == subject_id)
+        .first()
+        is not None
+    )
 
 
 class NextQuestionOut(BaseModel):
@@ -84,24 +147,22 @@ class NextQuestionOut(BaseModel):
     unlocked_grade: int | None = None
 
 
-@router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
-async def get_next_question(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
-) -> NextQuestionOut:
-    _get_validated_subject(db, subject_id)
-
-    has_placement_data = (
-        db.query(MasteryState)
-        .filter(MasteryState.learner_id == learner_id, MasteryState.subject_id == subject_id)
-        .first()
-        is not None
-    )
-    if not has_placement_data:
-        raise NotFoundError(
-            f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
-            "complete placement first"
-        )
-
+async def generate_and_persist_next_question(
+    db: Session,
+    *,
+    learner_id: uuid.UUID,
+    subject_id: str,
+    practice_session_id: uuid.UUID | None = None,
+):
+    """Generates a question via the Sequencing Agent and persists it,
+    recording `next_topic_selected` -- shared by ordinary untimed
+    practice (`get_next_question` below) and timed practice
+    (`api/routes/practice_sessions.py`, spec 022); `practice_session_id`
+    tagging is the only difference between the two callers. Does not
+    commit -- same convention as `services/quiz/session.py`'s
+    `persist_quiz_question`. Returns `(question, result)`; `result`
+    carries `.selection`/`.draft`/`.question_type`/`.image_url`/etc.
+    for the caller's own response model."""
     with traced_request(learner_id=learner_id):
         result = await generate_next_question(
             db,
@@ -133,6 +194,7 @@ async def get_next_question(
         validation_status=ValidationStatus.VALID,
         shown_at=now,
         generation_prompt_version=GENERATION_PROMPT_VERSION,
+        practice_session_id=practice_session_id,
     )
     db.add(question)
     db.flush()
@@ -157,8 +219,17 @@ async def get_next_question(
             "cache_miss_reason": result.cache_outcome.reason,
         },
     )
+    return question, result
 
-    db.commit()
+
+def build_next_question_out(
+    db: Session, *, question: GeneratedQuestion, result, learner_id: uuid.UUID, subject_id: str
+) -> NextQuestionOut:
+    """Builds the shared `NextQuestionOut` response shape from a
+    `generate_and_persist_next_question` result -- reused by this
+    route's own `get_next_question` and by `api/routes/
+    practice_sessions.py`'s two timed-practice next-question routes
+    (spec 022), so a future field addition only needs to change once."""
     return NextQuestionOut(
         question_id=question.question_id,
         topic_id=result.selection.topic_id,
@@ -180,6 +251,27 @@ async def get_next_question(
             db, learner_id=learner_id, subject_id=subject_id
         ),
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+    )
+
+
+@router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
+async def get_next_question(
+    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+) -> NextQuestionOut:
+    _get_validated_subject(db, subject_id)
+
+    if not has_placement_data(db, learner_id=learner_id, subject_id=subject_id):
+        raise NotFoundError(
+            f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
+            "complete placement first"
+        )
+
+    question, result = await generate_and_persist_next_question(
+        db, learner_id=learner_id, subject_id=subject_id
+    )
+    db.commit()
+    return build_next_question_out(
+        db, question=question, result=result, learner_id=learner_id, subject_id=subject_id
     )
 
 
@@ -384,8 +476,9 @@ async def answer_question(
             claims=claims,
             handoff_token=x_quiz_handoff_token,
         )
+    _reject_if_timed_session_ended(db, question=question)
     if _already_answered(db, question_id):
-        raise ConflictError(f"question {question_id} already answered")
+        raise AlreadyAnsweredError(question_id)
     try:
         validate_response_shape(question.question_type, body.response)
     except ValueError as exc:
@@ -454,6 +547,25 @@ async def answer_question(
             "read_aloud_used": body.read_aloud_used,
         }
 
+    # PR feedback: re-run the same expiry/status check from before
+    # grading started -- see `_reject_if_timed_session_ended`'s
+    # docstring. A near-instant no-op for MC/numeric (the `else` branch
+    # above awaits nothing), but free_text/multi_step's grading call
+    # above can take long enough for the session to have expired or been
+    # manually ended while it was in flight; this must run (and reject,
+    # discarding the grading result above) before anything below scores
+    # or records this answer.
+    _reject_if_timed_session_ended(db, question=question)
+
+    # Spec 022 FR-011: recorded for every answered question -- placement,
+    # untimed practice, untimed quiz, timed practice, timed quiz alike,
+    # no exceptions. `shown_at` is always set by the time a question can
+    # be answered at all (a question must reach VALID before `shown_at`
+    # may be set), so this guard is defensive only.
+    spent = time_spent_seconds(question.shown_at)
+    if spent is not None:
+        answer_payload["time_spent_seconds"] = spent
+
     result = apply_mastery_update(
         db,
         learner_id=question.learner_id,
@@ -483,7 +595,7 @@ async def answer_question(
         # here, and its whole transaction (including the mastery update
         # above) rolls back rather than double-recording (PR #18 review).
         db.rollback()
-        raise ConflictError(f"question {question_id}: already answered") from exc
+        raise AlreadyAnsweredError(question_id) from exc
     record_event(
         db,
         learner_id=question.learner_id,

@@ -31,6 +31,7 @@ from src.models.generated_question import GeneratedQuestion
 from src.models.grade_progress import GradeProgress
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
+from src.models.practice_session import PracticeSession
 from src.models.quiz_assignment import QuizAssignment
 from src.models.quiz_assignment_target import QuizAssignmentTarget
 from src.models.quiz_session import QuizSession
@@ -129,6 +130,14 @@ def _delete_learner(
         synchronize_session=False
     )
     db.query(QuizSession).filter(QuizSession.learner_id == target_learner_id).delete(
+        synchronize_session=False
+    )
+
+    # Spec 022: practice_sessions.learner_id, same shape as
+    # quiz_sessions above -- generated_questions (already deleted
+    # above) is the only table referencing a practice_session, so this
+    # is safe to delete after that, same as quiz_sessions is.
+    db.query(PracticeSession).filter(PracticeSession.learner_id == target_learner_id).delete(
         synchronize_session=False
     )
 
