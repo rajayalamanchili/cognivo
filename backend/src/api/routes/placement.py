@@ -22,6 +22,7 @@ from src.agents.diagnostic.agent import (
 )
 from src.agents.sequencing.mastery_tool import apply_mastery_update
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
+from src.api.routes.questions import time_spent_seconds
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
 from src.models.enums import AssessmentEventType, DifficultyBand, QuestionType, ValidationStatus
@@ -370,6 +371,18 @@ async def submit_placement(
                 correct=correct,
                 question_type=question.question_type,
             )
+            answer_payload = {
+                "response": answer.response,
+                "correct": correct,
+                "placement_session_id": str(placement_session_id),
+                "read_aloud_used": answer.read_aloud_used,
+            }
+            # Spec 022 FR-011: same addition as questions.py's
+            # answer_question -- placement is one of the "no exceptions"
+            # flows. shown_at is always set at start_placement time.
+            spent = time_spent_seconds(question.shown_at)
+            if spent is not None:
+                answer_payload["time_spent_seconds"] = spent
             record_event(
                 db,
                 learner_id=question.learner_id,
@@ -377,12 +390,7 @@ async def submit_placement(
                 subject_id=question.subject_id,
                 topic_id=question.topic_id,
                 question_id=question.question_id,
-                payload={
-                    "response": answer.response,
-                    "correct": correct,
-                    "placement_session_id": str(placement_session_id),
-                    "read_aloud_used": answer.read_aloud_used,
-                },
+                payload=answer_payload,
             )
             record_event(
                 db,

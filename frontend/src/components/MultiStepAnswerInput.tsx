@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   answerQuestion,
   ApiError,
+  isAlreadyAnsweredError,
   type AnswerResult,
   type FreeTextErrorBody,
 } from "@/services/api";
@@ -22,6 +23,10 @@ export interface MultiStepAnswerInputProps {
   disabled?: boolean;
   readAloudUsed?: boolean;
   handoffToken?: string | null;
+  // Spec 022: same reasoning as FreeTextAnswerInput's own onSessionEnded.
+  onSessionEnded?: () => void;
+  // PR feedback: same reasoning as FreeTextAnswerInput's own onBusyChange.
+  onBusyChange?: (busy: boolean) => void;
 }
 
 type SubmitState =
@@ -50,6 +55,8 @@ export default function MultiStepAnswerInput({
   disabled,
   readAloudUsed,
   handoffToken,
+  onSessionEnded,
+  onBusyChange,
 }: MultiStepAnswerInputProps) {
   const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
   const [state, setState] = useState<SubmitState>("idle");
@@ -60,12 +67,22 @@ export default function MultiStepAnswerInput({
 
   async function handleSubmit() {
     setState("grading-in-progress");
+    onBusyChange?.(true);
     try {
       const result = await answerQuestion(questionId, answers, readAloudUsed, handoffToken);
       setState("idle");
       onGraded(result);
     } catch (error) {
+      // PR feedback: a duplicate-submit 409 isn't a session-ended 409 --
+      // falls through to stateFromError below, same as any other
+      // unrecognized error shape (resets to "idle").
+      if (!isAlreadyAnsweredError(error) && onSessionEnded && error instanceof ApiError && error.status === 409) {
+        onSessionEnded();
+        return;
+      }
       setState(stateFromError(error));
+    } finally {
+      onBusyChange?.(false);
     }
   }
 

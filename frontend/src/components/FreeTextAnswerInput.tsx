@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   answerQuestion,
   ApiError,
+  isAlreadyAnsweredError,
   type AnswerResult,
   type FreeTextErrorBody,
 } from "@/services/api";
@@ -20,6 +21,17 @@ export interface FreeTextAnswerInputProps {
   disabled?: boolean;
   readAloudUsed?: boolean;
   handoffToken?: string | null;
+  // Spec 022: a timed session's real (server) deadline can pass before
+  // the client-side countdown's own onExpire fires (clock drift, a
+  // throttled background tab) -- if that happens mid-submission here,
+  // the parent flow's existing 409 handling (routing to the summary/
+  // ended screen, same as the MC/numeric submit path) should take over
+  // instead of this component falling through to a silent idle state.
+  onSessionEnded?: () => void;
+  // PR feedback: free_text/multi_step submit themselves, so the parent's
+  // `phase` never reflects a grading call in flight here -- this lets the
+  // parent's countdown-expiry/end-now guards see it too.
+  onBusyChange?: (busy: boolean) => void;
 }
 
 type SubmitState =
@@ -49,18 +61,30 @@ export default function FreeTextAnswerInput({
   disabled,
   readAloudUsed,
   handoffToken,
+  onSessionEnded,
+  onBusyChange,
 }: FreeTextAnswerInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SubmitState>("idle");
 
   async function handleSubmit() {
     setState("grading-in-progress");
+    onBusyChange?.(true);
     try {
       const result = await answerQuestion(questionId, text, readAloudUsed, handoffToken);
       setState("idle");
       onGraded(result);
     } catch (error) {
+      // PR feedback: a duplicate-submit 409 isn't a session-ended 409 --
+      // falls through to stateFromError below, same as any other
+      // unrecognized error shape (resets to "idle").
+      if (!isAlreadyAnsweredError(error) && onSessionEnded && error instanceof ApiError && error.status === 409) {
+        onSessionEnded();
+        return;
+      }
       setState(stateFromError(error));
+    } finally {
+      onBusyChange?.(false);
     }
   }
 

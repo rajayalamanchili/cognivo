@@ -140,6 +140,13 @@ def test_answer_question_twice_returns_409(
         f"/api/questions/{next_question['question_id']}/answer", json={"response": 1}
     )
     assert second.status_code == 409
+    # PR feedback: a discriminated body, distinct from a timed-session-
+    # ended 409's generic `{"detail": ...}`, so the frontend doesn't
+    # mistake a plain duplicate submission for the session having ended.
+    assert second.json() == {
+        "error": "already_answered",
+        "question_id": next_question["question_id"],
+    }
 
 
 def test_answer_unknown_question_returns_404(client, db_session):

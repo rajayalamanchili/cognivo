@@ -5,12 +5,14 @@ import Link from "next/link";
 import {
   ApiError,
   answerQuestion,
+  endQuiz,
   flagQuestion,
   getDemoLearner,
   getMasteryState,
   getQuizNextQuestion,
   getQuizSummary,
   getSubjects,
+  isAlreadyAnsweredError,
   startQuiz,
   type MasteryTopicEntry,
   type NextQuestion,
@@ -20,8 +22,10 @@ import {
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import SessionCountdown from "@/components/SessionCountdown";
 import { formatTopicId } from "@/lib/format-topic-id";
 import { getPacingProfile } from "@/lib/pacing";
+import { TIME_LIMIT_OPTIONS } from "@/lib/time-limit-options";
 
 type Phase =
   | "loading"
@@ -49,14 +53,20 @@ export default function QuizFlow() {
   const [topics, setTopics] = useState<MasteryTopicEntry[]>([]);
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(DEFAULT_QUESTION_COUNT);
+  const [timeLimitSeconds, setTimeLimitSeconds] = useState<number | null>(null);
 
   const [quizSessionId, setQuizSessionId] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<NextQuestion | null>(null);
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
   const [readAloudUsed, setReadAloudUsed] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // PR feedback: free_text/multi_step submit themselves, so `phase` alone
+  // doesn't cover their grading call being in flight -- tracked separately
+  // so the countdown-expiry/end-now guards below see it too.
+  const [answerBusy, setAnswerBusy] = useState(false);
 
   // Session pacing (spec 019 FR-009, research.md Decision 6) -- a soft,
   // dismissible checkpoint only; the quiz itself is never ended by
@@ -124,8 +134,9 @@ export default function QuizFlow() {
     if (selectedTopicIds.length === 0) return;
     setPhase("starting");
     try {
-      const result = await startQuiz(selectedTopicIds, questionCount);
+      const result = await startQuiz(selectedTopicIds, questionCount, timeLimitSeconds);
       setQuizSessionId(result.quiz_session_id);
+      setExpiresAt(result.expires_at ?? null);
       setAnsweredCount(0);
       setStoppingPointShown(false);
       setReinforcementMessage(null);
@@ -145,6 +156,7 @@ export default function QuizFlow() {
   async function advanceToNextQuestion(sessionId: string) {
     try {
       const next = await getQuizNextQuestion(sessionId);
+      setExpiresAt(next.expires_at ?? null);
       if (next.status === "in_progress" && next.question) {
         setCurrentQuestion(next.question);
         setFlagged(false);
@@ -161,6 +173,39 @@ export default function QuizFlow() {
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
     }
+  }
+
+  // Spec 022 FR-010: a new "end now" action, timed quizzes only.
+  async function handleEndQuizNow() {
+    // Guard against racing a submit that's already in flight (PR
+    // feedback): its own advanceAfterAnswer -> advanceToNextQuestion
+    // call would otherwise land concurrently with this one. `answerBusy`
+    // covers free_text/multi_step, whose grading call doesn't move `phase`.
+    if (!quizSessionId || phase !== "answering" || answerBusy) return;
+    try {
+      await endQuiz(quizSessionId);
+      await goToSummary(quizSessionId);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        await goToSummary(quizSessionId);
+        return;
+      }
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setPhase("error");
+    }
+  }
+
+  // Spec 022 FR-003: the countdown reaching zero doesn't itself end the
+  // session -- it just triggers the same request the learner's next
+  // action would have, and the server's own lazy expiry check (already
+  // wired into next-question/answer) does the real work.
+  function handleCountdownExpire() {
+    // PR feedback: skip while a submit is already in flight -- its own
+    // advanceAfterAnswer -> advanceToNextQuestion call once it resolves
+    // would otherwise race this one for the same session. `answerBusy`
+    // covers free_text/multi_step, whose grading call doesn't move `phase`.
+    if (!quizSessionId || phase !== "answering" || answerBusy) return;
+    void advanceToNextQuestion(quizSessionId);
   }
 
   // spec 019 FR-009: called after every answered question (both the
@@ -200,6 +245,14 @@ export default function QuizFlow() {
       setResponse("");
       await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
+      // PR feedback: a duplicate-submit 409 isn't a session-ended 409 --
+      // no-op, the original request's own resolution above already
+      // carries the UI forward.
+      if (isAlreadyAnsweredError(error)) return;
+      if (error instanceof ApiError && error.status === 409) {
+        await goToSummary(quizSessionId);
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
     }
@@ -271,6 +324,19 @@ export default function QuizFlow() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
         <h1 className="text-2xl font-semibold">Quiz</h1>
+        {expiresAt && (
+          <div className="flex items-center justify-between gap-4">
+            <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
+            <button
+              type="button"
+              disabled={phase === "submitting" || answerBusy}
+              onClick={handleEndQuizNow}
+              className="text-sm text-link underline disabled:opacity-40"
+            >
+              End quiz now
+            </button>
+          </div>
+        )}
         {reinforcementMessage && (
           <p
             data-testid="reinforcement-message"
@@ -289,6 +355,8 @@ export default function QuizFlow() {
           flagged={flagged}
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
+          onSessionEnded={() => quizSessionId && void goToSummary(quizSessionId)}
+          onBusyChange={setAnswerBusy}
           readAloudEnabled={currentQuestion.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
         />
@@ -353,6 +421,22 @@ export default function QuizFlow() {
           onChange={(event) => setQuestionCount(Number(event.target.value))}
           className="rounded-lg border border-border px-3 py-2"
         />
+      </label>
+      <label className="flex flex-col gap-1">
+        Time limit
+        <select
+          value={timeLimitSeconds ?? ""}
+          onChange={(event) =>
+            setTimeLimitSeconds(event.target.value === "" ? null : Number(event.target.value))
+          }
+          className="rounded-lg border border-border px-3 py-2"
+        >
+          {TIME_LIMIT_OPTIONS.map((option) => (
+            <option key={option.label} value={option.seconds ?? ""}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </label>
       <button
         type="button"
