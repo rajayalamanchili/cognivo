@@ -72,7 +72,7 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
     return subject
 
 
-def _has_placement_data(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> bool:
+def has_placement_data(db: Session, *, learner_id: uuid.UUID, subject_id: str) -> bool:
     return (
         db.query(MasteryState)
         .filter(MasteryState.learner_id == learner_id, MasteryState.subject_id == subject_id)
@@ -170,22 +170,14 @@ async def generate_and_persist_next_question(
     return question, result
 
 
-@router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
-async def get_next_question(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+def build_next_question_out(
+    db: Session, *, question: GeneratedQuestion, result, learner_id: uuid.UUID, subject_id: str
 ) -> NextQuestionOut:
-    _get_validated_subject(db, subject_id)
-
-    if not _has_placement_data(db, learner_id=learner_id, subject_id=subject_id):
-        raise NotFoundError(
-            f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
-            "complete placement first"
-        )
-
-    question, result = await generate_and_persist_next_question(
-        db, learner_id=learner_id, subject_id=subject_id
-    )
-    db.commit()
+    """Builds the shared `NextQuestionOut` response shape from a
+    `generate_and_persist_next_question` result -- reused by this
+    route's own `get_next_question` and by `api/routes/
+    practice_sessions.py`'s two timed-practice next-question routes
+    (spec 022), so a future field addition only needs to change once."""
     return NextQuestionOut(
         question_id=question.question_id,
         topic_id=result.selection.topic_id,
@@ -207,6 +199,27 @@ async def get_next_question(
             db, learner_id=learner_id, subject_id=subject_id
         ),
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+    )
+
+
+@router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
+async def get_next_question(
+    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+) -> NextQuestionOut:
+    _get_validated_subject(db, subject_id)
+
+    if not has_placement_data(db, learner_id=learner_id, subject_id=subject_id):
+        raise NotFoundError(
+            f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
+            "complete placement first"
+        )
+
+    question, result = await generate_and_persist_next_question(
+        db, learner_id=learner_id, subject_id=subject_id
+    )
+    db.commit()
+    return build_next_question_out(
+        db, question=question, result=result, learner_id=learner_id, subject_id=subject_id
     )
 
 

@@ -9,7 +9,7 @@
 // zero and the server's own cutoff is a cosmetic detail, not a
 // correctness issue.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface SessionCountdownProps {
   expiresAt: string;
@@ -32,6 +32,15 @@ function formatRemaining(totalSeconds: number): string {
 export default function SessionCountdown({ expiresAt, onExpire }: SessionCountdownProps) {
   const [remaining, setRemaining] = useState(() => remainingSeconds(expiresAt));
 
+  // A ref, not a dependency: `onExpire` is typically a fresh closure on
+  // every parent render (both callers pass a plain function), and this
+  // effect must not tear down/recreate its interval -- with a fresh
+  // `expired` flag -- just because the parent re-rendered while the
+  // countdown sits at/past zero, which would re-fire onExpire and
+  // double-submit the same expired-session request.
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+
   useEffect(() => {
     let expired = false;
     const intervalId = setInterval(() => {
@@ -40,11 +49,11 @@ export default function SessionCountdown({ expiresAt, onExpire }: SessionCountdo
       if (next <= 0 && !expired) {
         expired = true;
         clearInterval(intervalId);
-        onExpire?.();
+        onExpireRef.current?.();
       }
     }, 1000);
     return () => clearInterval(intervalId);
-  }, [expiresAt, onExpire]);
+  }, [expiresAt]);
 
   const low = remaining <= 60;
 

@@ -7,7 +7,6 @@ route's question-generation logic (`generate_and_persist_next_question`)
 with `practice_session_id` tagging as the only difference.
 """
 
-import datetime
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -17,22 +16,22 @@ from sqlalchemy.orm import Session
 from src.api.errors import ConflictError, NotFoundError
 from src.api.routes.questions import (
     NextQuestionOut,
+    build_next_question_out,
     generate_and_persist_next_question,
+    has_placement_data,
 )
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, QuestionType, QuizSessionStatus
+from src.models.enums import AssessmentEventType, QuizSessionStatus
 from src.models.generated_question import GeneratedQuestion
-from src.models.mastery_state import MasteryState
 from src.models.practice_session import PracticeSession
 from src.models.subject import Subject
-from src.services.mediation.grade import resolve_unlocked_grade
-from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import (
     SessionAlreadyEndedError,
     check_and_expire_if_needed,
     compute_timed_session_timing,
     end_session_manually,
+    session_expires_at,
     validate_time_limit_seconds,
 )
 
@@ -51,10 +50,6 @@ def _get_practice_session(db: Session, practice_session_id: uuid.UUID) -> Practi
     if session is None:
         raise NotFoundError(f"unknown practice_session_id: {practice_session_id}")
     return session
-
-
-def _practice_expires_at(session: PracticeSession) -> str:
-    return (session.started_at + datetime.timedelta(seconds=session.time_limit_seconds)).isoformat()
 
 
 def _compute_practice_score(db: Session, *, practice_session_id: uuid.UUID) -> tuple[int, int]:
@@ -99,15 +94,7 @@ async def start_practice_session(
     validate_time_limit_seconds(body.time_limit_seconds)
     _get_validated_subject(db, body.subject_id)
 
-    has_placement_data = (
-        db.query(MasteryState)
-        .filter(
-            MasteryState.learner_id == body.learner_id, MasteryState.subject_id == body.subject_id
-        )
-        .first()
-        is not None
-    )
-    if not has_placement_data:
+    if not has_placement_data(db, learner_id=body.learner_id, subject_id=body.subject_id):
         raise NotFoundError(
             f"learner {body.learner_id} has no placement data for subject "
             f"{body.subject_id!r} yet -- complete placement first"
@@ -130,30 +117,20 @@ async def start_practice_session(
     )
     db.commit()
 
+    # Every PracticeSession is timed by construction (time_limit_seconds
+    # is a required field above), so this is never None here.
+    expires_at = session_expires_at(practice_session)
+    assert expires_at is not None
     return PracticeStartOut(
         practice_session_id=practice_session.practice_session_id,
         status="in_progress",
-        expires_at=_practice_expires_at(practice_session),
-        question=NextQuestionOut(
-            question_id=question.question_id,
-            topic_id=result.selection.topic_id,
-            difficulty=result.selection.difficulty.value,
-            question_type=result.question_type.value,
-            stem=result.draft.stem,
-            options=result.draft.options,
-            image_url=result.image_url,
-            image_alt_text=result.image_alt_text,
-            steps=(
-                [step.step_prompt for step in result.draft.steps]
-                if result.question_type == QuestionType.MULTI_STEP
-                else None
-            ),
-            read_aloud_eligible=resolve_read_aloud_eligible(
-                db, learner_id=body.learner_id, subject_id=body.subject_id
-            ),
-            unlocked_grade=resolve_unlocked_grade(
-                db, learner_id=body.learner_id, subject_id=body.subject_id
-            ),
+        expires_at=expires_at,
+        question=build_next_question_out(
+            db,
+            question=question,
+            result=result,
+            learner_id=body.learner_id,
+            subject_id=body.subject_id,
         ),
     )
 
@@ -191,28 +168,14 @@ async def get_practice_next_question(
 
     return PracticeNextQuestionOut(
         status="in_progress",
-        question=NextQuestionOut(
-            question_id=question.question_id,
-            topic_id=result.selection.topic_id,
-            difficulty=result.selection.difficulty.value,
-            question_type=result.question_type.value,
-            stem=result.draft.stem,
-            options=result.draft.options,
-            image_url=result.image_url,
-            image_alt_text=result.image_alt_text,
-            steps=(
-                [step.step_prompt for step in result.draft.steps]
-                if result.question_type == QuestionType.MULTI_STEP
-                else None
-            ),
-            read_aloud_eligible=resolve_read_aloud_eligible(
-                db, learner_id=practice_session.learner_id, subject_id=practice_session.subject_id
-            ),
-            unlocked_grade=resolve_unlocked_grade(
-                db, learner_id=practice_session.learner_id, subject_id=practice_session.subject_id
-            ),
+        question=build_next_question_out(
+            db,
+            question=question,
+            result=result,
+            learner_id=practice_session.learner_id,
+            subject_id=practice_session.subject_id,
         ),
-        expires_at=_practice_expires_at(practice_session),
+        expires_at=session_expires_at(practice_session),
     )
 
 
@@ -264,6 +227,11 @@ def get_practice_summary(
     practice_session_id: uuid.UUID, db: Session = Depends(get_db)
 ) -> PracticeSummaryOut:
     practice_session = _get_practice_session(db, practice_session_id)
+    # Spec 022 FR-003: a timed practice session whose deadline passed with
+    # no intervening next-question/answer call must still show as expired
+    # here, not just on those other two endpoints.
+    if check_and_expire_if_needed(db, session=practice_session, session_type="practice"):
+        db.commit()
     correct, total = _compute_practice_score(db, practice_session_id=practice_session_id)
     timing = compute_timed_session_timing(db, session=practice_session, session_type="practice")
 

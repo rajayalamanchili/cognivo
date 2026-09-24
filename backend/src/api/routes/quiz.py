@@ -44,6 +44,7 @@ from src.services.quiz.session import (
     end_session_manually,
     generate_quiz_question,
     persist_quiz_question,
+    session_expires_at,
     start_quiz,
     validate_time_limit_seconds,
 )
@@ -57,14 +58,6 @@ router = APIRouter()
 
 _MIN_QUESTION_COUNT = 1
 _MAX_QUESTION_COUNT = 50
-
-
-def _quiz_expires_at(quiz: QuizSession) -> str | None:
-    """`expires_at = started_at + time_limit_seconds` (research.md §1),
-    `None` for an untimed quiz."""
-    if quiz.time_limit_seconds is None:
-        return None
-    return (quiz.started_at + datetime.timedelta(seconds=quiz.time_limit_seconds)).isoformat()
 
 
 def _resolve_quiz_subject_id(db: Session, topic_ids: list[str]) -> str:
@@ -187,7 +180,7 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
                 db, learner_id=learner.learner_id, subject_id=subject_id
             ),
         ),
-        expires_at=_quiz_expires_at(quiz),
+        expires_at=session_expires_at(quiz),
     )
 
 
@@ -259,7 +252,7 @@ async def get_quiz_next_question(
                 db, learner_id=quiz.learner_id, subject_id=quiz.subject_id
             ),
         ),
-        expires_at=_quiz_expires_at(quiz),
+        expires_at=session_expires_at(quiz),
     )
 
 
@@ -361,6 +354,12 @@ def get_quiz_summary_route(
         and guardian_owns_target(db, target=target, claims=claims)
     ):
         target.guardian_viewed_at = datetime.datetime.now(datetime.UTC)
+        db.commit()
+
+    # Spec 022 FR-003: a timed quiz whose deadline passed with no
+    # intervening next-question/answer call must still show as expired
+    # here, not just on those other two endpoints.
+    if check_and_expire_if_needed(db, session=quiz, session_type="quiz"):
         db.commit()
 
     summary = compute_quiz_summary(db, quiz_session_id=quiz_session_id)

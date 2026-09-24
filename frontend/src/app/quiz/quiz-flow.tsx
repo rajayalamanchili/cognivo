@@ -228,6 +228,10 @@ export default function QuizFlow() {
       setResponse("");
       await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        await goToSummary(quizSessionId);
+        return;
+      }
       setErrorMessage(error instanceof Error ? error.message : String(error));
       setPhase("error");
     }

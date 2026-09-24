@@ -147,8 +147,17 @@ def check_and_expire_if_needed(
     is untimed or already not `in_progress`; idempotent once expired --
     a second call after the first also returns `False`, since `status`
     is no longer `in_progress` by then. Returns `True` only on the call
-    that actually just transitioned the session to `ended_early`."""
-    if session.time_limit_seconds is None or session.status != QuizSessionStatus.IN_PROGRESS:
+    that actually just transitioned the session to `ended_early`.
+
+    Row-locks `session` before checking `status` (PR feedback: two
+    concurrent requests against the same expired session could otherwise
+    both observe `in_progress` and both write a competing
+    `TIMED_SESSION_ENDED` event) -- skipped for the common untimed case,
+    where there is nothing to race over."""
+    if session.time_limit_seconds is None:
+        return False
+    db.refresh(session, with_for_update=True)
+    if session.status != QuizSessionStatus.IN_PROGRESS:
         return False
     expires_at = session.started_at + datetime.timedelta(seconds=session.time_limit_seconds)
     if datetime.datetime.now(datetime.UTC) < expires_at:
@@ -161,6 +170,18 @@ def check_and_expire_if_needed(
         end_reason="timer_expired",
     )
     return True
+
+
+def session_expires_at(session: TimedSession) -> str | None:
+    """`expires_at = started_at + time_limit_seconds` (spec 022
+    research.md §1), `None` for an untimed session -- shared by
+    `api/routes/quiz.py` and `api/routes/practice_sessions.py` so the
+    formula can't drift between the two copies it used to be (every
+    `PracticeSession` is timed by construction, so this is never `None`
+    there)."""
+    if session.time_limit_seconds is None:
+        return None
+    return (session.started_at + datetime.timedelta(seconds=session.time_limit_seconds)).isoformat()
 
 
 def end_session_manually(db: Session, *, session: TimedSession, session_type: SessionKind) -> None:
@@ -552,16 +573,16 @@ def compute_timed_session_timing(
         return TimedSessionTiming(time_limit_seconds=None, elapsed_seconds=None, end_reason=None)
 
     session_id = str(_timed_session_id(session, session_type))
-    candidates = (
+    event = (
         db.query(AssessmentEvent)
         .filter(
             AssessmentEvent.learner_id == session.learner_id,
             AssessmentEvent.subject_id == session.subject_id,
             AssessmentEvent.event_type == AssessmentEventType.TIMED_SESSION_ENDED,
+            AssessmentEvent.payload["session_id"].as_string() == session_id,
         )
-        .all()
+        .first()
     )
-    event = next((e for e in candidates if e.payload.get("session_id") == session_id), None)
     if event is None:
         return TimedSessionTiming(
             time_limit_seconds=session.time_limit_seconds, elapsed_seconds=None, end_reason=None

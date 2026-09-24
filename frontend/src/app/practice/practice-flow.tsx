@@ -202,6 +202,10 @@ export default function PracticeFlow() {
       setResult(answer);
       setPhase("result");
     } catch (error) {
+      if (practiceSessionId && error instanceof ApiError && error.status === 409) {
+        await goToEnded(practiceSessionId);
+        return;
+      }
       setErrorMessage(
         error instanceof ApiError
           ? error.message
