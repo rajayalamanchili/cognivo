@@ -41,6 +41,7 @@ from src.services.quiz.session import (
     check_and_expire_if_needed,
     compute_quiz_summary,
     compute_timed_session_timing,
+    end_quiz_for_dedup_exhaustion,
     end_session_manually,
     generate_quiz_question,
     persist_quiz_question,
@@ -148,8 +149,7 @@ async def start_quiz_route(body: QuizStartIn, db: Session = Depends(get_db)) -> 
                 db, quiz=quiz, session_service=get_database_session_service()
             )
     except QuizEndedEarlyError:
-        quiz.status = QuizSessionStatus.ENDED_EARLY
-        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        end_quiz_for_dedup_exhaustion(db, quiz=quiz)
         db.commit()
         return QuizStartOut(quiz_session_id=quiz.quiz_session_id, status="ended_early")
 
@@ -221,8 +221,7 @@ async def get_quiz_next_question(
                 db, quiz=quiz, session_service=get_database_session_service()
             )
     except QuizEndedEarlyError:
-        quiz.status = QuizSessionStatus.ENDED_EARLY
-        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        end_quiz_for_dedup_exhaustion(db, quiz=quiz)
         db.commit()
         return QuizNextQuestionOut(status="ended_early")
 

@@ -9,6 +9,7 @@ const END_REASON_LABEL: Record<Exclude<SessionEndReason, null>, string> = {
   completed: "Finished before time ran out",
   timer_expired: "Time ran out",
   manually_ended_early: "Ended early",
+  dedup_exhausted: "Ended early -- ran out of new questions",
 };
 
 function formatDuration(totalSeconds: number): string {

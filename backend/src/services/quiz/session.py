@@ -105,7 +105,7 @@ def _end_timed_session(
     session: TimedSession,
     session_type: SessionKind,
     status: QuizSessionStatus,
-    end_reason: Literal["completed", "timer_expired", "manually_ended_early"],
+    end_reason: Literal["completed", "timer_expired", "manually_ended_early", "dedup_exhausted"],
 ) -> None:
     """Shared transition + audit-event write for every way a timed
     session can end (spec 022 research.md §1/§3/§4): timer expiry,
@@ -216,6 +216,40 @@ def end_session_manually(db: Session, *, session: TimedSession, session_type: Se
         status=QuizSessionStatus.ENDED_EARLY,
         end_reason="manually_ended_early",
     )
+
+
+def end_quiz_for_dedup_exhaustion(db: Session, *, quiz: QuizSession) -> None:
+    """Called from `api/routes/quiz.py`'s two `QuizEndedEarlyError`
+    handlers (dedup-retry exhaustion, research.md §4) -- the only
+    `ended_early` trigger that isn't timer expiry or a manual "end now".
+    For an untimed quiz this is unchanged (FR-009): sets `status`/
+    `completed_at` inline, no audit event. For a *timed* quiz, PR
+    feedback found this previously bypassed `_end_timed_session`
+    entirely, so `compute_timed_session_timing` had no
+    `TIMED_SESSION_ENDED` event to read and silently reported
+    `elapsed_seconds`/`end_reason` as `None` for a session that had
+    already ended (SC-005 miss) -- goes through it now, same as the
+    other two timed end-reasons.
+
+    Row-locks + re-checks status first, same reasoning as
+    `record_quiz_answer`'s own `_end_timed_session` call: a concurrent
+    manual "end now"/expiry could already have transitioned `quiz` by
+    the time generation raises `QuizEndedEarlyError`, and this must not
+    clobber that with a second, contradictory event."""
+    if quiz.time_limit_seconds is None:
+        quiz.status = QuizSessionStatus.ENDED_EARLY
+        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        db.flush()
+        return
+    db.refresh(quiz, with_for_update=True)
+    if quiz.status == QuizSessionStatus.IN_PROGRESS:
+        _end_timed_session(
+            db,
+            session=quiz,
+            session_type="quiz",
+            status=QuizSessionStatus.ENDED_EARLY,
+            end_reason="dedup_exhausted",
+        )
 
 
 def next_quiz_topic(topic_ids: Sequence[str], *, questions_generated_so_far: int) -> str:

@@ -209,7 +209,12 @@ export interface QuizSummaryEntry {
 }
 
 // Spec 022 SC-005: all three null for an untimed quiz.
-export type SessionEndReason = "completed" | "timer_expired" | "manually_ended_early" | null;
+export type SessionEndReason =
+  | "completed"
+  | "timer_expired"
+  | "manually_ended_early"
+  | "dedup_exhausted"
+  | null;
 
 export interface QuizSummaryResponse {
   quiz_session_id: string;
