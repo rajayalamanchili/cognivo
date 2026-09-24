@@ -172,7 +172,10 @@ export default function QuizFlow() {
 
   // Spec 022 FR-010: a new "end now" action, timed quizzes only.
   async function handleEndQuizNow() {
-    if (!quizSessionId) return;
+    // Guard against racing a submit that's already in flight (PR
+    // feedback): its own advanceAfterAnswer -> advanceToNextQuestion
+    // call would otherwise land concurrently with this one.
+    if (!quizSessionId || phase !== "answering") return;
     try {
       await endQuiz(quizSessionId);
       await goToSummary(quizSessionId);
@@ -191,7 +194,10 @@ export default function QuizFlow() {
   // action would have, and the server's own lazy expiry check (already
   // wired into next-question/answer) does the real work.
   function handleCountdownExpire() {
-    if (!quizSessionId) return;
+    // PR feedback: skip while a submit is already in flight -- its own
+    // advanceAfterAnswer -> advanceToNextQuestion call once it resolves
+    // would otherwise race this one for the same session.
+    if (!quizSessionId || phase !== "answering") return;
     void advanceToNextQuestion(quizSessionId);
   }
 
@@ -312,8 +318,9 @@ export default function QuizFlow() {
             <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
             <button
               type="button"
+              disabled={phase === "submitting"}
               onClick={handleEndQuizNow}
-              className="text-sm text-link underline"
+              className="text-sm text-link underline disabled:opacity-40"
             >
               End quiz now
             </button>

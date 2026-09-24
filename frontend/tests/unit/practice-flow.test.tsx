@@ -95,6 +95,58 @@ describe("PracticeFlow start screen", () => {
     expect(screen.getByRole("button", { name: /end practice now/i })).toBeInTheDocument();
   });
 
+  it("ignores a countdown expiry that fires while a submit is already in flight (PR feedback)", async () => {
+    vi.mocked(api.startPracticeSession).mockResolvedValue({
+      practice_session_id: "practice-1",
+      status: "in_progress",
+      expires_at: new Date(Date.now() + 1200).toISOString(),
+      question,
+    });
+    let resolveAnswer: (value: Awaited<ReturnType<typeof api.answerQuestion>>) => void;
+    vi.mocked(api.answerQuestion).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveAnswer = resolve;
+        }),
+    );
+
+    render(<PracticeFlow />);
+    await screen.findByTestId("practice-start-form");
+    await userEvent.selectOptions(screen.getByLabelText("Time limit"), "1800");
+    await userEvent.click(screen.getByRole("button", { name: /start timed practice/i }));
+    await screen.findByTestId("question-card");
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    // "End practice now" is disabled while the submit is in flight.
+    expect(screen.getByRole("button", { name: /end practice now/i })).toBeDisabled();
+
+    // Let the real countdown interval fire onExpire while still submitting.
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(api.getPracticeNextQuestion).not.toHaveBeenCalled();
+
+    resolveAnswer!({
+      correct: true,
+      topic_id: "linear-equations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: null,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+
+    // handleSubmit's own resolution takes it to the "result" phase, not
+    // a second automatic next-question fetch -- the guard's job is only
+    // to have prevented the countdown's concurrent one above.
+    await screen.findByTestId("answer-result-view");
+    expect(api.getPracticeNextQuestion).not.toHaveBeenCalled();
+  }, 10000);
+
   it("shows the ended screen when next-question reports the session has ended (409)", async () => {
     vi.mocked(api.startPracticeSession).mockResolvedValue({
       practice_session_id: "practice-1",

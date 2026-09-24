@@ -170,11 +170,17 @@ export default function PracticeFlow() {
   // request the learner's next action would have -- the server's own
   // lazy expiry check does the real work.
   function handleCountdownExpire() {
+    // PR feedback: skip while a submit is already in flight -- otherwise
+    // this fires a concurrent next-question fetch while handleSubmit's
+    // own answerQuestion call is still pending for the same session,
+    // racing which one lands first.
+    if (phase !== "answering") return;
     void advanceToNextQuestion();
   }
 
   async function handleEndPracticeNow() {
-    if (!practiceSessionId) return;
+    // Same guard as handleCountdownExpire above.
+    if (!practiceSessionId || phase !== "answering") return;
     try {
       await endPracticeSession(practiceSessionId);
       await goToEnded(practiceSessionId);
@@ -319,8 +325,9 @@ export default function PracticeFlow() {
             <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
             <button
               type="button"
+              disabled={phase === "submitting"}
               onClick={handleEndPracticeNow}
-              className="text-sm text-link underline"
+              className="text-sm text-link underline disabled:opacity-40"
             >
               End practice now
             </button>
