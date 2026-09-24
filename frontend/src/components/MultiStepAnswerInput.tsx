@@ -22,6 +22,8 @@ export interface MultiStepAnswerInputProps {
   disabled?: boolean;
   readAloudUsed?: boolean;
   handoffToken?: string | null;
+  // Spec 022: same reasoning as FreeTextAnswerInput's own onSessionEnded.
+  onSessionEnded?: () => void;
 }
 
 type SubmitState =
@@ -50,6 +52,7 @@ export default function MultiStepAnswerInput({
   disabled,
   readAloudUsed,
   handoffToken,
+  onSessionEnded,
 }: MultiStepAnswerInputProps) {
   const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
   const [state, setState] = useState<SubmitState>("idle");
@@ -65,6 +68,10 @@ export default function MultiStepAnswerInput({
       setState("idle");
       onGraded(result);
     } catch (error) {
+      if (onSessionEnded && error instanceof ApiError && error.status === 409) {
+        onSessionEnded();
+        return;
+      }
       setState(stateFromError(error));
     }
   }

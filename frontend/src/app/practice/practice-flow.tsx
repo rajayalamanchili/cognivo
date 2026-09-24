@@ -335,6 +335,9 @@ export default function PracticeFlow() {
           flagged={flagged}
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
+          onSessionEnded={
+            practiceSessionId ? () => void goToEnded(practiceSessionId) : undefined
+          }
           readAloudEnabled={question.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
         />

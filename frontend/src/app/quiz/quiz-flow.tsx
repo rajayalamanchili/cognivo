@@ -337,6 +337,7 @@ export default function QuizFlow() {
           flagged={flagged}
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
+          onSessionEnded={() => quizSessionId && void goToSummary(quizSessionId)}
           readAloudEnabled={currentQuestion.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
         />

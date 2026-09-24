@@ -20,6 +20,13 @@ export interface FreeTextAnswerInputProps {
   disabled?: boolean;
   readAloudUsed?: boolean;
   handoffToken?: string | null;
+  // Spec 022: a timed session's real (server) deadline can pass before
+  // the client-side countdown's own onExpire fires (clock drift, a
+  // throttled background tab) -- if that happens mid-submission here,
+  // the parent flow's existing 409 handling (routing to the summary/
+  // ended screen, same as the MC/numeric submit path) should take over
+  // instead of this component falling through to a silent idle state.
+  onSessionEnded?: () => void;
 }
 
 type SubmitState =
@@ -49,6 +56,7 @@ export default function FreeTextAnswerInput({
   disabled,
   readAloudUsed,
   handoffToken,
+  onSessionEnded,
 }: FreeTextAnswerInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SubmitState>("idle");
@@ -60,6 +68,10 @@ export default function FreeTextAnswerInput({
       setState("idle");
       onGraded(result);
     } catch (error) {
+      if (onSessionEnded && error instanceof ApiError && error.status === 409) {
+        onSessionEnded();
+        return;
+      }
       setState(stateFromError(error));
     }
   }

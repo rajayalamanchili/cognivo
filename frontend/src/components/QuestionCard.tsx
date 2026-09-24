@@ -33,6 +33,10 @@ export interface QuestionCardProps {
   // spec 019 FR-005b: forwarded to FreeTextAnswerInput/MultiStepAnswerInput,
   // which submit their own answers independently of the parent flow.
   handoffToken?: string | null;
+  // Spec 022: forwarded to FreeTextAnswerInput/MultiStepAnswerInput so a
+  // 409 on their own independent submission can route through the
+  // parent flow's existing session-ended handling.
+  onSessionEnded?: () => void;
 }
 
 const DEFAULT_FLAG_REASON = "Learner flagged this question's answer key as incorrect.";
@@ -58,6 +62,7 @@ export default function QuestionCard({
   readAloudEnabled,
   onReadAloudUsed,
   handoffToken,
+  onSessionEnded,
 }: QuestionCardProps) {
   const [showFlagForm, setShowFlagForm] = useState(false);
   const [reason, setReason] = useState("");
@@ -131,6 +136,7 @@ export default function QuestionCard({
           disabled={disabled}
           readAloudUsed={readAloudUsed}
           handoffToken={handoffToken}
+          onSessionEnded={onSessionEnded}
         />
       ) : question.question_type === "multi_step" ? (
         <MultiStepAnswerInput
@@ -140,6 +146,7 @@ export default function QuestionCard({
           disabled={disabled}
           readAloudUsed={readAloudUsed}
           handoffToken={handoffToken}
+          onSessionEnded={onSessionEnded}
         />
       ) : (
         <input
