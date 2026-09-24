@@ -117,7 +117,7 @@ export default function PracticeFlow() {
     }
     setPhase("starting");
     try {
-      const started = await startPracticeSession(learnerId, selectedSubjectId, timeLimitSeconds);
+      const started = await startPracticeSession(selectedSubjectId, timeLimitSeconds);
       setPracticeSessionId(started.practice_session_id);
       setExpiresAt(started.expires_at);
       setQuestion(started.question);

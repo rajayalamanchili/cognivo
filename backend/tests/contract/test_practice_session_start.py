@@ -36,7 +36,6 @@ def test_valid_start_returns_session_and_first_question(
         start = client.post(
             "/api/practice-sessions",
             json={
-                "learner_id": str(demo_learner.learner_id),
                 "subject_id": algebra_subject.subject_id,
                 "time_limit_seconds": 1800,
             },
@@ -60,7 +59,6 @@ def test_unknown_subject_returns_404(db_session, demo_learner, algebra_subject):
     start = client.post(
         "/api/practice-sessions",
         json={
-            "learner_id": str(demo_learner.learner_id),
             "subject_id": "not-a-real-subject",
             "time_limit_seconds": 1800,
         },
@@ -76,7 +74,7 @@ def test_missing_time_limit_returns_422(db_session, demo_learner, algebra_subjec
 
     start = client.post(
         "/api/practice-sessions",
-        json={"learner_id": str(demo_learner.learner_id), "subject_id": algebra_subject.subject_id},
+        json={"subject_id": algebra_subject.subject_id},
     )
     assert start.status_code == 422, start.text
 
@@ -90,7 +88,6 @@ def test_invalid_time_limit_returns_422(db_session, demo_learner, algebra_subjec
     start = client.post(
         "/api/practice-sessions",
         json={
-            "learner_id": str(demo_learner.learner_id),
             "subject_id": algebra_subject.subject_id,
             "time_limit_seconds": 42,
         },
@@ -112,7 +109,6 @@ def test_request_schema_has_no_client_elapsed_time_field(
         start = client.post(
             "/api/practice-sessions",
             json={
-                "learner_id": str(demo_learner.learner_id),
                 "subject_id": algebra_subject.subject_id,
                 "time_limit_seconds": 1800,
                 "expires_at": "2099-01-01T00:00:00Z",
@@ -120,3 +116,27 @@ def test_request_schema_has_no_client_elapsed_time_field(
         )
     assert start.status_code == 200, start.text
     assert start.json()["expires_at"] != "2099-01-01T00:00:00Z"
+
+
+def test_client_supplied_learner_id_is_ignored(db_session, demo_learner, algebra_subject):
+    """A client-asserted learner_id must never let the caller start a
+    session as someone else -- the server always resolves the demo
+    learner itself, matching quiz.py's start_quiz_route pattern."""
+    from src.api.main import app
+
+    client = TestClient(app)
+    _complete_placement(client, algebra_subject.subject_id)
+
+    with patch_generation():
+        start = client.post(
+            "/api/practice-sessions",
+            json={
+                "learner_id": "00000000-0000-0000-0000-000000000000",
+                "subject_id": algebra_subject.subject_id,
+                "time_limit_seconds": 1800,
+            },
+        )
+    assert start.status_code == 200, start.text
+
+    session = db_session.get(PracticeSession, start.json()["practice_session_id"])
+    assert session.learner_id == demo_learner.learner_id

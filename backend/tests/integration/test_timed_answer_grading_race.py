@@ -42,7 +42,6 @@ def test_free_text_answer_rejected_when_session_ends_mid_grading(
         start = client.post(
             "/api/practice-sessions",
             json={
-                "learner_id": str(demo_learner.learner_id),
                 "subject_id": algebra_subject.subject_id,
                 "time_limit_seconds": 1800,
             },

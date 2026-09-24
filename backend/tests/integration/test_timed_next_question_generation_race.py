@@ -109,7 +109,6 @@ def test_practice_next_question_race_rolls_back_after_concurrent_end(
         start = client.post(
             "/api/practice-sessions",
             json={
-                "learner_id": str(demo_learner.learner_id),
                 "subject_id": algebra_subject.subject_id,
                 "time_limit_seconds": 1800,
             },

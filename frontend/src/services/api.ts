@@ -392,14 +392,12 @@ export interface StartPracticeSessionResponse {
 }
 
 export function startPracticeSession(
-  learnerId: string,
   subjectId: string,
   timeLimitSeconds: number,
 ): Promise<StartPracticeSessionResponse> {
   return request<StartPracticeSessionResponse>("/api/practice-sessions", {
     method: "POST",
     body: JSON.stringify({
-      learner_id: learnerId,
       subject_id: subjectId,
       time_limit_seconds: timeLimitSeconds,
     }),
