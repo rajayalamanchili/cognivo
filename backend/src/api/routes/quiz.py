@@ -277,6 +277,11 @@ def end_quiz_route(
     assert_quiz_session_access(
         db, quiz_session_id=quiz_session_id, claims=claims, handoff_token=x_quiz_handoff_token
     )
+    # PR feedback: run the lazy expiry check first so a deadline that
+    # already silently passed is recorded as `timer_expired`, not
+    # mislabeled `manually_ended_early` just because this click reached
+    # the server first.
+    check_and_expire_if_needed(db, session=quiz, session_type="quiz")
     try:
         end_session_manually(db, session=quiz, session_type="quiz")
     except SessionNotTimedError as exc:

@@ -46,6 +46,10 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
 
 
 def _get_practice_session(db: Session, practice_session_id: uuid.UUID) -> PracticeSession:
+    # No access-control check here (unlike quiz.py's routes, which all
+    # call assert_quiz_session_access), deliberately -- practice sessions
+    # are never assignment-linked, matching questions.py's existing
+    # get_next_question pattern. Revisit if that ever changes.
     session = db.get(PracticeSession, practice_session_id)
     if session is None:
         raise NotFoundError(f"unknown practice_session_id: {practice_session_id}")
@@ -191,6 +195,11 @@ def end_practice_session(
     every `PracticeSession` row is timed by construction (`SessionNotTimedError`
     can never actually be raised here, unlike the quiz route)."""
     practice_session = _get_practice_session(db, practice_session_id)
+    # PR feedback: run the lazy expiry check first so a deadline that
+    # already silently passed is recorded as `timer_expired`, not
+    # mislabeled `manually_ended_early` just because this click reached
+    # the server first.
+    check_and_expire_if_needed(db, session=practice_session, session_type="practice")
     try:
         end_session_manually(db, session=practice_session, session_type="practice")
     except SessionAlreadyEndedError as exc:
