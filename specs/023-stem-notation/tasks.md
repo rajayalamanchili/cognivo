@@ -51,7 +51,11 @@ None needed -- no new project, dependency, or build tooling
 - [X] T003 [P] Unit tests for `NotationToolbar`'s insertion buttons and
       the custom-fraction composer's disabled-until-complete Insert
       button in `frontend/tests/unit/notation-toolbar.test.tsx`
-      (depends on T002) -- 6/6 passing
+      (depends on T002) -- 7/7 passing. **PR #86 review nitpick fixed**:
+      `composeFraction` accepted a zero denominator (`⁵⁄₀`, mathematically
+      undefined) as "complete" since it only checked digits-only, not
+      non-zero. Added a `Number(denominator) === 0` guard plus a
+      regression test.
 
 **Checkpoint**: `NotationToolbar` is usable and tested standalone;
 either user story can now proceed.

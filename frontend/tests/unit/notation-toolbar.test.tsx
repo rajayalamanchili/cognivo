@@ -55,6 +55,14 @@ describe("NotationToolbar", () => {
     expect(screen.getByTestId("notation-fraction-denominator")).toHaveValue(null);
   });
 
+  it("keeps the Insert button disabled for a zero denominator (mathematically undefined)", async () => {
+    const onInsert = vi.fn();
+    render(<NotationToolbar onInsert={onInsert} />);
+    await userEvent.type(screen.getByTestId("notation-fraction-numerator"), "5");
+    await userEvent.type(screen.getByTestId("notation-fraction-denominator"), "0");
+    expect(screen.getByTestId("notation-fraction-insert")).toBeDisabled();
+  });
+
   it("disables every control when disabled is true", () => {
     render(<NotationToolbar onInsert={vi.fn()} disabled />);
     expect(screen.getByTestId("notation-fraction-½")).toBeDisabled();

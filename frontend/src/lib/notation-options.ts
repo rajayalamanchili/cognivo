@@ -92,9 +92,12 @@ const DIGITS_ONLY = /^[0-9]+$/;
 
 /** Composes an arbitrary numerator/denominator pair into a single
  * Unicode fraction string (e.g. "5", "12" -> "⁵⁄₁₂"). Returns null if
- * either side isn't plain digits, so a caller can disable its own
- * insert action rather than ever producing a half-built fraction. */
+ * either side isn't plain digits, or the denominator is zero
+ * (mathematically undefined), so a caller can disable its own insert
+ * action rather than ever producing a half-built or nonsensical
+ * fraction. */
 export function composeFraction(numerator: string, denominator: string): string | null {
   if (!DIGITS_ONLY.test(numerator) || !DIGITS_ONLY.test(denominator)) return null;
+  if (Number(denominator) === 0) return null;
   return `${toSuperscriptDigits(numerator)}${FRACTION_SLASH}${toSubscriptDigits(denominator)}`;
 }
