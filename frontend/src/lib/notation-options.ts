@@ -7,28 +7,31 @@
 export interface NotationOption {
   label: string;
   insert: string;
+  // Screen-reader-friendly name for the aria-label -- the raw glyph alone
+  // (e.g. "⁻", "₂") doesn't announce as anything meaningful out of context.
+  description: string;
 }
 
 // The full set of Unicode "vulgar fraction" precomposed characters.
 export const FRACTION_OPTIONS: NotationOption[] = [
-  { label: "¼", insert: "¼" },
-  { label: "½", insert: "½" },
-  { label: "¾", insert: "¾" },
-  { label: "⅓", insert: "⅓" },
-  { label: "⅔", insert: "⅔" },
-  { label: "⅕", insert: "⅕" },
-  { label: "⅖", insert: "⅖" },
-  { label: "⅗", insert: "⅗" },
-  { label: "⅘", insert: "⅘" },
-  { label: "⅙", insert: "⅙" },
-  { label: "⅚", insert: "⅚" },
-  { label: "⅐", insert: "⅐" },
-  { label: "⅛", insert: "⅛" },
-  { label: "⅜", insert: "⅜" },
-  { label: "⅝", insert: "⅝" },
-  { label: "⅞", insert: "⅞" },
-  { label: "⅑", insert: "⅑" },
-  { label: "⅒", insert: "⅒" },
+  { label: "¼", insert: "¼", description: "one quarter" },
+  { label: "½", insert: "½", description: "one half" },
+  { label: "¾", insert: "¾", description: "three quarters" },
+  { label: "⅓", insert: "⅓", description: "one third" },
+  { label: "⅔", insert: "⅔", description: "two thirds" },
+  { label: "⅕", insert: "⅕", description: "one fifth" },
+  { label: "⅖", insert: "⅖", description: "two fifths" },
+  { label: "⅗", insert: "⅗", description: "three fifths" },
+  { label: "⅘", insert: "⅘", description: "four fifths" },
+  { label: "⅙", insert: "⅙", description: "one sixth" },
+  { label: "⅚", insert: "⅚", description: "five sixths" },
+  { label: "⅐", insert: "⅐", description: "one seventh" },
+  { label: "⅛", insert: "⅛", description: "one eighth" },
+  { label: "⅜", insert: "⅜", description: "three eighths" },
+  { label: "⅝", insert: "⅝", description: "five eighths" },
+  { label: "⅞", insert: "⅞", description: "seven eighths" },
+  { label: "⅑", insert: "⅑", description: "one ninth" },
+  { label: "⅒", insert: "⅒", description: "one tenth" },
 ];
 
 const SUPERSCRIPT_DIGITS: Record<string, string> = {
@@ -60,14 +63,18 @@ const SUBSCRIPT_DIGITS: Record<string, string> = {
 // Exponent buttons: superscript digits 0-9 plus a superscript minus for
 // negative exponents (e.g. 10⁻²).
 export const EXPONENT_OPTIONS: NotationOption[] = [
-  ...Object.values(SUPERSCRIPT_DIGITS).map((glyph) => ({ label: glyph, insert: glyph })),
-  { label: "⁻", insert: "⁻" },
+  ...Object.entries(SUPERSCRIPT_DIGITS).map(([digit, glyph]) => ({
+    label: glyph,
+    insert: glyph,
+    description: `exponent ${digit}`,
+  })),
+  { label: "⁻", insert: "⁻", description: "exponent minus sign" },
 ];
 
 // Subscript buttons: digits only, sufficient for chemical formulas
 // (H₂O, CO₂, C₆H₁₂O₆) -- research.md §1.
-export const SUBSCRIPT_OPTIONS: NotationOption[] = Object.values(SUBSCRIPT_DIGITS).map(
-  (glyph) => ({ label: glyph, insert: glyph })
+export const SUBSCRIPT_OPTIONS: NotationOption[] = Object.entries(SUBSCRIPT_DIGITS).map(
+  ([digit, glyph]) => ({ label: glyph, insert: glyph, description: `subscript ${digit}` })
 );
 
 const FRACTION_SLASH = "⁄";

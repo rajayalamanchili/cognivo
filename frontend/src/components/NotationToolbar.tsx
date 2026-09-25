@@ -42,6 +42,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
           onClick={() => onInsert(option.insert)}
           className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
           data-testid={`notation-fraction-${option.label}`}
+          aria-label={`Insert ${option.description}`}
         >
           {option.label}
         </button>
@@ -55,6 +56,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
           onClick={() => onInsert(option.insert)}
           className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
           data-testid={`notation-exponent-${option.label}`}
+          aria-label={`Insert ${option.description}`}
         >
           {option.label}
         </button>
@@ -68,6 +70,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
           onClick={() => onInsert(option.insert)}
           className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
           data-testid={`notation-subscript-${option.label}`}
+          aria-label={`Insert ${option.description}`}
         >
           {option.label}
         </button>

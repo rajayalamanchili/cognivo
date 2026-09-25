@@ -169,6 +169,16 @@ describe("MultiStepAnswerInput", () => {
 
     expect(step0Input.value).toBe("a".repeat(1999));
   });
+
+  it("rejects direct typing into a step that would push the concatenated answer past MAX_LENGTH", async () => {
+    render(<MultiStepAnswerInput questionId="q1" steps={STEPS} onGraded={vi.fn()} />);
+
+    const step0Input = screen.getByTestId("multi-step-input-0") as HTMLInputElement;
+    fireEvent.change(step0Input, { target: { value: "a".repeat(1999) } });
+    fireEvent.change(step0Input, { target: { value: "a".repeat(2001) } });
+
+    expect(step0Input.value).toBe("a".repeat(1999));
+  });
 });
 
 describe("AnswerResultView step-by-step result", () => {

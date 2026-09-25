@@ -69,8 +69,16 @@ export default function MultiStepAnswerInput({
   const [state, setState] = useState<SubmitState>("idle");
   const stepRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // The backend checks MAX_LENGTH against the "\n"-joined concatenation
+  // of every step, not any single field, so the guard has to live here
+  // (both typed input and a toolbar insert go through this) rather than
+  // as a per-field HTML maxLength, which could only ever cap one step in
+  // isolation.
   function updateStep(index: number, value: string) {
-    setAnswers((previous) => previous.map((answer, i) => (i === index ? value : answer)));
+    setAnswers((previous) => {
+      const next = previous.map((answer, i) => (i === index ? value : answer));
+      return next.join("\n").length > MAX_LENGTH ? previous : next;
+    });
   }
 
   // Spec 023 FR-001/FR-002/FR-006: same cursor-insertion behavior as
@@ -81,10 +89,7 @@ export default function MultiStepAnswerInput({
     const current = answers[index];
     const start = el?.selectionStart ?? current.length;
     const end = el?.selectionEnd ?? current.length;
-    const nextStep = current.slice(0, start) + insertText + current.slice(end);
-    const nextAnswers = answers.map((answer, i) => (i === index ? nextStep : answer));
-    if (nextAnswers.join("\n").length > MAX_LENGTH) return;
-    updateStep(index, nextStep);
+    updateStep(index, current.slice(0, start) + insertText + current.slice(end));
   }
 
   async function handleSubmit() {
