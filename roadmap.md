@@ -1658,8 +1658,22 @@ SC-003 (timed vs. untimed scoring parity) -- directly asserted in
 practice. SC-006 (100% of answered questions across all 5 flows record
 `time_spent_seconds`) -- `test_answer_time_spent.py` (placement,
 untimed practice, untimed quiz) plus the timed-flow assertions in the
-Phase 3/4 integration tests. Milestone 20 is fully shipped on branch
-`032-timed-practice-quiz-mode`, not yet merged.
+Phase 3/4 integration tests. A pre-PR local `/code-review` adversarial
+pass (2026-09-24) then found and fixed 13 further real bugs before the
+PR was opened: countdown-vs-in-flight-submit races (plain and
+free-text/multi-step answers), 409 handling gaps on manual end-now and
+duplicate submit, row-lock ordering around LLM calls, `end_reason`
+correctness on a late manual end, answers scored after session end,
+a next-question generation race, and dedup-exhaustion end for timed
+quizzes. Merged to `staging` via PR #83 (2026-09-24), then promoted
+toward `main` via PR #84 -- the automated review on #84 caught one more
+real bug: `POST /api/practice-sessions` took `learner_id` directly from
+the request body with no auth check (an IDOR), fixed in PR #85 (resolve
+the learner server-side via `get_demo_learner(db)`, matching
+`quiz.py`'s existing precedent) and merged to `staging` before #84
+completed, so `main` picked it up in the same promotion. Milestone 20
+is fully shipped and merged to both `staging` and `main` as of
+2026-09-24.
 
 **Scope**: Let a learner opt into a time-bound session (e.g. "20
 questions in 30 minutes") for both ordinary practice and Milestone 5
@@ -1875,6 +1889,16 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.18.0 -- 2026-09-24, Milestone 20 merged to `staging`
+(PR #83) and promoted to `main` (PR #84). A pre-PR local `/code-review`
+adversarial pass found and fixed 13 real bugs (session-end/countdown
+races, 409-handling gaps, row-lock ordering, dedup-exhaustion edge
+cases) before PR #83 opened; the automated review on the #84 promotion
+PR then caught one more, a real IDOR (`POST /api/practice-sessions`
+trusted a client-supplied `learner_id`), fixed in PR #85 and merged to
+`staging` in time for `main`'s promotion to include it. Milestone 20 is
+closed out on both branches.
 
 **Version**: 3.17.0 -- 2026-09-23, Milestone 20 `/speckit-implement`
 fully complete (all 6 phases, 42/42 tasks): found and fixed one real
