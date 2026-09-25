@@ -76,10 +76,8 @@ approximation of the same value -- and confirming both grade correct.
 
 ### Edge Cases
 
-- What happens when a learner submits an incomplete or malformed
-  notated expression (e.g. an unclosed fraction)? The input MUST
-  prevent submission of a structurally invalid expression rather than
-  passing malformed markup to grading.
+- What happens when a learner leaves an incomplete notated expression
+  open (e.g. an unclosed fraction)? Handled by FR-007.
 - What happens when a learner pastes plain-text notation typed
   elsewhere (e.g. "1/2" from a text editor) into the notation input?
   It is accepted and treated as plain text, not auto-converted to a
@@ -102,10 +100,12 @@ approximation of the same value -- and confirming both grade correct.
 
 ### Functional Requirements
 
-- **FR-001**: The free-text answer input MUST let a learner enter
-  fractions, exponents/superscripts, and subscripts as structured
-  notation, in addition to plain text, on any question where the
-  rubric's accepted answer requires them.
+- **FR-001**: The free-text and multi-step answer inputs MUST let a
+  learner insert fractions, exponents/superscripts, and subscripts, in
+  addition to plain text, on every question -- available uniformly, not
+  conditional on whether a given question's rubric happens to need it
+  (no such per-question signal exists or is introduced by this
+  feature).
 - **FR-002**: As a learner builds a notated answer, the input MUST
   display it with real notation (visually correct fractions/
   superscripts/subscripts) as they type, not as raw markup they'd have
@@ -141,8 +141,8 @@ approximation of the same value -- and confirming both grade correct.
 
 - **Notated Answer**: A learner's existing free-text or multi-step-step
   answer string, now optionally containing math/science notation
-  characters entered via the input helper -- the same field and storage
-  shape as today's plain-text answer, not a new data type.
+  characters entered via the notation input -- the same field and
+  storage shape as today's plain-text answer, not a new data type.
 
 ## Success Criteria *(mandatory)*
 
@@ -158,10 +158,11 @@ approximation of the same value -- and confirming both grade correct.
 - **SC-003**: 100% of the notation a learner builds in the input
   displays as real notation, not raw markup, verified by automated
   test.
-- **SC-004**: Rubric authors can specify a notated correct answer with
-  the same reliability as today's plain-text rubric -- the FR-011
-  flagged-for-review rate is not measurably increased by notation
-  ambiguity.
+- **SC-004**: Question generation's existing validation step
+  (Milestone 1's FR-011 flagging mechanism) accepts a generated
+  question whose rubric criteria contain notation exactly as it accepts
+  one that doesn't -- no new validation failure mode or flagged-for-
+  review case is introduced by notation appearing in generated text.
 
 ## Assumptions
 
@@ -177,11 +178,11 @@ approximation of the same value -- and confirming both grade correct.
   completely unchanged -- notation is additional input expressiveness,
   not a new grading mechanism, since that evaluation already judges
   semantic correctness rather than exact string matching.
-- No new agent boundary: this is an input-widget and grading-comparison
-  extension layered on the existing Assessment-Generation and Grading
-  logic, the same pattern Milestone 5's in-quiz difficulty adjustment
-  used to justify staying out of a new agent (Constitution Principle
-  IV).
+- No new agent boundary: this is an input-widget addition layered on
+  the existing free-text/multi-step input handling -- Assessment-
+  Generation and Grading logic are untouched (FR-004) -- the same
+  pattern Milestone 5's in-quiz difficulty adjustment used to justify
+  staying out of a new agent (Constitution Principle IV).
 - Applies to every question-answering flow that already has a
   free-text input (placement, untimed/timed practice, untimed/timed
   quiz, instructor-assigned quizzes) -- not a new, separate answer path.

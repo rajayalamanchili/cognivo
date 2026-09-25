@@ -59,4 +59,20 @@
   submission. Cut User Story 3, narrowed FR-002/SC-003 to the input
   field, and added an Assumption recording this so it isn't
   rediscovered later as a "regression."
-- All items pass; ready for `/speckit-tasks`.
+- **`/speckit-analyze` (2026-09-24)**: found and fixed 6 issues, 0
+  CRITICAL, 2 HIGH. HIGH: FR-001's "on any question where the rubric
+  requires them" implied per-question conditional availability that
+  contradicted the always-on toolbar design already locked in
+  plan.md/tasks.md (reworded to unconditional); the Assumptions
+  section's "grading-comparison extension" phrase was a leftover from
+  before the FR-004 grading-is-unchanged correction above, restored to
+  consistency. MEDIUM: FR-003/FR-008/FR-009 had no task coverage
+  (added T015 and a coverage note on T012 in tasks.md); SC-004
+  referenced an undefined-in-this-spec "FR-011" and wasn't verifiable
+  within this feature's scope (rewritten to a checkable claim about
+  question-generation's existing validation step, with the Milestone 1
+  cross-reference made explicit). LOW: an Edge Cases bullet duplicated
+  FR-007 verbatim (trimmed to a cross-reference); "input helper" vs.
+  "notation input" terminology drift (standardized on "notation
+  input"). All fixed in place; see spec.md and tasks.md.
+- All items pass; ready for `/speckit-implement`.
