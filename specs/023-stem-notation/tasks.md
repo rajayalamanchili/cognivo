@@ -245,3 +245,41 @@ capability without changing grading behavior.
 1. Foundational → US1 (MVP: notation entry works) → US2 (proves zero
    grading regression) → Polish (full regression + Constitution III
    check + full quickstart run).
+
+---
+
+## Post-PR review fixes (PR #86)
+
+Two automated-review rounds on PR #86 found and fixed real issues
+after the tasks above were already complete:
+
+- **Round 1**: `composeFraction` accepted a zero denominator (`⁵⁄₀`,
+  mathematically undefined) as "complete" -- only checked digits-only,
+  not non-zero. Fixed with a `Number(denominator) === 0` guard plus a
+  regression test (folded into T003's note above).
+- **Round 2**, four fixes:
+  - `quickstart.md` Scenario 4 described the pre-simplification
+    mode-toggle design (research.md §4) rather than the shipped
+    composer-with-disabled-Insert-button behavior -- rewritten to match
+    what's actually built.
+  - `roadmap.md`'s "Out of current roadmap" backlog entry for this
+    feature wasn't struck through when promoted, unlike its sibling
+    "Process-level STEM grading" entry's precedent when Milestone 16
+    shipped it -- fixed, and a full Milestone 21 section added (was
+    missing entirely).
+  - `FreeTextAnswerInput.tsx`'s `insertNotation` bypassed the
+    textarea's `maxLength` (that HTML attribute only constrains
+    keystroke input, not a programmatic `setText`) -- clamped with
+    `.slice(0, MAX_LENGTH)` plus a regression test.
+  - Dead `digit` field on `EXPONENT_OPTIONS`/`SUBSCRIPT_OPTIONS`
+    entries (not part of `NotationOption`, never read) -- removed.
+  - **One finding rejected as a false positive**: the review flagged
+    `spec.md`/`plan.md`'s `Feature Branch`/`Branch` header
+    (`033-stem-notation`) as a typo for the spec directory's own number
+    (`023-stem-notation`). This repo's spec directories and git
+    branches are two independently-incrementing numbered sequences by
+    established convention -- every prior spec (e.g.
+    `specs/022-timed-practice-quiz-mode/spec.md` says `Feature Branch:
+    032-timed-practice-quiz-mode`) follows the same pattern. Left
+    unchanged; "fixing" it would have broken consistency with every
+    other spec in the repo, not restored it.

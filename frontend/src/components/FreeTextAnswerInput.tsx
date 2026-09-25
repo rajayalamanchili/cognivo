@@ -82,7 +82,11 @@ export default function FreeTextAnswerInput({
     const el = textareaRef.current;
     const start = el?.selectionStart ?? text.length;
     const end = el?.selectionEnd ?? text.length;
-    setText(text.slice(0, start) + insertText + text.slice(end));
+    // The textarea's own maxLength only constrains keystroke/IME input,
+    // not this programmatic insert -- clamp here too so a toolbar click
+    // can't silently push past the limit with no feedback until the
+    // backend's "too-long" rejection.
+    setText((text.slice(0, start) + insertText + text.slice(end)).slice(0, MAX_LENGTH));
   }
 
   async function handleSubmit() {

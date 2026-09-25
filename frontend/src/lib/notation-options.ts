@@ -60,18 +60,14 @@ const SUBSCRIPT_DIGITS: Record<string, string> = {
 // Exponent buttons: superscript digits 0-9 plus a superscript minus for
 // negative exponents (e.g. 10⁻²).
 export const EXPONENT_OPTIONS: NotationOption[] = [
-  ...Object.entries(SUPERSCRIPT_DIGITS).map(([digit, glyph]) => ({
-    label: glyph,
-    insert: glyph,
-    digit,
-  })),
+  ...Object.values(SUPERSCRIPT_DIGITS).map((glyph) => ({ label: glyph, insert: glyph })),
   { label: "⁻", insert: "⁻" },
 ];
 
 // Subscript buttons: digits only, sufficient for chemical formulas
 // (H₂O, CO₂, C₆H₁₂O₆) -- research.md §1.
-export const SUBSCRIPT_OPTIONS: NotationOption[] = Object.entries(SUBSCRIPT_DIGITS).map(
-  ([digit, glyph]) => ({ label: glyph, insert: glyph, digit })
+export const SUBSCRIPT_OPTIONS: NotationOption[] = Object.values(SUBSCRIPT_DIGITS).map(
+  (glyph) => ({ label: glyph, insert: glyph })
 );
 
 const FRACTION_SLASH = "⁄";

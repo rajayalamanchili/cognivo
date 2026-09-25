@@ -43,12 +43,18 @@ backend restart is needed beyond the project's normal dev setup.
    notation toolbar use) end to end.
 3. **Expected**: grades exactly as it did before this feature shipped.
 
-## Scenario 4 -- Incomplete notation blocks submission (FR-007)
+## Scenario 4 -- Incomplete notation can't be inserted (FR-007)
 
-1. Start building a fraction (type a numerator, insert the fraction
-   slash) but do not enter a denominator.
-2. **Expected**: the Submit button stays disabled until the fraction is
-   completed or the partial construct is removed.
+1. In the notation toolbar's "other fraction" composer, type a
+   numerator but leave the denominator field empty (or vice versa).
+2. **Expected**: the composer's own Insert button stays disabled, so
+   there's no way to insert a half-built fraction into the answer field
+   in the first place -- FR-007 is satisfied by construction, not by a
+   submit-button check on the answer's content.
+3. Fill in both numerator and denominator (digits only, denominator
+   non-zero).
+4. **Expected**: the Insert button becomes enabled; clicking it inserts
+   the composed fraction and clears both fields.
 
 ## Scenario 5 -- Multi-step question supports notation per step (FR-006)
 

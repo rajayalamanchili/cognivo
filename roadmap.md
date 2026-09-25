@@ -1718,6 +1718,82 @@ timer.
 
 ---
 
+## Milestone 21: Math and Science Notation for Free-Text Answers
+
+**Spec**: `specs/023-stem-notation/spec.md`.
+**Status**: `/speckit-implement` complete (2026-09-25, branch
+`033-stem-notation`), PR #86 open against `staging`, not yet merged.
+`/speckit-specify` was corrected twice during its own follow-on phases
+rather than needing a separate `/speckit-clarify` pass: `/speckit-plan`
+research found free-text/multi-step grading is already an LLM judgment
+against natural-language rubric criteria (Milestone 6/16), not
+exact-match, so the original draft's FR-004 and "Rubric Accepted-Answer
+Variant" entity -- which assumed exact-match and invented a new
+variant-authoring mechanism to preserve it -- were corrected to state
+grading is unchanged by this feature; the same pass found no learner
+answer-history or instructor per-answer review view exists in the
+product today, so User Story 3 (which assumed one existed and needed
+notation-aware rendering) was cut rather than built as unrequested
+scope. `/speckit-analyze` then found and fixed 6 further issues (0
+CRITICAL, 2 HIGH: FR-001 implied per-question conditional availability
+that contradicted the always-on toolbar design; an Assumptions bullet
+left over from before the grading correction still said "grading-
+comparison extension"). `/speckit-implement` shipped a smaller design
+than `research.md`'s illustrative sketch: every notation-toolbar button
+inserts one already-complete Unicode character, and the one
+multi-character construct (an arbitrary fraction) is built in a
+self-contained numerator/denominator composer whose own Insert button
+is disabled until both fields are digits -- satisfying FR-007 by
+construction, with no `isIncomplete` flag or cursor-tracking state
+machine needed. One real bug was found and fixed during
+implementation: an async refocus-after-insert raced with fast
+subsequent typing and silently stole keystrokes into the wrong field;
+fixed by dropping the post-insert refocus entirely. The feature is
+frontend-only -- zero backend/API changes -- confirmed by two new
+backend tests (`test_free_text_notation_answer.py`,
+`test_notation_rubric_validation.py`) that prove notated text grades
+and validates identically to plain text, rather than by relying on
+plan.md's claim alone. Final state before PR: 701/701 backend, 137/137
+frontend. PR #86's automated review found one real, now-fixed bug
+(`composeFraction` accepted a zero denominator as "complete") and one
+false positive (flagged `spec.md`/`plan.md`'s `033-stem-notation`
+branch header as a typo for `023`, not recognizing this repo's
+established pattern -- see Milestone 20 and earlier -- that spec
+directory numbers and git branch numbers are two independently
+incrementing sequences).
+
+**Definition of done**: All 4 of spec.md's Success Criteria verified.
+SC-001 (fraction/exponent/subscript entry without a plain-text
+workaround, both subjects) -- `NotationToolbar.tsx`, tested. SC-002
+(zero grading regression) -- 701/701 backend, 137/137 frontend. SC-003
+(notation displays as real notation while typing) --
+`notation-toolbar.test.tsx` plus the integration tests in both answer
+inputs. SC-004 (question-generation validation accepts notated rubric
+criteria with no new failure mode) --
+`test_notation_rubric_validation.py`, backed by reading
+`_validate_draft`'s actual content-blind validation logic. Milestone 21
+is implemented and PR'd, not yet merged to `staging`.
+
+**Scope**: Let a learner insert fractions, exponents/superscripts, and
+chemical-formula subscripts into a free-text or multi-step answer,
+instead of typing a plain-text approximation ("1/2", "x^2", "H2O").
+Notation is plain Unicode text, not markup or a new data type -- no
+renderer, no schema change, no grading change, since free-text/
+multi-step grading already judges semantic correctness via the Grading
+Agent's rubric criteria rather than exact string matching.
+
+**Explicitly not included**: calculus notation (derivatives,
+integrals) -- deferred until a subject that actually needs it exists,
+not a redesign when it does; symbolic/algebraic equivalence checking
+(e.g. recognizing "2/4" equals "1/2") -- grading already handles this
+semantically via the existing rubric-criteria LLM evaluation, so no new
+comparison mechanism was needed or added; a learner answer-history view
+or instructor per-answer review view -- neither exists in the product
+today, and building one is a distinct, larger feature (see spec 023's
+Assumptions).
+
+---
+
 ## Out of current roadmap (not planned, not rejected)
 - A second, cross-language A2A agent purely to demonstrate
   interoperability (e.g. a Go-based Grading service) -- Milestone 6
@@ -1797,13 +1873,19 @@ timer.
   was binary against an answer key, with no distinction between "setup
   was right, arithmetic slip in step 3" and "fundamentally misunderstood
   the concept.")
-- Proper math/science notation for free-text answers (fractions,
-  exponents, chemical formulas, derivatives) -- today's free-text
-  answer field is plain text, which can't represent any of these
-  correctly. Raised 2026-09-14, same session as above. A real
-  correctness/UX gap specific to STEM subjects that a text/history
-  subject wouldn't hit; likely a rendering/input-widget change plus
-  whatever grading-comparison adjustment it implies, not a new agent.
+- ~~Proper math/science notation for free-text answers~~ -- promoted to
+  Milestone 21 (2026-09-24), see `specs/023-stem-notation/`. This
+  bullet is kept, struck through, for the same reason the
+  "Process-level (step-by-step) STEM grading" bullet above was left in
+  place when Milestone 16 shipped it: an honest record that this
+  started life here, not a retroactively-tidied history. (Original
+  entry: raised 2026-09-14, same K-12 STEM gap-analysis session as
+  above -- today's free-text answer field is plain text, which
+  couldn't represent fractions/exponents/chemical-formula subscripts
+  correctly. Shipped scope: fractions, exponents, and subscripts, via a
+  frontend-only notation toolbar; derivatives/calculus notation
+  deliberately deferred until a subject that needs them exists, per
+  spec 023's Assumptions.)
 - Spaced repetition / mastery decay for foundational topics. Raised
   2026-09-14. The mastery model (Milestone 1) has no notion of
   forgetting -- a topic marked "mastered" once stays mastered forever,
@@ -1889,6 +1971,16 @@ timer.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.19.0 -- 2026-09-25, added Milestone 21 (Math and Science
+Notation for Free-Text Answers), promoted from its prior "Out of
+current roadmap" entry (now struck through); full spec-kit lifecycle
+(`specify`/`plan`/`tasks`/`analyze`/`implement`) complete same day on
+branch `033-stem-notation`, PR #86 open against `staging`. Frontend-
+only: a notation toolbar inserting real Unicode fractions/exponents/
+subscripts, with zero backend/grading changes since free-text/
+multi-step grading was already an LLM-vs-rubric judgment, not
+exact-match. 701/701 backend, 137/137 frontend.
 
 **Version**: 3.18.0 -- 2026-09-24, Milestone 20 merged to `staging`
 (PR #83) and promoted to `main` (PR #84). A pre-PR local `/code-review`

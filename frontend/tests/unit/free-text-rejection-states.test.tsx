@@ -3,7 +3,7 @@
 // grading-unavailable -- without conflating any of them (spec 007
 // FR-018, T027).
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import FreeTextAnswerInput from "@/components/FreeTextAnswerInput";
@@ -179,6 +179,16 @@ describe("FreeTextAnswerInput notation entry", () => {
     await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
     await vi.waitFor(() => expect(api.answerQuestion).toHaveBeenCalledOnce());
     expect(api.answerQuestion).toHaveBeenCalledWith("q1", "½", undefined, undefined);
+  });
+
+  it("clamps a toolbar insert at MAX_LENGTH instead of silently exceeding it", async () => {
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "a".repeat(1999) } });
+
+    await userEvent.click(screen.getByTestId("notation-fraction-½"));
+
+    expect((textarea as HTMLTextAreaElement).value).toHaveLength(2000);
   });
 
   it("a plain-ASCII-only submission is unaffected by the notation toolbar being present (SC-002)", async () => {
