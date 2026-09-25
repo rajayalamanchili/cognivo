@@ -181,7 +181,7 @@ describe("FreeTextAnswerInput notation entry", () => {
     expect(api.answerQuestion).toHaveBeenCalledWith("q1", "½", undefined, undefined);
   });
 
-  it("clamps a toolbar insert at MAX_LENGTH instead of silently exceeding it", async () => {
+  it("allows a toolbar insert that lands exactly at MAX_LENGTH", async () => {
     render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
     const textarea = screen.getByRole("textbox");
     fireEvent.change(textarea, { target: { value: "a".repeat(1999) } });
@@ -189,6 +189,23 @@ describe("FreeTextAnswerInput notation entry", () => {
     await userEvent.click(screen.getByTestId("notation-fraction-½"));
 
     expect((textarea as HTMLTextAreaElement).value).toHaveLength(2000);
+  });
+
+  it("drops a toolbar insert that would exceed MAX_LENGTH instead of truncating it mid-construct", async () => {
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    const textarea = screen.getByRole("textbox");
+    fireEvent.change(textarea, { target: { value: "a".repeat(1999) } });
+
+    // A 2-digit/2-digit custom fraction ("¹²⁄₃₄") is 5 UTF-16 code units;
+    // inserting it here would land at 2004, past MAX_LENGTH. The old
+    // truncate-the-composed-string fix would silently chop it to "¹²⁄₃"
+    // (a fraction slash with a truncated denominator) rather than
+    // rejecting the whole insert.
+    await userEvent.type(screen.getByTestId("notation-fraction-numerator"), "12");
+    await userEvent.type(screen.getByTestId("notation-fraction-denominator"), "34");
+    await userEvent.click(screen.getByTestId("notation-fraction-insert"));
+
+    expect((textarea as HTMLTextAreaElement).value).toBe("a".repeat(1999));
   });
 
   it("a plain-ASCII-only submission is unaffected by the notation toolbar being present (SC-002)", async () => {

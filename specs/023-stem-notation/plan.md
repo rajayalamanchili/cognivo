@@ -1,6 +1,6 @@
 # Implementation Plan: Math and Science Notation for Free-Text Answers
 
-**Branch**: `033-stem-notation` | **Date**: 2026-09-24 | **Spec**: [spec.md](./spec.md)
+**Branch**: `023-stem-notation` | **Date**: 2026-09-24 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/023-stem-notation/spec.md`
 

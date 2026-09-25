@@ -2,7 +2,7 @@
 // submits them as an ordered array via answerQuestion() (spec 018 T023),
 // and AnswerResultView renders the per-step breakdown it reports back.
 
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MultiStepAnswerInput from "@/components/MultiStepAnswerInput";
@@ -151,6 +151,23 @@ describe("MultiStepAnswerInput", () => {
     await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
 
     expect(api.answerQuestion).toHaveBeenCalledWith("q1", ["½", "x = 4"], undefined, undefined);
+  });
+
+  // Parity with FreeTextAnswerInput's own MAX_LENGTH guard: the backend
+  // enforces 2000 chars on the "\n"-joined concatenation of all steps, so
+  // a toolbar insert must be dropped, not silently allowed, once that
+  // total would be exceeded.
+  it("drops a toolbar insert into a step that would push the concatenated answer past MAX_LENGTH", async () => {
+    render(<MultiStepAnswerInput questionId="q1" steps={STEPS} onGraded={vi.fn()} />);
+
+    const step0Input = screen.getByTestId("multi-step-input-0") as HTMLInputElement;
+    fireEvent.change(step0Input, { target: { value: "a".repeat(1999) } });
+
+    await userEvent.click(
+      within(screen.getByTestId("multi-step-step-0")).getByTestId("notation-fraction-½"),
+    );
+
+    expect(step0Input.value).toBe("a".repeat(1999));
   });
 });
 

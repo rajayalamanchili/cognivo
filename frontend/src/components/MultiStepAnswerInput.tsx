@@ -30,6 +30,12 @@ export interface MultiStepAnswerInputProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
+// Matches backend guardrails.MAX_ANSWER_LENGTH, checked there against the
+// "\n"-joined concatenation of all steps (questions.py's
+// _grade_stepwise_submission) -- mirrored here so a toolbar insert can't
+// silently push the submission past that limit.
+const MAX_LENGTH = 2000;
+
 type SubmitState =
   | "idle"
   | "grading-in-progress"
@@ -75,7 +81,10 @@ export default function MultiStepAnswerInput({
     const current = answers[index];
     const start = el?.selectionStart ?? current.length;
     const end = el?.selectionEnd ?? current.length;
-    updateStep(index, current.slice(0, start) + insertText + current.slice(end));
+    const nextStep = current.slice(0, start) + insertText + current.slice(end);
+    const nextAnswers = answers.map((answer, i) => (i === index ? nextStep : answer));
+    if (nextAnswers.join("\n").length > MAX_LENGTH) return;
+    updateStep(index, nextStep);
   }
 
   async function handleSubmit() {

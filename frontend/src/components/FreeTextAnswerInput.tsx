@@ -83,10 +83,13 @@ export default function FreeTextAnswerInput({
     const start = el?.selectionStart ?? text.length;
     const end = el?.selectionEnd ?? text.length;
     // The textarea's own maxLength only constrains keystroke/IME input,
-    // not this programmatic insert -- clamp here too so a toolbar click
-    // can't silently push past the limit with no feedback until the
-    // backend's "too-long" rejection.
-    setText((text.slice(0, start) + insertText + text.slice(end)).slice(0, MAX_LENGTH));
+    // not this programmatic insert -- guard here too. Dropping the whole
+    // insert (rather than slicing the composed string) keeps
+    // NotationToolbar's "only complete units reach the field" guarantee
+    // intact instead of truncating a multi-character construct mid-way.
+    const composed = text.slice(0, start) + insertText + text.slice(end);
+    if (composed.length > MAX_LENGTH) return;
+    setText(composed);
   }
 
   async function handleSubmit() {

@@ -1,6 +1,6 @@
 # Feature Specification: Math and Science Notation for Free-Text Answers
 
-**Feature Branch**: `033-stem-notation`
+**Feature Branch**: `023-stem-notation`
 
 **Created**: 2026-09-24
 
