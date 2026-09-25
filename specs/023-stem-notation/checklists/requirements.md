@@ -31,17 +31,32 @@
 
 ## Notes
 
-- Two scope-affecting decisions that could reasonably have been
-  [NEEDS CLARIFICATION] markers were instead resolved as documented
-  Assumptions, since a reasonable, lower-risk default exists for each
-  and both are reversible/extensible later without a redesign:
-  notation-type scope (fractions/exponents/subscripts only, matching
-  today's two subjects; calculus notation deferred) and grading
-  equivalence (exact-match against rubric-authored variants, no
-  symbolic evaluation, per Constitution Principle II). The specific
-  input-widget mechanism (toolbar vs. WYSIWYG vs. LaTeX-style text) is
-  left to `/speckit-plan` as an implementation choice, not a spec-level
-  decision.
-- All items pass; ready for `/speckit-plan` (or `/speckit-clarify` if
-  the user wants to revisit either deferred-to-Assumptions decision
-  before planning).
+- Notation-type scope (fractions/exponents/subscripts only, matching
+  today's two subjects; calculus notation deferred) was resolved as a
+  documented Assumption rather than a [NEEDS CLARIFICATION] marker,
+  since it has a reasonable, lower-risk default that's extensible later
+  without a redesign. The specific input-widget mechanism (toolbar vs.
+  WYSIWYG vs. LaTeX-style text) is left to `/speckit-plan` as an
+  implementation choice, not a spec-level decision.
+- **Corrected during `/speckit-plan` research (2026-09-24)**: the
+  initial draft's FR-004 and "Rubric Accepted-Answer Variant" entity
+  assumed free-text grading was exact-match and invented a new
+  rubric-variant-authoring mechanism to preserve that. Reading the
+  actual grading path (`backend/src/services/grading_client/client.py`,
+  `agents/assessment_gen/agent.py`) showed free-text and multi-step
+  answers are already graded by an LLM against weighted rubric criteria
+  (Milestone 6/16), not exact string matching -- the grader already
+  tolerates "1/2" vs "½" vs "0.5" semantically. FR-004, User Story 2,
+  Key Entities, and the grading Assumption were corrected to state
+  grading is unchanged by this feature rather than introducing a new
+  equivalence mechanism. See `research.md`.
+- **Also corrected**: the initial draft's User Story 3 and FR-002/SC-003
+  assumed a learner answer-history view and an instructor per-answer
+  review view already existed and just needed notation rendering.
+  Reading `instructor/review/review-flow.tsx` and the quiz/practice
+  post-grading UI showed neither exists -- the only place a learner's
+  answer text is ever shown is the input field itself, before
+  submission. Cut User Story 3, narrowed FR-002/SC-003 to the input
+  field, and added an Assumption recording this so it isn't
+  rediscovered later as a "regression."
+- All items pass; ready for `/speckit-tasks`.

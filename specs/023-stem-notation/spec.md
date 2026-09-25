@@ -45,64 +45,32 @@ plain-text workaround.
 
 ---
 
-### User Story 2 - Grading recognizes equivalent notated forms (Priority: P2)
+### User Story 2 - Grading is unaffected by notation (Priority: P2)
 
-An instructor or the question-generation step authors a rubric's
-accepted answer using notation; a learner's notated answer is compared
-against that rubric the same deterministic way today's plain-text
-answers are, so notation support doesn't quietly loosen or tighten
-grading correctness.
+A learner's notated answer is graded exactly as an equivalent
+plain-text answer already is today, so adding notation input doesn't
+quietly loosen, tighten, or otherwise change grading correctness.
 
 **Why this priority**: Notation input is worthless if grading can't
 reliably evaluate it -- this is what makes User Story 1 actually usable,
 but the input UI alone is independently demonstrable first.
 
-**Independent Test**: Can be fully tested by authoring a rubric with a
-notated accepted answer and one notated distractor, then submitting
-both and confirming only the accepted form grades correct.
+**Independent Test**: Can be fully tested by submitting the same
+correct answer twice -- once with notation, once as today's plain-text
+approximation of the same value -- and confirming both grade correct.
 
 **Acceptance Scenarios**:
 
-1. **Given** a rubric whose accepted answer is a notated fraction,
-   **When** a learner submits that exact notated fraction, **Then** it
-   is graded correct.
-2. **Given** the same rubric, **When** a learner submits a
-   differently-notated but rubric-unlisted form (e.g. a decimal instead
-   of the authored fraction), **Then** it is graded exactly as it would
-   be today for an unlisted plain-text variant (i.e. no new equivalence
-   behavior is introduced beyond what the rubric explicitly authors).
+1. **Given** a free-text question, **When** a learner submits a
+   correct answer using notation (e.g. a real fraction character),
+   **Then** it is graded correct exactly as the equivalent plain-text
+   form already would be.
+2. **Given** the same question, **When** a learner submits an
+   incorrect answer using notation, **Then** it is graded incorrect
+   exactly as the equivalent plain-text form already would be.
 3. **Given** an existing plain-text-only free-text question created
    before this feature, **When** a learner answers it exactly as they
    would have before, **Then** grading behavior is unchanged.
-
----
-
-### User Story 3 - Notated answers render correctly everywhere they're shown (Priority: P3)
-
-A submitted notated answer displays correctly wherever a plain-text
-answer displays today: the learner's own question-review/history view,
-an instructor's content-review or grading-audit view, and the
-pedagogical audit log's record of what was actually submitted.
-
-**Why this priority**: A correct answer that becomes unreadable markup
-outside the original answer box undermines Constitution Principle V's
-"why was this marked wrong" traceability -- but this is a rendering
-consistency concern layered on top of Stories 1-2, not a blocker to
-demonstrating either.
-
-**Independent Test**: Can be fully tested by submitting a notated
-answer and confirming it renders identically (not as raw markup) in the
-learner's review view and in the instructor content-review view.
-
-**Acceptance Scenarios**:
-
-1. **Given** a learner has submitted a notated answer, **When** they
-   view it again in their own answer history, **Then** it renders with
-   real notation, not raw markup tags.
-2. **Given** an instructor opens a flagged or reviewed question that
-   was answered with notation, **When** the answer displays in the
-   review view, **Then** it renders identically to how the learner saw
-   it.
 
 ---
 
@@ -138,21 +106,19 @@ learner's review view and in the instructor content-review view.
   fractions, exponents/superscripts, and subscripts as structured
   notation, in addition to plain text, on any question where the
   rubric's accepted answer requires them.
-- **FR-002**: A submitted notated answer MUST render with real
-  notation (visually correct fractions/superscripts/subscripts), not
-  raw markup, everywhere a plain-text answer renders today: the
-  question view at submission time, the learner's own answer-history/
-  review view, and any instructor content-review or grading-audit view.
-- **FR-003**: Question generation MUST be able to author a rubric's
-  accepted answer using the same notation a learner would use, so the
-  answer key for a notated concept is unambiguous -- this is an
-  extension of Constitution Principle II's existing rubric-authoring
-  step, not a new authoring path.
-- **FR-004**: Grading comparison for a notated answer MUST remain
-  exact-match against the rubric's explicitly authored accepted form(s)
-  -- introducing notation input MUST NOT introduce symbolic or
-  algebraic equivalence checking (e.g. recognizing "2/4" as equal to
-  "1/2") beyond what the rubric explicitly lists as accepted variants.
+- **FR-002**: As a learner builds a notated answer, the input MUST
+  display it with real notation (visually correct fractions/
+  superscripts/subscripts) as they type, not as raw markup they'd have
+  to mentally decode.
+- **FR-003**: Question generation's existing rubric/answer-key authoring
+  step MUST be free to express a notated concept using the same
+  notation a learner would use, exactly as it already authors any other
+  free-text wording today -- this is not a new authoring path.
+- **FR-004**: Introducing notation input MUST NOT change how free-text
+  or multi-step answers are graded -- grading continues to be the
+  existing rubric-criteria evaluation (Constitution Principle II), and
+  a learner's notated answer MUST be graded exactly as the equivalent
+  plain-text form of the same answer already is today.
 - **FR-005**: This capability MUST be available uniformly across all
   subjects (Constitution Principle III) -- a subject whose content
   never needs notation simply never exercises it; there MUST be no
@@ -173,14 +139,10 @@ learner's review view and in the instructor content-review view.
 
 ### Key Entities
 
-- **Notated Answer**: The canonical structured form of a learner's
-  submitted answer when it includes math/science notation -- stored and
-  compared in place of today's plain-text answer, but degrading to
-  identical plain text when no notation is used.
-- **Rubric Accepted-Answer Variant**: One or more notated forms of a
-  correct answer authored alongside a question's existing answer
-  key/rubric (Principle II), against which a learner's notated answer
-  is exact-matched.
+- **Notated Answer**: A learner's existing free-text or multi-step-step
+  answer string, now optionally containing math/science notation
+  characters entered via the input helper -- the same field and storage
+  shape as today's plain-text answer, not a new data type.
 
 ## Success Criteria *(mandatory)*
 
@@ -193,10 +155,9 @@ learner's review view and in the instructor content-review view.
 - **SC-002**: Introducing notation causes zero grading regressions on
   existing plain-text-only free-text questions -- full existing
   regression suites (backend + frontend) still pass unchanged.
-- **SC-003**: 100% of views that display a learner's notated answer
-  (submission view, learner review/history, instructor content-review)
-  render it as real notation, not raw markup, verified by automated
-  test per view.
+- **SC-003**: 100% of the notation a learner builds in the input
+  displays as real notation, not raw markup, verified by automated
+  test.
 - **SC-004**: Rubric authors can specify a notated correct answer with
   the same reliability as today's plain-text rubric -- the FR-011
   flagged-for-review rate is not measurably increased by notation
@@ -211,11 +172,11 @@ learner's review view and in the instructor content-review view.
   integrals) is out of scope until a subject that actually needs it
   exists; adding it later is an additive extension of the same
   mechanism, not a redesign.
-- Grading stays exact-match against explicitly rubric-authored notated
-  variants -- no symbolic/algebraic equivalence engine. This keeps
-  grading exactly as deterministic and rubric-driven as Principle II
-  already requires, rather than introducing a fundamentally new
-  correctness-evaluation capability.
+- Grading for free-text and multi-step questions continues to use the
+  existing rubric-criteria LLM evaluation (Constitution Principle II)
+  completely unchanged -- notation is additional input expressiveness,
+  not a new grading mechanism, since that evaluation already judges
+  semantic correctness rather than exact string matching.
 - No new agent boundary: this is an input-widget and grading-comparison
   extension layered on the existing Assessment-Generation and Grading
   logic, the same pattern Milestone 5's in-quiz difficulty adjustment
@@ -226,3 +187,11 @@ learner's review view and in the instructor content-review view.
   quiz, instructor-assigned quizzes) -- not a new, separate answer path.
 - Historical free-text answers already stored are not backfilled into
   the new notated representation.
+- No learner answer-history view or instructor per-answer review view
+  exists in the product today (confirmed by reading the current
+  instructor review flow and the quiz/practice post-grading feedback,
+  which shows rubric-criteria text, never the learner's own submitted
+  string echoed back) -- building either is a distinct, larger feature
+  and out of scope here. Because notation is plain text, not markup,
+  any such view built later renders it correctly automatically, with no
+  dependency on this feature.
