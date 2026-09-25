@@ -33,21 +33,25 @@ None needed -- no new project, dependency, or build tooling
 
 **⚠️ CRITICAL**: Must complete before either user story.
 
-- [ ] T001 [P] Add the notation character-set constant (precomposed
+- [X] T001 [P] Add the notation character-set constant (precomposed
       fractions, superscript/subscript digit ranges, fraction-slash
       composition helper -- `data-model.md`) in
       `frontend/src/lib/notation-options.ts`
-- [ ] T002 Implement the shared `NotationToolbar` component in
-      `frontend/src/components/NotationToolbar.tsx`: renders buttons
-      from `notation-options.ts`, inserts the selected glyph/sequence at
-      the caller-supplied cursor position, and exposes an
-      `isIncomplete` flag (true while a fraction/exponent/subscript
-      construct has been started but not finished -- `research.md` §4,
-      FR-007) via an `onIncompleteChange` callback (depends on T001)
-- [ ] T003 [P] Unit tests for `NotationToolbar`'s insertion and
-      incomplete-construct state machine (fraction with no denominator
-      yet, exponent/subscript mode toggled with nothing typed) in
-      `frontend/tests/unit/notation-toolbar.test.tsx` (depends on T002)
+- [X] T002 Implement the shared `NotationToolbar` component in
+      `frontend/src/components/NotationToolbar.tsx` (depends on T001).
+      **Implementation-time simplification**: every button (precomposed
+      fractions, exponent/subscript digits) inserts one already-complete
+      character; the only multi-character composition (an arbitrary
+      fraction) happens in a small self-contained numerator/denominator
+      composer whose own Insert button is disabled until both fields are
+      digits. Nothing incomplete can ever reach the caller's `onInsert`,
+      so FR-007 is satisfied by construction -- no `isIncomplete` flag or
+      cursor-position tracking needed (simpler than research.md §4's
+      illustrative mode-toggle design; same requirement, less code).
+- [X] T003 [P] Unit tests for `NotationToolbar`'s insertion buttons and
+      the custom-fraction composer's disabled-until-complete Insert
+      button in `frontend/tests/unit/notation-toolbar.test.tsx`
+      (depends on T002) -- 6/6 passing
 
 **Checkpoint**: `NotationToolbar` is usable and tested standalone;
 either user story can now proceed.
@@ -67,29 +71,51 @@ with real notation and submits successfully.
 
 ### Implementation for User Story 1
 
-- [ ] T004 [US1] Integrate `NotationToolbar` into
-      `frontend/src/components/FreeTextAnswerInput.tsx`: render above
-      the `<textarea>`, insert at cursor position, and extend the
-      existing submit-disabled condition (`text.trim() === ""`) to also
-      disable while `NotationToolbar`'s `isIncomplete` is true
-- [ ] T005 [US1] Integrate `NotationToolbar` into
+- [X] T004 [US1] Integrate `NotationToolbar` into
+      `frontend/src/components/FreeTextAnswerInput.tsx`: renders above
+      the `<textarea>`, inserts at the tracked cursor position via a new
+      `textareaRef`. No submit-disabled change needed (see T002's
+      simplification note) -- `tsc --noEmit` clean, existing
+      `free-text-rejection-states.test.tsx` suite (7/7) still passes
+      unchanged.
+- [X] T005 [US1] Integrate `NotationToolbar` into
       `frontend/src/components/MultiStepAnswerInput.tsx`: one toolbar
-      instance per step `<input>`, same cursor-insertion behavior, and
-      extend `allStepsFilled` to also require every step's
-      `isIncomplete` to be false
-- [ ] T006 [P] [US1] Extend
-      `frontend/tests/unit/free-text-rejection-states.test.tsx`:
-      fraction/exponent/subscript insertion displays the real character
-      in the textarea, Submit stays disabled while a construct is
-      incomplete, and `answerQuestion` is called with the exact composed
-      string on submit
-- [ ] T007 [P] [US1] Extend
-      `frontend/tests/unit/multi-step-question.test.tsx`: same
-      insertion/incomplete-disables-submit/exact-string assertions,
-      scoped to one step at a time
-- [ ] T008 [US1] Run quickstart.md Scenarios 1, 2, and 4 (fraction
-      entry grades correctly, exponent/subscript display while typing,
-      incomplete notation blocks submission) against local dev servers
+      instance per step `<input>`, same cursor-insertion behavior via a
+      per-step ref array. Added `data-testid="multi-step-step-{index}"`
+      on each step's wrapper so tests can scope `within()` queries
+      across multiple same-page toolbar instances. `tsc --noEmit`
+      clean, existing `multi-step-question.test.tsx` suite (6/6) still
+      passes unchanged.
+- [X] T006 [P] [US1] Extend
+      `frontend/tests/unit/free-text-rejection-states.test.tsx`: 4 new
+      tests (fraction/exponent insertion displays the real character,
+      exact-composed-string submit, plain-ASCII submission unaffected)
+      -- 11/11 passing. **Bug found while writing these tests, fixed
+      before committing**: the initial insertion implementation
+      refocused the field via `requestAnimationFrame` after insert,
+      which raced with fast subsequent typing elsewhere and silently
+      stole keystrokes back into the wrong field. Fixed by dropping the
+      post-insert refocus entirely (see `FreeTextAnswerInput.tsx`'s
+      `insertNotation` comment) -- insertion position is still read
+      synchronously at click time, just never force-restored afterward.
+- [X] T007 [P] [US1] Extend
+      `frontend/tests/unit/multi-step-question.test.tsx`: 2 new tests
+      (notation inserted into one step doesn't affect another, scoped
+      via `within()`; exact composed strings submitted per step) --
+      8/8 passing. Same refocus-race bug found and fixed here too
+      (`MultiStepAnswerInput.tsx`'s `insertNotation`).
+- [X] T008 [US1] **Not verified in a live browser** -- this sandbox has
+      neither `chromium-cli` nor a local Postgres/backend available, and
+      no project skill exists yet for launching this app (see `run`
+      skill's report). Substituted with the closest available
+      verification: T003/T006/T007's Vitest+jsdom tests render these
+      exact components in a real DOM and assert actual `value`
+      attributes and `disabled` states (this is what caught the
+      refocus-race bug above), plus `tsc --noEmit`. Scenario 1's
+      grading-correct claim is covered by T009's backend contract test
+      instead of a live manual run. Recommend a manual
+      `npm run dev` + backend click-through before merging if a live
+      visual check is wanted.
 
 **Checkpoint**: User Story 1 is fully functional and independently
 demoable -- this is the MVP.
@@ -108,20 +134,31 @@ grade correct.
 
 ### Implementation for User Story 2
 
-- [ ] T009 [P] [US2] Add a regression test to
-      `backend/tests/contract/test_question_api.py`: submit a notated
-      free-text response (e.g. containing "½") to
-      `POST /api/questions/{id}/answer` and assert it is accepted and
-      forwarded to grading as ordinary text -- no shape/validation
-      change from a plain-text submission (`research.md` §2, §5)
-- [ ] T010 [P] [US2] Add regression assertions to
-      `frontend/tests/unit/free-text-rejection-states.test.tsx` and
-      `frontend/tests/unit/multi-step-question.test.tsx`: a
-      plain-ASCII-only submission (no toolbar use) reaches
-      `answerQuestion` byte-for-byte unchanged from before this feature
-- [ ] T011 [US2] Run quickstart.md Scenarios 3 and 5 (zero grading
-      regression on plain-text answers; multi-step per-step notation
-      graded like any other step)
+- [X] T009 [P] [US2] Added
+      `backend/tests/integration/test_free_text_notation_answer.py`
+      (not `tests/contract/test_question_api.py` as originally
+      planned -- `test_question_api.py`'s `mocked_generation` fixture
+      only produces `multiple_choice` questions; the existing free-text
+      test infrastructure lives in `tests/integration/` with
+      `free_text_helpers.py`, and `test_free_text_paraphrase_
+      equivalence.py` is the exact existing pattern for "two answers,
+      same mocked grading result, assert identical outcome" -- reused
+      that pattern with a notated vs. plain-text pair instead of two
+      paraphrases). 1/1 passing against the real test Postgres DB.
+- [X] T010 [P] [US2] Regression coverage already lands from T006/T007:
+      `free-text-rejection-states.test.tsx`'s new "plain-ASCII-only
+      submission is unaffected" test asserts the exact pre-existing
+      `answerQuestion("q1", "an answer", undefined, undefined)` call
+      shape; `multi-step-question.test.tsx`'s original (unmodified)
+      "renders one input per step... submits them as an ordered array"
+      test continues to pass unchanged, proving the toolbar's presence
+      doesn't alter a plain-text multi-step submission either.
+- [X] T011 [US2] Ran quickstart.md Scenario 5 (multi-step per-step
+      notation graded like any other step) via T007's new test
+      (submits `["½", "x = 4"]`, asserts identical
+      `answerQuestion` call/grading path as an all-plain-text
+      submission). Scenario 3 (zero grading regression) deferred to
+      T012's full-suite run, same as SC-002's own definition.
 
 **Checkpoint**: Both user stories work independently; notation adds
 capability without changing grading behavior.
@@ -130,24 +167,36 @@ capability without changing grading behavior.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T012 Run the full backend (`pytest`) and frontend (`vitest`)
-      regression suites and confirm zero failures (SC-002) -- this run
-      also implicitly covers FR-008 (historical answers untouched, no
-      migration exists to break them) and FR-009 (audit log/Langfuse
-      trace coverage for `answer_submitted` is exercised unchanged by
-      the existing suite); no dedicated task exists for either since
-      neither requires new code
-- [ ] T013 [P] Run `backend/scripts/check_no_subject_conditionals.py`
-      to confirm no subject-ID-keyed gating was introduced
-      (Constitution Principle III, FR-005)
-- [ ] T014 Run all 5 `quickstart.md` scenarios end-to-end as a final
-      confirmation before opening the PR
-- [ ] T015 [P] Manually confirm FR-003 and SC-004: generate one question
-      per content subject (algebra-1, biology) whose rubric criteria
-      include notation characters, and confirm question-generation's
-      existing validation step accepts it with no new failure mode --
-      no code change expected, this is a smoke check that the existing
-      pipeline's free-form text handling already accommodates notation
+- [X] T012 Full backend suite: **701/701 passing**, zero failures
+      (`uv run pytest -q`, ~19.5 min against the real test Postgres DB).
+      Full frontend suite: **137/137 passing** (`npx vitest run`). SC-002
+      confirmed. This run also implicitly covers FR-008 (historical
+      answers untouched, no migration exists to break them) and FR-009
+      (audit log/Langfuse trace coverage for `answer_submitted` is
+      exercised unchanged by the existing suite).
+- [X] T013 [P] Ran `backend/scripts/check_no_subject_conditionals.py` --
+      "OK: no subject-id-keyed conditionals found in backend/src for
+      ['algebra-1', 'biology']"
+- [X] T014 Final confirmation across all 5 `quickstart.md` scenarios:
+      Scenario 1 (fraction grades correctly) -- T009's backend test.
+      Scenario 2 (exponent/subscript display while typing) -- T006's
+      frontend tests. Scenario 3 (zero grading regression) -- T012's
+      full suite. Scenario 4 (incomplete notation blocks submission) --
+      T003's composer-disabled-until-complete tests (satisfied by
+      construction, see T002). Scenario 5 (multi-step per-step
+      notation) -- T007/T011. **Not independently re-verified in a live
+      browser** -- see T008's note; all 5 are covered by real-DOM
+      (jsdom) or real-Postgres automated tests, not a live click-through.
+- [X] T015 [P] Confirmed FR-003/SC-004 by code inspection rather than a
+      live (costly) LLM generation call: `_validate_draft`
+      (`assessment_gen/agent.py`) only checks `rubric_criteria` count
+      and weight-sum for `FREE_TEXT`, never criterion content, and
+      `RubricCriterion.description` is an unconstrained `str` (just
+      `min_length=1`) -- no charset restriction exists to trip on
+      notation. Added a cheap permanent regression check,
+      `backend/tests/unit/test_notation_rubric_validation.py`, calling
+      `_validate_draft` directly with a notated vs. plain-text criterion
+      -- 1/1 passing, no LLM call, no DB write.
 
 ---
 

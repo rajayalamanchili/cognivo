@@ -140,3 +140,64 @@ describe("FreeTextAnswerInput rejection states", () => {
     expectOnlyVisible(null);
   });
 });
+
+// Spec 023: notation-toolbar integration (FR-001, FR-002, FR-004, FR-007).
+describe("FreeTextAnswerInput notation entry", () => {
+  beforeEach(() => {
+    vi.mocked(api.answerQuestion).mockReset();
+  });
+
+  it("inserts a precomposed fraction into the textarea", async () => {
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("notation-fraction-½"));
+    expect(screen.getByRole("textbox")).toHaveValue("½");
+  });
+
+  it("inserts an exponent digit at the end of existing text", async () => {
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    await userEvent.type(screen.getByRole("textbox"), "x");
+    await userEvent.click(screen.getByTestId("notation-exponent-²"));
+    expect(screen.getByRole("textbox")).toHaveValue("x²");
+  });
+
+  it("submits a notated answer as the exact composed string (FR-004: no transformation)", async () => {
+    vi.mocked(api.answerQuestion).mockResolvedValue({
+      correct: true,
+      topic_id: "t",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: 0.9,
+      criteria_met: [],
+      criteria_missed: [],
+      grading_logic_version: "v1",
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    await userEvent.click(screen.getByTestId("notation-fraction-½"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await vi.waitFor(() => expect(api.answerQuestion).toHaveBeenCalledOnce());
+    expect(api.answerQuestion).toHaveBeenCalledWith("q1", "½", undefined, undefined);
+  });
+
+  it("a plain-ASCII-only submission is unaffected by the notation toolbar being present (SC-002)", async () => {
+    vi.mocked(api.answerQuestion).mockResolvedValue({
+      correct: true,
+      topic_id: "t",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.5,
+      band: "developing",
+      graduated_score: 0.9,
+      criteria_met: [],
+      criteria_missed: [],
+      grading_logic_version: "v1",
+      first_diverging_step_index: null,
+      step_results: null,
+    });
+    render(<FreeTextAnswerInput questionId="q1" onGraded={vi.fn()} />);
+    await submit();
+    await vi.waitFor(() => expect(api.answerQuestion).toHaveBeenCalledOnce());
+    expect(api.answerQuestion).toHaveBeenCalledWith("q1", "an answer", undefined, undefined);
+  });
+});

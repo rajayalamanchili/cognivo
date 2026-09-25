@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   answerQuestion,
   ApiError,
@@ -9,6 +9,7 @@ import {
   type FreeTextErrorBody,
 } from "@/services/api";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import NotationToolbar from "@/components/NotationToolbar";
 
 // Multi-step owns its own submission, same reasoning as
 // `FreeTextAnswerInput` (spec 018 extends spec 007's Grading Agent): one
@@ -60,9 +61,21 @@ export default function MultiStepAnswerInput({
 }: MultiStepAnswerInputProps) {
   const [answers, setAnswers] = useState<string[]>(() => steps.map(() => ""));
   const [state, setState] = useState<SubmitState>("idle");
+  const stepRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   function updateStep(index: number, value: string) {
     setAnswers((previous) => previous.map((answer, i) => (i === index ? value : answer)));
+  }
+
+  // Spec 023 FR-001/FR-002/FR-006: same cursor-insertion behavior as
+  // FreeTextAnswerInput -- see that component's comment for why this
+  // deliberately does not restore focus/cursor afterward.
+  function insertNotation(index: number, insertText: string) {
+    const el = stepRefs.current[index];
+    const current = answers[index];
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    updateStep(index, current.slice(0, start) + insertText + current.slice(end));
   }
 
   async function handleSubmit() {
@@ -92,9 +105,13 @@ export default function MultiStepAnswerInput({
   return (
     <div className="flex flex-col gap-3" data-testid="multi-step-answer-input">
       {steps.map((stepPrompt, index) => (
-        <div key={index} className="flex flex-col gap-1">
+        <div key={index} className="flex flex-col gap-1" data-testid={`multi-step-step-${index}`}>
           <label className="text-sm text-muted">{stepPrompt}</label>
+          <NotationToolbar onInsert={(text) => insertNotation(index, text)} disabled={busy} />
           <input
+            ref={(el) => {
+              stepRefs.current[index] = el;
+            }}
             type="text"
             className="rounded-lg border border-border px-3 py-2"
             value={answers[index]}
