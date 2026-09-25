@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   answerQuestion,
   ApiError,
@@ -9,6 +9,7 @@ import {
   type FreeTextErrorBody,
 } from "@/services/api";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import NotationToolbar from "@/components/NotationToolbar";
 
 // Free-text owns its own submission (unlike MC/numeric, whose submit
 // button lives in the parent flow page) so it can render FR-018's five
@@ -66,6 +67,30 @@ export default function FreeTextAnswerInput({
 }: FreeTextAnswerInputProps) {
   const [text, setText] = useState("");
   const [state, setState] = useState<SubmitState>("idle");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Spec 023 FR-001/FR-002: insert at the cursor rather than appending,
+  // so a learner can drop a fraction into the middle of an answer.
+  // Deliberately does not restore focus/cursor afterward -- a delayed
+  // refocus raced with fast subsequent typing elsewhere (e.g. tabbing
+  // to another field right after a toolbar click) and stole keystrokes
+  // back into this field. Reading selectionStart/End synchronously
+  // before the click's own focus change is enough for correct
+  // insertion position; anything after that is an unrequested nicety
+  // not worth the race.
+  function insertNotation(insertText: string) {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    // The textarea's own maxLength only constrains keystroke/IME input,
+    // not this programmatic insert -- guard here too. Dropping the whole
+    // insert (rather than slicing the composed string) keeps
+    // NotationToolbar's "only complete units reach the field" guarantee
+    // intact instead of truncating a multi-character construct mid-way.
+    const composed = text.slice(0, start) + insertText + text.slice(end);
+    if (composed.length > MAX_LENGTH) return;
+    setText(composed);
+  }
 
   async function handleSubmit() {
     setState("grading-in-progress");
@@ -92,7 +117,9 @@ export default function FreeTextAnswerInput({
 
   return (
     <div className="flex flex-col gap-2" data-testid="free-text-answer-input">
+      <NotationToolbar onInsert={insertNotation} disabled={busy} />
       <textarea
+        ref={textareaRef}
         className="rounded-lg border border-border px-3 py-2"
         rows={4}
         maxLength={MAX_LENGTH}

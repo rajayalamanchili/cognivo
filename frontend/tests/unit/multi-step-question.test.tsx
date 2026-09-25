@@ -2,7 +2,7 @@
 // submits them as an ordered array via answerQuestion() (spec 018 T023),
 // and AnswerResultView renders the per-step breakdown it reports back.
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MultiStepAnswerInput from "@/components/MultiStepAnswerInput";
@@ -110,6 +110,74 @@ describe("MultiStepAnswerInput", () => {
 
     await vi.waitFor(() => expect(onSessionEnded).toHaveBeenCalledOnce());
     expect(screen.queryByTestId("multi-step-error-unavailable")).not.toBeInTheDocument();
+  });
+
+  // Spec 023: each step gets its own notation toolbar (FR-001, FR-002, FR-006).
+  it("inserts notation into one step without affecting the other", async () => {
+    render(<MultiStepAnswerInput questionId="q1" steps={STEPS} onGraded={vi.fn()} />);
+
+    const step0 = within(screen.getByTestId("multi-step-step-0"));
+    const step1 = within(screen.getByTestId("multi-step-step-1"));
+
+    await userEvent.click(step0.getByTestId("notation-fraction-½"));
+
+    expect(screen.getByTestId("multi-step-input-0")).toHaveValue("½");
+    expect(screen.getByTestId("multi-step-input-1")).toHaveValue("");
+    expect(step1.getByTestId("notation-fraction-insert")).toBeDisabled();
+  });
+
+  it("submits notated step answers as the exact composed strings, unchanged by grading (FR-004)", async () => {
+    vi.mocked(api.answerQuestion).mockResolvedValue({
+      correct: true,
+      topic_id: "linear-equations",
+      prior_p_mastery: 0.4,
+      posterior_p_mastery: 0.6,
+      band: "developing",
+      graduated_score: 1.0,
+      criteria_met: null,
+      criteria_missed: null,
+      grading_logic_version: "v1",
+      first_diverging_step_index: null,
+      step_results: [
+        { step_index: 0, correct: true, criteria_met: ["a"], criteria_missed: [] },
+        { step_index: 1, correct: true, criteria_met: ["b"], criteria_missed: [] },
+      ],
+    });
+
+    render(<MultiStepAnswerInput questionId="q1" steps={STEPS} onGraded={vi.fn()} />);
+
+    await userEvent.click(within(screen.getByTestId("multi-step-step-0")).getByTestId("notation-fraction-½"));
+    await userEvent.type(screen.getByTestId("multi-step-input-1"), "x = 4");
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+
+    expect(api.answerQuestion).toHaveBeenCalledWith("q1", ["½", "x = 4"], undefined, undefined);
+  });
+
+  // Parity with FreeTextAnswerInput's own MAX_LENGTH guard: the backend
+  // enforces 2000 chars on the "\n"-joined concatenation of all steps, so
+  // a toolbar insert must be dropped, not silently allowed, once that
+  // total would be exceeded.
+  it("drops a toolbar insert into a step that would push the concatenated answer past MAX_LENGTH", async () => {
+    render(<MultiStepAnswerInput questionId="q1" steps={STEPS} onGraded={vi.fn()} />);
+
+    const step0Input = screen.getByTestId("multi-step-input-0") as HTMLInputElement;
+    fireEvent.change(step0Input, { target: { value: "a".repeat(1999) } });
+
+    await userEvent.click(
+      within(screen.getByTestId("multi-step-step-0")).getByTestId("notation-fraction-½"),
+    );
+
+    expect(step0Input.value).toBe("a".repeat(1999));
+  });
+
+  it("rejects direct typing into a step that would push the concatenated answer past MAX_LENGTH", async () => {
+    render(<MultiStepAnswerInput questionId="q1" steps={STEPS} onGraded={vi.fn()} />);
+
+    const step0Input = screen.getByTestId("multi-step-input-0") as HTMLInputElement;
+    fireEvent.change(step0Input, { target: { value: "a".repeat(1999) } });
+    fireEvent.change(step0Input, { target: { value: "a".repeat(2001) } });
+
+    expect(step0Input.value).toBe("a".repeat(1999));
   });
 });
 
