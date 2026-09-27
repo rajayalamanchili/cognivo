@@ -85,4 +85,15 @@ describe("QuizSummary", () => {
     render(<QuizSummary summary={summary} />);
     expect(screen.queryByTestId("answer-result-view")).not.toBeInTheDocument();
   });
+
+  it("reveals an accumulated set of refreshed topics (spec 025 User Story 4, research.md §5)", () => {
+    render(<QuizSummary summary={summary} refreshedTopicIds={["linear-equations"]} />);
+    expect(screen.getByTestId("quiz-refreshed-topics")).toBeInTheDocument();
+    expect(screen.getByTestId("quiz-refreshed-topics").textContent).toMatch(/linear equations/i);
+  });
+
+  it("renders nothing for refreshed topics when the set is empty", () => {
+    render(<QuizSummary summary={summary} refreshedTopicIds={[]} />);
+    expect(screen.queryByTestId("quiz-refreshed-topics")).not.toBeInTheDocument();
+  });
 });

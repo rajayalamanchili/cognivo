@@ -23,6 +23,7 @@ import {
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
 import SelectionReasonChip from "@/components/SelectionReasonChip";
+import RefreshedBanner from "@/components/RefreshedBanner";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import SessionCountdown from "@/components/SessionCountdown";
 import SessionTimingSummary from "@/components/SessionTimingSummary";
@@ -308,6 +309,7 @@ export default function PracticeFlow() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
         <AnswerResultView result={result} />
+        <RefreshedBanner refreshed={result.refreshed} />
         <div className="flex items-center gap-4">
           <button
             type="button"

@@ -20,9 +20,14 @@ const STATUS_LABEL: Record<"completed" | "ended_early", string> = {
 
 export interface QuizSummaryProps {
   summary: QuizSummaryResponse;
+  // Spec 025 FR-011/User Story 4 (research.md §5): the *unmodified*
+  // `refreshed` flag from each answer's own response, accumulated in
+  // ephemeral session-local state by the caller as the quiz progressed
+  // -- never recomputed here, never persisted.
+  refreshedTopicIds?: string[];
 }
 
-export default function QuizSummary({ summary }: QuizSummaryProps) {
+export default function QuizSummary({ summary, refreshedTopicIds = [] }: QuizSummaryProps) {
   const heading =
     summary.status === "in_progress" ? "Quiz in progress" : STATUS_LABEL[summary.status];
 
@@ -52,6 +57,14 @@ export default function QuizSummary({ summary }: QuizSummaryProps) {
             </li>
           ))}
         </ul>
+      )}
+      {refreshedTopicIds.length > 0 && (
+        <p
+          data-testid="quiz-refreshed-topics"
+          className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
+        >
+          Nice -- you&apos;ve brought {refreshedTopicIds.map(formatTopicId).join(", ")} back up.
+        </p>
       )}
       {summary.per_question_results != null && summary.per_question_results.length > 0 && (
         <div className="flex flex-col gap-4" data-testid="quiz-per-question-results">

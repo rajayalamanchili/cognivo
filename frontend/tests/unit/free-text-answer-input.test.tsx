@@ -27,6 +27,7 @@ describe("FreeTextAnswerInput", () => {
       topic_id: "linear-equations",
       prior_p_mastery: 0.4,
       posterior_p_mastery: 0.6,
+      refreshed: false,
       band: "developing",
       graduated_score: 0.9,
       criteria_met: [],

@@ -84,6 +84,8 @@ A per-criterion "how this was graded" view -- showing, per rubric criterion, whi
 
 When a learner answers a decayed topic and their updated mastery crosses back above the mastery threshold, they see an encouraging "refreshed" moment acknowledging that they brought the topic back up -- reinforcing that the review loop pays off.
 
+**Quiz reveal timing follows User Story 3's own resolution, not a new decision**: FR-011 fixes the acknowledgment to the specific answer's own response, computed once, never recomputed later. For practice and placement (which show that response immediately), this is shown right away. For quiz and instructor-assigned attempts (which, per User Story 3's Clarification, show nothing per-question at all), the *unmodified* flag from each answer's own response is carried in ephemeral, in-session client state only -- never persisted, never recomputed, never a new tracking field -- and revealed once, alongside that quiz's other results, in the end-of-session summary. This is carrying forward an already-computed value to a later point in the *same* display, not recomputing it from later persisted state -- the distinction FR-011 actually protects against (spec 024's dashboard/answer-crossing example).
+
 **Why this priority**: The mastery-decay feature creates a recover-a-lapsed-topic loop (spec 024, User Story 2), but nothing marks the payoff. A visible "you refreshed this" moment closes the loop emotionally and encourages learners to keep engaging with review picks rather than treating them as chores.
 
 **Independent Test**: Answer a decayed, below-threshold topic correctly enough that the resulting mastery crosses back above threshold, and confirm the learner sees a refreshed acknowledgment; answer one that does not cross the threshold and confirm no false celebration appears.
@@ -94,6 +96,7 @@ When a learner answers a decayed topic and their updated mastery crosses back ab
 2. **Given** a decayed topic answered but whose updated mastery stays below threshold, **When** grading completes, **Then** no "refreshed" acknowledgment is shown.
 3. **Given** a topic that was already above threshold, **When** it is answered again, **Then** no "refreshed" acknowledgment is shown (there was nothing to recover).
 4. **Given** a topic already refreshed by a previous answer, **When** the learner later revisits the dashboard or answers that topic again, **Then** the acknowledgment does not reappear -- it was shown once, only in the response to the answer that caused the crossing, and is never recomputed from later state.
+5. **Given** a quiz or instructor-assigned attempt in which one answer's response reported `refreshed: true`, **When** the learner reaches that quiz's end-of-session summary, **Then** the acknowledgment appears there, carrying forward the exact value from that answer's own response -- never re-derived from a separate check against current mastery state.
 
 ---
 

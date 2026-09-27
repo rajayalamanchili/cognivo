@@ -9,6 +9,7 @@ import {
   getQuizSummary,
   listLearnerAssignments,
   startAssignment,
+  type AnswerResult,
   type AssignmentStatus,
   type LearnerAssignment,
   type NextQuestion,
@@ -74,6 +75,15 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   const [answeredCount, setAnsweredCount] = useState(0);
   const [stoppingPointShown, setStoppingPointShown] = useState(false);
   const [reinforcementMessage, setReinforcementMessage] = useState<string | null>(null);
+  // Spec 025 FR-011/research.md §5: same accumulate-and-reveal-at-summary
+  // pattern as quiz-flow.tsx -- see that file's comment for the full
+  // rationale (no per-question pause here either).
+  const [refreshedTopicIds, setRefreshedTopicIds] = useState<Set<string>>(new Set());
+
+  function recordIfRefreshed(topicId: string, result: { refreshed: boolean }) {
+    if (!result.refreshed) return;
+    setRefreshedTopicIds((prev) => new Set(prev).add(topicId));
+  }
 
   // `refreshAssignments` is only ever called from event handlers (the
   // "Back to assignments" button below), never from the effect itself --
@@ -200,7 +210,13 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         currentQuestion.question_type === "numeric"
           ? Number(response)
           : Number.parseInt(response, 10);
-      await answerQuestion(currentQuestion.question_id, value, readAloudUsed, handoffToken);
+      const result = await answerQuestion(
+        currentQuestion.question_id,
+        value,
+        readAloudUsed,
+        handoffToken,
+      );
+      recordIfRefreshed(currentQuestion.topic_id, result);
       setResponse("");
       await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
@@ -209,8 +225,9 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     }
   }
 
-  async function handleFreeTextGraded() {
+  async function handleFreeTextGraded(result: AnswerResult) {
     if (!quizSessionId || !currentQuestion) return;
+    recordIfRefreshed(currentQuestion.topic_id, result);
     setResponse("");
     await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
   }
@@ -268,7 +285,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   if (phase === "finished" && summary) {
     return (
       <div className="flex flex-col gap-6" data-testid="learner-assignment-attempt">
-        <QuizSummary summary={summary} />
+        <QuizSummary summary={summary} refreshedTopicIds={[...refreshedTopicIds]} />
         <button
           type="button"
           onClick={handleBackToList}

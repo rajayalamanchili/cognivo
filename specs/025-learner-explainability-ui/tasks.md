@@ -119,15 +119,15 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ### Tests for User Story 4
 
-- [ ] T025 [P] [US4] Integration test: `AnswerOut.refreshed` is `true` only on a below-to-above `MASTERED` crossing, `false` for an already-mastered reanswer and a stays-below answer, and never re-appears on a later, unrelated request in `backend/tests/integration/test_refreshed_acknowledgment.py`
-- [ ] T026 [P] [US4] Component test: `RefreshedBanner` renders only when `refreshed` is `true` and renders nothing otherwise in `frontend/tests/unit/refreshed-banner.test.tsx`
+- [X] T025 [P] [US4] Integration test: `AnswerOut.refreshed` is `true` only on a below-to-above `MASTERED` crossing, `false` for an already-mastered reanswer and a stays-below answer, and never re-appears on a later, unrelated request in `backend/tests/integration/test_refreshed_acknowledgment.py`
+- [X] T026 [P] [US4] Component test: `RefreshedBanner` renders only when `refreshed` is `true` and renders nothing otherwise in `frontend/tests/unit/refreshed-banner.test.tsx`; plus a test extending `frontend/tests/unit/quiz-summary.test.tsx` confirming `QuizSummary` reveals an accumulated set of refreshed topics passed to it, and nothing when the set is empty
 
 ### Implementation for User Story 4
 
-- [ ] T027 [US4] Add `refreshed: bool` to `AnswerOut`, computed via T002's `refreshed_from_bands(prior_band, posterior_band)` at the answer route, in `backend/src/api/routes/questions.py` (depends on T025, T002)
-- [ ] T028 [P] [US4] Create `RefreshedBanner` component in `frontend/src/components/RefreshedBanner.tsx` (depends on T026, T004)
-- [ ] T029 [US4] Wire `RefreshedBanner` into `frontend/src/app/practice/practice-flow.tsx` and `frontend/src/app/quiz/quiz-flow.tsx` (depends on T027, T028)
-- [ ] T030 [US4] Wire `RefreshedBanner` into `frontend/src/components/LearnerAssignments.tsx` (depends on T027, T028)
+- [X] T027 [US4] Add `refreshed: bool` to `AnswerOut`, computed via T002's `refreshed_from_bands(prior_band, posterior_band)` at the answer route, in `backend/src/api/routes/questions.py` (depends on T025, T002)
+- [X] T028 [P] [US4] Create `RefreshedBanner` component in `frontend/src/components/RefreshedBanner.tsx` (depends on T026, T004)
+- [X] T029 [US4] Wire `RefreshedBanner` into `frontend/src/app/practice/practice-flow.tsx`'s immediate answer-result view; in `frontend/src/app/quiz/quiz-flow.tsx`, capture (never recompute) each answer's `refreshed` value into ephemeral session-local state and pass the accumulated set to `QuizSummary` for its end-of-session reveal (research.md §5 correction -- quiz has no per-question pause to show this in immediately) (depends on T027, T028)
+- [X] T030 [US4] Same accumulate-and-reveal-at-summary wiring as T029's quiz half, in `frontend/src/components/LearnerAssignments.tsx` (depends on T027, T028)
 
 **Checkpoint**: User Stories 1-4 all work independently.
 
@@ -141,15 +141,15 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ### Tests for User Story 5
 
-- [ ] T031 [P] [US5] Integration test: mastery-history endpoint returns chronologically ordered points for a multi-update topic, a single point for a once-answered topic, and an empty list for a topic with no `MasteryState` in `backend/tests/integration/test_mastery_history.py`
-- [ ] T032 [P] [US5] Component test: `MasteryTrend` renders a trend line for multiple points, a graceful single-point state, and nothing for zero points in `frontend/tests/unit/mastery-trend.test.tsx`
+- [X] T031 [P] [US5] Integration test: mastery-history endpoint returns chronologically ordered points for a multi-update topic, a single point for a once-answered topic, and an empty list for a topic with no `MasteryState` in `backend/tests/integration/test_mastery_history.py`
+- [X] T032 [P] [US5] Component test: `MasteryTrend` renders a trend line for multiple points, a graceful single-point state, and nothing for zero points in `frontend/tests/unit/mastery-trend.test.tsx`
 
 ### Implementation for User Story 5
 
-- [ ] T033 [US5] Create a mastery-history query helper mirroring `weak_area.py`'s `_build_evidence` pattern (filter by learner/subject/topic/`MASTERY_UPDATED`, order by `created_at`) in `backend/src/services/mastery/mastery_history.py` (depends on T031)
-- [ ] T034 [US5] Add `GET /api/learners/{learner_id}/topics/{topic_id}/mastery-history` route with `MasteryHistoryOut`/`MasteryHistoryPoint` response models in `backend/src/api/routes/mastery_history.py` (depends on T033)
-- [ ] T035 [P] [US5] Create `MasteryTrend` sparkline component in `frontend/src/components/MasteryTrend.tsx` (depends on T032)
-- [ ] T036 [US5] Add a `getMasteryHistory` API client function and wire `MasteryTrend` into the topic detail view in `frontend/src/services/api.ts` and `frontend/src/app/mastery/mastery-flow.tsx` (depends on T034, T035)
+- [X] T033 [US5] Create a mastery-history query helper mirroring `weak_area.py`'s `_build_evidence` pattern (filter by learner/subject/topic/`MASTERY_UPDATED`, order by `created_at`) in `backend/src/services/mastery/mastery_history.py` (depends on T031)
+- [X] T034 [US5] Add `GET /api/learners/{learner_id}/topics/{topic_id}/mastery-history` route with `MasteryHistoryOut`/`MasteryHistoryPoint` response models in `backend/src/api/routes/mastery_history.py` (depends on T033)
+- [X] T035 [P] [US5] Create `MasteryTrend` sparkline component in `frontend/src/components/MasteryTrend.tsx` (depends on T032)
+- [X] T036 [US5] Add a `getMasteryHistory` API client function and wire `MasteryTrend` into the topic detail view in `frontend/src/services/api.ts` and `frontend/src/app/mastery/mastery-flow.tsx` (depends on T034, T035)
 
 **Checkpoint**: User Stories 1-5 all work independently.
 

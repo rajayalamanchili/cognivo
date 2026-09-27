@@ -123,6 +123,7 @@ def test_answer_question_response_shape(client, demo_learner, algebra_subject, m
         "prior_p_mastery",
         "posterior_p_mastery",
         "band",
+        "refreshed",
     }
     assert body["band"] in ("struggling", "developing", "mastered")
 

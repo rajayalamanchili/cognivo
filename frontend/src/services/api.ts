@@ -55,6 +55,16 @@ export interface MasteryStateResponse {
   topics: MasteryTopicEntry[];
 }
 
+// Spec 025 User Story 5, FR-012.
+export interface MasteryHistoryPoint {
+  recorded_at: string;
+  p_mastery: number;
+}
+
+export interface MasteryHistoryResponse {
+  points: MasteryHistoryPoint[];
+}
+
 export interface DemoLearner {
   learner_id: string;
   display_name: string;
@@ -174,6 +184,9 @@ export interface AnswerResult {
   topic_id: string;
   prior_p_mastery: number | null;
   posterior_p_mastery: number;
+  // spec 025 FR-011: one-shot, tied to this specific answer's own
+  // response -- never recomputed or re-derived later.
+  refreshed: boolean;
   // spec 025 User Story 3: optional, not required -- a quiz summary's
   // reconstructed per-question result (QuizAnswerResult) has no `band`
   // (not derivable from historical audit events alone), but still
@@ -390,6 +403,17 @@ export function getMasteryState(
 ): Promise<MasteryStateResponse> {
   return request<MasteryStateResponse>(
     `/api/learners/${learnerId}/mastery-state?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+export function getMasteryHistory(
+  learnerId: string,
+  subjectId: string,
+  topicId: string,
+): Promise<MasteryHistoryResponse> {
+  return request<MasteryHistoryResponse>(
+    `/api/learners/${learnerId}/topics/${encodeURIComponent(topicId)}/mastery-history` +
+      `?subject_id=${encodeURIComponent(subjectId)}`,
   );
 }
 
