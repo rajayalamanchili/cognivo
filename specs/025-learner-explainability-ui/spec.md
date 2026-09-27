@@ -14,6 +14,14 @@ Constitution Principle V requires that every personalization and grading decisio
 
 This is a read-and-render feature: it exposes decisions the platform already makes and records. It introduces no new personalization or grading logic, and it must never invent numbers the underlying models did not produce.
 
+## Clarifications
+
+### Session 2026-09-27
+
+- Q: A per-criterion grading view already exists today for ordinary (untimed) practice answers, covering both correct/incorrect and both free-text/multi-step, but isn't wired into quiz sessions, timed sessions, placement, or instructor-assigned attempts -- should User Story 3 extend that existing view into the flows missing it, or be dropped as already-delivered? → A: Extend the existing view into quiz (untimed/timed), placement, and instructor-assigned-attempt flows, which lack it today; ordinary practice's existing behavior is the reference implementation, not something to rebuild.
+- Q: Should the "refreshed" acknowledgment (User Story 4) fire once, tied to the specific answer that caused the threshold crossing, or be recomputed and potentially re-shown on any later screen where the topic is currently above threshold after having been below? → A: Fire only in the response to the specific answer that caused the crossing, derived from that grading call's before/after mastery; never recomputed or re-shown from later persisted state, and needs no new tracking field.
+- Q: Should the "last practiced" warming indicator (FR-007) rely on color alone, or also carry a non-color cue? → A: Color gradient plus a plain-language text label stating elapsed time (e.g. "last practiced 6 months ago") -- color is reinforcement, never the sole signal, consistent with the project's existing accessibility bar (Milestone 10's alt-text gate).
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A learner sees why the current question was chosen (Priority: P1)
@@ -45,24 +53,25 @@ On the learner dashboard, each mastered topic shows both its retained (effective
 
 1. **Given** a topic mastered within the decay grace period, **When** the dashboard renders it, **Then** its effective mastery is shown equal to its peak mastery (no decay applied yet).
 2. **Given** a topic last practiced well beyond the grace period, **When** the dashboard renders it, **Then** effective mastery is shown below peak mastery, with copy that frames practice as restoring it.
-3. **Given** two topics with different elapsed times since last practice, **When** both render, **Then** the one untouched longer shows a visibly warmer "last practiced" indicator.
+3. **Given** two topics with different elapsed times since last practice, **When** both render, **Then** the one untouched longer shows both a visibly warmer "last practiced" indicator and a text label naming its (longer) elapsed time -- the difference is legible from the text alone, not only the color.
 4. **Given** the effective mastery displayed, **When** it is computed, **Then** it equals the decay feature's effective-mastery value for that topic -- the UI does not compute its own decay.
 
 ---
 
-### User Story 3 - A learner understands why an answer was marked the way it was (Priority: P2)
+### User Story 3 - A learner understands why an answer was marked the way it was, in every flow that grades one (Priority: P2)
 
-After an answer is graded, the learner can expand a "how this was graded" view that shows, per rubric criterion, which points the answer met and which it missed, drawn from the grading result already recorded for that answer. The same view is available for correct answers, not only wrong ones, so a learner can see why a win counted.
+A per-criterion "how this was graded" view -- showing, per rubric criterion, which points a free-text or multi-step answer met and which it missed -- already exists for ordinary (untimed) practice, for both correct and incorrect answers. It is not shown in quiz sessions (untimed or timed), placement, or instructor-assigned quiz attempts, which today show only a bare correct/incorrect result. This story extends that same, already-proven view into those remaining flows so a learner gets the identical explanation no matter which flow they answered through.
 
-**Why this priority**: This is the "why was this marked wrong" half of Principle V. The per-criterion grading result is already produced and stored (Principle II) but shown to the learner only as a final mark. Surfacing it turns a bare result into a learning moment, and showing it on wins as well as misses reinforces correct reasoning rather than only flagging failure.
+**Why this priority**: This is the "why was this marked wrong" half of Principle V. The per-criterion grading result is already produced, stored (Principle II), and rendered for practice -- but a learner taking a quiz or a placement assessment, arguably the higher-stakes moments, currently gets no explanation at all. Closing that flow-coverage gap, not rebuilding what practice already does, is this story's actual scope.
 
-**Independent Test**: Grade one free-text answer that partially satisfies a multi-criterion rubric and confirm the learner's expander lists each criterion with its met/missed state matching the stored grading result, for both a passing and a failing answer.
+**Independent Test**: Grade one free-text (or multi-step) answer that partially satisfies a multi-criterion rubric inside a quiz session, and confirm the learner sees the identical per-criterion breakdown ordinary practice already shows, for both a passing and a failing answer.
 
 **Acceptance Scenarios**:
 
-1. **Given** a graded free-text answer with a multi-criterion rubric, **When** the learner opens the grading view, **Then** each criterion is listed with whether the answer satisfied it, matching the recorded grading result.
-2. **Given** a correct answer, **When** the learner opens the grading view, **Then** the criteria it satisfied are shown -- the explainer is not limited to wrong answers.
-3. **Given** a grading result that recorded specific criterion outcomes, **When** the view renders, **Then** it shows only those recorded outcomes and does not re-grade or re-interpret the answer.
+1. **Given** a graded free-text or multi-step answer inside a quiz session (untimed or timed), placement, or an instructor-assigned quiz attempt, **When** the learner views the result, **Then** each rubric criterion is listed with whether the answer satisfied it, matching the recorded grading result -- the same behavior ordinary practice already has.
+2. **Given** a correct answer in any of those flows, **When** the learner views the result, **Then** the criteria it satisfied are shown -- the explainer is not limited to wrong answers, consistent with practice's existing behavior.
+3. **Given** a grading result that recorded specific criterion outcomes, **When** the view renders in any flow, **Then** it shows only those recorded outcomes and does not re-grade or re-interpret the answer.
+4. **Given** ordinary (untimed) practice, **When** an answer is graded, **Then** its existing per-criterion display is unchanged by this story (regression guard -- this story adds flow coverage, it does not replace practice's existing rendering).
 
 ---
 
@@ -76,9 +85,10 @@ When a learner answers a decayed topic and their updated mastery crosses back ab
 
 **Acceptance Scenarios**:
 
-1. **Given** a decayed topic whose mastery is below threshold, **When** the learner answers it and the updated mastery crosses back above threshold, **Then** an encouraging "refreshed" acknowledgment is shown.
+1. **Given** a decayed topic whose mastery is below threshold, **When** the learner answers it and the updated mastery crosses back above threshold, **Then** an encouraging "refreshed" acknowledgment is shown in the response to that specific answer.
 2. **Given** a decayed topic answered but whose updated mastery stays below threshold, **When** grading completes, **Then** no "refreshed" acknowledgment is shown.
 3. **Given** a topic that was already above threshold, **When** it is answered again, **Then** no "refreshed" acknowledgment is shown (there was nothing to recover).
+4. **Given** a topic already refreshed by a previous answer, **When** the learner later revisits the dashboard or answers that topic again, **Then** the acknowledgment does not reappear -- it was shown once, only in the response to the answer that caused the crossing, and is never recomputed from later state.
 
 ---
 
@@ -119,8 +129,8 @@ The learner can view a softened, encouraging version of their weak-area summary 
 - A pick whose recorded selection reason is missing or unrecognized: the "why this question" chip degrades to no chip (or a neutral "next question") rather than fabricating a reason -- an explanation is never invented (FR-004 / Principle V).
 - A topic that is "unknown" (no mastery state): shows no effective/peak mastery, no decay framing, no trend line, and is never described as decayed.
 - An answer graded without a per-criterion rubric breakdown (e.g. a legacy or non-rubric item): the grading expander shows the recorded result at whatever granularity exists and does not fabricate criteria.
-- Learner-appropriate language for younger learners: explanation copy respects the platform's existing age-adaptive experience layer (Milestone 19) rather than introducing a second age-adaptation mechanism.
-- A "refreshed" threshold crossing and a normal mastery update happening on the same answer: the celebration is driven solely by whether the recorded updated mastery crossed the threshold from below, not by any UI-side recomputation.
+- Learner-appropriate language for younger learners: explanation copy respects the platform's existing age-adaptive experience layer (Milestone 17) rather than introducing a second age-adaptation mechanism.
+- A "refreshed" threshold crossing and a normal mastery update happening on the same answer: the celebration is driven solely by that specific answer's before/after mastery crossing the threshold from below, computed once in that answer's own response -- never recomputed later, and never re-shown on a subsequent view of the same topic.
 - Stateless rendering: all explanations are derived per-request from persisted decisions/data, with no reliance on in-memory session state (Principle IX).
 
 ## Requirements *(mandatory)*
@@ -133,11 +143,11 @@ The learner can view a softened, encouraging version of their weak-area summary 
 - **FR-004**: The system MUST NOT display any selection reason, grading criterion, decay value, or weak area that the underlying model/agent did not record; when a needed record is absent, the corresponding explanation is omitted rather than fabricated.
 - **FR-005**: The learner dashboard MUST show, for each mastered topic, both its effective (decayed) mastery and its underlying peak mastery.
 - **FR-006**: The effective mastery displayed MUST equal the mastery-decay feature's effective-mastery value for that topic; the UI MUST NOT compute its own decay.
-- **FR-007**: The system MUST present a "last practiced" indicator per topic that visibly intensifies as elapsed time since last practice grows.
+- **FR-007**: The system MUST present a "last practiced" indicator per topic that visibly intensifies as elapsed time since last practice grows, paired with a plain-language text label stating elapsed time -- color intensity alone MUST NOT be the only signal, so the indicator remains legible without relying on color perception.
 - **FR-008**: All mastery-decay presentation MUST use recovery/upkeep framing (decay is reversible with practice) and MUST NOT frame a decayed topic as a demotion or lost achievement.
-- **FR-009**: The system MUST let a learner view per-rubric-criterion grading results for a graded answer, drawn from the recorded grading result.
-- **FR-010**: The grading-results view MUST be available for correct answers as well as incorrect ones.
-- **FR-011**: The system MUST show an encouraging "refreshed" acknowledgment when a learner answers a topic whose recorded mastery crosses from below the mastery threshold to above it, and MUST NOT show it otherwise.
+- **FR-009**: The system MUST show the existing per-rubric-criterion grading view (already present for ordinary/untimed practice) for a graded free-text or multi-step answer in every other flow that grades one: quiz sessions (untimed and timed), placement, and instructor-assigned quiz attempts.
+- **FR-010**: The grading-results view MUST be available for correct answers as well as incorrect ones, in every flow named in FR-009 -- matching ordinary practice's existing behavior, not a reduced version of it.
+- **FR-011**: The system MUST show an encouraging "refreshed" acknowledgment, in the response to the specific answer that causes it, when that answer's grading crosses recorded mastery from below the mastery threshold to above it, and MUST NOT show it otherwise. This acknowledgment MUST NOT be recomputed or re-shown from later persisted state (e.g. a subsequent dashboard view or later answer) and requires no new tracking field.
 - **FR-012**: The system MUST show a per-topic mastery trend built from the topic's recorded mastery history, degrading gracefully for single-point and no-history cases.
 - **FR-013**: The system MUST offer a learner-facing weak-area summary in supportive language, sourced from Milestone 2's Recommendation Agent output, and MUST NOT independently recompute weak areas.
 - **FR-014**: The learner-facing weak-area summary MUST present an encouraging state when no weak areas are flagged.
@@ -160,7 +170,7 @@ The learner can view a softened, encouraging version of their weak-area summary 
 - **SC-001**: For every question served under the default scope, the learner sees a why-selected explanation that matches the recorded selection reason 100% of the time (no fabricated reasons).
 - **SC-002**: A learner viewing the dashboard can, within a single glance at a decayed topic, tell that it has decayed and that practice will restore it (verified by usability check: users correctly describe decay as recoverable, not as a demotion).
 - **SC-003**: The effective mastery shown on the dashboard matches the mastery-decay feature's computed value for the same topic and evaluation time in 100% of checked cases.
-- **SC-004**: A learner can see, for any graded free-text answer, which rubric criteria were met and missed -- available for both passing and failing answers.
+- **SC-004**: A learner can see, for any graded free-text or multi-step answer, which rubric criteria were met and missed -- available for both passing and failing answers, and identical regardless of whether the answer was submitted via practice, a quiz session, placement, or an instructor-assigned attempt.
 - **SC-005**: A "refreshed" acknowledgment appears in 100% of below-to-above threshold crossings and in 0% of answers that do not cross the threshold from below.
 - **SC-006**: The learner-facing weak-area summary lists exactly the weak areas present in the corresponding Recommendation Agent report (no additions, no omissions) in 100% of checked cases.
 - **SC-007**: No explainability surface displays any value that cannot be traced to a persisted model/agent decision (auditable to zero fabricated explanations).
@@ -172,7 +182,8 @@ The learner can view a softened, encouraging version of their weak-area summary 
 - The Grading Agent already records per-criterion rubric outcomes (Principle II); this feature surfaces them and does not re-grade.
 - Milestone 2's Recommendation Agent is the sole source of weak-area detection; the learner-facing summary reuses its output (Principles III/IV).
 - The mastery threshold used for "mastered" and for FR-011's crossing detection is the platform's existing threshold, not a new one introduced here.
-- The platform's existing age-adaptive experience layer (Milestone 19) supplies age-appropriate phrasing; this feature adapts copy through it.
+- User Story 3 (FR-009/FR-010) reuses ordinary practice's existing per-criterion grading component as-is, extending where it renders rather than building a new one; the component itself needs no behavior change.
+- The platform's existing age-adaptive experience layer (Milestone 17) supplies age-appropriate phrasing; this feature adapts copy through it.
 - This feature works against existing synthetic/demo and real learner profiles as already permitted; it introduces no new learner-data collection or retention (Principle VIII).
 - Presentation is stateless and Vercel-compatible; explanations are derived per request from persisted data (Principle IX).
 - Visual/interaction specifics (exact colors, chip placement, animation of the celebration) are design details to be settled in planning; this spec fixes the behavior and framing, not the pixels.
