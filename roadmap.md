@@ -1042,6 +1042,8 @@ intended level; spec drafted and clarified 2026-09-06 (grade is a new
 topics per FR-001, and a grade counts as mastered once every topic in
 its grade band reaches the existing mastered band per FR-004). Moved
 here from "Out of current roadmap" now that implementation has landed.
+Merged to `staging` via PR #67 and promoted to `main` via PR #68 (both
+2026-09-07) -- milestone fully shipped.
 
 Implementation: two new tables (`grade_bands`, `grade_progress`), two
 nullable columns each on `Topic`/`GeneratedQuestion`, and three new
@@ -1108,7 +1110,9 @@ K-12 STEM gap-analysis session: a wrong final answer on a multi-step
 math/science problem got no distinction between "setup was right,
 arithmetic slip in step 3" and "fundamentally misunderstood the
 concept." Moved here from "Out of current roadmap" now that
-implementation has landed.
+implementation has landed. Merged to `staging` via PR #69 (plus
+follow-up fixes PR #71/#72) and promoted to `main` via PR #70 (all
+2026-09-18) -- milestone fully shipped.
 
 Implementation: extends Milestone 6's Grading Agent rather than adding
 a seventh agent boundary (Constitution Principle IV) -- a new
@@ -1216,7 +1220,9 @@ multi_step_replacement` added, mirroring the existing free-text test.
 **Spec**: `specs/019-age-adaptive-learner-experience/spec.md`.
 **Status**: Implementation-complete 2026-09-20 on branch
 `019-age-adaptive-learner-experience` (all three user stories plus
-Phase 6 Polish); not yet merged. Flagged 2026-09-14 during a K-12 STEM
+Phase 6 Polish). Merged to `staging` via PR #77 and promoted to `main`
+via PR #78 (both 2026-09-21) -- milestone fully shipped. Flagged
+2026-09-14 during a K-12 STEM
 gap-analysis session as "Age-adaptive learner experience across the
 grade 1-12 range" in "Out of current roadmap"; promoted to its own
 milestone 2026-09-20 after it resurfaced as the top open gap in a
@@ -1296,7 +1302,9 @@ roadmap," this one was a live Constitution Principle VIII violation on
 already-shipped, already-accumulating real account data, not a
 deferred nice-to-have. One `/speckit-clarify` round mid-stream added
 FR-011 (a 7-day in-app pre-deletion warning) -- otherwise no scope
-change from spec 009's already-approved policy.
+change from spec 009's already-approved policy. Merged to `staging` via
+PR #79 and promoted to `main` via PR #80 (both 2026-09-22) -- milestone
+fully shipped.
 
 **Bugs found and fixed during implementation** (all caught by the
 tests this milestone itself required, not discovered after the fact):
@@ -1879,7 +1887,9 @@ not yet merged. Review flagged a Principle V audit-trail gap (decayed
 `p_mastery` was computed for ranking but discarded before the
 `NEXT_TOPIC_SELECTED` audit write); fixed in commit `5ef6325` by
 carrying `effective_p_mastery` through `TopicCandidate`/
-`NextTopicSelection` into both audit-write sites.
+`NextTopicSelection` into both audit-write sites. Merged to `staging`
+via PR #88 and promoted to `main` via PR #89 (both 2026-09-27) --
+milestone fully shipped.
 
 **Scope**: Let a mastered topic's *review priority* (not its band, not
 its dashboard-visible score) decay the longer it goes without practice,
@@ -1900,8 +1910,8 @@ all. SC-003 (decayed-topic answer uses the unmodified BKT path) --
 `test_decayed_topic_answer_unaffected.py`. SC-004 (reproducible
 selection) -- asserted directly in `test_next_topic_decay_fallback.py`
 and `test_mastery_decay.py`'s determinism check. Milestone 22 is
-implemented, all tests green (713/713), PR #88 open, not yet merged to
-`staging`.
+implemented, all tests green (713/713), merged to `staging` via PR #88
+and promoted to `main` via PR #89 (both 2026-09-27) -- fully shipped.
 
 **Explicitly not included**: any change to mastery band classification
 shown on the learner dashboard or the Recommendation Agent's weak-area
@@ -1910,6 +1920,76 @@ still-eligible curriculum progression; per-topic or per-learner-tuned
 decay parameters (fixed global constants only, matching the BKT
 model's own precedent, absent real learner data to fit against);
 restricting decay to only prerequisite-free topics.
+
+---
+
+## Milestone 23: Learner-Facing Explainability UI
+
+**Spec**: `specs/025-learner-explainability-ui/spec.md`.
+**Status**: `/speckit-specify` complete (2026-09-27, branch
+`025-learner-explainability-ui`, created from `origin/staging`). Spun
+out of Milestone 22's own `/speckit-clarify` session per spec 024's own
+Clarifications Resolution note: the mastered-topic-fallback decay work
+surfaced that the Sequencing Agent's "why this question" flow has never
+had any UI, for any pick, decay or not -- a general explainability
+capability out of scope for a decay-specific spec. Broadened during
+drafting to also cover four other explanations the platform already
+logs but has never surfaced to a learner, all traceable to Constitution
+Principle V: per-rubric-criterion grading detail (Milestone 6/16),
+per-topic mastery history (all mastery milestones), and Milestone 2's
+Recommendation Agent weak-area report -- plus an explicit encouragement-
+framing requirement (decay is reversible upkeep, never a demotion) tying
+back to Milestone 22's own product intent. Requirements-quality
+checklist passed with zero `[NEEDS CLARIFICATION]` markers -- every open
+question resolved via informed defaults recorded in the spec's
+Assumptions (effective mastery sourced only from Milestone 22's
+computation, never recomputed by the UI; grading/weak-area detail
+sourced from the existing Grading and Recommendation Agents, never
+re-derived; age-adaptive copy routed through Milestone 17's existing
+layer rather than a second mechanism).
+
+**Scope**: Six learner-facing explainability surfaces, all read-and-
+render against decisions the platform already makes and records -- no
+new personalization or grading logic:
+- A "why this question" chip on served questions (developer-
+  configurable to every pick or fallback/decay picks only), sourced
+  from the Sequencing Agent's recorded selection reason and Milestone
+  22's effective-vs-raw mastery.
+- A decay-aware mastery bar and warming "last practiced" indicator on
+  the learner dashboard, reading Milestone 22's effective-mastery value
+  directly rather than recomputing decay.
+- A "how this was graded" expander showing per-rubric-criterion results
+  (Milestone 6/16), available on correct answers as well as wrong ones.
+- A "refreshed" celebration when a decayed topic's answer crosses its
+  mastery threshold from below.
+- A per-topic mastery-over-time sparkline built from existing
+  `MasteryState` history.
+- A softened, learner-facing rendering of Milestone 2's Recommendation
+  Agent weak-area report -- reused, never re-detected.
+
+**Why this comes after Milestone 22, not before**: The dashboard decay
+bar and the "why this question" chip's decay wording both read
+Milestone 22's effective-mastery value directly; building this first
+would have meant designing UI against a decay signal that didn't exist
+yet, or inventing a placeholder Milestone 22 would then have had to
+reconcile.
+
+**Definition of done** (draft, to be formalized once `/speckit-plan`
+runs):
+- All acceptance scenarios across spec 025's six user stories pass.
+- SC-001/SC-007 (every explanation traces to a real persisted decision,
+  zero fabricated reasons) and SC-003 (dashboard effective mastery
+  matches Milestone 22's value exactly) are hard gates -- the first
+  because an invented "why" would be a worse outcome than no explanation
+  at all for a product whose constitution names explainability as a
+  first-class principle, the second because this milestone must not
+  become a second, competing decay computation.
+- Milestones 1-22's full suites still pass.
+
+**Explicitly not included**: any new selection, grading, or decay logic
+(pure presentation of existing decisions); a second age-adaptation
+mechanism (reuses Milestone 17's existing layer); re-detection of weak
+areas (reuses Milestone 2's Recommendation Agent output only).
 
 ---
 
@@ -2094,6 +2174,25 @@ restricting decay to only prerequisite-free topics.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.20.0 -- 2026-09-27, added Milestone 23 (Learner-Facing
+Explainability UI), spun out of Milestone 22's own `/speckit-clarify`
+per spec 024's Clarifications Resolution note; `/speckit-specify`
+complete same day (branch `025-learner-explainability-ui`, created from
+`origin/staging`), zero `[NEEDS CLARIFICATION]` markers. Also recorded
+Milestone 22's merge to `staging` (PR #88) and promotion to `main` (PR
+#89, both 2026-09-27) in its own status line -- previously read "PR #88
+open, not yet merged," left stale after merge, the same class of gap
+this roadmap has corrected before (Milestones 2/3, 14, 16, 17-19).
+Corrected four more milestone status lines that had never recorded
+their final merge confirmation: Milestone 17 (PR #77 staging / #78
+main, both 2026-09-21, previously read "not yet merged"), Milestone 18
+(PR #79 staging / #80 main, both 2026-09-22, previously unrecorded),
+Milestone 15 (PR #67 staging / #68 main, both 2026-09-07, previously
+unrecorded), and Milestone 16 (PR #69 staging plus fixes #71/#72,
+promoted via PR #70, all 2026-09-18, previously unrecorded) -- none had
+ever caught up to the explicit "merged to staging/promoted to main"
+pattern Milestones 19-22 already established.
 
 **Version**: 3.19.0 -- 2026-09-25, added Milestone 21 (Math and Science
 Notation for Free-Text Answers), promoted from its prior "Out of
