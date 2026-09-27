@@ -1,0 +1,255 @@
+---
+
+description: "Task list for Learner-Facing Explainability UI"
+---
+
+# Tasks: Learner-Facing Explainability UI
+
+**Input**: Design documents from `/specs/025-learner-explainability-ui/`
+
+**Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/api-changes.md, quickstart.md (all present)
+
+**Tests**: Included, matching this project's established convention (every Success Criteria in this repo's specs ships with an automated check, not verified by inspection alone -- see CLAUDE.md and every prior milestone's Definition of Done in `roadmap.md`).
+
+**Organization**: Tasks are grouped by user story (spec.md priorities P1/P1/P2/P2/P3/P3) to enable independent implementation and testing of each story. No new dependency, no migration -- see plan.md's Technical Context.
+
+## Format: `[ID] [P?] [Story] Description`
+
+- **[P]**: Can run in parallel (different files, no dependency on an incomplete task)
+- **[Story]**: Which user story this task belongs to (US1-US6)
+
+## Path Conventions
+
+Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`.
+
+## Note on `/speckit-analyze` remediation (2026-09-27)
+
+This revision fixes four findings from the `/speckit-analyze` pass: (C1) `frontend/src/components/LearnerAssignments.tsx` is a genuinely separate component from `quiz-flow.tsx` -- it independently calls `answerQuestion` and discards the result today, so it needs its own wiring tasks for US1/US3/US4, not just `quiz-flow.tsx`'s; (I1) the Foundational phase's dependency notes below now correctly list all four stories that depend on T003/T004; (U1) T011 now explicitly names the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch as part of its own scope.
+
+---
+
+## Phase 1: Foundational (Blocking Prerequisites)
+
+**Purpose**: Shared backend primitives that both US3 (placement) and US4 (refreshed acknowledgment) need, and the shared frontend copy-tier helper US1, US2, US4, and US6 all read from. No user story work in those stories can begin until this phase is complete; US2/US5/US6 do not depend on this phase's backend half but do depend on T003/T004 for copy framing.
+
+**⚠️ CRITICAL**: T001/T002 block US3 and US4's implementation tasks. T003/T004 block US1, US2, US4, and US6 -- every story that renders explanation copy.
+
+- [ ] T001 [P] Unit test for `MasteryUpdateResult.prior_band` and a `refreshed_from_bands(prior_band, posterior_band)` helper, covering no-prior-state, never-mastered, already-mastered-reanswered, and newly-crossed cases in `backend/tests/unit/test_mastery_tool_prior_band.py`
+- [ ] T002 Add `prior_band: MasteryBand` to `MasteryUpdateResult` (derived from `prior_observation.band` if present, else `MasteryBand.STRUGGLING`) and a `refreshed_from_bands(prior_band, posterior_band) -> bool` helper in `backend/src/agents/sequencing/mastery_tool.py` (depends on T001)
+- [ ] T003 [P] Component test for grade-band-keyed copy tier selection across all four bands (1-2, 3-5, 6-8, 9-12) in `frontend/src/lib/explainabilityCopy.test.ts`
+- [ ] T004 [P] Create `getExplanationCopyTier(unlockedGrade)` grade-band-keyed copy-tier helper, mirroring `frontend/src/lib/pacing.ts`'s `getPacingProfile` pattern, in `frontend/src/lib/explainabilityCopy.ts` (depends on T003)
+
+**Checkpoint**: `prior_band`/`refreshed_from_bands` available to US3/US4; `getExplanationCopyTier` available to US1/US2/US4/US6.
+
+---
+
+## Phase 2: User Story 1 - A learner sees why the current question was chosen (Priority: P1) 🎯 MVP
+
+**Goal**: Every served question (ordinary next-question, both timed-practice routes, quiz, instructor-assigned quiz attempts) carries its real selection reason, rendered as a distinct-worded chip for a fallback/decay pick vs. a normal next-step pick.
+
+**Independent Test**: Serve a question via the eligible pool and via a decay-driven fallback (per spec 024's backdating technique); confirm the chip's wording differs and matches the recorded reason exactly.
+
+### Tests for User Story 1
+
+- [ ] T005 [P] [US1] Contract test: `NextQuestionOut` includes `is_fallback`/`p_mastery`/`effective_p_mastery` for both an eligible-pool pick and a fallback pick in `backend/tests/contract/test_next_question_selection_reason.py`
+- [ ] T006 [P] [US1] Contract test: `QuizQuestionOut` includes the same three fields, for both `quiz.py`'s own route and `quiz_assignments.py`'s construction site, in `backend/tests/contract/test_quiz_question_selection_reason.py`
+- [ ] T007 [P] [US1] Component test: `SelectionReasonChip` renders distinct copy for a fallback/decayed pick vs. an eligible-pool pick, omits itself when the selection reason is absent (FR-004), and respects the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch (FR-003) in `frontend/src/components/SelectionReasonChip.test.tsx`
+
+### Implementation for User Story 1
+
+- [ ] T008 [US1] Extend `NextQuestionOut` and `build_next_question_out` to populate `is_fallback`/`p_mastery`/`effective_p_mastery` from `NextTopicSelection` (fixes the ordinary next-question route and both timed-practice routes via the shared builder) in `backend/src/api/routes/questions.py` (depends on T005)
+- [ ] T009 [US1] Extend `QuizQuestionOut` with the same three fields and populate them at `quiz.py`'s construction site in `backend/src/api/routes/quiz.py` (depends on T006)
+- [ ] T010 [US1] Populate the same three fields at `quiz_assignments.py`'s `QuizQuestionOut(...)` construction site in `backend/src/api/routes/quiz_assignments.py` (depends on T006, T009)
+- [ ] T011 [P] [US1] Create `SelectionReasonChip` component reading `is_fallback`/`p_mastery`/`effective_p_mastery` and `getExplanationCopyTier`, including the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch's render-gating logic (FR-003 -- a fallback/decay pick's chip always renders regardless of the switch; an eligible-pool pick's chip renders only when the switch is at its default "every pick" setting) in `frontend/src/components/SelectionReasonChip.tsx` (depends on T007, T004)
+- [ ] T012 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/app/practice/practice-flow.tsx` (depends on T008, T011)
+- [ ] T013 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/app/quiz/quiz-flow.tsx` (depends on T009, T010, T011)
+- [ ] T014 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/components/LearnerAssignments.tsx` -- the separate, guardian-mediated instructor-assigned-attempt UI, not covered by T013 (depends on T009, T010, T011)
+
+**Checkpoint**: User Story 1 is fully functional and independently testable/demoable, across ordinary practice, quiz, and instructor-assigned attempts.
+
+---
+
+## Phase 3: User Story 2 - A learner sees mastery as reversible upkeep, not a fixed grade (Priority: P1)
+
+**Goal**: The dashboard shows both peak and decay-adjusted effective mastery per topic, with a "last practiced" indicator that warms in color and states elapsed time in text, framed as recoverable upkeep.
+
+**Independent Test**: Load the dashboard for a learner with one recently-mastered and one long-untouched mastered topic; confirm the long-untouched one shows lower effective-than-peak mastery and a warmer, text-labeled indicator.
+
+### Tests for User Story 2
+
+- [ ] T015 [P] [US2] Contract test: `MasteryTopicOut.effective_p_mastery` matches `decay.py`'s `effective_mastery_for_review` output exactly for both a backdated and a freshly-practiced topic in `backend/tests/contract/test_mastery_state_effective_mastery.py`
+- [ ] T016 [P] [US2] Component test: `MasteryView` renders peak vs. effective mastery and a "last practiced" indicator that intensifies in color *and* carries a text label (never color alone, FR-007) as elapsed time grows, in `frontend/src/components/MasteryView.test.tsx`
+
+### Implementation for User Story 2
+
+- [ ] T017 [US2] Add `effective_p_mastery` to `MasteryTopicOut`, computed via `effective_mastery_for_review` per topic, in `backend/src/api/routes/mastery.py` (depends on T015)
+- [ ] T018 [US2] Extend `MasteryView` to render peak vs. effective mastery, the color+text "last practiced" indicator (using the already-fetched-but-unused `last_updated_at`), and recovery/upkeep copy framing via `getExplanationCopyTier` in `frontend/src/components/MasteryView.tsx` (depends on T016, T017, T004)
+
+**Checkpoint**: User Stories 1 and 2 both work independently.
+
+---
+
+## Phase 4: User Story 3 - A learner understands why an answer was marked the way it was, in every flow that grades one (Priority: P2)
+
+**Goal**: The per-criterion grading view that already renders in ordinary practice also renders in quiz (untimed/timed), instructor-assigned attempts, and placement.
+
+**Independent Test**: Grade a free-text answer inside a quiz session; confirm the learner sees the identical per-criterion breakdown practice already shows, for both a passing and a failing answer. Same for an instructor-assigned attempt and a placement free-text answer.
+
+### Tests for User Story 3
+
+- [ ] T019 [P] [US3] Integration test: quiz-flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, and ordinary practice's existing rendering is unchanged (regression guard, Acceptance Scenario 4) in `frontend/src/app/quiz/quiz-flow.test.tsx`
+- [ ] T020 [P] [US3] Integration test: the instructor-assigned-attempt flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, mirroring T019 for `LearnerAssignments.tsx` -- today it discards the answer result entirely in `frontend/src/components/LearnerAssignments.test.tsx`
+- [ ] T021 [P] [US3] Integration test: `POST /api/placement/submit` returns `per_question_results` matching `AnswerOut`-equivalent fields (`correct`, `criteria_met`, `criteria_missed`, `step_results`, `prior_p_mastery`, `posterior_p_mastery`, `refreshed`) for a passing and a failing free-text placement answer in `backend/tests/integration/test_placement_grading_detail.py`
+
+### Implementation for User Story 3
+
+- [ ] T022 [US3] Wire the existing `AnswerResultView` component into `quiz-flow.tsx`'s per-question result step, which today discards the answer response entirely, in `frontend/src/app/quiz/quiz-flow.tsx` (depends on T019)
+- [ ] T023 [US3] Wire the existing `AnswerResultView` component into `LearnerAssignments.tsx`'s per-question result step in `frontend/src/components/LearnerAssignments.tsx` (depends on T020)
+- [ ] T024 [US3] Add `PlacementQuestionResult` model and `per_question_results: list[PlacementQuestionResult]` to `PlacementSubmitResponse`, populated inside the existing per-answer grading loop (including `refreshed` via T002's `refreshed_from_bands`) in `backend/src/api/routes/placement.py` (depends on T021, T002)
+
+**Checkpoint**: User Stories 1-3 all work independently, across every flow named in FR-009.
+
+---
+
+## Phase 5: User Story 4 - A learner is celebrated when they refresh a decayed topic (Priority: P2)
+
+**Goal**: A one-shot "refreshed" acknowledgment appears in the response to the specific answer that crosses a topic from below to above the mastered band -- never recomputed or re-shown later -- across every flow that grades an answer.
+
+**Independent Test**: Answer a below-threshold decayed topic up past the mastered band; confirm `refreshed: true` in that response only. Answer the same topic again: confirm `refreshed: false`.
+
+### Tests for User Story 4
+
+- [ ] T025 [P] [US4] Integration test: `AnswerOut.refreshed` is `true` only on a below-to-above `MASTERED` crossing, `false` for an already-mastered reanswer and a stays-below answer, and never re-appears on a later, unrelated request in `backend/tests/integration/test_refreshed_acknowledgment.py`
+- [ ] T026 [P] [US4] Component test: `RefreshedBanner` renders only when `refreshed` is `true` and renders nothing otherwise in `frontend/src/components/RefreshedBanner.test.tsx`
+
+### Implementation for User Story 4
+
+- [ ] T027 [US4] Add `refreshed: bool` to `AnswerOut`, computed via T002's `refreshed_from_bands(prior_band, posterior_band)` at the answer route, in `backend/src/api/routes/questions.py` (depends on T025, T002)
+- [ ] T028 [P] [US4] Create `RefreshedBanner` component in `frontend/src/components/RefreshedBanner.tsx` (depends on T026, T004)
+- [ ] T029 [US4] Wire `RefreshedBanner` into `frontend/src/app/practice/practice-flow.tsx` and `frontend/src/app/quiz/quiz-flow.tsx` (depends on T027, T028)
+- [ ] T030 [US4] Wire `RefreshedBanner` into `frontend/src/components/LearnerAssignments.tsx` (depends on T027, T028)
+
+**Checkpoint**: User Stories 1-4 all work independently.
+
+---
+
+## Phase 6: User Story 5 - A learner sees their mastery trend for a topic (Priority: P3)
+
+**Goal**: A topic detail view shows a small trend line built from the topic's recorded `MASTERY_UPDATED` history, degrading gracefully for single-point and no-history topics.
+
+**Independent Test**: Request mastery history for a topic with several updates, one update, and no updates; confirm chronological points, a graceful single-point render, and an empty/no-trend render respectively.
+
+### Tests for User Story 5
+
+- [ ] T031 [P] [US5] Integration test: mastery-history endpoint returns chronologically ordered points for a multi-update topic, a single point for a once-answered topic, and an empty list for a topic with no `MasteryState` in `backend/tests/integration/test_mastery_history.py`
+- [ ] T032 [P] [US5] Component test: `MasteryTrend` renders a trend line for multiple points, a graceful single-point state, and nothing for zero points in `frontend/src/components/MasteryTrend.test.tsx`
+
+### Implementation for User Story 5
+
+- [ ] T033 [US5] Create a mastery-history query helper mirroring `weak_area.py`'s `_build_evidence` pattern (filter by learner/subject/topic/`MASTERY_UPDATED`, order by `created_at`) in `backend/src/services/mastery/mastery_history.py` (depends on T031)
+- [ ] T034 [US5] Add `GET /api/learners/{learner_id}/topics/{topic_id}/mastery-history` route with `MasteryHistoryOut`/`MasteryHistoryPoint` response models in `backend/src/api/routes/mastery_history.py` (depends on T033)
+- [ ] T035 [P] [US5] Create `MasteryTrend` sparkline component in `frontend/src/components/MasteryTrend.tsx` (depends on T032)
+- [ ] T036 [US5] Add a `getMasteryHistory` API client function and wire `MasteryTrend` into the topic detail view in `frontend/src/services/api.ts` and `frontend/src/app/mastery/mastery-flow.tsx` (depends on T034, T035)
+
+**Checkpoint**: User Stories 1-5 all work independently.
+
+---
+
+## Phase 7: User Story 6 - A learner sees a gentle summary of what to shore up (Priority: P3)
+
+**Goal**: A learner-facing, softened rendering of the existing Recommendation Agent weak-area report, with an encouraging empty state.
+
+**Independent Test**: For a learner with a known weak-area report, confirm the summary's contents match the report exactly; for an empty report, confirm the encouraging empty state.
+
+### Tests for User Story 6
+
+- [ ] T037 [P] [US6] Component test: `WeakAreaSummary` renders weak areas matching `getRecommendations()`'s response exactly and an encouraging empty state when `weak_areas` is empty in `frontend/src/components/WeakAreaSummary.test.tsx`
+
+### Implementation for User Story 6
+
+- [ ] T038 [US6] Create `WeakAreaSummary` component consuming the existing `getRecommendations()` client call with softened, encouraging copy via `getExplanationCopyTier` in `frontend/src/components/WeakAreaSummary.tsx` (depends on T037, T004)
+- [ ] T039 [US6] Wire `WeakAreaSummary` into the dashboard in `frontend/src/components/DashboardSubjectSection.tsx` (depends on T038)
+
+**Checkpoint**: All six user stories are independently functional.
+
+---
+
+## Phase 8: Polish & Cross-Cutting Concerns
+
+**Purpose**: Confirm zero regression and zero constitutional drift across the whole feature.
+
+- [ ] T040 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (FR-017, Constitution Principle III)
+- [ ] T041 [P] Run `alembic check` (or its pytest equivalent), confirm zero migration drift -- this feature ships no migration
+- [ ] T042 Run the full backend regression suite (`uv run pytest`), confirm no regressions against Milestones 1-22
+- [ ] T043 Run the full frontend regression suite (`npm test -- --run`), confirm no regressions
+- [ ] T044 Execute `quickstart.md`'s 6 scenarios against a real dev database and record the results
+
+---
+
+## Dependencies & Execution Order
+
+### Phase Dependencies
+
+- **Foundational (Phase 1)**: No dependencies -- start immediately. T001/T002 block US3 (T024) and US4 (T027). T003/T004 block US1 (T011), US2 (T018), US4 (T028), and US6 (T038).
+- **User Stories (Phase 2-7)**: US1/US2 depend only on Foundational; US3/US4 additionally depend on T002 (`prior_band`/`refreshed_from_bands`); US5/US6 depend only on Foundational's T003/T004 (copy tier). All six stories are otherwise independent of each other and may proceed in any order once their specific Foundational prerequisites are met.
+- **Polish (Phase 8)**: Depends on all six user stories being complete.
+
+### Within Each User Story
+
+- Tests are written first and MUST fail before the corresponding implementation task.
+- Backend response-model/route changes before the frontend components that consume them.
+- Story complete and checkpointed before moving to the next priority.
+
+### Parallel Opportunities
+
+- T001 and T003 (Foundational tests, different files/languages) can run in parallel.
+- Within US1: T005, T006, T007 in parallel; T011 in parallel with the backend tasks T008-T010.
+- Within US2: T015, T016 in parallel.
+- Within US3: T019, T020, T021 in parallel.
+- Within US4: T025, T026 in parallel; T028 in parallel with T027.
+- Within US5: T031, T032 in parallel; T035 in parallel with T033/T034.
+- Within Polish: T040, T041 in parallel.
+- Once Foundational is done, US1, US2, US5, and US6 can all start in parallel (different files, no cross-story dependency); US3 and US4 can start as soon as T002 lands.
+
+---
+
+## Parallel Example: User Story 1
+
+```bash
+# Launch all three tests for User Story 1 together:
+Task: "Contract test for NextQuestionOut selection-reason fields in backend/tests/contract/test_next_question_selection_reason.py"
+Task: "Contract test for QuizQuestionOut selection-reason fields in backend/tests/contract/test_quiz_question_selection_reason.py"
+Task: "Component test for SelectionReasonChip in frontend/src/components/SelectionReasonChip.test.tsx"
+```
+
+---
+
+## Implementation Strategy
+
+### MVP First (User Story 1 + User Story 2, both P1)
+
+1. Complete Phase 1: Foundational.
+2. Complete Phase 2: User Story 1 -- **STOP and VALIDATE** independently.
+3. Complete Phase 3: User Story 2 -- **STOP and VALIDATE** independently.
+4. Deploy/demo: both P1 explanations (why this question, decay-aware dashboard) are live.
+
+### Incremental Delivery
+
+1. Foundational -> US1 -> validate -> US2 -> validate -> demo (MVP: both P1 stories).
+2. Add US3 -> validate -> demo (grading detail everywhere, including instructor-assigned attempts).
+3. Add US4 -> validate -> demo (refreshed celebration).
+4. Add US5 -> validate -> demo (mastery trend).
+5. Add US6 -> validate -> demo (weak-area summary).
+6. Polish: regression, drift, and constitutional gates.
+
+Each story adds value without breaking a previously delivered one -- consistent with spec.md's own Independent Test criteria for all six stories.
+
+---
+
+## Notes
+
+- No new dependency, no new migration anywhere in this task list (plan.md's Technical Context).
+- T002's `refreshed_from_bands` helper exists specifically so the below-to-above-`MASTERED` check is written once and reused by both `questions.py` (T027) and `placement.py` (T024) -- never two independently-drifting copies of the same compound condition (research.md §5).
+- `AnswerResultView` (US3) and the copy-tier helper (Foundational T004) are reused, not rebuilt -- per research.md's explicit "reuse before build" findings.
+- `frontend/src/components/LearnerAssignments.tsx` is a genuinely separate component from `quiz-flow.tsx` (confirmed by reading it during `/speckit-analyze`), not a thin wrapper around it -- US1/US3/US4 each carry an explicit task for it (T014, T020/T023, T030) alongside their `quiz-flow.tsx` task, so instructor-assigned attempts get the same explanations as every other flow.
+- Commit after each task or logical group; stop at any checkpoint to validate a story independently.

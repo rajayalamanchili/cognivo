@@ -106,7 +106,12 @@ frontend/
 │   │                                 #   getPacingProfile(unlockedGrade) pattern (FR-016)
 │   ├── app/quiz/quiz-flow.tsx        # wire AnswerResultView + RefreshedBanner into the render path
 │   │                                 #   that currently discards the answer result entirely
-│   └── app/practice/practice-flow.tsx # unchanged rendering, gains SelectionReasonChip/RefreshedBanner
+│   ├── app/practice/practice-flow.tsx # unchanged rendering, gains SelectionReasonChip/RefreshedBanner
+│   └── components/LearnerAssignments.tsx # the separate, guardian-mediated instructor-assigned-attempt
+│                                         #   UI (confirmed distinct from quiz-flow.tsx, not a thin
+│                                         #   wrapper around it) -- gains the same three components as
+│                                         #   quiz-flow.tsx; it independently discards the answer result
+│                                         #   today and needs its own wiring (tasks.md C1 remediation)
 ```
 
 **Structure Decision**: Existing `backend/` (FastAPI) + `frontend/` (Next.js) split, unchanged. This feature adds one new backend module (`mastery_history.py`, a query + a route) and extends five existing response models with additive fields; on the frontend it adds five small presentational components and one copy-tier helper, wiring them into two existing flow components. No new top-level directory, no new service boundary.

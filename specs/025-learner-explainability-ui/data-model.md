@@ -45,7 +45,7 @@ New nested type, field-for-field aligned with `AnswerOut`:
 
 | Field | Type | Source | Notes |
 |---|---|---|---|
-| `refreshed` | `bool` | `prior_band != MasteryBand.MASTERED and posterior_band == MasteryBand.MASTERED`, computed at the response-building call site from `MasteryUpdateResult.prior_band` (new) and `.posterior_band` (existing) | `MasteryUpdateResult` gains `prior_band: MasteryBand`, derived from the already-constructed `prior_observation.band` (or `MasteryBand.STRUGGLING` when `prior_observation is None` -- no prior state can never already be mastered). Never persisted; recomputed fresh on every answer, discarded after the response is sent (Clarifications: no new tracking field). |
+| `refreshed` | `bool` | `refreshed_from_bands(prior_band, posterior_band)`, a shared helper co-located with `MasteryUpdateResult` in `mastery_tool.py`, called from each response-building call site (`questions.py`, `placement.py`) | `MasteryUpdateResult` gains `prior_band: MasteryBand`, derived from the already-constructed `prior_observation.band` (or `MasteryBand.STRUGGLING` when `prior_observation is None` -- no prior state can never already be mastered). The comparison itself (`prior_band != MASTERED and posterior_band == MASTERED`) is centralized in `refreshed_from_bands()` rather than repeated at each call site, so `questions.py` and `placement.py` can't drift onto two independently-maintained copies of the same check. Never persisted; recomputed fresh on every answer, discarded after the response is sent (Clarifications: no new tracking field). |
 
 **State transitions**: None persisted. This is a pure derived value of one request's before/after mastery bands.
 
