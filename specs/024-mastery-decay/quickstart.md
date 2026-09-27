@@ -110,5 +110,5 @@ per `plan.md`'s Testing section:
 
 ```bash
 cd backend
-uv run pytest tests/unit/test_mastery_decay.py tests/unit/test_topic_priority_decay.py tests/integration/test_next_topic_decay_fallback.py -v
+uv run pytest tests/unit/test_mastery_decay.py tests/unit/test_topic_priority_decay.py tests/integration/test_next_topic_decay_fallback.py tests/integration/test_decayed_topic_answer_unaffected.py -v
 ```

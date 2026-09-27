@@ -169,7 +169,7 @@ to its own "grading is unchanged" claim.
 
 ## §5. Testing strategy
 
-**Decision**: Three new test files, no changes to any existing test
+**Decision**: Four new test files, no changes to any existing test
 file:
 1. `backend/tests/unit/test_mastery_decay.py` -- pure-function coverage
    of `effective_mastery_for_review`: within grace period (no decay),
@@ -184,19 +184,33 @@ file:
    the "no behavior change within grace period" half of SC-002 at the
    pure-function level); the eligible pool's ordering is provably
    unaffected by an extreme `updated_at`/`now` gap on a mastered topic
-   that isn't even in that pool.
+   that isn't even in that pool; two mastered topics whose effective
+   mastery ties exactly still resolve via the existing `order_index`
+   tie-break (spec.md Edge Case #1, FR-012).
 3. `backend/tests/integration/test_next_topic_decay_fallback.py` --
    real-DB proof: two mastered `MasteryState` rows with equal
    `p_mastery`, one row's `updated_at` backdated well past
    `GRACE_PERIOD + HALF_LIFE`, both topics' prerequisites otherwise
    exhausted (forcing the fallback branch); `select_next_topic` returns
-   the backdated topic.
+   the backdated topic, and its returned `p_mastery` is the raw,
+   undecayed value (FR-005), not the decayed one used only for sorting.
+4. `backend/tests/integration/test_decayed_topic_answer_unaffected.py`
+   -- real-DB proof for US2: after the fallback selects a decayed
+   topic, answering it produces a `prior_p_mastery`/`posterior_p_
+   mastery` pair identical to what `apply_bkt_update` would produce
+   from the raw, undecayed prior -- confirming FR-011/SC-003 against
+   the real answer-submission path, not just by reading the code.
 
 **Rationale**: Mirrors this codebase's existing three-tier convention
 for a ranking-rule change (pure-function unit test for the new
 primitive, pure-function unit test for the ranking function itself,
-one DB-backed integration test proving the real call path) -- the exact
+DB-backed integration test(s) proving the real call path) -- the exact
 same shape spec 017's grade-gate feature used
 (`test_mastery_bkt.py`-style module test → `test_sequencing.py`-style
 ranking test → `test_next_topic_eligibility.py`/`test_next_topic_
-fallback.py`-style integration test).
+fallback.py`-style integration test). Item 4 adds a second integration-
+tier file rather than folding into item 3, matching this project's
+existing per-story test-file convention (e.g. spec 017's own
+`test_next_topic_eligibility.py` vs. `test_next_topic_fallback.py` stay
+separate files despite both being integration tests of the same
+function) rather than merging two user stories' proofs into one file.

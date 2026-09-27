@@ -43,9 +43,11 @@ read today.
 **Testing**: pytest. Pure-function unit tests for the new decay module
 (mirrors `tests/unit/test_mastery_bkt.py`) and for `rank_eligible_
 topics`'s decayed sort (mirrors `tests/unit/test_sequencing.py`'s
-grade-gate convention), plus one DB-backed integration test proving
-`select_next_topic`'s real fallback path picks the more-decayed row
-(mirrors `tests/integration/test_next_topic_fallback.py`).
+grade-gate convention), plus two DB-backed integration tests: one
+proving `select_next_topic`'s real fallback path picks the more-decayed
+row (mirrors `tests/integration/test_next_topic_fallback.py`), one
+proving answering a decayed topic uses the exact same, unmodified BKT
+update path as any other answer (US2).
 
 **Target Platform**: Vercel (existing backend Function) -- no change to
 deployment shape; decay is computed inline during an already-happening
@@ -85,7 +87,7 @@ and one dict lookup already available from data they already query.
 | II (Rubric grading) | N/A -- no grading surface touched | Pass (not engaged) |
 | III (One Engine, Many Subjects) | Directly applicable -- decay parameters are fixed globals, not per-subject/per-topic | Pass -- no subject-conditional code added; `check_no_subject_conditionals.py` stays clean by construction (nothing subject-specific is added) |
 | IV, VI (agent boundaries, A2A) | N/A -- no new agent, no A2A service; this stays inside the existing local Sequencing Agent | Pass (not engaged) |
-| V (logged/explainable decisions, tracing) | Applicable in spirit, resolved narrower than a full audit-log change: spec.md deliberately does not add a new audit-log field for decay (Assumptions) -- the fallback path's existing `is_fallback` flag already answers "why was I shown this" at the granularity this feature changes (a fallback review pick), and no new agent invocation exists to trace | Pass -- no new decision surface requiring a new log field; existing fallback logging is untouched and still accurate |
+| V (logged/explainable decisions, tracing) | Applicable in spirit: spec.md's Assumptions don't scope in a new audit-log field, and none is needed -- the fallback path's existing `is_fallback` flag already answers "why was I shown this" at the granularity this feature changes (a fallback review pick), and no new agent invocation exists to trace | Pass -- no new decision surface requiring a new log field; existing fallback logging is untouched and still accurate |
 | VII (spec before code) | Directly applicable | Pass -- this plan follows the approved spec.md; tasks.md follows this plan |
 | VIII (no real learner data) | Directly applicable -- decay parameters are new fixed constants chosen absent real learner data | Pass -- FR-009 requires fixed global constants only, explicitly not per-learner-fitted, matching the BKT model's own existing precedent for the same reason |
 | IX (deployable/demoable on Vercel) | Directly applicable -- decay must not require a background process | Pass -- computed lazily per request (research.md §1), same pattern as Milestone 20's timed-session expiry check |
@@ -136,8 +138,12 @@ backend/
     │   └── test_topic_priority_decay.py    # NEW -- rank_eligible_topics decayed-sort coverage (mirrors
     │                                       #   test_sequencing.py's grade-gate convention)
     └── integration/
-        └── test_next_topic_decay_fallback.py  # NEW -- real-DB proof select_next_topic's fallback picks
-                                                #   the more-decayed row (mirrors test_next_topic_fallback.py)
+        ├── test_next_topic_decay_fallback.py      # NEW -- real-DB proof select_next_topic's fallback
+        │                                           #   picks the more-decayed row (mirrors
+        │                                           #   test_next_topic_fallback.py)
+        └── test_decayed_topic_answer_unaffected.py  # NEW -- real-DB proof answering a decayed topic
+                                                      #   uses the exact same, unmodified BKT update
+                                                      #   path as any other answer (US2)
 ```
 
 **Structure Decision**: Web-application structure (Option 2), already
