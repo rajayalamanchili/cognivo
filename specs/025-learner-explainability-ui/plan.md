@@ -82,8 +82,10 @@ backend/
 │       ├── questions.py              # NextQuestionOut/AnswerOut gain fields; build_next_question_out
 │       │                             #   (already the single shared builder for 3 call sites) is the
 │       │                             #   one place is_fallback/p_mastery/effective_p_mastery get added
-│       ├── quiz.py                   # QuizQuestionOut gains the same 3 fields
-│       ├── quiz_assignments.py       # its QuizQuestionOut(...) construction gains the same 3 values
+│       ├── quiz.py                   # NOT touched for selection-reason fields (research.md §1
+│       │                             #   correction): quiz's round-robin topic selection has no
+│       │                             #   is_fallback concept to report at all
+│       ├── quiz_assignments.py       # same -- no selection-reason fields (see quiz.py above)
 │       ├── placement.py              # PlacementSubmitResponse gains per_question_results (reuses
 │       │                             #   AnswerOut-shaped fields, computed in the existing grading loop)
 │       ├── mastery.py                # MasteryTopicOut gains effective_p_mastery
@@ -96,7 +98,8 @@ frontend/
 │   │   │                             #   needed to the component itself -- it already handles both
 │   │   │                             #   free-text and multi-step shapes)
 │   │   ├── SelectionReasonChip.tsx   # NEW: renders "why this question" from is_fallback/p_mastery/
-│   │   │                             #   effective_p_mastery
+│   │   │                             #   effective_p_mastery -- practice/timed-practice only; quiz has
+│   │   │                             #   no selection reason to report (research.md §1 correction)
 │   │   ├── MasteryView.tsx           # extended: effective vs. peak mastery, last-practiced indicator
 │   │   ├── RefreshedBanner.tsx       # NEW: renders when AnswerOut.refreshed is true
 │   │   ├── MasteryTrend.tsx          # NEW: sparkline from the new mastery-history endpoint
@@ -109,8 +112,10 @@ frontend/
 │   ├── app/practice/practice-flow.tsx # unchanged rendering, gains SelectionReasonChip/RefreshedBanner
 │   └── components/LearnerAssignments.tsx # the separate, guardian-mediated instructor-assigned-attempt
 │                                         #   UI (confirmed distinct from quiz-flow.tsx, not a thin
-│                                         #   wrapper around it) -- gains the same three components as
-│                                         #   quiz-flow.tsx; it independently discards the answer result
+│                                         #   wrapper around it) -- gains the same two components as
+│                                         #   quiz-flow.tsx (AnswerResultView, RefreshedBanner; no
+│                                         #   SelectionReasonChip, same reason as quiz-flow.tsx above)
+│                                         #   it independently discards the answer result
 │                                         #   today and needs its own wiring (tasks.md C1 remediation)
 ```
 

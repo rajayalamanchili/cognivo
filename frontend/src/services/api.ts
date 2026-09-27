@@ -141,6 +141,19 @@ export interface NextQuestion {
   // spec 019 FR-009/research.md Decision 6 -- null when the learner has
   // no GradeProgress row for this subject (ungraded, or not yet placed).
   unlocked_grade: number | null;
+  // spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
+  // reason for this pick. Optional, not `| null` like this interface's
+  // other nullable fields -- `NextQuestion` is QuestionCard's shared prop
+  // type across practice, quiz, and placement (`QuestionCard.tsx`), but
+  // only the real `NextQuestionOut` response (practice/timed-practice)
+  // ever carries these; quiz/placement questions never will (research.md
+  // §1 correction), so existing quiz/placement mocks and response
+  // shapes stay valid without adding dead fields to types that
+  // structurally can never have this data.
+  is_fallback?: boolean;
+  p_mastery?: number | null;
+  effective_p_mastery?: number | null;
+  last_practiced_at?: string | null;
 }
 
 // One step's outcome within a `multi_step` submission (spec 018

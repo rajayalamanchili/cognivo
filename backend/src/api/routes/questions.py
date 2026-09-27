@@ -145,6 +145,14 @@ class NextQuestionOut(BaseModel):
     steps: list[str] | None = None
     read_aloud_eligible: bool = False
     unlocked_grade: int | None = None
+    # Spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
+    # reason for this pick, already computed by `select_next_topic` (and
+    # `NEXT_TOPIC_SELECTED`'s audit payload) but previously discarded before
+    # reaching the response.
+    is_fallback: bool = False
+    p_mastery: float | None = None
+    effective_p_mastery: float | None = None
+    last_practiced_at: str | None = None
 
 
 async def generate_and_persist_next_question(
@@ -257,6 +265,14 @@ def build_next_question_out(
             db, learner_id=learner_id, subject_id=subject_id
         ),
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+        is_fallback=result.selection.is_fallback,
+        p_mastery=result.selection.p_mastery,
+        effective_p_mastery=result.selection.effective_p_mastery,
+        last_practiced_at=(
+            result.selection.updated_at.isoformat()
+            if result.selection.updated_at is not None
+            else None
+        ),
     )
 
 

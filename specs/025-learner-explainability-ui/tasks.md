@@ -45,25 +45,25 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ## Phase 2: User Story 1 - A learner sees why the current question was chosen (Priority: P1) 🎯 MVP
 
-**Goal**: Every served question (ordinary next-question, both timed-practice routes, quiz, instructor-assigned quiz attempts) carries its real selection reason, rendered as a distinct-worded chip for a fallback/decay pick vs. a normal next-step pick.
+**Goal**: Every question served by the Sequencing Agent's next-question picker (ordinary next-question, both timed-practice routes) carries its real selection reason, rendered as a distinct-worded chip for a fallback/decay pick vs. a normal next-step pick. **Correction found mid-implementation** (see T006/T009/T010/T013/T014 below): quiz and instructor-assigned quiz attempts select topics via a separate round-robin mechanism (Milestone 5, `next_quiz_topic`) with no eligible-pool/fallback concept at all -- they get no chip, per FR-004's "omit rather than fabricate" rule (spec.md Edge Cases, research.md §1).
 
 **Independent Test**: Serve a question via the eligible pool and via a decay-driven fallback (per spec 024's backdating technique); confirm the chip's wording differs and matches the recorded reason exactly.
 
 ### Tests for User Story 1
 
-- [ ] T005 [P] [US1] Contract test: `NextQuestionOut` includes `is_fallback`/`p_mastery`/`effective_p_mastery` for both an eligible-pool pick and a fallback pick in `backend/tests/contract/test_next_question_selection_reason.py`
-- [ ] T006 [P] [US1] Contract test: `QuizQuestionOut` includes the same three fields, for both `quiz.py`'s own route and `quiz_assignments.py`'s construction site, in `backend/tests/contract/test_quiz_question_selection_reason.py`
-- [ ] T007 [P] [US1] Component test: `SelectionReasonChip` renders distinct copy for a fallback/decayed pick vs. an eligible-pool pick, omits itself when the selection reason is absent (FR-004), and respects the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch (FR-003) in `frontend/tests/unit/selection-reason-chip.test.tsx`
+- [X] T005 [P] [US1] Contract test: `NextQuestionOut` includes `is_fallback`/`p_mastery`/`effective_p_mastery` for both an eligible-pool pick and a fallback pick in `backend/tests/contract/test_next_question_selection_reason.py`
+- [X] T006 [P] [US1] N/A -- found during implementation that quiz question selection (`next_quiz_topic`, Milestone 5) is a round-robin with no `is_fallback`/decay concept at all; `QuizQuestionOut` gains no selection-reason fields, so there is nothing to contract-test here (research.md §1 correction, spec.md Edge Cases)
+- [X] T007 [P] [US1] Component test: `SelectionReasonChip` renders distinct copy for a fallback/decayed pick vs. an eligible-pool pick, omits itself when the selection reason is absent (FR-004), and respects the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch (FR-003) in `frontend/tests/unit/selection-reason-chip.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T008 [US1] Extend `NextQuestionOut` and `build_next_question_out` to populate `is_fallback`/`p_mastery`/`effective_p_mastery` from `NextTopicSelection` (fixes the ordinary next-question route and both timed-practice routes via the shared builder) in `backend/src/api/routes/questions.py` (depends on T005)
-- [ ] T009 [US1] Extend `QuizQuestionOut` with the same three fields and populate them at `quiz.py`'s construction site in `backend/src/api/routes/quiz.py` (depends on T006)
-- [ ] T010 [US1] Populate the same three fields at `quiz_assignments.py`'s `QuizQuestionOut(...)` construction site in `backend/src/api/routes/quiz_assignments.py` (depends on T006, T009)
-- [ ] T011 [P] [US1] Create `SelectionReasonChip` component reading `is_fallback`/`p_mastery`/`effective_p_mastery` and `getExplanationCopyTier`, including the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch's render-gating logic (FR-003 -- a fallback/decay pick's chip always renders regardless of the switch; an eligible-pool pick's chip renders only when the switch is at its default "every pick" setting) in `frontend/src/components/SelectionReasonChip.tsx` (depends on T007, T004)
-- [ ] T012 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/app/practice/practice-flow.tsx` (depends on T008, T011)
-- [ ] T013 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/app/quiz/quiz-flow.tsx` (depends on T009, T010, T011)
-- [ ] T014 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/components/LearnerAssignments.tsx` -- the separate, guardian-mediated instructor-assigned-attempt UI, not covered by T013 (depends on T009, T010, T011)
+- [X] T008 [US1] Extend `NextQuestionOut` and `build_next_question_out` to populate `is_fallback`/`p_mastery`/`effective_p_mastery` from `NextTopicSelection` (fixes the ordinary next-question route and both timed-practice routes via the shared builder) in `backend/src/api/routes/questions.py` (depends on T005)
+- [X] T009 [US1] N/A -- same finding as T006; `quiz.py` is not touched (research.md §1 correction)
+- [X] T010 [US1] N/A -- same finding as T006; `quiz_assignments.py` is not touched (research.md §1 correction)
+- [X] T011 [P] [US1] Create `SelectionReasonChip` component reading `is_fallback`/`p_mastery`/`effective_p_mastery`/`last_practiced_at` and `getExplanationCopyTier`, including the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch's render-gating logic (FR-003) and an `Intl.RelativeTimeFormat`-based elapsed-time formatter for FR-002's wording, in `frontend/src/components/SelectionReasonChip.tsx` (depends on T007, T004)
+- [X] T012 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/app/practice/practice-flow.tsx` (depends on T008, T011)
+- [X] T013 [US1] N/A -- quiz-flow.tsx has no `SelectionReasonChip` to wire (no backend fields exist, T009); quiz-flow.tsx's `AnswerResultView`/`RefreshedBanner` wiring for US3/US4 (T022/T029) is unaffected
+- [X] T014 [US1] N/A -- same as T013, for `LearnerAssignments.tsx`; its `AnswerResultView`/`RefreshedBanner` wiring for US3/US4 (T023/T030) is unaffected
 
 **Checkpoint**: User Story 1 is fully functional and independently testable/demoable, across ordinary practice, quiz, and instructor-assigned attempts.
 
@@ -203,7 +203,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 ### Parallel Opportunities
 
 - T001 and T003 (Foundational tests, different files/languages) can run in parallel.
-- Within US1: T005, T006, T007 in parallel; T011 in parallel with the backend tasks T008-T010.
+- Within US1: T005, T007 in parallel (T006 is N/A); T011 in parallel with T008.
 - Within US2: T015, T016 in parallel.
 - Within US3: T019, T020, T021 in parallel.
 - Within US4: T025, T026 in parallel; T028 in parallel with T027.

@@ -127,6 +127,7 @@ The learner can view a softened, encouraging version of their weak-area summary 
 ### Edge Cases
 
 - A pick whose recorded selection reason is missing or unrecognized: the "why this question" chip degrades to no chip (or a neutral "next question") rather than fabricating a reason -- an explanation is never invented (FR-004 / Principle V).
+- A quiz or instructor-assigned-attempt question: never shows a "why this question" chip. Discovered during implementation: quiz question selection (`next_quiz_topic`, Milestone 5) is a one-line round-robin over the quiz's chosen topics -- it never calls the Sequencing Agent's eligible-pool/fallback ranking at all, so there is no selection reason to report, not merely one this feature declined to surface. This is FR-004's "omit rather than fabricate" rule applying structurally, not as a defensive edge case.
 - A topic that is "unknown" (no mastery state): shows no effective/peak mastery, no decay framing, no trend line, and is never described as decayed.
 - An answer graded without a per-criterion rubric breakdown (e.g. a legacy or non-rubric item): the grading expander shows the recorded result at whatever granularity exists and does not fabricate criteria.
 - Learner-appropriate language for younger learners: explanation copy respects the platform's existing age-adaptive experience layer (Milestone 17) rather than introducing a second age-adaptation mechanism.
@@ -137,7 +138,7 @@ The learner can view a softened, encouraging version of their weak-area summary 
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST display, for a served question, a plain-language explanation of why it was selected, derived from the Sequencing Agent's recorded selection reason for that pick (eligible-pool vs. mastered-topic fallback, and for a fallback pick, its decay standing).
+- **FR-001**: The system MUST display, for a question served by the Sequencing Agent's next-question picker (ordinary practice and both timed-practice routes), a plain-language explanation of why it was selected, derived from the recorded selection reason for that pick (eligible-pool vs. mastered-topic fallback, and for a fallback pick, its decay standing). Quiz and instructor-assigned quiz attempts use a separate, round-robin topic-selection mechanism (Milestone 5) with no eligible-pool/fallback distinction to report -- FR-001 does not apply to those flows (see Edge Cases).
 - **FR-002**: The "why this question" explanation MUST use distinct wording for a decayed-review pick (naming elapsed time since last practice, framed as a refresh) versus a normal next-step pick.
 - **FR-003**: The system MUST support a developer-configurable scope switch between explaining every pick and explaining only fallback/decay-driven picks, defaulting to explaining every pick.
 - **FR-004**: The system MUST NOT display any selection reason, grading criterion, decay value, or weak area that the underlying model/agent did not record; when a needed record is absent, the corresponding explanation is omitted rather than fabricated.
@@ -179,6 +180,7 @@ The learner can view a softened, encouraging version of their weak-area summary 
 
 - The mastery-decay feature (spec 024) is the sole source of effective-mastery values; this feature reads them and does not reimplement or duplicate decay math (Principle I).
 - The Sequencing Agent already records, per pick, enough of a selection reason (`is_fallback` and decay standing) to drive FR-001/FR-002; if any needed reason is not yet persisted, persisting it is in scope, but computing selection logic is not.
+- FR-001's "why this question" chip applies only to the Sequencing Agent's own next-question picker (ordinary practice, both timed-practice routes) -- not to quiz or instructor-assigned quiz attempts, which select topics via a structurally different round-robin mechanism (Milestone 5) that has no eligible-pool/fallback concept at all. Extending an analogous explanation to quiz's round-robin selection (e.g. "question 3 of 8 in this quiz") is a plausible future idea, not built here.
 - The Grading Agent already records per-criterion rubric outcomes (Principle II); this feature surfaces them and does not re-grade.
 - Milestone 2's Recommendation Agent is the sole source of weak-area detection; the learner-facing summary reuses its output (Principles III/IV).
 - The mastery threshold used for "mastered" and for FR-011's crossing detection is the platform's existing threshold, not a new one introduced here.

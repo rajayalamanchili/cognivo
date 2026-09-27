@@ -9,11 +9,14 @@ All changes are additive (new optional/always-present fields, or one new endpoin
 is_fallback: bool
 p_mastery: float | null
 effective_p_mastery: float | null
+last_practiced_at: str | null  # ISO 8601; added during Phase 2 implementation,
+                                # not in the original design -- needed for FR-002's
+                                # elapsed-time wording (data-model.md §1)
 ```
 
-## Modified: `POST /api/quizzes/{quiz_id}/start` and next-question routes in `quiz.py` / `quiz_assignments.py`
+## Unmodified: `POST /api/quizzes/{quiz_id}/start` and next-question routes in `quiz.py` / `quiz_assignments.py`
 
-**`QuizQuestionOut`** gains the same three fields as `NextQuestionOut` above.
+**Correction (found during Phase 2 implementation)**: `QuizQuestionOut` gains no selection-reason fields. Quiz's round-robin topic selection (`next_quiz_topic`) never computes `is_fallback`/decay standing -- there is no selection reason to surface (research.md §1, data-model.md §1).
 
 ## Modified: `POST /api/questions/{question_id}/answer`
 

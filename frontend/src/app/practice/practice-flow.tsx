@@ -22,6 +22,7 @@ import {
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
+import SelectionReasonChip from "@/components/SelectionReasonChip";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import SessionCountdown from "@/components/SessionCountdown";
 import SessionTimingSummary from "@/components/SessionTimingSummary";
@@ -343,6 +344,7 @@ export default function PracticeFlow() {
             </button>
           </div>
         )}
+        <SelectionReasonChip question={question} />
         <QuestionCard
           key={question.question_id}
           question={question}

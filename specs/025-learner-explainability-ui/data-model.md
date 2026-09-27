@@ -2,13 +2,16 @@
 
 No new tables, no new columns, no migration (see research.md). Every entity below is either an additive field on an existing Pydantic response model, or one new read-only query over an existing table. Field names deliberately match existing sibling fields (e.g. `AnswerOut`'s naming) rather than inventing parallel vocabulary.
 
-## 1. Selection reason (extends `NextQuestionOut`, `QuizQuestionOut`)
+## 1. Selection reason (extends `NextQuestionOut` only)
+
+**Correction (found during Phase 2 implementation)**: `QuizQuestionOut` does NOT gain these fields. Quiz question selection (`next_quiz_topic`, a round-robin) never computes `is_fallback`/decay standing at all -- there is nothing to surface for quiz or instructor-assigned quiz attempts (research.md §1, spec.md Edge Cases).
 
 | Field | Type | Source | Notes |
 |---|---|---|---|
 | `is_fallback` | `bool` | `NextTopicSelection.is_fallback` (already computed, M22) | True when this pick came from the mastered-topic review-fallback pool, not the normal eligible pool. |
 | `p_mastery` | `float \| null` | `NextTopicSelection.p_mastery` | Raw, persisted mastery for the selected topic at selection time. `null` only if the topic had no prior `MasteryState` row. |
 | `effective_p_mastery` | `float \| null` | `NextTopicSelection.effective_p_mastery` | Decay-adjusted mastery used to rank the fallback pool (M22). Equal to `p_mastery` when `is_fallback` is false or the topic is within its decay grace period. |
+| `last_practiced_at` | `string \| null` (ISO 8601) | `NextTopicSelection.updated_at` (new field, added during Phase 2 implementation -- not in the original design) | The selected topic's last-practiced timestamp, sourced from `_load_topic_ranking_context`'s already-computed `updated_at_by_topic` map. Needed for FR-002's "naming elapsed time since last practice" wording, which the original three-field design omitted. `null` when the topic has no prior `MasteryState` row. |
 
 **State transitions**: None -- computed fresh per selection, never persisted beyond the existing `NEXT_TOPIC_SELECTED` audit event.
 
