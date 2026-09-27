@@ -34,10 +34,10 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 **⚠️ CRITICAL**: T001/T002 block US3 and US4's implementation tasks. T003/T004 block US1, US2, US4, and US6 -- every story that renders explanation copy.
 
-- [ ] T001 [P] Unit test for `MasteryUpdateResult.prior_band` and a `refreshed_from_bands(prior_band, posterior_band)` helper, covering no-prior-state, never-mastered, already-mastered-reanswered, and newly-crossed cases in `backend/tests/unit/test_mastery_tool_prior_band.py`
-- [ ] T002 Add `prior_band: MasteryBand` to `MasteryUpdateResult` (derived from `prior_observation.band` if present, else `MasteryBand.STRUGGLING`) and a `refreshed_from_bands(prior_band, posterior_band) -> bool` helper in `backend/src/agents/sequencing/mastery_tool.py` (depends on T001)
-- [ ] T003 [P] Component test for grade-band-keyed copy tier selection across all four bands (1-2, 3-5, 6-8, 9-12) in `frontend/src/lib/explainabilityCopy.test.ts`
-- [ ] T004 [P] Create `getExplanationCopyTier(unlockedGrade)` grade-band-keyed copy-tier helper, mirroring `frontend/src/lib/pacing.ts`'s `getPacingProfile` pattern, in `frontend/src/lib/explainabilityCopy.ts` (depends on T003)
+- [X] T001 [P] Unit test for `MasteryUpdateResult.prior_band` and a `refreshed_from_bands(prior_band, posterior_band)` helper, covering no-prior-state, never-mastered, already-mastered-reanswered, and newly-crossed cases in `backend/tests/unit/test_mastery_tool_prior_band.py`
+- [X] T002 Add `prior_band: MasteryBand` to `MasteryUpdateResult` (derived from `prior_observation.band` if present, else `MasteryBand.STRUGGLING`) and a `refreshed_from_bands(prior_band, posterior_band) -> bool` helper in `backend/src/agents/sequencing/mastery_tool.py` (depends on T001)
+- [X] T003 [P] Component test for grade-band-keyed copy tier selection across all four bands (1-2, 3-5, 6-8, 9-12) in `frontend/tests/unit/explainability-copy.test.ts`
+- [X] T004 [P] Create `getExplanationCopyTier(unlockedGrade)` grade-band-keyed copy-tier helper, mirroring `frontend/src/lib/pacing.ts`'s `getPacingProfile` pattern, in `frontend/src/lib/explainabilityCopy.ts` (depends on T003)
 
 **Checkpoint**: `prior_band`/`refreshed_from_bands` available to US3/US4; `getExplanationCopyTier` available to US1/US2/US4/US6.
 
@@ -53,7 +53,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 - [ ] T005 [P] [US1] Contract test: `NextQuestionOut` includes `is_fallback`/`p_mastery`/`effective_p_mastery` for both an eligible-pool pick and a fallback pick in `backend/tests/contract/test_next_question_selection_reason.py`
 - [ ] T006 [P] [US1] Contract test: `QuizQuestionOut` includes the same three fields, for both `quiz.py`'s own route and `quiz_assignments.py`'s construction site, in `backend/tests/contract/test_quiz_question_selection_reason.py`
-- [ ] T007 [P] [US1] Component test: `SelectionReasonChip` renders distinct copy for a fallback/decayed pick vs. an eligible-pool pick, omits itself when the selection reason is absent (FR-004), and respects the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch (FR-003) in `frontend/src/components/SelectionReasonChip.test.tsx`
+- [ ] T007 [P] [US1] Component test: `SelectionReasonChip` renders distinct copy for a fallback/decayed pick vs. an eligible-pool pick, omits itself when the selection reason is absent (FR-004), and respects the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch (FR-003) in `frontend/tests/unit/selection-reason-chip.test.tsx`
 
 ### Implementation for User Story 1
 
@@ -78,7 +78,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 ### Tests for User Story 2
 
 - [ ] T015 [P] [US2] Contract test: `MasteryTopicOut.effective_p_mastery` matches `decay.py`'s `effective_mastery_for_review` output exactly for both a backdated and a freshly-practiced topic in `backend/tests/contract/test_mastery_state_effective_mastery.py`
-- [ ] T016 [P] [US2] Component test: `MasteryView` renders peak vs. effective mastery and a "last practiced" indicator that intensifies in color *and* carries a text label (never color alone, FR-007) as elapsed time grows, in `frontend/src/components/MasteryView.test.tsx`
+- [ ] T016 [P] [US2] Component test: `MasteryView` renders peak vs. effective mastery and a "last practiced" indicator that intensifies in color *and* carries a text label (never color alone, FR-007) as elapsed time grows, in `frontend/tests/unit/mastery-view.test.tsx`
 
 ### Implementation for User Story 2
 
@@ -97,8 +97,8 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ### Tests for User Story 3
 
-- [ ] T019 [P] [US3] Integration test: quiz-flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, and ordinary practice's existing rendering is unchanged (regression guard, Acceptance Scenario 4) in `frontend/src/app/quiz/quiz-flow.test.tsx`
-- [ ] T020 [P] [US3] Integration test: the instructor-assigned-attempt flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, mirroring T019 for `LearnerAssignments.tsx` -- today it discards the answer result entirely in `frontend/src/components/LearnerAssignments.test.tsx`
+- [ ] T019 [P] [US3] Integration test: quiz-flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, and ordinary practice's existing rendering is unchanged (regression guard, Acceptance Scenario 4) -- extends the existing `frontend/tests/unit/quiz-flow.test.tsx`
+- [ ] T020 [P] [US3] Integration test: the instructor-assigned-attempt flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, mirroring T019 -- today it discards the answer result entirely -- extends the existing `frontend/tests/unit/learner-assignments.test.tsx`
 - [ ] T021 [P] [US3] Integration test: `POST /api/placement/submit` returns `per_question_results` matching `AnswerOut`-equivalent fields (`correct`, `criteria_met`, `criteria_missed`, `step_results`, `prior_p_mastery`, `posterior_p_mastery`, `refreshed`) for a passing and a failing free-text placement answer in `backend/tests/integration/test_placement_grading_detail.py`
 
 ### Implementation for User Story 3
@@ -120,7 +120,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 ### Tests for User Story 4
 
 - [ ] T025 [P] [US4] Integration test: `AnswerOut.refreshed` is `true` only on a below-to-above `MASTERED` crossing, `false` for an already-mastered reanswer and a stays-below answer, and never re-appears on a later, unrelated request in `backend/tests/integration/test_refreshed_acknowledgment.py`
-- [ ] T026 [P] [US4] Component test: `RefreshedBanner` renders only when `refreshed` is `true` and renders nothing otherwise in `frontend/src/components/RefreshedBanner.test.tsx`
+- [ ] T026 [P] [US4] Component test: `RefreshedBanner` renders only when `refreshed` is `true` and renders nothing otherwise in `frontend/tests/unit/refreshed-banner.test.tsx`
 
 ### Implementation for User Story 4
 
@@ -142,7 +142,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 ### Tests for User Story 5
 
 - [ ] T031 [P] [US5] Integration test: mastery-history endpoint returns chronologically ordered points for a multi-update topic, a single point for a once-answered topic, and an empty list for a topic with no `MasteryState` in `backend/tests/integration/test_mastery_history.py`
-- [ ] T032 [P] [US5] Component test: `MasteryTrend` renders a trend line for multiple points, a graceful single-point state, and nothing for zero points in `frontend/src/components/MasteryTrend.test.tsx`
+- [ ] T032 [P] [US5] Component test: `MasteryTrend` renders a trend line for multiple points, a graceful single-point state, and nothing for zero points in `frontend/tests/unit/mastery-trend.test.tsx`
 
 ### Implementation for User Story 5
 
@@ -163,7 +163,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ### Tests for User Story 6
 
-- [ ] T037 [P] [US6] Component test: `WeakAreaSummary` renders weak areas matching `getRecommendations()`'s response exactly and an encouraging empty state when `weak_areas` is empty in `frontend/src/components/WeakAreaSummary.test.tsx`
+- [ ] T037 [P] [US6] Component test: `WeakAreaSummary` renders weak areas matching `getRecommendations()`'s response exactly and an encouraging empty state when `weak_areas` is empty in `frontend/tests/unit/weak-area-summary.test.tsx` (a new, learner-facing component and test file -- distinct from the existing instructor-facing `weak-area-section.test.tsx`)
 
 ### Implementation for User Story 6
 
@@ -219,7 +219,7 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 # Launch all three tests for User Story 1 together:
 Task: "Contract test for NextQuestionOut selection-reason fields in backend/tests/contract/test_next_question_selection_reason.py"
 Task: "Contract test for QuizQuestionOut selection-reason fields in backend/tests/contract/test_quiz_question_selection_reason.py"
-Task: "Component test for SelectionReasonChip in frontend/src/components/SelectionReasonChip.test.tsx"
+Task: "Component test for SelectionReasonChip in frontend/tests/unit/selection-reason-chip.test.tsx"
 ```
 
 ---

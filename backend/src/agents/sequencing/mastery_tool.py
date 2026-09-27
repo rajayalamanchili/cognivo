@@ -31,10 +31,23 @@ from src.services.mastery.bkt import (
 class MasteryUpdateResult:
     prior_p_mastery: float | None  # None if this topic had no prior MasteryState row (FR-005)
     posterior_p_mastery: float
+    prior_band: MasteryBand  # spec 025 FR-011: STRUGGLING when there was no prior state at all --
+    # no prior state can never already be "mastered", so this is never a false negative for
+    # refreshed_from_bands below.
     posterior_band: MasteryBand
     update_count: int
     bkt_params_used: dict[str, float]
     grade_unlocked: int | None = None  # non-null only on the update that unlocks a next grade
+
+
+def refreshed_from_bands(prior_band: MasteryBand, posterior_band: MasteryBand) -> bool:
+    """Spec 025 FR-011: a topic is "refreshed" exactly when one answer's
+    grading crosses it from below the mastered band to above it. Reuses
+    `MasteryBand`'s own compound "mastered" condition (score + confirmation
+    streak, `mastery_band_for`) via `.band`, rather than re-deriving a
+    simpler -- and subtly wrong -- `p_mastery` threshold check here
+    (research.md §5)."""
+    return prior_band != MasteryBand.MASTERED and posterior_band == MasteryBand.MASTERED
 
 
 def apply_mastery_update(
@@ -90,6 +103,7 @@ def apply_mastery_update(
     return MasteryUpdateResult(
         prior_p_mastery=prior_observation.p_mastery if prior_observation else None,
         posterior_p_mastery=posterior.p_mastery,
+        prior_band=prior_observation.band if prior_observation else MasteryBand.STRUGGLING,
         posterior_band=posterior.band,
         update_count=existing.update_count,
         bkt_params_used={
