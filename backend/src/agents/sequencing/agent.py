@@ -60,6 +60,12 @@ class TopicCandidate:
     topic_id: str
     band: str  # "unknown" | "struggling" | "developing" | "mastered"
     p_mastery: float | None
+    # Decayed value actually used to rank this candidate when it's a
+    # "mastered" topic in the fallback pool (spec 024 FR-003/FR-004/
+    # FR-005); equal to `p_mastery` otherwise. Carried into the audit
+    # payload so a decay-broken tie between two equal raw `p_mastery`
+    # topics is traceable after the fact (Constitution Principle V).
+    effective_p_mastery: float | None
 
 
 @dataclass(frozen=True)
@@ -67,6 +73,7 @@ class NextTopicSelection:
     topic_id: str
     band: str
     p_mastery: float | None
+    effective_p_mastery: float | None
     difficulty: DifficultyBand
     is_fallback: bool
     candidates_considered: list[TopicCandidate] = field(default_factory=list)
@@ -268,8 +275,22 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
     ctx = _load_topic_ranking_context(db, learner_id=learner_id, subject_id=subject_id)
     now = datetime.datetime.now(datetime.UTC)
 
+    def effective_p_mastery_of(topic_id: str) -> float | None:
+        return _effective_p_mastery_for_ranking(
+            topic_id,
+            band_by_topic=ctx.band_by_topic,
+            p_mastery_by_topic=ctx.p_mastery_by_topic,
+            updated_at_by_topic=ctx.updated_at_by_topic,
+            now=now,
+        )
+
     candidates = [
-        TopicCandidate(topic_id=t, band=ctx.band_by_topic[t], p_mastery=ctx.p_mastery_by_topic[t])
+        TopicCandidate(
+            topic_id=t,
+            band=ctx.band_by_topic[t],
+            p_mastery=ctx.p_mastery_by_topic[t],
+            effective_p_mastery=effective_p_mastery_of(t),
+        )
         for t in ctx.topic_ids_in_order
     ]
 
@@ -289,6 +310,7 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         topic_id=chosen_id,
         band=chosen_band,
         p_mastery=ctx.p_mastery_by_topic[chosen_id],
+        effective_p_mastery=effective_p_mastery_of(chosen_id),
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
         candidates_considered=candidates,

@@ -100,10 +100,11 @@ between what's a local ADK sub-agent vs. a remote A2A service.
 ## Useful context for any session
 
 - Current milestone: **Milestone 22** -- spaced repetition / mastery
-  decay for foundational topics (spec written, not yet planned or
-  implemented). See `specs/024-mastery-decay/spec.md` for full scope,
-  and `roadmap.md` for the full milestone-by-milestone history --
-  Milestones 1-21 are all shipped.
+  decay for foundational topics (spec, plan, tasks, and implementation
+  all complete; PR open, not yet merged to `staging`). See
+  `specs/024-mastery-decay/spec.md` for full scope, and `roadmap.md` for
+  the full milestone-by-milestone history -- Milestones 1-21 are all
+  shipped.
 - Two subjects' content artifacts are required in Milestone 1 itself
   (not deferred to a later milestone) specifically to prove the
   domain-agnostic claim early -- see that spec's Assumptions for the
