@@ -1,6 +1,7 @@
 import type { Difficulty, QuizSummaryResponse } from "@/services/api";
 import { formatTopicId } from "@/lib/format-topic-id";
 import SessionTimingSummary from "@/components/SessionTimingSummary";
+import AnswerResultView from "@/components/AnswerResultView";
 
 // Presentational only -- FR-005's score + per-topic/difficulty summary,
 // rendered identically whether the quiz reached a normal `completed`
@@ -51,6 +52,14 @@ export default function QuizSummary({ summary }: QuizSummaryProps) {
             </li>
           ))}
         </ul>
+      )}
+      {summary.per_question_results != null && summary.per_question_results.length > 0 && (
+        <div className="flex flex-col gap-4" data-testid="quiz-per-question-results">
+          <p className="text-sm font-medium text-muted">How each question was graded</p>
+          {summary.per_question_results.map((result) => (
+            <AnswerResultView key={result.question_id} result={result} />
+          ))}
+        </div>
       )}
     </div>
   );

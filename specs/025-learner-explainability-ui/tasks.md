@@ -62,8 +62,8 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 - [X] T010 [US1] N/A -- same finding as T006; `quiz_assignments.py` is not touched (research.md §1 correction)
 - [X] T011 [P] [US1] Create `SelectionReasonChip` component reading `is_fallback`/`p_mastery`/`effective_p_mastery`/`last_practiced_at` and `getExplanationCopyTier`, including the `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` scope switch's render-gating logic (FR-003) and an `Intl.RelativeTimeFormat`-based elapsed-time formatter for FR-002's wording, in `frontend/src/components/SelectionReasonChip.tsx` (depends on T007, T004)
 - [X] T012 [US1] Wire `SelectionReasonChip` into the served-question render path in `frontend/src/app/practice/practice-flow.tsx` (depends on T008, T011)
-- [X] T013 [US1] N/A -- quiz-flow.tsx has no `SelectionReasonChip` to wire (no backend fields exist, T009); quiz-flow.tsx's `AnswerResultView`/`RefreshedBanner` wiring for US3/US4 (T022/T029) is unaffected
-- [X] T014 [US1] N/A -- same as T013, for `LearnerAssignments.tsx`; its `AnswerResultView`/`RefreshedBanner` wiring for US3/US4 (T023/T030) is unaffected
+- [X] T013 [US1] N/A -- quiz-flow.tsx has no `SelectionReasonChip` to wire (no backend fields exist, T009); its US3/US4 work (T023's disclosure, T029's `RefreshedBanner`) is unaffected
+- [X] T014 [US1] N/A -- same as T013, for `LearnerAssignments.tsx`; its US3/US4 work (T023's disclosure, T030's `RefreshedBanner`) is unaffected
 
 **Checkpoint**: User Story 1 is fully functional and independently testable/demoable, across ordinary practice, quiz, and instructor-assigned attempts.
 
@@ -77,13 +77,13 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ### Tests for User Story 2
 
-- [ ] T015 [P] [US2] Contract test: `MasteryTopicOut.effective_p_mastery` matches `decay.py`'s `effective_mastery_for_review` output exactly for both a backdated and a freshly-practiced topic in `backend/tests/contract/test_mastery_state_effective_mastery.py`
-- [ ] T016 [P] [US2] Component test: `MasteryView` renders peak vs. effective mastery and a "last practiced" indicator that intensifies in color *and* carries a text label (never color alone, FR-007) as elapsed time grows, in `frontend/tests/unit/mastery-view.test.tsx`
+- [X] T015 [P] [US2] Contract test: `MasteryTopicOut.effective_p_mastery` matches `decay.py`'s `effective_mastery_for_review` output exactly for both a backdated and a freshly-practiced topic in `backend/tests/contract/test_mastery_state_effective_mastery.py`
+- [X] T016 [P] [US2] Component test: `MasteryView` renders peak vs. effective mastery and a "last practiced" indicator that intensifies in color *and* carries a text label (never color alone, FR-007) as elapsed time grows, in `frontend/tests/unit/mastery-view.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Add `effective_p_mastery` to `MasteryTopicOut`, computed via `effective_mastery_for_review` per topic, in `backend/src/api/routes/mastery.py` (depends on T015)
-- [ ] T018 [US2] Extend `MasteryView` to render peak vs. effective mastery, the color+text "last practiced" indicator (using the already-fetched-but-unused `last_updated_at`), and recovery/upkeep copy framing via `getExplanationCopyTier` in `frontend/src/components/MasteryView.tsx` (depends on T016, T017, T004)
+- [X] T017 [US2] Add `effective_p_mastery` to `MasteryTopicOut`, computed via `effective_mastery_for_review` per topic, in `backend/src/api/routes/mastery.py` (depends on T015)
+- [X] T018 [US2] Extend `MasteryView` to render peak vs. effective mastery, the color+text "last practiced" indicator (using the already-fetched-but-unused `last_updated_at`), and recovery/upkeep copy framing via `getExplanationCopyTier` in `frontend/src/components/MasteryView.tsx` (depends on T016, T017, T004)
 
 **Checkpoint**: User Stories 1 and 2 both work independently.
 
@@ -91,21 +91,21 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ## Phase 4: User Story 3 - A learner understands why an answer was marked the way it was, in every flow that grades one (Priority: P2)
 
-**Goal**: The per-criterion grading view that already renders in ordinary practice also renders in quiz (untimed/timed), instructor-assigned attempts, and placement.
+**Goal**: The per-criterion grading view that already renders in ordinary practice also reaches placement (immediately, per answer) and quiz/instructor-assigned attempts (gathered in the end-of-session summary -- **corrected mid-implementation** after confirming with the user: quiz has no per-question pause today, and inserting one would change its established auto-advance pacing; see spec.md Clarifications and research.md §4).
 
-**Independent Test**: Grade a free-text answer inside a quiz session; confirm the learner sees the identical per-criterion breakdown practice already shows, for both a passing and a failing answer. Same for an instructor-assigned attempt and a placement free-text answer.
+**Independent Test**: Complete a quiz containing one free-text answer; confirm the learner sees the identical per-criterion breakdown practice already shows, in that quiz's end-of-session summary, for both a passing and a failing answer. Same for a placement free-text answer, shown immediately.
 
 ### Tests for User Story 3
 
-- [ ] T019 [P] [US3] Integration test: quiz-flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, and ordinary practice's existing rendering is unchanged (regression guard, Acceptance Scenario 4) -- extends the existing `frontend/tests/unit/quiz-flow.test.tsx`
-- [ ] T020 [P] [US3] Integration test: the instructor-assigned-attempt flow's answer-result render shows `AnswerResultView`'s criteria for both a correct and an incorrect answer, mirroring T019 -- today it discards the answer result entirely -- extends the existing `frontend/tests/unit/learner-assignments.test.tsx`
-- [ ] T021 [P] [US3] Integration test: `POST /api/placement/submit` returns `per_question_results` matching `AnswerOut`-equivalent fields (`correct`, `criteria_met`, `criteria_missed`, `step_results`, `prior_p_mastery`, `posterior_p_mastery`, `refreshed`) for a passing and a failing free-text placement answer in `backend/tests/integration/test_placement_grading_detail.py`
+- [X] T019 [P] [US3] Contract test: `QuizSummaryOut`/`QuizSummaryResponse.per_question_results` matches each answered question's `ANSWER_SUBMITTED`/`MASTERY_UPDATED` event data (`correct`, `criteria_met`, `criteria_missed`, `step_results`, `prior_p_mastery`, `posterior_p_mastery`) in `backend/tests/contract/test_quiz_summary_grading_detail.py`
+- [X] T020 [P] [US3] Component test: `QuizSummary` renders `AnswerResultView` per question from `per_question_results` (tolerating a missing `band`), and the quiz start screen discloses results appear at the end (FR-010a) -- extends the existing `frontend/tests/unit/quiz-summary.test.tsx` and `frontend/tests/unit/quiz-flow.test.tsx`
+- [X] T021 [P] [US3] Integration test: `POST /api/placement/submit` returns `per_question_results` matching `AnswerOut`-equivalent fields (`correct`, `criteria_met`, `criteria_missed`, `step_results`, `prior_p_mastery`, `posterior_p_mastery`, `refreshed`) for a passing and a failing free-text placement answer in `backend/tests/integration/test_placement_grading_detail.py`
 
 ### Implementation for User Story 3
 
-- [ ] T022 [US3] Wire the existing `AnswerResultView` component into `quiz-flow.tsx`'s per-question result step, which today discards the answer response entirely, in `frontend/src/app/quiz/quiz-flow.tsx` (depends on T019)
-- [ ] T023 [US3] Wire the existing `AnswerResultView` component into `LearnerAssignments.tsx`'s per-question result step in `frontend/src/components/LearnerAssignments.tsx` (depends on T020)
-- [ ] T024 [US3] Add `PlacementQuestionResult` model and `per_question_results: list[PlacementQuestionResult]` to `PlacementSubmitResponse`, populated inside the existing per-answer grading loop (including `refreshed` via T002's `refreshed_from_bands`) in `backend/src/api/routes/placement.py` (depends on T021, T002)
+- [X] T022 [US3] Extend `compute_quiz_summary`'s existing `GeneratedQuestion`+`ANSWER_SUBMITTED`-event join with a second join to each question's `MASTERY_UPDATED` event; add `per_question_results: list[QuizAnswerResult]` to `QuizSummaryOut`/`QuizSummaryResponse` in `backend/src/services/quiz/session.py` and `backend/src/api/routes/quiz.py` (depends on T019)
+- [X] T023 [US3] Render `per_question_results` via `AnswerResultView` in `frontend/src/components/QuizSummary.tsx` (making `AnswerResultView`'s `band` line conditional, since quiz-summary reconstruction has no `band` to show); add the FR-010a disclosure to `quiz-flow.tsx`'s start screen and `LearnerAssignments.tsx`'s start-attempt trigger -- covers both flows in one change, since both share `QuizSummary`/`getQuizSummary` (depends on T020, T022)
+- [X] T024 [US3] Add `PlacementQuestionResult` model and `per_question_results: list[PlacementQuestionResult]` to `PlacementSubmitResponse`, populated inside the existing per-answer grading loop (including `refreshed` via T002's `refreshed_from_bands`) in `backend/src/api/routes/placement.py` (depends on T021, T002)
 
 **Checkpoint**: User Stories 1-3 all work independently, across every flow named in FR-009.
 
@@ -251,5 +251,5 @@ Each story adds value without breaking a previously delivered one -- consistent 
 - No new dependency, no new migration anywhere in this task list (plan.md's Technical Context).
 - T002's `refreshed_from_bands` helper exists specifically so the below-to-above-`MASTERED` check is written once and reused by both `questions.py` (T027) and `placement.py` (T024) -- never two independently-drifting copies of the same compound condition (research.md §5).
 - `AnswerResultView` (US3) and the copy-tier helper (Foundational T004) are reused, not rebuilt -- per research.md's explicit "reuse before build" findings.
-- `frontend/src/components/LearnerAssignments.tsx` is a genuinely separate component from `quiz-flow.tsx` (confirmed by reading it during `/speckit-analyze`), not a thin wrapper around it -- US1/US3/US4 each carry an explicit task for it (T014, T020/T023, T030) alongside their `quiz-flow.tsx` task, so instructor-assigned attempts get the same explanations as every other flow.
+- `frontend/src/components/LearnerAssignments.tsx` is a genuinely separate component from `quiz-flow.tsx` (confirmed by reading it during `/speckit-analyze`), not a thin wrapper around it -- US1/US4 each carry an explicit task for it (T014, T030). US3 is the one exception: `LearnerAssignments.tsx` shares `QuizSummary`/`getQuizSummary` with `quiz-flow.tsx` directly (confirmed during Phase 4 implementation), so T022/T023 cover both flows in one change with no separate `LearnerAssignments.tsx`-specific US3 task needed.
 - Commit after each task or logical group; stop at any checkpoint to validate a story independently.

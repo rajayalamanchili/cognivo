@@ -221,9 +221,7 @@ describe("AnswerResultView step-by-step result", () => {
 
   it("renders nothing step-related for a non-multi-step result", () => {
     render(
-      <AnswerResultView
-        result={{ ...baseResult, first_diverging_step_index: null, step_results: null }}
-      />,
+      <AnswerResultView result={{ ...baseResult, step_results: null }} />,
     );
 
     expect(screen.queryByTestId("step-results")).not.toBeInTheDocument();

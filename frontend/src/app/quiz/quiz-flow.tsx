@@ -438,6 +438,11 @@ export default function QuizFlow() {
           ))}
         </select>
       </label>
+      {/* spec 025 FR-010a: quiz has no per-question result pause -- disclosed
+          upfront rather than surprising the learner at the end. */}
+      <p className="text-sm text-muted">
+        You&apos;ll see how you did on each question together, at the end of the quiz.
+      </p>
       <button
         type="button"
         disabled={selectedTopicIds.length === 0 || phase === "starting"}

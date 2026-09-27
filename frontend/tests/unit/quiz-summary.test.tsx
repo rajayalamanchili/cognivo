@@ -43,4 +43,46 @@ describe("QuizSummary", () => {
     render(<QuizSummary summary={{ ...summary, status: "ended_early" }} />);
     expect(screen.getByTestId("quiz-summary")).toHaveTextContent(/ended early/i);
   });
+
+  it("renders per-question grading detail via AnswerResultView, for both a correct and an incorrect answer (spec 025 US3)", () => {
+    render(
+      <QuizSummary
+        summary={{
+          ...summary,
+          per_question_results: [
+            {
+              question_id: "q1",
+              topic_id: "linear-equations",
+              correct: false,
+              criteria_met: ["identifies sign"],
+              criteria_missed: ["computes magnitude"],
+              step_results: null,
+              prior_p_mastery: 0.3,
+              posterior_p_mastery: 0.25,
+            },
+            {
+              question_id: "q2",
+              topic_id: "linear-equations",
+              correct: true,
+              criteria_met: ["states the rule"],
+              criteria_missed: [],
+              step_results: null,
+              prior_p_mastery: 0.5,
+              posterior_p_mastery: 0.6,
+            },
+          ],
+        }}
+      />
+    );
+    const views = screen.getAllByTestId("answer-result-view");
+    expect(views).toHaveLength(2);
+    expect(views[0].textContent).toMatch(/identifies sign/);
+    expect(views[0].textContent).toMatch(/computes magnitude/);
+    expect(views[1].textContent).toMatch(/states the rule/);
+  });
+
+  it("renders no per-question section when per_question_results is absent (backward compatible)", () => {
+    render(<QuizSummary summary={summary} />);
+    expect(screen.queryByTestId("answer-result-view")).not.toBeInTheDocument();
+  });
 });

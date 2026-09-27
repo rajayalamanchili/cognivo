@@ -29,6 +29,7 @@ describe("DashboardSubjectSection mastery", () => {
           p_mastery: 0.8,
           band: "mastered",
           last_updated_at: "2026-01-01T00:00:00Z",
+          effective_p_mastery: 0.8,
         },
         {
           topic_id: "geometry",
@@ -36,6 +37,7 @@ describe("DashboardSubjectSection mastery", () => {
           p_mastery: null,
           band: null,
           last_updated_at: null,
+          effective_p_mastery: null,
         },
       ],
     });

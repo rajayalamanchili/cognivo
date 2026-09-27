@@ -52,6 +52,27 @@ refreshed: bool
 ```
 (Field-for-field aligned with `AnswerOut`; existing aggregate `mastery_state` field unchanged.)
 
+## Modified: `GET /api/quizzes/{quiz_session_id}` (shared by `quiz-flow.tsx` and `LearnerAssignments.tsx`)
+
+**Correction (found during Phase 4 implementation)**: originally planned as a `quiz-flow.tsx`/`LearnerAssignments.tsx` frontend-only change (wire the existing `AnswerResultView` into a per-question result step) -- quiz has no per-question result step at all (research.md §4 correction). Results are surfaced in the summary instead.
+
+**`QuizSummaryOut`**/`QuizSummaryResponse` gains:
+```
+per_question_results: list[QuizAnswerResult]
+```
+where `QuizAnswerResult` is:
+```
+question_id: uuid
+topic_id: str
+correct: bool
+criteria_met: list[str] | null
+criteria_missed: list[str] | null
+step_results: list[StepResultOut] | null
+prior_p_mastery: float | null
+posterior_p_mastery: float
+```
+No `band` field (unlike `AnswerOut`/`PlacementQuestionResult`) -- not reconstructable from historical audit events (data-model.md §3). Covers both `quiz-flow.tsx` and the instructor-assigned-attempt flow (`LearnerAssignments.tsx`) in one change, since both call this same endpoint and render the same `<QuizSummary>` component.
+
 ## New: `GET /api/learners/{learner_id}/topics/{topic_id}/mastery-history`
 
 Response:

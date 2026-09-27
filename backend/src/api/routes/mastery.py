@@ -1,6 +1,7 @@
 """Mastery-state endpoint (contracts/api.md) -- backs the "why was I
 placed here" mastery view (Constitution Principle V)."""
 
+import datetime
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -12,6 +13,7 @@ from src.db import get_db
 from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
 from src.models.topic import Topic
+from src.services.mastery.decay import effective_mastery_for_review
 
 router = APIRouter()
 
@@ -22,6 +24,10 @@ class MasteryTopicOut(BaseModel):
     p_mastery: float | None = None
     band: str | None = None
     last_updated_at: str | None = None
+    # Spec 025 FR-005/FR-006: decay-adjusted mastery, reusing decay.py's
+    # own pure function -- `p_mastery` above is unchanged and now doubles
+    # as "peak" mastery in the dashboard's framing.
+    effective_p_mastery: float | None = None
 
 
 class MasteryStateResponse(BaseModel):
@@ -46,6 +52,7 @@ def get_mastery_state(
         .all()
     }
 
+    now = datetime.datetime.now(datetime.UTC)
     topics_out: list[MasteryTopicOut] = []
     for topic in topics:
         state = states.get(topic.topic_id)
@@ -59,6 +66,9 @@ def get_mastery_state(
                     p_mastery=state.p_mastery,
                     band=state.band.value,
                     last_updated_at=state.updated_at.isoformat(),
+                    effective_p_mastery=effective_mastery_for_review(
+                        state.p_mastery, updated_at=state.updated_at, now=now
+                    ),
                 )
             )
 

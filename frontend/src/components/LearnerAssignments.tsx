@@ -350,6 +350,14 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         </button>
       </div>
       {assignments.length === 0 && <p className="text-sm">No assignments yet.</p>}
+      {assignments.some((a) => a.status === "not_started" && !a.cancelled_at) && (
+        // spec 025 FR-010a: same disclosure as quiz-flow.tsx's start
+        // screen -- this flow shares the same no-per-question-pause
+        // summary behavior (research.md §4).
+        <p className="text-sm text-muted" data-testid="learner-assignments-disclosure">
+          You&apos;ll see how you did on each question together, at the end of the quiz.
+        </p>
+      )}
       {assignments.map((assignment) => (
         <div
           key={assignment.assignment_id}

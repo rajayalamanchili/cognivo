@@ -44,6 +44,22 @@ New nested type, field-for-field aligned with `AnswerOut`:
 
 **`PlacementSubmitResponse`** gains: `per_question_results: list[PlacementQuestionResult]`, populated in existing loop order (one entry per submitted answer). Existing aggregate `mastery_state` field is unchanged.
 
+**`QuizAnswerResult`** (correction, found during implementation -- quiz gets its own type, not `PlacementQuestionResult`, since it's reconstructed from historical audit events rather than an in-flight request and lacks one field as a result):
+
+| Field | Type | Source |
+|---|---|---|
+| `question_id` | `uuid.UUID` | `GeneratedQuestion.question_id`, joined by the summary query. |
+| `topic_id` | `str` | `GeneratedQuestion.topic_id`, needed for `AnswerResultView`'s existing topic-label line. |
+| `correct` | `bool` | `ANSWER_SUBMITTED` event's `payload["correct"]`. |
+| `criteria_met` | `list[str] \| null` | Same event's `payload["criteria_met"]`. |
+| `criteria_missed` | `list[str] \| null` | Same event's `payload["criteria_missed"]`. |
+| `step_results` | `list[StepResultOut] \| null` | Same event's `payload["step_results"]`. |
+| `prior_p_mastery` | `float \| null` | The matching `MASTERY_UPDATED` event's `payload["prior_p_mastery"]`. |
+| `posterior_p_mastery` | `float` | Same event's `payload["posterior_p_mastery"]`. |
+| ~~`band`~~ | -- | **Not reconstructable**: `mastery_band_for` needs `consecutive_mastered_observations`, never persisted in any event payload. `AnswerResultView`'s `band` display becomes conditional to accommodate this (spec.md Assumptions) rather than inventing a way to recompute it from history. |
+
+**`QuizSummaryOut`**/`QuizSummaryResponse` gains: `per_question_results: list[QuizAnswerResult]`, computed by extending `compute_quiz_summary`'s existing `GeneratedQuestion` + `ANSWER_SUBMITTED`-event join (`services/quiz/session.py`) with a second join to each question's `MASTERY_UPDATED` event. Shared by both `quiz-flow.tsx` and `LearnerAssignments.tsx` (both call `getQuizSummary`/render `<QuizSummary>`) -- one backend change covers both flows for this story.
+
 ## 4. "Refreshed" acknowledgment (extends `AnswerOut`, and `PlacementQuestionResult` above)
 
 | Field | Type | Source | Notes |
