@@ -1722,7 +1722,8 @@ timer.
 
 **Spec**: `specs/023-stem-notation/spec.md`.
 **Status**: `/speckit-implement` complete (2026-09-25, branch
-`033-stem-notation`), PR #86 open against `staging`, not yet merged.
+`033-stem-notation`), merged to `staging` via PR #86 and promoted to
+`main` via PR #87 (both 2026-09-25) -- milestone fully shipped.
 `/speckit-specify` was corrected twice during its own follow-on phases
 rather than needing a separate `/speckit-clarify` pass: `/speckit-plan`
 research found free-text/multi-step grading is already an LLM judgment
@@ -1772,7 +1773,8 @@ inputs. SC-004 (question-generation validation accepts notated rubric
 criteria with no new failure mode) --
 `test_notation_rubric_validation.py`, backed by reading
 `_validate_draft`'s actual content-blind validation logic. Milestone 21
-is implemented and PR'd, not yet merged to `staging`.
+is fully shipped and merged to both `staging` and `main` as of
+2026-09-25.
 
 **Scope**: Let a learner insert fractions, exponents/superscripts, and
 chemical-formula subscripts into a free-text or multi-step answer,
@@ -1791,6 +1793,65 @@ comparison mechanism was needed or added; a learner answer-history view
 or instructor per-answer review view -- neither exists in the product
 today, and building one is a distinct, larger feature (see spec 023's
 Assumptions).
+
+---
+
+## Milestone 22: Spaced Repetition / Mastery Decay for Foundational Topics
+
+**Spec**: `specs/024-mastery-decay/spec.md`.
+**Status**: `/speckit-specify` complete (2026-09-27, branch
+`035-spaced-repetition-mastery-decay`, created from `origin/staging`).
+Three genuinely open product decisions were resolved directly with the
+user before drafting rather than left as `[NEEDS CLARIFICATION]`
+markers, since each meaningfully changed scope: (1) decay's blast
+radius -- resolved to affect only the Sequencing Agent's existing
+mastered-topic review-fallback ranking, never the mastery band shown on
+the dashboard, the Recommendation Agent's weak-area report, or
+prerequisite gating; (2) decay coverage -- resolved to apply uniformly
+to every topic with a `MasteryState`, not restricted to prerequisite-
+free topics despite the "foundational topics" framing in the original
+backlog entry; (3) a grace period before decay begins -- resolved to
+exist, rather than decaying from the moment a topic is mastered.
+Grounded directly in the existing code rather than guessing: Milestone
+1's BKT mastery model (`backend/src/services/mastery/bkt.py`) is a
+pure, fixed-global-parameter function with no notion of elapsed time,
+and the Sequencing Agent (`backend/src/agents/sequencing/agent.py`'s
+`rank_eligible_topics`) already has a mastered-topic review fallback
+that activates when no topic is otherwise prerequisite-eligible -- but
+ranks it by raw, never-decaying `p_mastery`, which is precisely the gap
+this feature closes by re-ranking that one existing pool by an
+elapsed-time-aware effective mastery, computed at read time and never
+persisted. `requirements.md` checklist passed on first pass. Not yet
+planned (`/speckit-plan`) or implemented.
+
+**Scope**: Let a mastered topic's *review priority* (not its band, not
+its dashboard-visible score) decay the longer it goes without practice,
+so the Sequencing Agent's existing mastered-topic fallback resurfaces
+the most time-decayed mastered topic first rather than treating every
+mastered topic as equally safe forever. Deliberately reuses the
+existing fallback pool rather than introducing a new scheduler or
+selection pathway -- a learner who still has prerequisite-eligible
+topics in normal curriculum progression never sees a decay-driven
+review question under this feature.
+
+**Definition of done** (draft, to be formalized further at
+`/speckit-plan`):
+- All acceptance scenarios in `specs/024-mastery-decay/spec.md` pass.
+- Zero change to any mastery, dashboard, or recommendation-agent
+  behavior outside the Sequencing Agent's mastered-topic fallback
+  ranking -- verified by the full existing regression suite passing
+  unchanged.
+- A decayed topic's answer updates mastery through the exact same,
+  unmodified BKT update path as any other answer -- no new special
+  case.
+
+**Explicitly not included**: any change to mastery band classification
+shown on the learner dashboard or the Recommendation Agent's weak-area
+report; any new selection pathway that preempts a learner's normal,
+still-eligible curriculum progression; per-topic or per-learner-tuned
+decay parameters (fixed global constants only, matching the BKT
+model's own precedent, absent real learner data to fit against);
+restricting decay to only prerequisite-free topics.
 
 ---
 
@@ -1886,13 +1947,17 @@ Assumptions).
   frontend-only notation toolbar; derivatives/calculus notation
   deliberately deferred until a subject that needs them exists, per
   spec 023's Assumptions.)
-- Spaced repetition / mastery decay for foundational topics. Raised
-  2026-09-14. The mastery model (Milestone 1) has no notion of
-  forgetting -- a topic marked "mastered" once stays mastered forever,
-  which understates real risk for subjects as cumulative as STEM
-  (algebra assumes arithmetic fluency retained years later). Would need
-  its own spec on how/when a mastered topic gets resurfaced and whether
-  that's a Sequencing Agent change or a distinct scheduler.
+- ~~Spaced repetition / mastery decay for foundational topics~~ --
+  promoted to Milestone 22 (2026-09-27), see that entry above this
+  section. This bullet is kept, struck through, for the same reason
+  the "Process-level (step-by-step) STEM grading" bullet above was
+  left in place when Milestone 16 shipped it: an honest record that
+  this started life here, not a retroactively-tidied history.
+  (Original entry: raised 2026-09-14. The mastery model
+  (Milestone 1) has no notion of forgetting -- a topic marked
+  "mastered" once stays mastered forever, which understates real risk
+  for subjects as cumulative as STEM (algebra assumes arithmetic
+  fluency retained years later).)
 - Interactive, manipulable simulations (e.g. a slider that changes a
   graph or a pendulum in real time) -- distinct from, and a strict step
   up from, Milestone 10's static image stimuli, which display an image

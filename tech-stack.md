@@ -207,12 +207,27 @@ obvious.
 
 ## Explicitly not yet decided (do not pre-select)
 
-- The Grading Agent's language and deployment shape -- Milestone 6 decision, once free-text grading's concrete needs are clear.
-- Prompt-versioning storage mechanism (a dedicated table, a file-based store, or a third-party prompt-management tool) -- Milestone 12 decision.
-- Semantic-caching layer (in-database via Postgres, or a dedicated cache like Redis/Upstash) -- Milestone 13 decision, made once Milestone 9's actual call volume is known well enough to size the cache correctly.
 - Whether Fluid Compute (for longer execution windows) is needed -- revisit if any agent call's typical latency approaches the default execution limit.
 
-**Version**: 2.5.0 -- Amended 2026-09-20 (Milestone 17 `/speckit-plan`:
+**Version**: 2.6.0 -- Amended 2026-09-27 (documentation-only
+correction, no new architectural decision: this file's "Explicitly not
+yet decided" list still carried three items that were actually locked
+milestones ago at their own `/speckit-plan` time, just never removed
+here nor recorded in this changelog -- caught while updating stale
+references ahead of Milestone 22. The Grading Agent's language and
+deployment shape was locked at Milestone 6 `/speckit-plan` as a Google
+ADK `LlmAgent` wrapped via `to_a2a()`, deployed as its own separate
+Vercel project with no direct database access (`specs/007-grading-
+agent/research.md` §1-3). Prompt-versioning storage was locked at
+Milestone 12 `/speckit-plan` as a module-level string constant paired
+with a sibling `VERSION` constant in the same file, not a dedicated
+table or third-party tool (`specs/014-prompt-versioning/research.md`
+§1). The semantic-caching layer was locked at Milestone 13
+`/speckit-plan` as two new PostgreSQL tables in the existing Neon
+database, reusing the already-installed `pgvector` extension, not
+Redis/Upstash (`specs/015-semantic-caching/research.md` §1). All three
+removed from the list above accordingly); 2.5.0 -- Amended 2026-09-20
+(Milestone 17 `/speckit-plan`:
 locked a quiz-session-scoped hand-off token, a second `pyjwt` token
 purpose distinct from the existing guardian/instructor login session,
 as the mechanism letting a learner's device continue a
