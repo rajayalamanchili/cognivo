@@ -1974,22 +1974,97 @@ would have meant designing UI against a decay signal that didn't exist
 yet, or inventing a placeholder Milestone 22 would then have had to
 reconcile.
 
-**Definition of done** (draft, to be formalized once `/speckit-plan`
-runs):
-- All acceptance scenarios across spec 025's six user stories pass.
-- SC-001/SC-007 (every explanation traces to a real persisted decision,
-  zero fabricated reasons) and SC-003 (dashboard effective mastery
-  matches Milestone 22's value exactly) are hard gates -- the first
-  because an invented "why" would be a worse outcome than no explanation
-  at all for a product whose constitution names explainability as a
-  first-class principle, the second because this milestone must not
-  become a second, competing decay computation.
-- Milestones 1-22's full suites still pass.
+`/speckit-clarify` complete same day: 3 questions asked and resolved,
+each catching a real gap rather than a stylistic ambiguity -- (1) the
+existing per-criterion grading view already covers both correct and
+incorrect answers for free-text/multi-step, discovered by reading
+`AnswerResultView.tsx` directly rather than assuming the original scope
+was accurate, re-scoping User Story 3 to the actual gap (flow coverage:
+quiz/placement/instructor-assigned attempts) rather than rebuilding what
+practice already does; (2) the "refreshed" acknowledgment must fire once,
+tied to the causing answer's own response, never recomputed later, with
+no new persisted tracking field; (3) the "last practiced" indicator must
+pair color with a text label, not rely on color alone, matching
+Milestone 10's accessibility precedent. `/speckit-plan` and
+`/speckit-tasks` complete same day (44 tasks across Foundational + 6
+user-story phases + Polish). `/speckit-analyze` found and fixed 4 issues
+before implementation: the guardian-mediated instructor-assigned-attempt
+UI (`LearnerAssignments.tsx`) is a genuinely separate component from
+`quiz-flow.tsx`, not a thin wrapper -- confirmed by reading it -- so it
+needed its own explicit tasks for US1/US4, which the original task list
+had silently missed for two of the three stories that needed it.
+
+`/speckit-implement` complete (2026-09-27): all 44 tasks, phase by
+phase, test-first throughout. Two more real corrections surfaced only
+once the actual code was read during implementation, not caught by
+planning or analysis:
+- **Quiz question selection never touches the Sequencing Agent at all.**
+  `next_quiz_topic` (Milestone 5) is a one-line round-robin -- no
+  eligible-pool/fallback concept exists for it to report. The "why this
+  question" chip (User Story 1) does not apply to quiz or
+  instructor-assigned attempts as a result; fabricating an `is_fallback`
+  value there would have violated FR-004 outright.
+- **Quiz has no per-question pause, and placement can never generate a
+  free-text/multi-step question.** Confirmed with the user before
+  building anything: quiz's existing auto-advance pacing is preserved,
+  not interrupted -- both User Story 3's grading detail and User Story
+  4's "refreshed" acknowledgment are gathered into quiz's end-of-session
+  summary instead (the latter via ephemeral, in-session client state,
+  since `band` -- which "refreshed" depends on -- isn't reconstructable
+  from `MASTERY_UPDATED`'s persisted payload the way US3's criteria
+  detail was). Separately, `grade_answer` only ever handles
+  MULTIPLE_CHOICE/NUMERIC (spec 015/018 both deliberately keep it that
+  way) -- placement's own Acceptance Scenario 2, which had described a
+  free-text placement answer, was corrected to describe what's actually
+  possible there.
+
+All six corrections (3 from `/speckit-clarify`, 1 from `/speckit-analyze`,
+2 from `/speckit-implement`) are recorded in spec.md's Clarifications/
+Assumptions, research.md, data-model.md, and contracts/api-changes.md --
+the same discipline this project has applied to every milestone since
+Milestone 3's stale-status lesson. Full regression: `backend` 735/735,
+`frontend` 169/169, `tsc --noEmit` and `eslint` both clean,
+`check_no_subject_conditionals.py` clean, schema-drift check clean (zero
+migration -- this milestone ships no schema change). Quickstart.md's 6
+scenarios (7 checks) verified live against a real, freshly reseeded dev
+database via a throwaway `TestClient`-based script (run once, not
+committed, matching Milestone 22's own precedent) -- all 7 passed,
+including one real-world wrinkle worth recording: live LLM-backed quiz
+generation legitimately dedup-exhausted on the first topic tried,
+resolved by trying a less-recently-exercised topic rather than a code
+change (the dedup-exhaustion mechanism itself is Milestone 1/13's
+existing, correct behavior, not a defect this milestone introduced).
+Branch `025-learner-explainability-ui`, not yet merged to `staging`.
+
+**Definition of done**: All of spec 025's Success Criteria verified.
+SC-001/SC-007 (every explanation traces to a real persisted decision,
+zero fabricated reasons) -- met by construction: the two flows found to
+lack real underlying data (quiz's selection reason, placement's rubric
+criteria) were scoped out rather than papered over. SC-003 (dashboard
+effective mastery matches Milestone 22's value exactly) -- met,
+`mastery.py` calls `effective_mastery_for_review` directly, no second
+computation. SC-004 (grading detail identical regardless of flow) --
+met, with the corrected understanding that "identical content" and
+"identical timing" are different guarantees for quiz specifically
+(content: yes; timing: gathered at the summary, disclosed upfront,
+FR-010a). SC-005 (refreshed fires exactly on a below-to-above crossing)
+-- met, `refreshed_from_bands` reuses `mastery_band_for`'s own compound
+condition rather than a naive threshold. SC-006 (weak-area summary lists
+exactly the source report's contents) -- met; `WeakAreaSummary` replaces
+the more technical `WeakAreaSection` specifically on the learner
+dashboard (discovered during implementation to already be shared with
+the instructor dashboard), which keeps the raw view unchanged. Milestones
+1-22's full suites still pass.
 
 **Explicitly not included**: any new selection, grading, or decay logic
 (pure presentation of existing decisions); a second age-adaptation
 mechanism (reuses Milestone 17's existing layer); re-detection of weak
-areas (reuses Milestone 2's Recommendation Agent output only).
+areas (reuses Milestone 2's Recommendation Agent output only); a
+selection-reason explanation for quiz/instructor-assigned attempts (no
+underlying data exists to surface, found during implementation); a
+blocking per-question result screen for quiz (would have changed
+existing, working pacing for a milestone whose entire premise is
+presentation-only).
 
 ---
 
@@ -2174,6 +2249,27 @@ areas (reuses Milestone 2's Recommendation Agent output only).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.21.0 -- 2026-09-27, Milestone 23 `/speckit-clarify`
+(3 questions, all catching real gaps -- User Story 3 re-scoped to
+flow-coverage, "refreshed" fixed to fire once with no new tracking
+field, "last practiced" required a text label not color alone),
+`/speckit-plan`/`/speckit-tasks` (44 tasks), `/speckit-analyze` (4
+issues found and fixed, notably a missing `LearnerAssignments.tsx` task
+for two of three stories that needed it), and `/speckit-implement` (all
+44 tasks) all complete. Two more real corrections surfaced only during
+implementation, both resolved by reading the actual code/confirming
+with the user before building anything: quiz question selection never
+touches the Sequencing Agent (no selection-reason chip applies there),
+and quiz has no per-question pause while placement can never generate a
+free-text/multi-step question (User Story 3/4 both corrected --
+grading detail and the refreshed acknowledgment gather into quiz's
+end-of-session summary instead of interrupting its existing pacing;
+placement's own acceptance scenario was corrected to match what it can
+actually produce). Full regression: `backend` 735/735, `frontend`
+169/169, zero migration. Quickstart.md's 6 scenarios (7 checks)
+verified live against a real, reseeded dev database. Branch
+`025-learner-explainability-ui`, not yet merged to `staging`.
 
 **Version**: 3.20.0 -- 2026-09-27, added Milestone 23 (Learner-Facing
 Explainability UI), spun out of Milestone 22's own `/speckit-clarify`

@@ -31,16 +31,17 @@ curl -s "$BACKEND_URL/api/learners/<demo-learner-id>/mastery-state?subject_id=al
 
 **Expected**: `<topic-a>`'s entry shows `effective_p_mastery < p_mastery`; a topic never backdated shows `effective_p_mastery == p_mastery`. Load the dashboard in the browser and confirm the "last practiced" indicator is visibly warmer for `<topic-a>` **and** carries a text label (not color alone -- FR-007).
 
-## Scenario 3 -- User Story 3: grading detail in quiz/placement (SC-004)
+## Scenario 3 -- User Story 3: grading detail in quiz (at the summary) and placement (immediately) (SC-004)
 
-Start a quiz, answer a free-text or multi-step question:
+**Corrected during implementation** (spec.md Clarifications, research.md §4): quiz has no per-question pause, so grading detail is gathered into the end-of-session summary instead, disclosed upfront. Start a quiz, answer a question, then fetch the summary:
 
 ```bash
-curl -s -X POST "$BACKEND_URL/api/quizzes/<quiz_id>/questions/<question_id>/answer" \
+curl -s -X POST "$BACKEND_URL/api/questions/<question_id>/answer" \
   -H "Content-Type: application/json" -d '{"response": ...}'
+curl -s "$BACKEND_URL/api/quizzes/<quiz_session_id>"
 ```
 
-**Expected**: response already contains `criteria_met`/`criteria_missed`/`step_results` (unchanged from today). In the browser, confirm the quiz UI now renders `AnswerResultView` with this detail -- previously it rendered nothing. Repeat via `POST /api/placement/submit` with a free-text placement answer: **Expected** `per_question_results[]` contains the matching entry with the same fields, for both a passing and failing answer (US3 Acceptance Scenario 2).
+**Expected**: the answer response is unchanged (no immediate grading-detail render for quiz). The summary response's `per_question_results[]` contains one entry per answered question with `correct`/`criteria_met`/`criteria_missed`/`step_results`/`prior_p_mastery`/`posterior_p_mastery` (no `band` -- not reconstructable from history). In the browser, confirm the quiz start screen discloses "you'll see how you did... at the end" (FR-010a) and the summary renders `AnswerResultView` per question via `QuizSummary`. Repeat via `POST /api/placement/submit`: **Expected** `per_question_results[]` on that response directly (shown immediately, matching placement's existing timing) -- `criteria_met`/`criteria_missed`/`step_results` are always `null` there since placement never generates free-text/multi-step questions (research.md §4).
 
 ## Scenario 4 -- User Story 4: refreshed acknowledgment (SC-005)
 
@@ -51,7 +52,9 @@ curl -s -X POST "$BACKEND_URL/api/questions/<question_id>/answer" \
   -H "Content-Type: application/json" -d '{"response": <correct-response>}'
 ```
 
-**Expected**: `refreshed: true` in that response only. Answer the same (now-mastered) topic again: **Expected** `refreshed: false` (nothing to recover -- Acceptance Scenario 3). Reload the dashboard: **Expected** no acknowledgment reappears (Acceptance Scenario 4 -- it was shown once, in that one response, never recomputed).
+**Expected**: `refreshed: true` in that response only (this applies directly to practice and placement, which show it immediately). Answer the same (now-mastered) topic again: **Expected** `refreshed: false` (nothing to recover -- Acceptance Scenario 3). Reload the dashboard: **Expected** no acknowledgment reappears (Acceptance Scenario 4 -- it was shown once, in that one response, never recomputed).
+
+**Quiz's own reveal (Acceptance Scenario 5, research.md §5 correction)**: repeat the crossing inside a quiz session instead. **Expected**: the live answer response still carries `refreshed: true` (same field, same one-shot computation), but the quiz UI does not show it immediately -- confirm in the browser that it instead appears once in that quiz's end-of-session summary, carrying forward the exact value from the crossing answer's own response (never re-derived from a later check).
 
 ## Scenario 5 -- User Story 5: mastery trend (FR-012)
 

@@ -163,12 +163,12 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 ### Tests for User Story 6
 
-- [ ] T037 [P] [US6] Component test: `WeakAreaSummary` renders weak areas matching `getRecommendations()`'s response exactly and an encouraging empty state when `weak_areas` is empty in `frontend/tests/unit/weak-area-summary.test.tsx` (a new, learner-facing component and test file -- distinct from the existing instructor-facing `weak-area-section.test.tsx`)
+- [X] T037 [P] [US6] Component test: `WeakAreaSummary` renders weak areas matching `getRecommendations()`'s response exactly and an encouraging empty state when `weak_areas` is empty in `frontend/tests/unit/weak-area-summary.test.tsx` (a new, learner-facing component and test file -- distinct from the existing instructor-facing `weak-area-section.test.tsx`)
 
 ### Implementation for User Story 6
 
-- [ ] T038 [US6] Create `WeakAreaSummary` component consuming the existing `getRecommendations()` client call with softened, encouraging copy via `getExplanationCopyTier` in `frontend/src/components/WeakAreaSummary.tsx` (depends on T037, T004)
-- [ ] T039 [US6] Wire `WeakAreaSummary` into the dashboard in `frontend/src/components/DashboardSubjectSection.tsx` (depends on T038)
+- [X] T038 [US6] Create `WeakAreaSummary` component consuming the existing `getRecommendations()` client call with softened, encouraging copy via `getExplanationCopyTier` in `frontend/src/components/WeakAreaSummary.tsx` (depends on T037, T004)
+- [X] T039 [US6] Wire `WeakAreaSummary` into the dashboard in `frontend/src/components/DashboardSubjectSection.tsx` (depends on T038) -- replaces the raw `WeakAreaSection` on the learner's own dashboard specifically; the instructor dashboard's separate usage of `WeakAreaSection` is untouched
 
 **Checkpoint**: All six user stories are independently functional.
 
@@ -178,11 +178,11 @@ This revision fixes four findings from the `/speckit-analyze` pass: (C1) `fronte
 
 **Purpose**: Confirm zero regression and zero constitutional drift across the whole feature.
 
-- [ ] T040 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (FR-017, Constitution Principle III)
-- [ ] T041 [P] Run `alembic check` (or its pytest equivalent), confirm zero migration drift -- this feature ships no migration
-- [ ] T042 Run the full backend regression suite (`uv run pytest`), confirm no regressions against Milestones 1-22
-- [ ] T043 Run the full frontend regression suite (`npm test -- --run`), confirm no regressions
-- [ ] T044 Execute `quickstart.md`'s 6 scenarios against a real dev database and record the results
+- [X] T040 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (FR-017, Constitution Principle III)
+- [X] T041 [P] Run `alembic check` (or its pytest equivalent), confirm zero migration drift -- this feature ships no migration
+- [X] T042 Run the full backend regression suite (`uv run pytest`), confirm no regressions against Milestones 1-22
+- [X] T043 Run the full frontend regression suite (`npm test -- --run`), confirm no regressions
+- [X] T044 Execute `quickstart.md`'s 6 scenarios against a real dev database and record the results
 
 ---
 

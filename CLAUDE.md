@@ -101,7 +101,8 @@ between what's a local ADK sub-agent vs. a remote A2A service.
 
 - Current milestone: **Milestone 23** -- learner-facing explainability
   UI for the Sequencing Agent's question selection and the mastery
-  model (spec written; not yet planned). See
+  model (spec, plan, tasks, and implementation all complete; branch
+  `025-learner-explainability-ui`, not yet merged to `staging`). See
   `specs/025-learner-explainability-ui/spec.md` for full scope, and
   `roadmap.md` for the full milestone-by-milestone history -- Milestones
   1-22 are all shipped.

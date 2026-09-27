@@ -16,7 +16,7 @@ import {
   type TopicPriorityPreview,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
-import WeakAreaSection from "@/components/WeakAreaSection";
+import WeakAreaSummary from "@/components/WeakAreaSummary";
 import PathVisualization from "@/components/PathVisualization";
 import LoadingIndicator from "@/components/LoadingIndicator";
 
@@ -124,7 +124,11 @@ export default function DashboardSubjectSection({
         )}
         {weakAreaPhase === "error" && <CouldntLoad what="weak-area report" />}
         {weakAreaPhase === "loaded" && recommendations && (
-          <WeakAreaSection recommendations={recommendations} />
+          // Spec 025 User Story 6: the learner's own dashboard gets the
+          // softened, encouraging rendering -- WeakAreaSection (raw
+          // percentages/reason codes/misconception detail) remains the
+          // instructor dashboard's own view of the same report.
+          <WeakAreaSummary recommendations={recommendations} />
         )}
       </div>
       <div data-testid="dashboard-path-slot">

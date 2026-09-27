@@ -80,7 +80,7 @@ describe("DashboardSubjectSection failure isolation", () => {
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-weak-area-slot")).toHaveTextContent(/couldn.t load/i),
     );
-    expect(screen.queryByTestId("weak-area-section")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("weak-area-summary")).not.toBeInTheDocument();
   });
 
   it("renders a distinct couldn't-load state for a failed path-visualization fetch while mastery and weak-area still render (FR-008)", async () => {
@@ -93,7 +93,7 @@ describe("DashboardSubjectSection failure isolation", () => {
     );
 
     expect(await screen.findByTestId("mastery-view")).toBeInTheDocument();
-    expect(await screen.findByTestId("weak-area-section")).toBeInTheDocument();
+    expect(await screen.findByTestId("weak-area-summary")).toBeInTheDocument();
 
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-path-slot")).toHaveTextContent(/couldn.t load/i),
