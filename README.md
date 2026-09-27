@@ -56,6 +56,29 @@ afterthought.
 - **Multimodal question stimuli.** Questions can bundle an image for
   context (with required alt text), graded with the exact same
   deterministic logic as a text-only question.
+- **Process-level STEM grading.** Multi-step math/science answers are
+  graded step by step against a per-step rubric, distinguishing "setup
+  was right, arithmetic slip in step 3" from a genuine misconception.
+- **Math and science notation.** A notation toolbar lets a learner enter
+  real fractions, exponents, and chemical-formula subscripts in a
+  free-text or multi-step answer instead of a plain-text approximation.
+- **Grade-banded curriculum and age-adaptive pacing.** Content scopes
+  itself to a learner's grade band, and pacing/UI adapts across the
+  K-12 age range rather than assuming one uniform learner.
+- **Timed practice and quiz mode.** A learner can opt into a bounded,
+  timed session for exam-style practice, with identical scoring to an
+  untimed session and a post-session summary either way.
+- **Tutor Agent answer-shielding.** The conversational Tutor Agent
+  never reveals an answer outright during active practice or
+  assessment, redirecting toward the concept instead.
+- **Fine-tuned misconception classifier, prompt versioning, and
+  semantic caching.** Real graded-answer data trains a classifier that
+  tags *why* an answer was wrong; every prompt change is versioned for
+  regression testing; semantically-equivalent LLM calls are served from
+  cache rather than re-run.
+- **Right-to-erasure for real accounts.** Any real guardian, learner,
+  or instructor can request deletion, executed by a scheduled job that
+  cascades across every table holding their data.
 - **Every decision is logged and explainable.** "Why was I shown this?"
   and "why was this marked wrong?" both have real, traceable answers —
   and every agent call is separately traced (inputs, outputs, latency,
@@ -170,9 +193,10 @@ schedule. Real guardian/learner/instructor accounts are only permitted
 because a dedicated privacy/retention spec (data classification,
 access control) was approved first, per Constitution Principle VIII —
 that gate, not an afterthought, is what real accounts operate under
-today. **Known gap**: a real account's own right-to-erasure path isn't
-implemented yet (a `DeletionRequest` model exists, but nothing executes
-an actual deletion) — see `roadmap.md`'s "Known gap" section.
+today. Every real guardian/learner/instructor account also has a
+working right-to-erasure path (`POST /api/deletion-requests`, executed
+by a scheduled job that cascades the deletion across every real-data
+table) — see `roadmap.md`'s Milestone 18 entry.
 
 ## How this project is built
 

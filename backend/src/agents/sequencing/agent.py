@@ -8,6 +8,7 @@ to the Assessment-Generation Agent, with the near-duplicate check
 (FR-008) run against its output before it's handed back to the caller.
 """
 
+import datetime
 import uuid
 from dataclasses import dataclass, field
 
@@ -38,6 +39,7 @@ from src.services.dedup.checker import (
     is_near_duplicate,
     recent_stems_for_topic,
 )
+from src.services.mastery.decay import effective_mastery_for_review
 from src.services.question_cache.cache import get_or_generate_question
 
 # Selection uses the plain band label including "unknown" -- MasteryBand
@@ -58,6 +60,12 @@ class TopicCandidate:
     topic_id: str
     band: str  # "unknown" | "struggling" | "developing" | "mastered"
     p_mastery: float | None
+    # Decayed value actually used to rank this candidate when it's a
+    # "mastered" topic in the fallback pool (spec 024 FR-003/FR-004/
+    # FR-005); equal to `p_mastery` otherwise. Carried into the audit
+    # payload so a decay-broken tie between two equal raw `p_mastery`
+    # topics is traceable after the fact (Constitution Principle V).
+    effective_p_mastery: float | None
 
 
 @dataclass(frozen=True)
@@ -65,6 +73,7 @@ class NextTopicSelection:
     topic_id: str
     band: str
     p_mastery: float | None
+    effective_p_mastery: float | None
     difficulty: DifficultyBand
     is_fallback: bool
     candidates_considered: list[TopicCandidate] = field(default_factory=list)
@@ -76,6 +85,35 @@ def _sort_key(p_mastery: float | None, order_index: int) -> tuple[float, int]:
     return (-1.0 if p_mastery is None else p_mastery, order_index)
 
 
+def _effective_p_mastery_for_ranking(
+    topic_id: str,
+    *,
+    band_by_topic: dict[str, str],
+    p_mastery_by_topic: dict[str, float | None],
+    updated_at_by_topic: dict[str, datetime.datetime] | None,
+    now: datetime.datetime | None,
+) -> float | None:
+    """Returns the raw `p_mastery` unchanged unless `topic_id` is
+    `"mastered"` and both decay inputs are available for it, in which
+    case it returns the decayed value for ranking purposes only (spec
+    024 FR-003/FR-004/FR-005). A no-op for every topic in the eligible
+    pool by construction, since `_ELIGIBLE_BANDS` never includes
+    `"mastered"` -- no branch needed to keep that pool's ranking
+    untouched (research.md §2)."""
+    p_mastery = p_mastery_by_topic[topic_id]
+    if (
+        band_by_topic[topic_id] != "mastered"
+        or p_mastery is None
+        or updated_at_by_topic is None
+        or now is None
+        or topic_id not in updated_at_by_topic
+    ):
+        return p_mastery
+    return effective_mastery_for_review(
+        p_mastery, updated_at=updated_at_by_topic[topic_id], now=now
+    )
+
+
 def rank_eligible_topics(
     topic_ids_in_order: list[str],
     *,
@@ -84,6 +122,8 @@ def rank_eligible_topics(
     prereqs_by_topic: dict[str, list[str]],
     grade_by_topic: dict[str, int | None] | None = None,
     unlocked_grade: int | None = None,
+    updated_at_by_topic: dict[str, datetime.datetime] | None = None,
+    now: datetime.datetime | None = None,
 ) -> tuple[list[str], bool]:
     """Pure eligibility/ranking rule (data-model.md's Next-topic
     eligibility rule), directly unit-testable with no DB -- mirrors
@@ -103,6 +143,14 @@ def rank_eligible_topics(
     independently). An ungraded topic (`grade IS NULL`) or an ungraded
     subject (`unlocked_grade is None`) is unaffected, byte-identical to
     before this feature.
+
+    `updated_at_by_topic`/`now` add spec 024's mastery decay: when both
+    are supplied, a `"mastered"` topic's effective mastery for ranking
+    purposes decays with elapsed time since its `updated_at` (see
+    `_effective_p_mastery_for_ranking`) -- affecting only the ranking
+    *within* the mastered-fallback pool this function may already fall
+    back to. Omitting either (both default to `None`) reproduces
+    pre-decay behavior exactly.
 
     Returns topic ids ranked lowest-`p_mastery`-first (`unknown` ranked
     ahead of any numeric value), ties broken by `topic_ids_in_order`'s
@@ -136,7 +184,17 @@ def rank_eligible_topics(
         mastered = [t for t in topic_ids_in_order if band_by_topic[t] == "mastered"]
         pool, is_fallback = (mastered or topic_ids_in_order), True
 
-    ranked = sorted(pool, key=lambda t: _sort_key(p_mastery_by_topic[t], order_index_by_topic[t]))
+    def sort_key_for(topic_id: str) -> tuple[float, int]:
+        effective_p_mastery = _effective_p_mastery_for_ranking(
+            topic_id,
+            band_by_topic=band_by_topic,
+            p_mastery_by_topic=p_mastery_by_topic,
+            updated_at_by_topic=updated_at_by_topic,
+            now=now,
+        )
+        return _sort_key(effective_p_mastery, order_index_by_topic[topic_id])
+
+    ranked = sorted(pool, key=sort_key_for)
     return ranked, is_fallback
 
 
@@ -149,6 +207,7 @@ class _TopicRankingContext:
     display_name_by_topic: dict[str, str]
     grade_by_topic: dict[str, int | None]
     unlocked_grade: int | None
+    updated_at_by_topic: dict[str, datetime.datetime]
 
 
 def _load_topic_ranking_context(
@@ -187,6 +246,10 @@ def _load_topic_ranking_context(
         state = mastery_by_topic.get(topic_id)
         return None if state is None else state.p_mastery
 
+    updated_at_by_topic = {
+        topic_id: state.updated_at for topic_id, state in mastery_by_topic.items()
+    }
+
     prereqs_by_topic: dict[str, list[str]] = {topic.topic_id: [] for topic in topics}
     for edge in edges:
         prereqs_by_topic.setdefault(edge.from_topic_id, []).append(edge.to_topic_id)
@@ -199,6 +262,7 @@ def _load_topic_ranking_context(
         display_name_by_topic={t.topic_id: t.display_name for t in topics},
         grade_by_topic={t.topic_id: t.grade for t in topics},
         unlocked_grade=unlocked_grade,
+        updated_at_by_topic=updated_at_by_topic,
     )
 
 
@@ -209,9 +273,24 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
     topic rather than raising (contracts/api.md: next-question is always
     a `200`)."""
     ctx = _load_topic_ranking_context(db, learner_id=learner_id, subject_id=subject_id)
+    now = datetime.datetime.now(datetime.UTC)
+
+    def effective_p_mastery_of(topic_id: str) -> float | None:
+        return _effective_p_mastery_for_ranking(
+            topic_id,
+            band_by_topic=ctx.band_by_topic,
+            p_mastery_by_topic=ctx.p_mastery_by_topic,
+            updated_at_by_topic=ctx.updated_at_by_topic,
+            now=now,
+        )
 
     candidates = [
-        TopicCandidate(topic_id=t, band=ctx.band_by_topic[t], p_mastery=ctx.p_mastery_by_topic[t])
+        TopicCandidate(
+            topic_id=t,
+            band=ctx.band_by_topic[t],
+            p_mastery=ctx.p_mastery_by_topic[t],
+            effective_p_mastery=effective_p_mastery_of(t),
+        )
         for t in ctx.topic_ids_in_order
     ]
 
@@ -222,6 +301,8 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         prereqs_by_topic=ctx.prereqs_by_topic,
         grade_by_topic=ctx.grade_by_topic,
         unlocked_grade=ctx.unlocked_grade,
+        updated_at_by_topic=ctx.updated_at_by_topic,
+        now=now,
     )
     chosen_id = ranked[0]
     chosen_band = ctx.band_by_topic[chosen_id]
@@ -229,6 +310,7 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         topic_id=chosen_id,
         band=chosen_band,
         p_mastery=ctx.p_mastery_by_topic[chosen_id],
+        effective_p_mastery=effective_p_mastery_of(chosen_id),
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
         candidates_considered=candidates,
@@ -261,6 +343,7 @@ def preview_topic_priority(
     row or wrap this in `traced_request()` (research.md §3): this is an
     illustrative dashboard preview, not a real pedagogical decision."""
     ctx = _load_topic_ranking_context(db, learner_id=learner_id, subject_id=subject_id)
+    now = datetime.datetime.now(datetime.UTC)
     ranked, is_fallback = rank_eligible_topics(
         ctx.topic_ids_in_order,
         band_by_topic=ctx.band_by_topic,
@@ -268,6 +351,8 @@ def preview_topic_priority(
         prereqs_by_topic=ctx.prereqs_by_topic,
         grade_by_topic=ctx.grade_by_topic,
         unlocked_grade=ctx.unlocked_grade,
+        updated_at_by_topic=ctx.updated_at_by_topic,
+        now=now,
     )
 
     def to_entry(topic_id: str) -> TopicPreviewEntry:

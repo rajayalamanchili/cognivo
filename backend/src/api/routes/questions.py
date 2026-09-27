@@ -208,12 +208,18 @@ async def generate_and_persist_next_question(
         question_id=question.question_id,
         payload={
             "candidate_topics_considered": [
-                {"topic_id": c.topic_id, "band": c.band, "p_mastery": c.p_mastery}
+                {
+                    "topic_id": c.topic_id,
+                    "band": c.band,
+                    "p_mastery": c.p_mastery,
+                    "effective_p_mastery": c.effective_p_mastery,
+                }
                 for c in result.selection.candidates_considered
             ],
             "chosen_topic": result.selection.topic_id,
             "chosen_topic_band": result.selection.band,
             "chosen_topic_p_mastery": result.selection.p_mastery,
+            "chosen_topic_effective_p_mastery": result.selection.effective_p_mastery,
             "is_fallback": result.selection.is_fallback,
             "served_from_cache": result.cache_outcome.hit,
             "cache_miss_reason": result.cache_outcome.reason,
