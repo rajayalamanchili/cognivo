@@ -1821,8 +1821,61 @@ that activates when no topic is otherwise prerequisite-eligible -- but
 ranks it by raw, never-decaying `p_mastery`, which is precisely the gap
 this feature closes by re-ranking that one existing pool by an
 elapsed-time-aware effective mastery, computed at read time and never
-persisted. `requirements.md` checklist passed on first pass. Not yet
-planned (`/speckit-plan`) or implemented.
+persisted. `requirements.md` checklist passed on first pass.
+`/speckit-plan` complete same day: Constitution Check passed all 10
+principles with no violations; locked decay as a new pure module
+(`backend/src/services/mastery/decay.py`) with fixed global constants
+(`GRACE_PERIOD` = 21 days, `HALF_LIFE` = 45 days, an exponential
+Ebbinghaus-style curve) -- explicit placeholders pending real learner
+data, same rationale as the BKT model's own fixed parameters. No schema
+change, no new API contract, no frontend change (verified directly
+against `sequencing_preview.py`'s response construction, not assumed).
+`/speckit-tasks` complete same day: 13 tasks across Foundational (decay
+primitive, T001-T002), User Story 1 (the actual ranking change,
+T003-T007, the demoable MVP), User Story 2 (T008, a regression-proof
+test only -- zero implementation, since `apply_mastery_update` already
+only reads the raw persisted `p_mastery`), and Polish (T009-T013).
+`/speckit-analyze` found and fixed 6 issues before implementation (0
+CRITICAL/HIGH; 4 MEDIUM, 2 LOW): plan.md/research.md/quickstart.md had
+under-counted the new test files (listed 3, tasks.md's actual breakdown
+needed a 4th once User Story 2 got its own integration test); plan.md
+misattributed a claim to spec.md's Assumptions that spec.md never
+actually stated; the fallback-ranking test task didn't assert FR-005's
+"displayed mastery stays raw" requirement; the ranking test task had no
+case for FR-012's tie-break rule; a task description contained a stray
+personal-memory-system link fragment with no meaning in this repo's
+docs; one task's "reuses a fixture" wording was ambiguous against this
+repo's self-contained-integration-test-file convention. All 6 fixed in
+place before implementation began.
+
+`/speckit-implement` complete (2026-09-27): all 13 tasks done. 4 new
+test files, 0 existing tests modified: `test_mastery_decay.py` (4
+tests, the pure decay primitive), `test_topic_priority_decay.py` (4
+tests, `rank_eligible_topics`'s decayed sort -- including the tie-break
+case F4's fix added), `test_next_topic_decay_fallback.py` (2 tests,
+real-DB proof of the fallback pick, including the FR-005 raw-value
+assertion F3's fix added), `test_decayed_topic_answer_unaffected.py` (1
+test, real-DB proof the BKT update path is untouched). `rank_eligible_
+topics` gained two optional kwargs (`updated_at_by_topic`, `now`,
+both defaulting to `None`) via a small helper, `_effective_p_mastery_
+for_ranking`, that is a no-op for every pool except the mastered
+fallback -- by construction, not a branch, since `_ELIGIBLE_BANDS`
+already excludes `"mastered"`. `_load_topic_ranking_context`,
+`select_next_topic`, and `preview_topic_priority` were the only other
+functions touched, each a small, mechanical wiring change. Full,
+unfiltered regression run: **713 passed, 0 failed** (18m25s) -- the
+pre-existing sequencing/fallback/eligibility test files needed zero
+changes, confirming SC-002's "zero regression" by construction, not
+just by re-running the suite. `alembic check`'s pytest equivalent
+(`test_schema_drift_check.py::test_no_drift_against_current_models`)
+and `check_no_subject_conditionals.py` both passed clean. Quickstart.md's
+two scenarios verified manually against a real dev database through
+the actual HTTP route layer (a throwaway `TestClient`-based script, run
+once and deleted, never committed): the fallback correctly picked the
+backdated topic with its displayed `p_mastery` still raw (0.8, not
+decayed), and answering it produced a normal BKT posterior
+(`0.9415...`) from that same raw prior. Not yet merged to `staging` --
+PR not yet opened.
 
 **Scope**: Let a mastered topic's *review priority* (not its band, not
 its dashboard-visible score) decay the longer it goes without practice,
@@ -1834,16 +1887,16 @@ selection pathway -- a learner who still has prerequisite-eligible
 topics in normal curriculum progression never sees a decay-driven
 review question under this feature.
 
-**Definition of done** (draft, to be formalized further at
-`/speckit-plan`):
-- All acceptance scenarios in `specs/024-mastery-decay/spec.md` pass.
-- Zero change to any mastery, dashboard, or recommendation-agent
-  behavior outside the Sequencing Agent's mastered-topic fallback
-  ranking -- verified by the full existing regression suite passing
-  unchanged.
-- A decayed topic's answer updates mastery through the exact same,
-  unmodified BKT update path as any other answer -- no new special
-  case.
+**Definition of done**: All 4 of spec.md's Success Criteria verified.
+SC-001 (older mastered topic always wins the fallback) --
+`test_next_topic_decay_fallback.py`, tested, plus the manual quickstart
+run above. SC-002 (zero regression) -- 713/713 backend, and the
+pre-existing sequencing/fallback/eligibility tests needed no edits at
+all. SC-003 (decayed-topic answer uses the unmodified BKT path) --
+`test_decayed_topic_answer_unaffected.py`. SC-004 (reproducible
+selection) -- asserted directly in `test_next_topic_decay_fallback.py`
+and `test_mastery_decay.py`'s determinism check. Milestone 22 is
+implemented, all tests green, not yet PR'd or merged to `staging`.
 
 **Explicitly not included**: any change to mastery band classification
 shown on the learner dashboard or the Recommendation Agent's weak-area
