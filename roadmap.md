@@ -1722,7 +1722,8 @@ timer.
 
 **Spec**: `specs/023-stem-notation/spec.md`.
 **Status**: `/speckit-implement` complete (2026-09-25, branch
-`033-stem-notation`), PR #86 open against `staging`, not yet merged.
+`033-stem-notation`), merged to `staging` via PR #86 and promoted to
+`main` via PR #87 (both 2026-09-25) -- milestone fully shipped.
 `/speckit-specify` was corrected twice during its own follow-on phases
 rather than needing a separate `/speckit-clarify` pass: `/speckit-plan`
 research found free-text/multi-step grading is already an LLM judgment
@@ -1772,7 +1773,8 @@ inputs. SC-004 (question-generation validation accepts notated rubric
 criteria with no new failure mode) --
 `test_notation_rubric_validation.py`, backed by reading
 `_validate_draft`'s actual content-blind validation logic. Milestone 21
-is implemented and PR'd, not yet merged to `staging`.
+is fully shipped and merged to both `staging` and `main` as of
+2026-09-25.
 
 **Scope**: Let a learner insert fractions, exponents/superscripts, and
 chemical-formula subscripts into a free-text or multi-step answer,
@@ -1791,6 +1793,123 @@ comparison mechanism was needed or added; a learner answer-history view
 or instructor per-answer review view -- neither exists in the product
 today, and building one is a distinct, larger feature (see spec 023's
 Assumptions).
+
+---
+
+## Milestone 22: Spaced Repetition / Mastery Decay for Foundational Topics
+
+**Spec**: `specs/024-mastery-decay/spec.md`.
+**Status**: `/speckit-specify` complete (2026-09-27, branch
+`035-spaced-repetition-mastery-decay`, created from `origin/staging`).
+Three genuinely open product decisions were resolved directly with the
+user before drafting rather than left as `[NEEDS CLARIFICATION]`
+markers, since each meaningfully changed scope: (1) decay's blast
+radius -- resolved to affect only the Sequencing Agent's existing
+mastered-topic review-fallback ranking, never the mastery band shown on
+the dashboard, the Recommendation Agent's weak-area report, or
+prerequisite gating; (2) decay coverage -- resolved to apply uniformly
+to every topic with a `MasteryState`, not restricted to prerequisite-
+free topics despite the "foundational topics" framing in the original
+backlog entry; (3) a grace period before decay begins -- resolved to
+exist, rather than decaying from the moment a topic is mastered.
+Grounded directly in the existing code rather than guessing: Milestone
+1's BKT mastery model (`backend/src/services/mastery/bkt.py`) is a
+pure, fixed-global-parameter function with no notion of elapsed time,
+and the Sequencing Agent (`backend/src/agents/sequencing/agent.py`'s
+`rank_eligible_topics`) already has a mastered-topic review fallback
+that activates when no topic is otherwise prerequisite-eligible -- but
+ranks it by raw, never-decaying `p_mastery`, which is precisely the gap
+this feature closes by re-ranking that one existing pool by an
+elapsed-time-aware effective mastery, computed at read time and never
+persisted. `requirements.md` checklist passed on first pass.
+`/speckit-plan` complete same day: Constitution Check passed all 10
+principles with no violations; locked decay as a new pure module
+(`backend/src/services/mastery/decay.py`) with fixed global constants
+(`GRACE_PERIOD` = 21 days, `HALF_LIFE` = 45 days, an exponential
+Ebbinghaus-style curve) -- explicit placeholders pending real learner
+data, same rationale as the BKT model's own fixed parameters. No schema
+change, no new API contract, no frontend change (verified directly
+against `sequencing_preview.py`'s response construction, not assumed).
+`/speckit-tasks` complete same day: 13 tasks across Foundational (decay
+primitive, T001-T002), User Story 1 (the actual ranking change,
+T003-T007, the demoable MVP), User Story 2 (T008, a regression-proof
+test only -- zero implementation, since `apply_mastery_update` already
+only reads the raw persisted `p_mastery`), and Polish (T009-T013).
+`/speckit-analyze` found and fixed 6 issues before implementation (0
+CRITICAL/HIGH; 4 MEDIUM, 2 LOW): plan.md/research.md/quickstart.md had
+under-counted the new test files (listed 3, tasks.md's actual breakdown
+needed a 4th once User Story 2 got its own integration test); plan.md
+misattributed a claim to spec.md's Assumptions that spec.md never
+actually stated; the fallback-ranking test task didn't assert FR-005's
+"displayed mastery stays raw" requirement; the ranking test task had no
+case for FR-012's tie-break rule; a task description contained a stray
+personal-memory-system link fragment with no meaning in this repo's
+docs; one task's "reuses a fixture" wording was ambiguous against this
+repo's self-contained-integration-test-file convention. All 6 fixed in
+place before implementation began.
+
+`/speckit-implement` complete (2026-09-27): all 13 tasks done. 4 new
+test files, 0 existing tests modified: `test_mastery_decay.py` (4
+tests, the pure decay primitive), `test_topic_priority_decay.py` (4
+tests, `rank_eligible_topics`'s decayed sort -- including the tie-break
+case F4's fix added), `test_next_topic_decay_fallback.py` (2 tests,
+real-DB proof of the fallback pick, including the FR-005 raw-value
+assertion F3's fix added), `test_decayed_topic_answer_unaffected.py` (1
+test, real-DB proof the BKT update path is untouched). `rank_eligible_
+topics` gained two optional kwargs (`updated_at_by_topic`, `now`,
+both defaulting to `None`) via a small helper, `_effective_p_mastery_
+for_ranking`, that is a no-op for every pool except the mastered
+fallback -- by construction, not a branch, since `_ELIGIBLE_BANDS`
+already excludes `"mastered"`. `_load_topic_ranking_context`,
+`select_next_topic`, and `preview_topic_priority` were the only other
+functions touched, each a small, mechanical wiring change. Full,
+unfiltered regression run: **713 passed, 0 failed** (18m25s) -- the
+pre-existing sequencing/fallback/eligibility test files needed zero
+changes, confirming SC-002's "zero regression" by construction, not
+just by re-running the suite. `alembic check`'s pytest equivalent
+(`test_schema_drift_check.py::test_no_drift_against_current_models`)
+and `check_no_subject_conditionals.py` both passed clean. Quickstart.md's
+two scenarios verified manually against a real dev database through
+the actual HTTP route layer (a throwaway `TestClient`-based script, run
+once and deleted, never committed): the fallback correctly picked the
+backdated topic with its displayed `p_mastery` still raw (0.8, not
+decayed), and answering it produced a normal BKT posterior
+(`0.9415...`) from that same raw prior. PR #88 open against `staging`,
+not yet merged. Review flagged a Principle V audit-trail gap (decayed
+`p_mastery` was computed for ranking but discarded before the
+`NEXT_TOPIC_SELECTED` audit write); fixed in commit `5ef6325` by
+carrying `effective_p_mastery` through `TopicCandidate`/
+`NextTopicSelection` into both audit-write sites.
+
+**Scope**: Let a mastered topic's *review priority* (not its band, not
+its dashboard-visible score) decay the longer it goes without practice,
+so the Sequencing Agent's existing mastered-topic fallback resurfaces
+the most time-decayed mastered topic first rather than treating every
+mastered topic as equally safe forever. Deliberately reuses the
+existing fallback pool rather than introducing a new scheduler or
+selection pathway -- a learner who still has prerequisite-eligible
+topics in normal curriculum progression never sees a decay-driven
+review question under this feature.
+
+**Definition of done**: All 4 of spec.md's Success Criteria verified.
+SC-001 (older mastered topic always wins the fallback) --
+`test_next_topic_decay_fallback.py`, tested, plus the manual quickstart
+run above. SC-002 (zero regression) -- 713/713 backend, and the
+pre-existing sequencing/fallback/eligibility tests needed no edits at
+all. SC-003 (decayed-topic answer uses the unmodified BKT path) --
+`test_decayed_topic_answer_unaffected.py`. SC-004 (reproducible
+selection) -- asserted directly in `test_next_topic_decay_fallback.py`
+and `test_mastery_decay.py`'s determinism check. Milestone 22 is
+implemented, all tests green (713/713), PR #88 open, not yet merged to
+`staging`.
+
+**Explicitly not included**: any change to mastery band classification
+shown on the learner dashboard or the Recommendation Agent's weak-area
+report; any new selection pathway that preempts a learner's normal,
+still-eligible curriculum progression; per-topic or per-learner-tuned
+decay parameters (fixed global constants only, matching the BKT
+model's own precedent, absent real learner data to fit against);
+restricting decay to only prerequisite-free topics.
 
 ---
 
@@ -1886,13 +2005,17 @@ Assumptions).
   frontend-only notation toolbar; derivatives/calculus notation
   deliberately deferred until a subject that needs them exists, per
   spec 023's Assumptions.)
-- Spaced repetition / mastery decay for foundational topics. Raised
-  2026-09-14. The mastery model (Milestone 1) has no notion of
-  forgetting -- a topic marked "mastered" once stays mastered forever,
-  which understates real risk for subjects as cumulative as STEM
-  (algebra assumes arithmetic fluency retained years later). Would need
-  its own spec on how/when a mastered topic gets resurfaced and whether
-  that's a Sequencing Agent change or a distinct scheduler.
+- ~~Spaced repetition / mastery decay for foundational topics~~ --
+  promoted to Milestone 22 (2026-09-27), see that entry above this
+  section. This bullet is kept, struck through, for the same reason
+  the "Process-level (step-by-step) STEM grading" bullet above was
+  left in place when Milestone 16 shipped it: an honest record that
+  this started life here, not a retroactively-tidied history.
+  (Original entry: raised 2026-09-14. The mastery model
+  (Milestone 1) has no notion of forgetting -- a topic marked
+  "mastered" once stays mastered forever, which understates real risk
+  for subjects as cumulative as STEM (algebra assumes arithmetic
+  fluency retained years later).)
 - Interactive, manipulable simulations (e.g. a slider that changes a
   graph or a pendulum in real time) -- distinct from, and a strict step
   up from, Milestone 10's static image stimuli, which display an image

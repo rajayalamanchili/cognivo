@@ -131,12 +131,14 @@ def record_topic_selection_event(
                     "topic_id": candidate.topic_id,
                     "band": candidate.band,
                     "p_mastery": candidate.p_mastery,
+                    "effective_p_mastery": candidate.effective_p_mastery,
                 }
                 for candidate in selection.candidates_considered
             ],
             "chosen_topic": selection.topic_id,
             "chosen_topic_band": selection.band,
             "chosen_topic_p_mastery": selection.p_mastery,
+            "chosen_topic_effective_p_mastery": selection.effective_p_mastery,
             "is_fallback": selection.is_fallback,
         },
     )
