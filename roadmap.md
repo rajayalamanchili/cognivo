@@ -1874,8 +1874,12 @@ the actual HTTP route layer (a throwaway `TestClient`-based script, run
 once and deleted, never committed): the fallback correctly picked the
 backdated topic with its displayed `p_mastery` still raw (0.8, not
 decayed), and answering it produced a normal BKT posterior
-(`0.9415...`) from that same raw prior. Not yet merged to `staging` --
-PR not yet opened.
+(`0.9415...`) from that same raw prior. PR #88 open against `staging`,
+not yet merged. Review flagged a Principle V audit-trail gap (decayed
+`p_mastery` was computed for ranking but discarded before the
+`NEXT_TOPIC_SELECTED` audit write); fixed in commit `5ef6325` by
+carrying `effective_p_mastery` through `TopicCandidate`/
+`NextTopicSelection` into both audit-write sites.
 
 **Scope**: Let a mastered topic's *review priority* (not its band, not
 its dashboard-visible score) decay the longer it goes without practice,
@@ -1896,7 +1900,8 @@ all. SC-003 (decayed-topic answer uses the unmodified BKT path) --
 `test_decayed_topic_answer_unaffected.py`. SC-004 (reproducible
 selection) -- asserted directly in `test_next_topic_decay_fallback.py`
 and `test_mastery_decay.py`'s determinism check. Milestone 22 is
-implemented, all tests green, not yet PR'd or merged to `staging`.
+implemented, all tests green (713/713), PR #88 open, not yet merged to
+`staging`.
 
 **Explicitly not included**: any change to mastery band classification
 shown on the learner dashboard or the Recommendation Agent's weak-area
