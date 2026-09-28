@@ -110,13 +110,13 @@ def test_cancellation_leaves_completed_attempt_mastery_untouched(client, roster,
     cancel = client.delete(f"/api/rosters/{roster_id}/assignments/{assignment['assignment_id']}")
     assert cancel.status_code == 204, cancel.text
 
+    client.post("/api/auth/logout")
+    _login_guardian(client, "assign-cancel-guardian-a@example.com")
     mastery_after = client.get(
         f"/api/learners/{learner_id}/mastery-state?subject_id={algebra_subject.subject_id}"
     ).json()
     assert mastery_after == mastery_before
 
-    client.post("/api/auth/logout")
-    _login_guardian(client, "assign-cancel-guardian-a@example.com")
     entry = _assignment_entry(
         client, learner_id=learner_id, assignment_id=assignment["assignment_id"]
     )

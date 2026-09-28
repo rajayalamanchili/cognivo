@@ -25,6 +25,11 @@ from src.models.enums import AssessmentEventType
 from src.models.learner_profile import LearnerProfile
 from src.models.subject import Subject
 from src.services.audit_log.writer import record_event
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
 
 router = APIRouter()
 
@@ -138,8 +143,12 @@ def recommendations_response_from_report(report: WeakAreaReport) -> Recommendati
 
 @router.get("/api/learners/{learner_id}/recommendations", response_model=RecommendationsResponse)
 def get_recommendations(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+    learner_id: uuid.UUID,
+    subject_id: str,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> RecommendationsResponse:
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     _get_validated_subject(db, subject_id)
     if db.get(LearnerProfile, learner_id) is None:
         # spec 020 Acceptance Scenario 2: a deleted/nonexistent learner

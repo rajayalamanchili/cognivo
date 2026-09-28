@@ -10,12 +10,15 @@ domain error and letting `main.py`'s exception handlers own the actual
 status-code mapping.
 """
 
+import uuid
+
 from fastapi import Cookie, Depends
 from sqlalchemy.orm import Session
 
-from src.api.errors import AuthenticationError
+from src.api.errors import AuthenticationError, ForbiddenError
 from src.db import get_db
 from src.models.demo_instructor_profile import DemoInstructorProfile
+from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.services.auth.tokens import SESSION_COOKIE_NAME, SessionClaims, verify_token
@@ -69,6 +72,34 @@ def current_guardian(
     if guardian is None:
         raise AuthenticationError("guardian_account_not_found")
     return guardian
+
+
+def require_learner_ownership_if_real(
+    db: Session, *, learner_id: uuid.UUID, claims: SessionClaims | None
+) -> None:
+    """Closes the learner_id-enumeration gap on read-only learner-scoped
+    GET routes (`mastery.py`, `mastery_history.py`, `recommendation.py`,
+    `sequencing_preview.py`, `questions.py`'s `next-question`): a real,
+    non-demo learner's data requires a guardian session that owns it.
+
+    Deliberately a no-op for a nonexistent or demo `learner_id` -- each
+    of those routes already has its own tested contract for "this id
+    doesn't identify a real, someone-else's learner" (e.g. `mastery.py`
+    degrading to an empty response for a deleted learner vs.
+    `recommendation.py`'s 404), which this must not disturb. Unlike
+    `tutor.py`'s `_authorize_learner`, this does not collapse a
+    nonexistent id into the same 403 -- these routes' existing
+    not-found/degrade behavior for that case predates this check and is
+    covered by other tests."""
+    learner = db.get(LearnerProfile, learner_id)
+    if learner is None or learner.is_demo:
+        return
+    if (
+        claims is None
+        or claims.account_type != "guardian"
+        or learner.guardian_id != claims.account_id
+    ):
+        raise ForbiddenError("not_your_learner")
 
 
 def current_instructor(

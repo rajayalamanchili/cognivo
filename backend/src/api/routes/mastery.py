@@ -13,6 +13,11 @@ from src.db import get_db
 from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
 from src.models.topic import Topic
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
 from src.services.mastery.decay import effective_mastery_for_review
 from src.services.mediation.grade import resolve_unlocked_grade
 
@@ -42,8 +47,12 @@ class MasteryStateResponse(BaseModel):
 
 @router.get("/api/learners/{learner_id}/mastery-state", response_model=MasteryStateResponse)
 def get_mastery_state(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+    learner_id: uuid.UUID,
+    subject_id: str,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> MasteryStateResponse:
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     subject = db.get(Subject, subject_id)
     if subject is None:
         raise NotFoundError(f"unknown subject_id: {subject_id!r}")

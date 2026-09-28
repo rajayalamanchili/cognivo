@@ -20,6 +20,11 @@ from src.agents.sequencing.agent import preview_topic_priority
 from src.api.errors import NotFoundError
 from src.db import get_db
 from src.models.subject import Subject
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
 
 router = APIRouter()
 
@@ -50,8 +55,12 @@ class TopicPriorityPreviewOut(BaseModel):
     response_model=TopicPriorityPreviewOut,
 )
 def get_topic_priority_preview(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+    learner_id: uuid.UUID,
+    subject_id: str,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> TopicPriorityPreviewOut:
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     _get_validated_subject(db, subject_id)
 
     preview = preview_topic_priority(db, learner_id=learner_id, subject_id=subject_id)
