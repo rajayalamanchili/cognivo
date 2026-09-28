@@ -674,7 +674,11 @@ async def answer_question(
         "band": result.posterior_band.value,
         # Spec 025 FR-011: derived once from this answer's own before/after
         # bands, never recomputed or re-shown from later persisted state.
-        "refreshed": refreshed_from_bands(result.prior_band, result.posterior_band),
+        "refreshed": refreshed_from_bands(
+            result.prior_band,
+            result.posterior_band,
+            had_been_mastered_before=result.had_been_mastered_before,
+        ),
     }
     if grading_result is not None:
         answer_body.update(

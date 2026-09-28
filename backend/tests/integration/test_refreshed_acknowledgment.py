@@ -62,10 +62,15 @@ def test_refreshed_true_only_on_below_to_above_mastered_crossing(
         return _answer(client, question_id, correct=correct)
 
     # Drive the topic up to mastered (3 correct crosses the 0.7 + 2-streak bar).
+    # This is a *first-ever* mastery, not a decay recovery -- there was no
+    # prior MasteryState row at all, so `refreshed` must be False here
+    # (PR #90 review: `prior_band` defaulting to STRUGGLING with no prior
+    # state must not be mistaken for "was below mastered, now above it").
     result = None
     for _ in range(3):
         result = answer(correct=True)
     assert result["band"] == "mastered"
+    assert result["refreshed"] is False
 
     # Re-answering an already-mastered topic: nothing to recover.
     reanswer = answer(correct=True)

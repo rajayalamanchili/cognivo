@@ -457,7 +457,11 @@ async def submit_placement(
                     prior_p_mastery=result.prior_p_mastery,
                     posterior_p_mastery=result.posterior_p_mastery,
                     band=result.posterior_band.value,
-                    refreshed=refreshed_from_bands(result.prior_band, result.posterior_band),
+                    refreshed=refreshed_from_bands(
+                        result.prior_band,
+                        result.posterior_band,
+                        had_been_mastered_before=result.had_been_mastered_before,
+                    ),
                 )
             )
 

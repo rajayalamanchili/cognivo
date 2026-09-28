@@ -35,18 +35,38 @@ class MasteryUpdateResult:
     # no prior state can never already be "mastered", so this is never a false negative for
     # refreshed_from_bands below.
     posterior_band: MasteryBand
+    # Spec 025 FR-011 (PR #90 review): whether this topic had ever reached
+    # `mastered` *before* this update -- read from the sticky
+    # `MasteryState.has_been_mastered` column prior to this update's own
+    # write. Distinguishes genuine decay/wrong-answer recovery from a
+    # topic reaching `mastered` for the very first time, which
+    # `prior_band != MASTERED` alone can't do (every first-time mastery
+    # necessarily starts from a non-mastered prior band too).
+    had_been_mastered_before: bool
     update_count: int
     bkt_params_used: dict[str, float]
     grade_unlocked: int | None = None  # non-null only on the update that unlocks a next grade
 
 
-def refreshed_from_bands(prior_band: MasteryBand, posterior_band: MasteryBand) -> bool:
+def refreshed_from_bands(
+    prior_band: MasteryBand, posterior_band: MasteryBand, *, had_been_mastered_before: bool
+) -> bool:
     """Spec 025 FR-011: a topic is "refreshed" exactly when one answer's
-    grading crosses it from below the mastered band to above it. Reuses
-    `MasteryBand`'s own compound "mastered" condition (score + confirmation
-    streak, `mastery_band_for`) via `.band`, rather than re-deriving a
-    simpler -- and subtly wrong -- `p_mastery` threshold check here
-    (research.md §5)."""
+    grading crosses it from below the mastered band to above it, *and*
+    the topic had reached mastered at some earlier point already --
+    reusing `MasteryBand`'s own compound "mastered" condition (score +
+    confirmation streak, `mastery_band_for`) via `.band`, rather than
+    re-deriving a simpler -- and subtly wrong -- `p_mastery` threshold
+    check here (research.md §5).
+
+    `had_been_mastered_before` must be `False` for a topic reaching
+    `mastered` for the very first time -- without this guard, ordinary
+    first-time mastery (which, like genuine recovery, also crosses from
+    a non-mastered `prior_band` to `MASTERED`) would be misreported as
+    "refreshed", even though there was nothing to recover (PR #90
+    review)."""
+    if not had_been_mastered_before:
+        return False
     return prior_band != MasteryBand.MASTERED and posterior_band == MasteryBand.MASTERED
 
 
@@ -67,11 +87,13 @@ def apply_mastery_update(
     existing = db.get(MasteryState, (learner_id, subject_id, topic_id))
 
     prior_observation: MasteryObservation | None = None
+    had_been_mastered_before = False
     if existing is not None:
         prior_observation = MasteryObservation(
             p_mastery=existing.p_mastery,
             consecutive_mastered_observations=existing.consecutive_mastered_observations,
         )
+        had_been_mastered_before = existing.has_been_mastered
 
     posterior = apply_bkt_update(prior_observation, correct=correct, question_type=question_type)
 
@@ -83,12 +105,18 @@ def apply_mastery_update(
             p_mastery=posterior.p_mastery,
             update_count=1,
             consecutive_mastered_observations=posterior.consecutive_mastered_observations,
+            has_been_mastered=posterior.band == MasteryBand.MASTERED,
         )
         db.add(existing)
     else:
         existing.p_mastery = posterior.p_mastery
         existing.update_count += 1
         existing.consecutive_mastered_observations = posterior.consecutive_mastered_observations
+        # Sticky -- never reset once True (data-model.md's decay/upkeep
+        # framing: reaching mastered once is never taken away).
+        existing.has_been_mastered = (
+            had_been_mastered_before or posterior.band == MasteryBand.MASTERED
+        )
 
     db.flush()
 
@@ -105,6 +133,7 @@ def apply_mastery_update(
         posterior_p_mastery=posterior.p_mastery,
         prior_band=prior_observation.band if prior_observation else MasteryBand.STRUGGLING,
         posterior_band=posterior.band,
+        had_been_mastered_before=had_been_mastered_before,
         update_count=existing.update_count,
         bkt_params_used={
             "p_l0": P_L0,

@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Integer, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -37,6 +37,12 @@ class MasteryState(Base):
     consecutive_mastered_observations: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0
     )
+    # Spec 025 FR-011 (PR #90 review): sticky, never reset once True --
+    # distinguishes a genuine decay/wrong-answer recovery ("refreshed")
+    # from a topic reaching `mastered` for the very first time, which
+    # `band` alone can't do (band is deliberately not persisted history,
+    # see the docstring above).
+    has_been_mastered: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     @property
     def band(self) -> MasteryBand:
