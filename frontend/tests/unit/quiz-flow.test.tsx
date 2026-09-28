@@ -45,6 +45,7 @@ async function renderAndStartQuiz() {
     subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
   });
   vi.mocked(api.getMasteryState).mockResolvedValue({
+    unlocked_grade: null,
     topics: [
       {
         topic_id: "linear-equations",
@@ -84,6 +85,7 @@ describe("QuizFlow", () => {
       subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
+      unlocked_grade: null,
       topics: [
         {
           topic_id: "linear-equations",
@@ -218,6 +220,7 @@ describe("QuizFlow", () => {
       subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
+      unlocked_grade: null,
       topics: [
         {
           topic_id: "linear-equations",
@@ -299,6 +302,7 @@ describe("QuizFlow", () => {
       subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
+      unlocked_grade: null,
       topics: [
         {
           topic_id: "linear-equations",

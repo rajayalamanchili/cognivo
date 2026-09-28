@@ -303,7 +303,11 @@ export default function QuizFlow() {
   if (phase === "finished" && summary) {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-        <QuizSummary summary={summary} refreshedTopicIds={[...refreshedTopicIds]} />
+        <QuizSummary
+          summary={summary}
+          refreshedTopicIds={[...refreshedTopicIds]}
+          unlockedGrade={currentQuestion?.unlocked_grade ?? null}
+        />
       </div>
     );
   }

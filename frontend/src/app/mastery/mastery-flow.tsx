@@ -23,6 +23,7 @@ export default function MasteryFlow() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [learnerId, setLearnerId] = useState<string | null>(null);
   const [topics, setTopics] = useState<MasteryTopicEntry[]>([]);
+  const [unlockedGrade, setUnlockedGrade] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Spec 025 FR-012: fetched on demand per topic, not eagerly for every
@@ -41,6 +42,7 @@ export default function MasteryFlow() {
       .then((result) => {
         if (cancelled || result === null) return;
         setTopics(result.topics);
+        setUnlockedGrade(result.unlocked_grade);
         setPhase("loaded");
       })
       .catch((error: unknown) => {
@@ -89,7 +91,7 @@ export default function MasteryFlow() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
       <h1 className="text-2xl font-semibold">Your Mastery</h1>
-      <MasteryView topics={topics} />
+      <MasteryView topics={topics} unlockedGrade={unlockedGrade} />
       {scoredTopics.length > 0 && (
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-1 text-sm font-medium">

@@ -24,6 +24,7 @@ vi.mock("@/services/api", async () => {
 });
 
 const scoredMasteryState = {
+  unlocked_grade: null,
   topics: [
     {
       topic_id: "fractions",

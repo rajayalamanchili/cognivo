@@ -31,6 +31,7 @@ type MasteryViewEntry = MasteryStateEntry & {
 
 export interface MasteryViewProps {
   topics: MasteryViewEntry[];
+  unlockedGrade?: number | null;
 }
 
 function elapsedDays(lastUpdatedAt: string): number {
@@ -61,7 +62,7 @@ function warmthClass(days: number): string {
   return WARMTH_TIERS.find((tier) => days <= tier.maxDays)?.className ?? "text-muted";
 }
 
-export default function MasteryView({ topics }: MasteryViewProps) {
+export default function MasteryView({ topics, unlockedGrade = null }: MasteryViewProps) {
   return (
     <ul className="flex flex-col gap-2" data-testid="mastery-view">
       {topics.map((topic) => (
@@ -83,7 +84,7 @@ export default function MasteryView({ topics }: MasteryViewProps) {
                 >
                   {BAND_LABEL[topic.band]}
                 </span>
-                <MasteryFigures topic={topic} />
+                <MasteryFigures topic={topic} unlockedGrade={unlockedGrade} />
               </span>
             )}
           </div>
@@ -98,7 +99,13 @@ export default function MasteryView({ topics }: MasteryViewProps) {
   );
 }
 
-function MasteryFigures({ topic }: { topic: MasteryViewEntry }) {
+function MasteryFigures({
+  topic,
+  unlockedGrade,
+}: {
+  topic: MasteryViewEntry;
+  unlockedGrade: number | null;
+}) {
   if (topic.p_mastery === null) return null;
   const peak = Math.round(topic.p_mastery * 100);
   const effective =
@@ -108,7 +115,7 @@ function MasteryFigures({ topic }: { topic: MasteryViewEntry }) {
     return <span className="text-sm text-muted">{peak}%</span>;
   }
 
-  const tier = getExplanationCopyTier(null);
+  const tier = getExplanationCopyTier(unlockedGrade);
   return (
     <span className="flex flex-col items-end text-sm text-muted" title={tier.recoveryFraming}>
       <span>{effective}% (peak {peak}%)</span>

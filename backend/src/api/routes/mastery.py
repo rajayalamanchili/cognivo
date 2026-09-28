@@ -14,6 +14,7 @@ from src.models.mastery_state import MasteryState
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.services.mastery.decay import effective_mastery_for_review
+from src.services.mediation.grade import resolve_unlocked_grade
 
 router = APIRouter()
 
@@ -32,6 +33,11 @@ class MasteryTopicOut(BaseModel):
 
 class MasteryStateResponse(BaseModel):
     topics: list[MasteryTopicOut]
+    # Spec 025 FR-016: lets the frontend route explanation copy through
+    # the same age-adaptive tier as the rest of the explainability UI
+    # (`getExplanationCopyTier`) instead of always falling back to the
+    # ungraded/default tier.
+    unlocked_grade: int | None = None
 
 
 @router.get("/api/learners/{learner_id}/mastery-state", response_model=MasteryStateResponse)
@@ -72,4 +78,7 @@ def get_mastery_state(
                 )
             )
 
-    return MasteryStateResponse(topics=topics_out)
+    return MasteryStateResponse(
+        topics=topics_out,
+        unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+    )

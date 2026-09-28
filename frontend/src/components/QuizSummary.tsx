@@ -2,6 +2,7 @@ import type { Difficulty, QuizSummaryResponse } from "@/services/api";
 import { formatTopicId } from "@/lib/format-topic-id";
 import SessionTimingSummary from "@/components/SessionTimingSummary";
 import AnswerResultView from "@/components/AnswerResultView";
+import { getExplanationCopyTier } from "@/lib/explainabilityCopy";
 
 // Presentational only -- FR-005's score + per-topic/difficulty summary,
 // rendered identically whether the quiz reached a normal `completed`
@@ -25,9 +26,15 @@ export interface QuizSummaryProps {
   // ephemeral session-local state by the caller as the quiz progressed
   // -- never recomputed here, never persisted.
   refreshedTopicIds?: string[];
+  unlockedGrade?: number | null;
 }
 
-export default function QuizSummary({ summary, refreshedTopicIds = [] }: QuizSummaryProps) {
+export default function QuizSummary({
+  summary,
+  refreshedTopicIds = [],
+  unlockedGrade = null,
+}: QuizSummaryProps) {
+  const tier = getExplanationCopyTier(unlockedGrade);
   const heading =
     summary.status === "in_progress" ? "Quiz in progress" : STATUS_LABEL[summary.status];
 
@@ -63,7 +70,7 @@ export default function QuizSummary({ summary, refreshedTopicIds = [] }: QuizSum
           data-testid="quiz-refreshed-topics"
           className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
         >
-          Nice -- you&apos;ve brought {refreshedTopicIds.map(formatTopicId).join(", ")} back up.
+          {tier.refreshedFraming} ({refreshedTopicIds.map(formatTopicId).join(", ")})
         </p>
       )}
       {summary.per_question_results != null && summary.per_question_results.length > 0 && (

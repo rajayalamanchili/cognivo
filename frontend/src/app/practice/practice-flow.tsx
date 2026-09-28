@@ -309,7 +309,7 @@ export default function PracticeFlow() {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
         <AnswerResultView result={result} />
-        <RefreshedBanner refreshed={result.refreshed} />
+        <RefreshedBanner refreshed={result.refreshed} unlockedGrade={question?.unlocked_grade ?? null} />
         <div className="flex items-center gap-4">
           <button
             type="button"

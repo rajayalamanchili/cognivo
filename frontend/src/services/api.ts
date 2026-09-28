@@ -53,6 +53,9 @@ export interface MasteryTopicEntry extends MasteryStateEntry {
 
 export interface MasteryStateResponse {
   topics: MasteryTopicEntry[];
+  // spec 025 FR-016 -- lets callers route explanation copy through the
+  // same age-adaptive tier as the rest of the explainability UI.
+  unlocked_grade: number | null;
 }
 
 // Spec 025 User Story 5, FR-012.

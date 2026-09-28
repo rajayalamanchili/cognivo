@@ -285,7 +285,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   if (phase === "finished" && summary) {
     return (
       <div className="flex flex-col gap-6" data-testid="learner-assignment-attempt">
-        <QuizSummary summary={summary} refreshedTopicIds={[...refreshedTopicIds]} />
+        <QuizSummary
+          summary={summary}
+          refreshedTopicIds={[...refreshedTopicIds]}
+          unlockedGrade={currentQuestion?.unlocked_grade ?? null}
+        />
         <button
           type="button"
           onClick={handleBackToList}
