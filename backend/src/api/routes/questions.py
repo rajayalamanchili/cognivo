@@ -43,7 +43,10 @@ from src.models.topic import Topic
 from src.observability.session import get_database_session_service
 from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
-from src.services.auth.dependencies import optional_session_claims
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
 from src.services.auth.tokens import SessionClaims
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.grading_cache.cache import get_or_grade_answer
@@ -278,8 +281,12 @@ def build_next_question_out(
 
 @router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
 async def get_next_question(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+    learner_id: uuid.UUID,
+    subject_id: str,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> NextQuestionOut:
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     _get_validated_subject(db, subject_id)
 
     if not has_placement_data(db, learner_id=learner_id, subject_id=subject_id):

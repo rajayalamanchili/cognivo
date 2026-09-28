@@ -7,6 +7,11 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.db import get_db
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
 from src.services.mastery.mastery_history import get_mastery_history
 
 router = APIRouter()
@@ -26,8 +31,13 @@ class MasteryHistoryOut(BaseModel):
     response_model=MasteryHistoryOut,
 )
 def get_mastery_history_route(
-    learner_id: uuid.UUID, topic_id: str, subject_id: str, db: Session = Depends(get_db)
+    learner_id: uuid.UUID,
+    topic_id: str,
+    subject_id: str,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> MasteryHistoryOut:
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     points = get_mastery_history(
         db, learner_id=learner_id, subject_id=subject_id, topic_id=topic_id
     )
