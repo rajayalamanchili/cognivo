@@ -36,8 +36,25 @@ export interface MasteryStateEntry {
   band: MasteryBand | null;
 }
 
+// spec 025 FR-009/FR-011: unlike quiz's own per-question results, `band`
+// is populated here -- placement's grading is live, not reconstructed
+// from history, so the reconstructability gap quiz has doesn't apply.
+export interface PlacementQuestionResultEntry {
+  question_id: string;
+  topic_id: string;
+  correct: boolean;
+  criteria_met: string[] | null;
+  criteria_missed: string[] | null;
+  step_results: StepResult[] | null;
+  prior_p_mastery: number | null;
+  posterior_p_mastery: number;
+  band: MasteryBand;
+  refreshed: boolean;
+}
+
 export interface PlacementSubmitResponse {
   mastery_state: MasteryStateEntry[];
+  per_question_results: PlacementQuestionResultEntry[];
 }
 
 export interface SkipPlacementQuestionResponse {
@@ -46,10 +63,26 @@ export interface SkipPlacementQuestionResponse {
 
 export interface MasteryTopicEntry extends MasteryStateEntry {
   last_updated_at: string | null;
+  // spec 025 FR-005/FR-006 -- decay-adjusted mastery; `p_mastery` above
+  // doubles as "peak" mastery in the UI's framing.
+  effective_p_mastery: number | null;
 }
 
 export interface MasteryStateResponse {
   topics: MasteryTopicEntry[];
+  // spec 025 FR-016 -- lets callers route explanation copy through the
+  // same age-adaptive tier as the rest of the explainability UI.
+  unlocked_grade: number | null;
+}
+
+// Spec 025 User Story 5, FR-012.
+export interface MasteryHistoryPoint {
+  recorded_at: string;
+  p_mastery: number;
+}
+
+export interface MasteryHistoryResponse {
+  points: MasteryHistoryPoint[];
 }
 
 export interface DemoLearner {
@@ -141,6 +174,19 @@ export interface NextQuestion {
   // spec 019 FR-009/research.md Decision 6 -- null when the learner has
   // no GradeProgress row for this subject (ungraded, or not yet placed).
   unlocked_grade: number | null;
+  // spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
+  // reason for this pick. Optional, not `| null` like this interface's
+  // other nullable fields -- `NextQuestion` is QuestionCard's shared prop
+  // type across practice, quiz, and placement (`QuestionCard.tsx`), but
+  // only the real `NextQuestionOut` response (practice/timed-practice)
+  // ever carries these; quiz/placement questions never will (research.md
+  // §1 correction), so existing quiz/placement mocks and response
+  // shapes stay valid without adding dead fields to types that
+  // structurally can never have this data.
+  is_fallback?: boolean;
+  p_mastery?: number | null;
+  effective_p_mastery?: number | null;
+  last_practiced_at?: string | null;
 }
 
 // One step's outcome within a `multi_step` submission (spec 018
@@ -158,7 +204,14 @@ export interface AnswerResult {
   topic_id: string;
   prior_p_mastery: number | null;
   posterior_p_mastery: number;
-  band: MasteryBand;
+  // spec 025 FR-011: one-shot, tied to this specific answer's own
+  // response -- never recomputed or re-derived later.
+  refreshed: boolean;
+  // spec 025 User Story 3: optional, not required -- a quiz summary's
+  // reconstructed per-question result (QuizAnswerResult) has no `band`
+  // (not derivable from historical audit events alone), but still
+  // reuses this same AnswerResultView-consuming type.
+  band?: MasteryBand;
   graduated_score: number | null;
   criteria_met: string[] | null;
   criteria_missed: string[] | null;
@@ -216,6 +269,20 @@ export type SessionEndReason =
   | "dedup_exhausted"
   | null;
 
+// Spec 025 User Story 3: per-question grading detail gathered into the
+// end-of-session summary (Clarifications) -- reuses AnswerResult's
+// shape minus `band` (not reconstructable from historical events).
+export interface QuizAnswerResultEntry {
+  question_id: string;
+  topic_id: string;
+  correct: boolean;
+  criteria_met: string[] | null;
+  criteria_missed: string[] | null;
+  step_results: StepResult[] | null;
+  prior_p_mastery: number | null;
+  posterior_p_mastery: number;
+}
+
 export interface QuizSummaryResponse {
   quiz_session_id: string;
   subject_id: string;
@@ -229,6 +296,7 @@ export interface QuizSummaryResponse {
   time_limit_seconds?: number | null;
   elapsed_seconds?: number | null;
   end_reason?: SessionEndReason;
+  per_question_results?: QuizAnswerResultEntry[];
 }
 
 // Free-text's four distinct rejection responses (contracts/api.md) --
@@ -355,6 +423,17 @@ export function getMasteryState(
 ): Promise<MasteryStateResponse> {
   return request<MasteryStateResponse>(
     `/api/learners/${learnerId}/mastery-state?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+export function getMasteryHistory(
+  learnerId: string,
+  subjectId: string,
+  topicId: string,
+): Promise<MasteryHistoryResponse> {
+  return request<MasteryHistoryResponse>(
+    `/api/learners/${learnerId}/topics/${encodeURIComponent(topicId)}/mastery-history` +
+      `?subject_id=${encodeURIComponent(subjectId)}`,
   );
 }
 

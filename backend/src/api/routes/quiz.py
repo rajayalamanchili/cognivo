@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
+from src.api.routes.questions import StepResultOut
 from src.db import get_db
 from src.models.enums import QuizSessionStatus
 from src.models.quiz_assignment_target import QuizAssignmentTarget
@@ -313,6 +314,20 @@ class QuizSummaryEntryOut(BaseModel):
     total: int
 
 
+class QuizAnswerResultOut(BaseModel):
+    """Spec 025 User Story 3: no `band` field, unlike `AnswerOut` --
+    not reconstructable from historical audit events (data-model.md §3)."""
+
+    question_id: uuid.UUID
+    topic_id: str
+    correct: bool
+    criteria_met: list[str] | None = None
+    criteria_missed: list[str] | None = None
+    step_results: list[StepResultOut] | None = None
+    prior_p_mastery: float | None = None
+    posterior_p_mastery: float
+
+
 class QuizSummaryOut(BaseModel):
     quiz_session_id: uuid.UUID
     subject_id: str
@@ -327,6 +342,9 @@ class QuizSummaryOut(BaseModel):
     time_limit_seconds: int | None = None
     elapsed_seconds: int | None = None
     end_reason: str | None = None
+    # Spec 025 User Story 3: gathered here rather than shown per-question,
+    # preserving quiz's existing no-pause-per-answer pacing (Clarifications).
+    per_question_results: list[QuizAnswerResultOut] = []
 
 
 @router.get("/api/quizzes/{quiz_session_id}", response_model=QuizSummaryOut)
@@ -399,4 +417,29 @@ def get_quiz_summary_route(
         time_limit_seconds=timing.time_limit_seconds,
         elapsed_seconds=timing.elapsed_seconds,
         end_reason=timing.end_reason,
+        per_question_results=[
+            QuizAnswerResultOut(
+                question_id=r.question_id,
+                topic_id=r.topic_id,
+                correct=r.correct,
+                criteria_met=r.criteria_met,
+                criteria_missed=r.criteria_missed,
+                step_results=(
+                    [
+                        StepResultOut(
+                            step_index=s.step_index,
+                            correct=s.correct,
+                            criteria_met=s.criteria_met,
+                            criteria_missed=s.criteria_missed,
+                        )
+                        for s in r.step_results
+                    ]
+                    if r.step_results is not None
+                    else None
+                ),
+                prior_p_mastery=r.prior_p_mastery,
+                posterior_p_mastery=r.posterior_p_mastery,
+            )
+            for r in summary.per_question_results
+        ],
     )

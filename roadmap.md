@@ -1042,6 +1042,8 @@ intended level; spec drafted and clarified 2026-09-06 (grade is a new
 topics per FR-001, and a grade counts as mastered once every topic in
 its grade band reaches the existing mastered band per FR-004). Moved
 here from "Out of current roadmap" now that implementation has landed.
+Merged to `staging` via PR #67 and promoted to `main` via PR #68 (both
+2026-09-07) -- milestone fully shipped.
 
 Implementation: two new tables (`grade_bands`, `grade_progress`), two
 nullable columns each on `Topic`/`GeneratedQuestion`, and three new
@@ -1108,7 +1110,9 @@ K-12 STEM gap-analysis session: a wrong final answer on a multi-step
 math/science problem got no distinction between "setup was right,
 arithmetic slip in step 3" and "fundamentally misunderstood the
 concept." Moved here from "Out of current roadmap" now that
-implementation has landed.
+implementation has landed. Merged to `staging` via PR #69 (plus
+follow-up fixes PR #71/#72) and promoted to `main` via PR #70 (all
+2026-09-18) -- milestone fully shipped.
 
 Implementation: extends Milestone 6's Grading Agent rather than adding
 a seventh agent boundary (Constitution Principle IV) -- a new
@@ -1216,7 +1220,9 @@ multi_step_replacement` added, mirroring the existing free-text test.
 **Spec**: `specs/019-age-adaptive-learner-experience/spec.md`.
 **Status**: Implementation-complete 2026-09-20 on branch
 `019-age-adaptive-learner-experience` (all three user stories plus
-Phase 6 Polish); not yet merged. Flagged 2026-09-14 during a K-12 STEM
+Phase 6 Polish). Merged to `staging` via PR #77 and promoted to `main`
+via PR #78 (both 2026-09-21) -- milestone fully shipped. Flagged
+2026-09-14 during a K-12 STEM
 gap-analysis session as "Age-adaptive learner experience across the
 grade 1-12 range" in "Out of current roadmap"; promoted to its own
 milestone 2026-09-20 after it resurfaced as the top open gap in a
@@ -1296,7 +1302,9 @@ roadmap," this one was a live Constitution Principle VIII violation on
 already-shipped, already-accumulating real account data, not a
 deferred nice-to-have. One `/speckit-clarify` round mid-stream added
 FR-011 (a 7-day in-app pre-deletion warning) -- otherwise no scope
-change from spec 009's already-approved policy.
+change from spec 009's already-approved policy. Merged to `staging` via
+PR #79 and promoted to `main` via PR #80 (both 2026-09-22) -- milestone
+fully shipped.
 
 **Bugs found and fixed during implementation** (all caught by the
 tests this milestone itself required, not discovered after the fact):
@@ -1879,7 +1887,9 @@ not yet merged. Review flagged a Principle V audit-trail gap (decayed
 `p_mastery` was computed for ranking but discarded before the
 `NEXT_TOPIC_SELECTED` audit write); fixed in commit `5ef6325` by
 carrying `effective_p_mastery` through `TopicCandidate`/
-`NextTopicSelection` into both audit-write sites.
+`NextTopicSelection` into both audit-write sites. Merged to `staging`
+via PR #88 and promoted to `main` via PR #89 (both 2026-09-27) --
+milestone fully shipped.
 
 **Scope**: Let a mastered topic's *review priority* (not its band, not
 its dashboard-visible score) decay the longer it goes without practice,
@@ -1900,8 +1910,8 @@ all. SC-003 (decayed-topic answer uses the unmodified BKT path) --
 `test_decayed_topic_answer_unaffected.py`. SC-004 (reproducible
 selection) -- asserted directly in `test_next_topic_decay_fallback.py`
 and `test_mastery_decay.py`'s determinism check. Milestone 22 is
-implemented, all tests green (713/713), PR #88 open, not yet merged to
-`staging`.
+implemented, all tests green (713/713), merged to `staging` via PR #88
+and promoted to `main` via PR #89 (both 2026-09-27) -- fully shipped.
 
 **Explicitly not included**: any change to mastery band classification
 shown on the learner dashboard or the Recommendation Agent's weak-area
@@ -1910,6 +1920,183 @@ still-eligible curriculum progression; per-topic or per-learner-tuned
 decay parameters (fixed global constants only, matching the BKT
 model's own precedent, absent real learner data to fit against);
 restricting decay to only prerequisite-free topics.
+
+---
+
+## Milestone 23: Learner-Facing Explainability UI
+
+**Spec**: `specs/025-learner-explainability-ui/spec.md`.
+**Status**: Implemented, PR-reviewed, and merged to `staging` via PR #90
+(2026-09-28); promotion to `main` in progress. Spun
+out of Milestone 22's own `/speckit-clarify` session per spec 024's own
+Clarifications Resolution note: the mastered-topic-fallback decay work
+surfaced that the Sequencing Agent's "why this question" flow has never
+had any UI, for any pick, decay or not -- a general explainability
+capability out of scope for a decay-specific spec. Broadened during
+drafting to also cover four other explanations the platform already
+logs but has never surfaced to a learner, all traceable to Constitution
+Principle V: per-rubric-criterion grading detail (Milestone 6/16),
+per-topic mastery history (all mastery milestones), and Milestone 2's
+Recommendation Agent weak-area report -- plus an explicit encouragement-
+framing requirement (decay is reversible upkeep, never a demotion) tying
+back to Milestone 22's own product intent. Requirements-quality
+checklist passed with zero `[NEEDS CLARIFICATION]` markers -- every open
+question resolved via informed defaults recorded in the spec's
+Assumptions (effective mastery sourced only from Milestone 22's
+computation, never recomputed by the UI; grading/weak-area detail
+sourced from the existing Grading and Recommendation Agents, never
+re-derived; age-adaptive copy routed through Milestone 17's existing
+layer rather than a second mechanism).
+
+**Scope**: Six learner-facing explainability surfaces, all read-and-
+render against decisions the platform already makes and records -- no
+new personalization or grading logic:
+- A "why this question" chip on served questions (developer-
+  configurable to every pick or fallback/decay picks only), sourced
+  from the Sequencing Agent's recorded selection reason and Milestone
+  22's effective-vs-raw mastery.
+- A decay-aware mastery bar and warming "last practiced" indicator on
+  the learner dashboard, reading Milestone 22's effective-mastery value
+  directly rather than recomputing decay.
+- A "how this was graded" expander showing per-rubric-criterion results
+  (Milestone 6/16), available on correct answers as well as wrong ones.
+- A "refreshed" celebration when a decayed topic's answer crosses its
+  mastery threshold from below.
+- A per-topic mastery-over-time sparkline built from existing
+  `MasteryState` history.
+- A softened, learner-facing rendering of Milestone 2's Recommendation
+  Agent weak-area report -- reused, never re-detected.
+
+**Why this comes after Milestone 22, not before**: The dashboard decay
+bar and the "why this question" chip's decay wording both read
+Milestone 22's effective-mastery value directly; building this first
+would have meant designing UI against a decay signal that didn't exist
+yet, or inventing a placeholder Milestone 22 would then have had to
+reconcile.
+
+`/speckit-clarify` complete same day: 3 questions asked and resolved,
+each catching a real gap rather than a stylistic ambiguity -- (1) the
+existing per-criterion grading view already covers both correct and
+incorrect answers for free-text/multi-step, discovered by reading
+`AnswerResultView.tsx` directly rather than assuming the original scope
+was accurate, re-scoping User Story 3 to the actual gap (flow coverage:
+quiz/placement/instructor-assigned attempts) rather than rebuilding what
+practice already does; (2) the "refreshed" acknowledgment must fire once,
+tied to the causing answer's own response, never recomputed later, with
+no new persisted tracking field; (3) the "last practiced" indicator must
+pair color with a text label, not rely on color alone, matching
+Milestone 10's accessibility precedent. `/speckit-plan` and
+`/speckit-tasks` complete same day (44 tasks across Foundational + 6
+user-story phases + Polish). `/speckit-analyze` found and fixed 4 issues
+before implementation: the guardian-mediated instructor-assigned-attempt
+UI (`LearnerAssignments.tsx`) is a genuinely separate component from
+`quiz-flow.tsx`, not a thin wrapper -- confirmed by reading it -- so it
+needed its own explicit tasks for US1/US4, which the original task list
+had silently missed for two of the three stories that needed it.
+
+`/speckit-implement` complete (2026-09-27): all 44 tasks, phase by
+phase, test-first throughout. Two more real corrections surfaced only
+once the actual code was read during implementation, not caught by
+planning or analysis:
+- **Quiz question selection never touches the Sequencing Agent at all.**
+  `next_quiz_topic` (Milestone 5) is a one-line round-robin -- no
+  eligible-pool/fallback concept exists for it to report. The "why this
+  question" chip (User Story 1) does not apply to quiz or
+  instructor-assigned attempts as a result; fabricating an `is_fallback`
+  value there would have violated FR-004 outright.
+- **Quiz has no per-question pause, and placement can never generate a
+  free-text/multi-step question.** Confirmed with the user before
+  building anything: quiz's existing auto-advance pacing is preserved,
+  not interrupted -- both User Story 3's grading detail and User Story
+  4's "refreshed" acknowledgment are gathered into quiz's end-of-session
+  summary instead (the latter via ephemeral, in-session client state,
+  since `band` -- which "refreshed" depends on -- isn't reconstructable
+  from `MASTERY_UPDATED`'s persisted payload the way US3's criteria
+  detail was). Separately, `grade_answer` only ever handles
+  MULTIPLE_CHOICE/NUMERIC (spec 015/018 both deliberately keep it that
+  way) -- placement's own Acceptance Scenario 2, which had described a
+  free-text placement answer, was corrected to describe what's actually
+  possible there.
+
+All six corrections (3 from `/speckit-clarify`, 1 from `/speckit-analyze`,
+2 from `/speckit-implement`) are recorded in spec.md's Clarifications/
+Assumptions, research.md, data-model.md, and contracts/api-changes.md --
+the same discipline this project has applied to every milestone since
+Milestone 3's stale-status lesson. Quickstart.md's 6 scenarios (7 checks)
+verified live against a real, freshly reseeded dev database via a
+throwaway `TestClient`-based script (run once, not committed, matching
+Milestone 22's own precedent) -- all 7 passed, including one real-world
+wrinkle worth recording: live LLM-backed quiz generation legitimately
+dedup-exhausted on the first topic tried, resolved by trying a
+less-recently-exercised topic rather than a code change (the
+dedup-exhaustion mechanism itself is Milestone 1/13's existing, correct
+behavior, not a defect this milestone introduced).
+
+**Post-implementation self-audit found a real gap before the PR even
+opened**: FR-016's age-adaptive copy tier was only genuinely wired for
+1 of 5 surfaces (`SelectionReasonChip`, which gets a real
+`unlocked_grade`) -- `MasteryView` hardcoded `null`, `RefreshedBanner`
+and `QuizSummary`'s refreshed reveal hardcoded a fixed string instead of
+routing through the tier, and `WeakAreaSummary`'s `unlockedGrade` prop
+was never populated by its dashboard caller. Fixed by adding
+`unlocked_grade` to the `/mastery-state` response and threading it
+through all five call sites.
+
+**`/code-review`'s automated PR pass on \#90 then found three more real
+issues, all fixed before merge**: (1) placement's `per_question_results`/
+`refreshed` were computed server-side but never rendered --
+`placement-flow.tsx` now shows per-question grading detail and a
+refreshed acknowledgment immediately, matching practice/quiz, closing a
+genuine User Story 3/4 gap for that flow that `tasks.md` itself never
+planned a task for; (2) `MasteryView`'s recovery framing copy was
+hover-only (a `title` tooltip, invisible on touch devices) --now
+rendered as visible text; (3) most significantly, `refreshed_from_bands`
+fired on *any* crossing into `mastered`, including a topic's completely
+ordinary first-time progression, not just genuine decay/wrong-answer
+recovery -- since first-time mastery is far more common than actual
+recovery, most "reached mastery" moments were showing "you've brought
+this one back up" copy. Fixing this correctly required a small schema
+addition mid-PR: `mastery_states.has_been_mastered` (migration
+`824e2c5a0678`), a sticky flag distinguishing "mastered before" from
+"mastered for the first time," since `band` is deliberately not
+persisted history (data-model.md).
+
+Final regression before merge: `backend` 736/737 (the sole failure was
+the pre-existing, known Neon/PgBouncer JSON-type-OID cache flake --
+confirmed transient by re-running standalone, twice, on two different
+unrelated tests), `frontend` 171/171, `tsc --noEmit` and `eslint` both
+clean. Merged to `staging` via PR #90 (2026-09-28) after the automated
+review check passed with zero remaining violations.
+
+**Definition of done**: All of spec 025's Success Criteria verified.
+SC-001/SC-007 (every explanation traces to a real persisted decision,
+zero fabricated reasons) -- met by construction: the two flows found to
+lack real underlying data (quiz's selection reason, placement's rubric
+criteria) were scoped out rather than papered over. SC-003 (dashboard
+effective mastery matches Milestone 22's value exactly) -- met,
+`mastery.py` calls `effective_mastery_for_review` directly, no second
+computation. SC-004 (grading detail identical regardless of flow) --
+met, with the corrected understanding that "identical content" and
+"identical timing" are different guarantees for quiz specifically
+(content: yes; timing: gathered at the summary, disclosed upfront,
+FR-010a). SC-005 (refreshed fires exactly on a below-to-above crossing)
+-- met, `refreshed_from_bands` reuses `mastery_band_for`'s own compound
+condition rather than a naive threshold. SC-006 (weak-area summary lists
+exactly the source report's contents) -- met; `WeakAreaSummary` replaces
+the more technical `WeakAreaSection` specifically on the learner
+dashboard (discovered during implementation to already be shared with
+the instructor dashboard), which keeps the raw view unchanged. Milestones
+1-22's full suites still pass.
+
+**Explicitly not included**: any new selection, grading, or decay logic
+(pure presentation of existing decisions); a second age-adaptation
+mechanism (reuses Milestone 17's existing layer); re-detection of weak
+areas (reuses Milestone 2's Recommendation Agent output only); a
+selection-reason explanation for quiz/instructor-assigned attempts (no
+underlying data exists to surface, found during implementation); a
+blocking per-question result screen for quiz (would have changed
+existing, working pacing for a milestone whose entire premise is
+presentation-only).
 
 ---
 
@@ -2094,6 +2281,66 @@ restricting decay to only prerequisite-free topics.
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.22.0 -- 2026-09-28, Milestone 23 merged to `staging` via
+PR #90, promotion to `main` in progress. A post-implementation
+self-audit (before the PR even opened) found FR-016's age-adaptive copy
+tier was only genuinely wired for 1 of 5 surfaces -- fixed by adding
+`unlocked_grade` to the `/mastery-state` response and threading it
+through `MasteryView`/`RefreshedBanner`/`QuizSummary`/`WeakAreaSummary`.
+The automated PR review then found three more real issues, all fixed
+before merge: placement's `per_question_results`/`refreshed` were
+computed but never rendered (a genuine User Story 3/4 gap `tasks.md`
+never planned a task for -- `placement-flow.tsx` now shows grading
+detail and a refreshed acknowledgment immediately); `MasteryView`'s
+recovery framing was a hover-only tooltip, invisible on touch devices,
+now rendered as visible text; and, most significantly,
+`refreshed_from_bands` fired on any crossing into `mastered`, including
+ordinary first-time mastery, not just genuine decay recovery -- fixed
+with a small mid-PR schema addition (`mastery_states.has_been_mastered`,
+migration `824e2c5a0678`, a sticky flag since `band` is deliberately not
+persisted history). Final regression: `backend` 736/737 (one confirmed-
+transient pre-existing Neon/PgBouncer flake), `frontend` 171/171.
+
+**Version**: 3.21.0 -- 2026-09-27, Milestone 23 `/speckit-clarify`
+(3 questions, all catching real gaps -- User Story 3 re-scoped to
+flow-coverage, "refreshed" fixed to fire once with no new tracking
+field, "last practiced" required a text label not color alone),
+`/speckit-plan`/`/speckit-tasks` (44 tasks), `/speckit-analyze` (4
+issues found and fixed, notably a missing `LearnerAssignments.tsx` task
+for two of three stories that needed it), and `/speckit-implement` (all
+44 tasks) all complete. Two more real corrections surfaced only during
+implementation, both resolved by reading the actual code/confirming
+with the user before building anything: quiz question selection never
+touches the Sequencing Agent (no selection-reason chip applies there),
+and quiz has no per-question pause while placement can never generate a
+free-text/multi-step question (User Story 3/4 both corrected --
+grading detail and the refreshed acknowledgment gather into quiz's
+end-of-session summary instead of interrupting its existing pacing;
+placement's own acceptance scenario was corrected to match what it can
+actually produce). Full regression: `backend` 735/735, `frontend`
+169/169, zero migration. Quickstart.md's 6 scenarios (7 checks)
+verified live against a real, reseeded dev database. Branch
+`025-learner-explainability-ui`, not yet merged to `staging`.
+
+**Version**: 3.20.0 -- 2026-09-27, added Milestone 23 (Learner-Facing
+Explainability UI), spun out of Milestone 22's own `/speckit-clarify`
+per spec 024's Clarifications Resolution note; `/speckit-specify`
+complete same day (branch `025-learner-explainability-ui`, created from
+`origin/staging`), zero `[NEEDS CLARIFICATION]` markers. Also recorded
+Milestone 22's merge to `staging` (PR #88) and promotion to `main` (PR
+#89, both 2026-09-27) in its own status line -- previously read "PR #88
+open, not yet merged," left stale after merge, the same class of gap
+this roadmap has corrected before (Milestones 2/3, 14, 16, 17-19).
+Corrected four more milestone status lines that had never recorded
+their final merge confirmation: Milestone 17 (PR #77 staging / #78
+main, both 2026-09-21, previously read "not yet merged"), Milestone 18
+(PR #79 staging / #80 main, both 2026-09-22, previously unrecorded),
+Milestone 15 (PR #67 staging / #68 main, both 2026-09-07, previously
+unrecorded), and Milestone 16 (PR #69 staging plus fixes #71/#72,
+promoted via PR #70, all 2026-09-18, previously unrecorded) -- none had
+ever caught up to the explicit "merged to staging/promoted to main"
+pattern Milestones 19-22 already established.
 
 **Version**: 3.19.0 -- 2026-09-25, added Milestone 21 (Math and Science
 Notation for Free-Text Answers), promoted from its prior "Out of

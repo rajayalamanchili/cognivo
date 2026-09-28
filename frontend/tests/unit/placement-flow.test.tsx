@@ -147,7 +147,10 @@ describe("PlacementFlow read-aloud (spec 019 FR-001/FR-003)", () => {
       placement_session_id: "session-1",
       questions: [{ ...gradedQuestion, read_aloud_eligible: true }, higherGradeQuestion],
     });
-    vi.mocked(api.submitPlacement).mockResolvedValue({ mastery_state: [] });
+    vi.mocked(api.submitPlacement).mockResolvedValue({
+      mastery_state: [],
+      per_question_results: [],
+    });
 
     render(<PlacementFlow />);
     await screen.findByText(/What is -3 \+ 7\?/);
@@ -166,6 +169,94 @@ describe("PlacementFlow read-aloud (spec 019 FR-001/FR-003)", () => {
         ]),
       ),
     );
+  });
+});
+
+describe("PlacementFlow results (spec 025 User Story 3/4)", () => {
+  beforeEach(() => {
+    vi.mocked(api.startPlacement).mockReset();
+  });
+
+  it("renders per-question grading detail and a refreshed acknowledgment immediately in results", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion, higherGradeQuestion],
+    });
+    vi.mocked(api.submitPlacement).mockResolvedValue({
+      mastery_state: [],
+      per_question_results: [
+        {
+          question_id: "q1",
+          topic_id: "integers-and-operations",
+          correct: true,
+          criteria_met: null,
+          criteria_missed: null,
+          step_results: null,
+          prior_p_mastery: 0.5,
+          posterior_p_mastery: 0.85,
+          band: "mastered",
+          refreshed: true,
+        },
+        {
+          question_id: "q3",
+          topic_id: "systems-of-linear-equations",
+          correct: false,
+          criteria_met: null,
+          criteria_missed: null,
+          step_results: null,
+          prior_p_mastery: 0.3,
+          posterior_p_mastery: 0.2,
+          band: "struggling",
+          refreshed: false,
+        },
+      ],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByLabelText("(1, 2)"));
+    await userEvent.click(screen.getByText("Submit Placement"));
+
+    expect(await screen.findByTestId("placement-per-question-results")).toBeInTheDocument();
+    expect(screen.getAllByTestId("answer-result-view")).toHaveLength(2);
+    const refreshedBanner = screen.getByTestId("placement-refreshed-topics");
+    expect(refreshedBanner.textContent).toMatch(/integers and operations/i);
+    expect(refreshedBanner.textContent).not.toMatch(/systems of linear equations/i);
+  });
+
+  it("renders no refreshed acknowledgment when nothing crossed into mastered", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion],
+    });
+    vi.mocked(api.submitPlacement).mockResolvedValue({
+      mastery_state: [],
+      per_question_results: [
+        {
+          question_id: "q1",
+          topic_id: "integers-and-operations",
+          correct: false,
+          criteria_met: null,
+          criteria_missed: null,
+          step_results: null,
+          prior_p_mastery: 0.3,
+          posterior_p_mastery: 0.2,
+          band: "struggling",
+          refreshed: false,
+        },
+      ],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByText("Submit Placement"));
+
+    await screen.findByTestId("placement-per-question-results");
+    expect(screen.queryByTestId("placement-refreshed-topics")).not.toBeInTheDocument();
   });
 });
 

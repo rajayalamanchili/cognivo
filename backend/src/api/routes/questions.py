@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from src.agents.assessment_gen.agent import GENERATION_PROMPT_VERSION, draft_to_answer_key
 from src.agents.sequencing.agent import generate_next_question
-from src.agents.sequencing.mastery_tool import apply_mastery_update
+from src.agents.sequencing.mastery_tool import apply_mastery_update, refreshed_from_bands
 from src.api.errors import (
     AlreadyAnsweredError,
     ConflictError,
@@ -43,7 +43,10 @@ from src.models.topic import Topic
 from src.observability.session import get_database_session_service
 from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
-from src.services.auth.dependencies import optional_session_claims
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
 from src.services.auth.tokens import SessionClaims
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.grading_cache.cache import get_or_grade_answer
@@ -145,6 +148,14 @@ class NextQuestionOut(BaseModel):
     steps: list[str] | None = None
     read_aloud_eligible: bool = False
     unlocked_grade: int | None = None
+    # Spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
+    # reason for this pick, already computed by `select_next_topic` (and
+    # `NEXT_TOPIC_SELECTED`'s audit payload) but previously discarded before
+    # reaching the response.
+    is_fallback: bool = False
+    p_mastery: float | None = None
+    effective_p_mastery: float | None = None
+    last_practiced_at: str | None = None
 
 
 async def generate_and_persist_next_question(
@@ -257,13 +268,25 @@ def build_next_question_out(
             db, learner_id=learner_id, subject_id=subject_id
         ),
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+        is_fallback=result.selection.is_fallback,
+        p_mastery=result.selection.p_mastery,
+        effective_p_mastery=result.selection.effective_p_mastery,
+        last_practiced_at=(
+            result.selection.updated_at.isoformat()
+            if result.selection.updated_at is not None
+            else None
+        ),
     )
 
 
 @router.get("/api/learners/{learner_id}/next-question", response_model=NextQuestionOut)
 async def get_next_question(
-    learner_id: uuid.UUID, subject_id: str, db: Session = Depends(get_db)
+    learner_id: uuid.UUID,
+    subject_id: str,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> NextQuestionOut:
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     _get_validated_subject(db, subject_id)
 
     if not has_placement_data(db, learner_id=learner_id, subject_id=subject_id):
@@ -299,6 +322,7 @@ class AnswerOut(BaseModel):
     prior_p_mastery: float | None
     posterior_p_mastery: float
     band: str
+    refreshed: bool = False
     graduated_score: float | None = None
     criteria_met: list[str] | None = None
     criteria_missed: list[str] | None = None
@@ -655,6 +679,13 @@ async def answer_question(
         "prior_p_mastery": result.prior_p_mastery,
         "posterior_p_mastery": result.posterior_p_mastery,
         "band": result.posterior_band.value,
+        # Spec 025 FR-011: derived once from this answer's own before/after
+        # bands, never recomputed or re-shown from later persisted state.
+        "refreshed": refreshed_from_bands(
+            result.prior_band,
+            result.posterior_band,
+            had_been_mastered_before=result.had_been_mastered_before,
+        ),
     }
     if grading_result is not None:
         answer_body.update(

@@ -7,8 +7,18 @@ import type { AnswerResult } from "@/services/api";
 // `criteria_missed` are `null` for MC/numeric (contracts/api.md), so this
 // section renders nothing for those question types.
 
+// Spec 025 User Story 3: narrowed to only the fields this component
+// actually renders, so a quiz summary's reconstructed per-question
+// result (QuizAnswerResultEntry -- missing graduated_score/grading_
+// logic_version/first_diverging_step_index, which this component never
+// used anyway) satisfies this type without padding in unused fields.
+export type AnswerResultViewData = Pick<
+  AnswerResult,
+  "correct" | "topic_id" | "posterior_p_mastery" | "band" | "criteria_met" | "criteria_missed" | "step_results"
+>;
+
 export interface AnswerResultViewProps {
-  result: AnswerResult;
+  result: AnswerResultViewData;
 }
 
 export default function AnswerResultView({ result }: AnswerResultViewProps) {
@@ -21,8 +31,14 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
     <div className="flex flex-col gap-4" data-testid="answer-result-view">
       <h1 className="text-2xl font-semibold">{result.correct ? "Correct!" : "Not quite."}</h1>
       <p className="text-muted">
-        Topic: {result.topic_id} &mdash; now <strong>{result.band}</strong> (
-        {Math.round(result.posterior_p_mastery * 100)}%)
+        Topic: {result.topic_id}
+        {result.band != null && (
+          <>
+            {" "}
+            &mdash; now <strong>{result.band}</strong> (
+            {Math.round(result.posterior_p_mastery * 100)}%)
+          </>
+        )}
       </p>
 
       {hasCriteria && (

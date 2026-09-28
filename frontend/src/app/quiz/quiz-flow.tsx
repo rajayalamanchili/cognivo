@@ -14,6 +14,7 @@ import {
   getSubjects,
   isAlreadyAnsweredError,
   startQuiz,
+  type AnswerResult,
   type MasteryTopicEntry,
   type NextQuestion,
   type QuizSummaryResponse,
@@ -74,6 +75,16 @@ export default function QuizFlow() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [stoppingPointShown, setStoppingPointShown] = useState(false);
   const [reinforcementMessage, setReinforcementMessage] = useState<string | null>(null);
+  // Spec 025 FR-011/research.md §5: carries forward each answer's own
+  // already-computed `refreshed` flag, unmodified, for a one-time reveal
+  // in the end-of-session summary -- quiz has no per-question pause to
+  // show it in immediately. Ephemeral (dies with the tab), never persisted.
+  const [refreshedTopicIds, setRefreshedTopicIds] = useState<Set<string>>(new Set());
+
+  function recordIfRefreshed(topicId: string, result: { refreshed: boolean }) {
+    if (!result.refreshed) return;
+    setRefreshedTopicIds((prev) => new Set(prev).add(topicId));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -241,7 +252,8 @@ export default function QuizFlow() {
         currentQuestion.question_type === "numeric"
           ? Number(response)
           : Number.parseInt(response, 10);
-      await answerQuestion(currentQuestion.question_id, value, readAloudUsed);
+      const result = await answerQuestion(currentQuestion.question_id, value, readAloudUsed);
+      recordIfRefreshed(currentQuestion.topic_id, result);
       setResponse("");
       await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
     } catch (error) {
@@ -258,8 +270,9 @@ export default function QuizFlow() {
     }
   }
 
-  async function handleFreeTextGraded() {
+  async function handleFreeTextGraded(result: AnswerResult) {
     if (!quizSessionId || !currentQuestion) return;
+    recordIfRefreshed(currentQuestion.topic_id, result);
     setResponse("");
     await advanceAfterAnswer(quizSessionId, currentQuestion.unlocked_grade);
   }
@@ -290,7 +303,11 @@ export default function QuizFlow() {
   if (phase === "finished" && summary) {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-        <QuizSummary summary={summary} />
+        <QuizSummary
+          summary={summary}
+          refreshedTopicIds={[...refreshedTopicIds]}
+          unlockedGrade={currentQuestion?.unlocked_grade ?? null}
+        />
       </div>
     );
   }
@@ -438,6 +455,11 @@ export default function QuizFlow() {
           ))}
         </select>
       </label>
+      {/* spec 025 FR-010a: quiz has no per-question result pause -- disclosed
+          upfront rather than surprising the learner at the end. */}
+      <p className="text-sm text-muted">
+        You&apos;ll see how you did on each question together, at the end of the quiz.
+      </p>
       <button
         type="button"
         disabled={selectedTopicIds.length === 0 || phase === "starting"}
