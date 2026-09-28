@@ -22,7 +22,6 @@ from src.agents.recommendation.agent import WeakAreaReport, build_weak_area_repo
 from src.api.errors import NotFoundError
 from src.db import get_db
 from src.models.enums import AssessmentEventType
-from src.models.learner_profile import LearnerProfile
 from src.models.subject import Subject
 from src.services.audit_log.writer import record_event
 from src.services.auth.dependencies import (
@@ -148,9 +147,9 @@ def get_recommendations(
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> RecommendationsResponse:
-    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     _get_validated_subject(db, subject_id)
-    if db.get(LearnerProfile, learner_id) is None:
+    if learner is None:
         # spec 020 Acceptance Scenario 2: a deleted/nonexistent learner
         # must never error here -- in particular, never reach
         # `record_event` below, whose `AssessmentEvent.learner_id` FK

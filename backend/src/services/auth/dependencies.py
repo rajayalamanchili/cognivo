@@ -76,7 +76,7 @@ def current_guardian(
 
 def require_learner_ownership_if_real(
     db: Session, *, learner_id: uuid.UUID, claims: SessionClaims | None
-) -> None:
+) -> LearnerProfile | None:
     """Closes the learner_id-enumeration gap on read-only learner-scoped
     GET routes (`mastery.py`, `mastery_history.py`, `recommendation.py`,
     `sequencing_preview.py`, `questions.py`'s `next-question`): a real,
@@ -90,16 +90,22 @@ def require_learner_ownership_if_real(
     `tutor.py`'s `_authorize_learner`, this does not collapse a
     nonexistent id into the same 403 -- these routes' existing
     not-found/degrade behavior for that case predates this check and is
-    covered by other tests."""
+    covered by other tests.
+
+    Returns the fetched `LearnerProfile` (or `None`, if it doesn't
+    exist) so callers that need it next -- e.g. `recommendation.py`'s
+    own not-found check -- can reuse this lookup instead of repeating
+    it."""
     learner = db.get(LearnerProfile, learner_id)
     if learner is None or learner.is_demo:
-        return
+        return learner
     if (
         claims is None
         or claims.account_type != "guardian"
         or learner.guardian_id != claims.account_id
     ):
         raise ForbiddenError("not_your_learner")
+    return learner
 
 
 def current_instructor(
