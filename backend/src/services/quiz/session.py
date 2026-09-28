@@ -667,7 +667,17 @@ def compute_quiz_summary(db: Session, *, quiz_session_id: uuid.UUID) -> QuizSumm
         counts[0] += int(correct)
         counts[1] += 1
 
-        mastery_payload = mastery_events[question.question_id].payload
+        # `.get()`, not a bare lookup: every ANSWER_SUBMITTED is written in
+        # the same commit as its MASTERY_UPDATED today (questions.py's
+        # answer_question), so this invariant always holds -- but a future
+        # code path or a partially-migrated historical row shouldn't be
+        # able to 500 the *entire* quiz summary over one question. Omit
+        # that question's entry rather than fabricate mastery figures for
+        # it (FR-004's "omit rather than fabricate" principle).
+        mastery_event = mastery_events.get(question.question_id)
+        if mastery_event is None:
+            continue
+        mastery_payload = mastery_event.payload
         step_results_payload = event.payload.get("step_results")
         per_question_results.append(
             QuizAnswerResult(

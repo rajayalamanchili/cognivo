@@ -43,6 +43,9 @@ describe("MasteryView", () => {
     expect(row.textContent).toMatch(/80%/);
     expect(row.textContent).toMatch(/50%/);
     expect((row.textContent ?? "").toLowerCase()).not.toMatch(/lost|demot/);
+    // Recovery framing must be visible rendered text, not a hover-only
+    // tooltip (SC-002's "single glance", not discoverable only on hover).
+    expect(row.textContent).toMatch(/faded a little|bring it right back/i);
   });
 
   it("renders a warmer, text-labeled last-practiced indicator for a long-untouched topic than a recent one", () => {

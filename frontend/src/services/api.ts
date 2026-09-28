@@ -36,8 +36,25 @@ export interface MasteryStateEntry {
   band: MasteryBand | null;
 }
 
+// spec 025 FR-009/FR-011: unlike quiz's own per-question results, `band`
+// is populated here -- placement's grading is live, not reconstructed
+// from history, so the reconstructability gap quiz has doesn't apply.
+export interface PlacementQuestionResultEntry {
+  question_id: string;
+  topic_id: string;
+  correct: boolean;
+  criteria_met: string[] | null;
+  criteria_missed: string[] | null;
+  step_results: StepResult[] | null;
+  prior_p_mastery: number | null;
+  posterior_p_mastery: number;
+  band: MasteryBand;
+  refreshed: boolean;
+}
+
 export interface PlacementSubmitResponse {
   mastery_state: MasteryStateEntry[];
+  per_question_results: PlacementQuestionResultEntry[];
 }
 
 export interface SkipPlacementQuestionResponse {

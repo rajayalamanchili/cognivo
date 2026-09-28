@@ -169,15 +169,21 @@ class PlacementQuestionResult(BaseModel):
     """Spec 025 User Story 3/FR-009-011. `criteria_met`/`criteria_missed`/
     `step_results` are always `None` in practice -- placement never
     generates a free-text/multi-step question (research.md §4
-    correction) -- kept for shape consistency with `AnswerOut`."""
+    correction) -- kept for shape consistency with `AnswerOut`. Unlike
+    quiz's own per-question results, `band` is populated here: this is
+    the live grading result (`MasteryUpdateResult.posterior_band`), not
+    a reconstruction from history, so the reconstructability problem
+    data-model.md §3 documents for quiz doesn't apply to placement."""
 
     question_id: uuid.UUID
+    topic_id: str
     correct: bool
     criteria_met: list[str] | None = None
     criteria_missed: list[str] | None = None
     step_results: list[StepResultOut] | None = None
     prior_p_mastery: float | None = None
     posterior_p_mastery: float
+    band: str
     refreshed: bool
 
 
@@ -443,12 +449,14 @@ async def submit_placement(
             per_question_results.append(
                 PlacementQuestionResult(
                     question_id=question.question_id,
+                    topic_id=question.topic_id,
                     correct=correct,
                     criteria_met=None,
                     criteria_missed=None,
                     step_results=None,
                     prior_p_mastery=result.prior_p_mastery,
                     posterior_p_mastery=result.posterior_p_mastery,
+                    band=result.posterior_band.value,
                     refreshed=refreshed_from_bands(result.prior_band, result.posterior_band),
                 )
             )

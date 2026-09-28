@@ -117,8 +117,9 @@ function MasteryFigures({
 
   const tier = getExplanationCopyTier(unlockedGrade);
   return (
-    <span className="flex flex-col items-end text-sm text-muted" title={tier.recoveryFraming}>
+    <span className="flex flex-col items-end text-sm text-muted">
       <span>{effective}% (peak {peak}%)</span>
+      <span className="text-xs">{tier.recoveryFraming}</span>
     </span>
   );
 }

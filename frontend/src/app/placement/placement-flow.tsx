@@ -10,8 +10,12 @@ import {
   submitPlacement,
   type MasteryStateEntry,
   type PlacementQuestion,
+  type PlacementQuestionResultEntry,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import AnswerResultView from "@/components/AnswerResultView";
+import { formatTopicId } from "@/lib/format-topic-id";
+import { getExplanationCopyTier } from "@/lib/explainabilityCopy";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { canUseReadAloud, speak } from "@/lib/read-aloud";
 
@@ -36,6 +40,9 @@ export default function PlacementFlow() {
   const [questions, setQuestions] = useState<PlacementQuestion[]>([]);
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [masteryState, setMasteryState] = useState<MasteryStateEntry[] | null>(null);
+  const [perQuestionResults, setPerQuestionResults] = useState<PlacementQuestionResultEntry[]>(
+    [],
+  );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [skippingQuestionId, setSkippingQuestionId] = useState<string | null>(null);
   const [skipError, setSkipError] = useState<string | null>(null);
@@ -90,6 +97,7 @@ export default function PlacementFlow() {
       });
       const result = await submitPlacement(placementSessionId, answers);
       setMasteryState(result.mastery_state);
+      setPerQuestionResults(result.per_question_results);
       setPhase("results");
     } catch (error) {
       setErrorMessage(
@@ -145,10 +153,36 @@ export default function PlacementFlow() {
   }
 
   if (phase === "results" && masteryState) {
+    // Spec 025 FR-011: placement submits (and grades) every question in
+    // one batch, unlike practice's single-answer response -- so more
+    // than one topic can cross into mastered in the same submit. Same
+    // one-shot framing as RefreshedBanner, just naming every topic it
+    // applies to instead of assuming exactly one.
+    const refreshedTopicIds = perQuestionResults
+      .filter((result) => result.refreshed)
+      .map((result) => result.topic_id);
+    const tier = getExplanationCopyTier(null);
+
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
         <h1 className="text-2xl font-semibold">Placement Results</h1>
         <MasteryView topics={masteryState} />
+        {refreshedTopicIds.length > 0 && (
+          <p
+            data-testid="placement-refreshed-topics"
+            className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
+          >
+            {tier.refreshedFraming} ({refreshedTopicIds.map(formatTopicId).join(", ")})
+          </p>
+        )}
+        {perQuestionResults.length > 0 && (
+          <div className="flex flex-col gap-4" data-testid="placement-per-question-results">
+            <p className="text-sm font-medium text-muted">How each question was graded</p>
+            {perQuestionResults.map((result) => (
+              <AnswerResultView key={result.question_id} result={result} />
+            ))}
+          </div>
+        )}
         <div className="flex items-center gap-4">
           <Link
             href={`/practice?subject=${subjectId}`}

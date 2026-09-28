@@ -9,17 +9,48 @@ it that way, research.md §4 correction) -- so `criteria_met`/
 covers `correct`/`prior_p_mastery`/`posterior_p_mastery`/`refreshed`,
 the fields placement can actually populate.
 
+Question generation is mocked at the LLM-call boundary
+(`_run_agent_once`), matching this suite's existing convention (e.g.
+test_placement.py, test_placement_determinism.py) rather than hitting
+a real model -- CI has no `ANTHROPIC_API_KEY` configured.
+
 Requires a reachable `DATABASE_URL` (tests/conftest.py).
 """
 
+from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
 
+_FIXED_MC_DRAFT_JSON = (
+    '{"question_type": "multiple_choice", "stem": "mock question", '
+    '"options": ["a", "b", "c", "d"], "correct_index": 1, '
+    '"correct_value": null, "tolerance": null}'
+)
+_CORRECT_RESPONSE = 1  # matches _FIXED_MC_DRAFT_JSON's correct_index
+_INCORRECT_RESPONSE = 0
 
-def _start_and_answer(client, subject_id, *, response_value):
-    start = client.post(f"/api/subjects/{subject_id}/placement/start")
+
+def _patch_generation():
+    return patch(
+        "src.agents.assessment_gen.agent._run_agent_once",
+        new=AsyncMock(return_value=_FIXED_MC_DRAFT_JSON),
+    )
+
+
+def _start_and_answer(client, subject_id):
+    with _patch_generation():
+        start = client.post(f"/api/subjects/{subject_id}/placement/start")
     assert start.status_code == 200, start.text
     questions = start.json()["questions"]
-    answers = [{"question_id": q["question_id"], "response": response_value} for q in questions]
+    # Alternate correct/incorrect responses so the assertion below covers
+    # both outcomes without depending on a real, varied answer key.
+    answers = [
+        {
+            "question_id": q["question_id"],
+            "response": _CORRECT_RESPONSE if i % 2 == 0 else _INCORRECT_RESPONSE,
+        }
+        for i, q in enumerate(questions)
+    ]
     submit = client.post(
         f"/api/placement/{start.json()['placement_session_id']}/submit",
         json={"answers": answers},
@@ -34,7 +65,7 @@ def test_per_question_results_present_for_a_passing_and_failing_answer(
     from src.api.main import app
 
     client = TestClient(app)
-    body, questions = _start_and_answer(client, "algebra-1", response_value=0)
+    body, questions = _start_and_answer(client, "algebra-1")
 
     results = body["per_question_results"]
     assert len(results) == len(questions)
@@ -50,16 +81,15 @@ def test_per_question_results_present_for_a_passing_and_failing_answer(
         assert entry["step_results"] is None
         assert isinstance(entry["refreshed"], bool)
 
-    # At least one entry reflects each outcome (response=0 against a mixed
-    # answer key set means some right, some wrong, across a real fixture).
-    assert any(e["correct"] for e in results) or any(not e["correct"] for e in results)
+    assert any(e["correct"] for e in results)
+    assert any(not e["correct"] for e in results)
 
 
 def test_aggregate_mastery_state_field_unchanged(db_session, demo_learner, algebra_subject):
     from src.api.main import app
 
     client = TestClient(app)
-    body, _questions = _start_and_answer(client, "algebra-1", response_value=0)
+    body, _questions = _start_and_answer(client, "algebra-1")
 
     assert "mastery_state" in body
     assert isinstance(body["mastery_state"], list)
