@@ -24,6 +24,7 @@ vi.mock("@/services/api", async () => {
 });
 
 const scoredMasteryState = {
+  unlocked_grade: null,
   topics: [
     {
       topic_id: "fractions",
@@ -31,6 +32,7 @@ const scoredMasteryState = {
       p_mastery: 0.8,
       band: "mastered" as const,
       last_updated_at: "2026-01-01T00:00:00Z",
+      effective_p_mastery: 0.8,
     },
   ],
 };
@@ -79,7 +81,7 @@ describe("DashboardSubjectSection failure isolation", () => {
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-weak-area-slot")).toHaveTextContent(/couldn.t load/i),
     );
-    expect(screen.queryByTestId("weak-area-section")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("weak-area-summary")).not.toBeInTheDocument();
   });
 
   it("renders a distinct couldn't-load state for a failed path-visualization fetch while mastery and weak-area still render (FR-008)", async () => {
@@ -92,7 +94,7 @@ describe("DashboardSubjectSection failure isolation", () => {
     );
 
     expect(await screen.findByTestId("mastery-view")).toBeInTheDocument();
-    expect(await screen.findByTestId("weak-area-section")).toBeInTheDocument();
+    expect(await screen.findByTestId("weak-area-summary")).toBeInTheDocument();
 
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-path-slot")).toHaveTextContent(/couldn.t load/i),

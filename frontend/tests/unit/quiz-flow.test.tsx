@@ -45,6 +45,7 @@ async function renderAndStartQuiz() {
     subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
   });
   vi.mocked(api.getMasteryState).mockResolvedValue({
+    unlocked_grade: null,
     topics: [
       {
         topic_id: "linear-equations",
@@ -52,6 +53,7 @@ async function renderAndStartQuiz() {
         p_mastery: null,
         band: null,
         last_updated_at: null,
+        effective_p_mastery: null,
       },
     ],
   });
@@ -72,6 +74,34 @@ describe("QuizFlow", () => {
     vi.mocked(api.answerQuestion).mockReset();
     vi.mocked(api.getQuizNextQuestion).mockReset();
     vi.mocked(api.getQuizSummary).mockReset();
+  });
+
+  it("discloses on the start screen that results are shown together at the end (spec 025 FR-010a)", async () => {
+    vi.mocked(api.getDemoLearner).mockResolvedValue({
+      learner_id: "learner-1",
+      display_name: "Demo Learner",
+    });
+    vi.mocked(api.getSubjects).mockResolvedValue({
+      subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
+    });
+    vi.mocked(api.getMasteryState).mockResolvedValue({
+      unlocked_grade: null,
+      topics: [
+        {
+          topic_id: "linear-equations",
+          status: "unknown",
+          p_mastery: null,
+          band: null,
+          last_updated_at: null,
+          effective_p_mastery: null,
+        },
+      ],
+    });
+
+    render(<QuizFlow />);
+
+    await screen.findByTestId("quiz-start-form");
+    expect(screen.getByTestId("quiz-start-form").textContent).toMatch(/end of the quiz/i);
   });
 
   it("renders the answering phase with the reused QuestionCard after starting a quiz", async () => {
@@ -100,6 +130,7 @@ describe("QuizFlow", () => {
       topic_id: "linear-equations",
       prior_p_mastery: null,
       posterior_p_mastery: 0.5,
+      refreshed: false,
       band: "developing",
       graduated_score: null,
       criteria_met: null,
@@ -144,6 +175,7 @@ describe("QuizFlow", () => {
       topic_id: "linear-equations",
       prior_p_mastery: null,
       posterior_p_mastery: 0.5,
+      refreshed: false,
       band: "developing",
       graduated_score: null,
       criteria_met: null,
@@ -188,6 +220,7 @@ describe("QuizFlow", () => {
       subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
+      unlocked_grade: null,
       topics: [
         {
           topic_id: "linear-equations",
@@ -195,6 +228,7 @@ describe("QuizFlow", () => {
           p_mastery: null,
           band: null,
           last_updated_at: null,
+          effective_p_mastery: null,
         },
       ],
     });
@@ -239,6 +273,7 @@ describe("QuizFlow", () => {
       topic_id: "linear-equations",
       prior_p_mastery: null,
       posterior_p_mastery: 0.5,
+      refreshed: false,
       band: "developing",
       graduated_score: null,
       criteria_met: null,
@@ -267,6 +302,7 @@ describe("QuizFlow", () => {
       subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
+      unlocked_grade: null,
       topics: [
         {
           topic_id: "linear-equations",
@@ -274,6 +310,7 @@ describe("QuizFlow", () => {
           p_mastery: null,
           band: null,
           last_updated_at: null,
+          effective_p_mastery: null,
         },
       ],
     });
@@ -321,6 +358,7 @@ describe("QuizFlow", () => {
       topic_id: "linear-equations",
       prior_p_mastery: null,
       posterior_p_mastery: 0.5,
+      refreshed: false,
       band: "developing",
       graduated_score: null,
       criteria_met: null,
@@ -392,6 +430,7 @@ describe("QuizFlow session pacing (spec 019 FR-009, SC-009)", () => {
     topic_id: "linear-equations",
     prior_p_mastery: null,
     posterior_p_mastery: 0.5,
+    refreshed: false,
     band: "developing" as const,
     graduated_score: null,
     criteria_met: null,

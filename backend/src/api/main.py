@@ -40,6 +40,7 @@ from src.api.routes import (
     instructor_dashboard,
     learners,
     mastery,
+    mastery_history,
     placement,
     practice_sessions,
     questions,
@@ -181,6 +182,7 @@ def health() -> dict:
 
 app.include_router(placement.router)
 app.include_router(mastery.router)
+app.include_router(mastery_history.router)
 app.include_router(demo_learner.router)
 app.include_router(questions.router)
 app.include_router(recommendation.router)

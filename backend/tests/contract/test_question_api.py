@@ -80,6 +80,10 @@ def test_next_question_response_shape(client, demo_learner, algebra_subject, moc
         "steps",
         "read_aloud_eligible",
         "unlocked_grade",
+        "is_fallback",
+        "p_mastery",
+        "effective_p_mastery",
+        "last_practiced_at",
     }
     assert body["difficulty"] in ("easy", "medium", "hard")
     assert "answer_key" not in body
@@ -119,6 +123,7 @@ def test_answer_question_response_shape(client, demo_learner, algebra_subject, m
         "prior_p_mastery",
         "posterior_p_mastery",
         "band",
+        "refreshed",
     }
     assert body["band"] in ("struggling", "developing", "mastered")
 

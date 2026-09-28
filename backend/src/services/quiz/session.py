@@ -586,18 +586,47 @@ class QuizSummaryEntry:
 
 
 @dataclass(frozen=True)
+class QuizStepResult:
+    step_index: int
+    correct: bool
+    criteria_met: list[str]
+    criteria_missed: list[str]
+
+
+@dataclass(frozen=True)
+class QuizAnswerResult:
+    """Spec 025 User Story 3/Clarifications: per-question grading detail
+    for a quiz's end-of-session summary. Reconstructed from this
+    question's `ANSWER_SUBMITTED`/`MASTERY_UPDATED` audit events --
+    unlike `AnswerOut`, carries no `band`, since `mastery_band_for`
+    needs `consecutive_mastered_observations`, never persisted in any
+    event payload (data-model.md §3)."""
+
+    question_id: uuid.UUID
+    topic_id: str
+    correct: bool
+    criteria_met: list[str] | None
+    criteria_missed: list[str] | None
+    step_results: list[QuizStepResult] | None
+    prior_p_mastery: float | None
+    posterior_p_mastery: float
+
+
+@dataclass(frozen=True)
 class QuizSummary:
     score: QuizScore
     breakdown: list[QuizSummaryEntry] = field(default_factory=list)
+    per_question_results: list[QuizAnswerResult] = field(default_factory=list)
 
 
 def compute_quiz_summary(db: Session, *, quiz_session_id: uuid.UUID) -> QuizSummary:
-    """Score and a per-(topic, difficulty) breakdown, computed at read
-    time from this quiz's answered `GeneratedQuestion`/`AssessmentEvent`
-    rows -- no separate summary table (data-model.md). Groups by
-    (topic_id, difficulty) in the order those combinations were first
-    encountered, correct even while the quiz is still `in_progress`
-    (a partial tally, not an error, FR-006/contracts/api.md)."""
+    """Score, a per-(topic, difficulty) breakdown, and per-question
+    grading detail, computed at read time from this quiz's answered
+    `GeneratedQuestion`/`AssessmentEvent` rows -- no separate summary
+    table (data-model.md). Groups by (topic_id, difficulty) in the order
+    those combinations were first encountered, correct even while the
+    quiz is still `in_progress` (a partial tally, not an error,
+    FR-006/contracts/api.md)."""
     rows = (
         db.query(GeneratedQuestion, AssessmentEvent)
         .join(
@@ -610,9 +639,26 @@ def compute_quiz_summary(db: Session, *, quiz_session_id: uuid.UUID) -> QuizSumm
         .all()
     )
 
+    # Spec 025: a second pass over the same quiz's MASTERY_UPDATED events,
+    # keyed by question_id -- one query, not a per-question N+1 (mirrors
+    # weak_area.py's/mastery_history's own single-filtered-query pattern).
+    mastery_events = {
+        event.question_id: event
+        for event in db.query(AssessmentEvent)
+        .join(
+            GeneratedQuestion, GeneratedQuestion.question_id == AssessmentEvent.question_id
+        )
+        .filter(
+            GeneratedQuestion.quiz_session_id == quiz_session_id,
+            AssessmentEvent.event_type == AssessmentEventType.MASTERY_UPDATED,
+        )
+        .all()
+    }
+
     total_correct = 0
     total = 0
     breakdown: dict[tuple[str, DifficultyBand], list[int]] = {}
+    per_question_results: list[QuizAnswerResult] = []
     for question, event in rows:
         correct = bool(event.payload["correct"])
         total += 1
@@ -621,12 +667,50 @@ def compute_quiz_summary(db: Session, *, quiz_session_id: uuid.UUID) -> QuizSumm
         counts[0] += int(correct)
         counts[1] += 1
 
+        # `.get()`, not a bare lookup: every ANSWER_SUBMITTED is written in
+        # the same commit as its MASTERY_UPDATED today (questions.py's
+        # answer_question), so this invariant always holds -- but a future
+        # code path or a partially-migrated historical row shouldn't be
+        # able to 500 the *entire* quiz summary over one question. Omit
+        # that question's entry rather than fabricate mastery figures for
+        # it (FR-004's "omit rather than fabricate" principle).
+        mastery_event = mastery_events.get(question.question_id)
+        if mastery_event is None:
+            continue
+        mastery_payload = mastery_event.payload
+        step_results_payload = event.payload.get("step_results")
+        per_question_results.append(
+            QuizAnswerResult(
+                question_id=question.question_id,
+                topic_id=question.topic_id,
+                correct=correct,
+                criteria_met=event.payload.get("criteria_met"),
+                criteria_missed=event.payload.get("criteria_missed"),
+                step_results=(
+                    [
+                        QuizStepResult(
+                            step_index=s["step_index"],
+                            correct=s["correct"],
+                            criteria_met=s["criteria_met"],
+                            criteria_missed=s["criteria_missed"],
+                        )
+                        for s in step_results_payload
+                    ]
+                    if step_results_payload is not None
+                    else None
+                ),
+                prior_p_mastery=mastery_payload["prior_p_mastery"],
+                posterior_p_mastery=mastery_payload["posterior_p_mastery"],
+            )
+        )
+
     return QuizSummary(
         score=QuizScore(correct=total_correct, total=total),
         breakdown=[
             QuizSummaryEntry(topic_id=topic_id, difficulty=difficulty, correct=c, total=t)
             for (topic_id, difficulty), (c, t) in breakdown.items()
         ],
+        per_question_results=per_question_results,
     )
 
 

@@ -76,6 +76,10 @@ class NextTopicSelection:
     effective_p_mastery: float | None
     difficulty: DifficultyBand
     is_fallback: bool
+    # Spec 025 FR-002: when this topic has a prior MasteryState row, the
+    # last time it was practiced -- lets the "why this question" chip name
+    # actual elapsed time for a fallback/decayed pick, not just a value.
+    updated_at: datetime.datetime | None = None
     candidates_considered: list[TopicCandidate] = field(default_factory=list)
 
 
@@ -313,6 +317,7 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         effective_p_mastery=effective_p_mastery_of(chosen_id),
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
+        updated_at=ctx.updated_at_by_topic.get(chosen_id),
         candidates_considered=candidates,
     )
 

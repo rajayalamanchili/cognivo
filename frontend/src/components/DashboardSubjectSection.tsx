@@ -16,7 +16,7 @@ import {
   type TopicPriorityPreview,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
-import WeakAreaSection from "@/components/WeakAreaSection";
+import WeakAreaSummary from "@/components/WeakAreaSummary";
 import PathVisualization from "@/components/PathVisualization";
 import LoadingIndicator from "@/components/LoadingIndicator";
 
@@ -42,6 +42,7 @@ export default function DashboardSubjectSection({
 }: DashboardSubjectSectionProps) {
   const [masteryPhase, setMasteryPhase] = useState<SectionPhase>("loading");
   const [masteryTopics, setMasteryTopics] = useState<MasteryTopicEntry[]>([]);
+  const [unlockedGrade, setUnlockedGrade] = useState<number | null>(null);
 
   const [weakAreaPhase, setWeakAreaPhase] = useState<SectionPhase>("loading");
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
@@ -56,6 +57,7 @@ export default function DashboardSubjectSection({
       .then((result) => {
         if (cancelled) return;
         setMasteryTopics(result.topics);
+        setUnlockedGrade(result.unlocked_grade);
         setMasteryPhase("loaded");
       })
       .catch(() => {
@@ -116,7 +118,9 @@ export default function DashboardSubjectSection({
           <LoadingIndicator message="Gathering your progress…" compact />
         )}
         {masteryPhase === "error" && <CouldntLoad what="mastery state" />}
-        {masteryPhase === "loaded" && <MasteryView topics={masteryTopics} />}
+        {masteryPhase === "loaded" && (
+          <MasteryView topics={masteryTopics} unlockedGrade={unlockedGrade} />
+        )}
       </div>
       <div data-testid="dashboard-weak-area-slot">
         {weakAreaPhase === "loading" && (
@@ -124,7 +128,11 @@ export default function DashboardSubjectSection({
         )}
         {weakAreaPhase === "error" && <CouldntLoad what="weak-area report" />}
         {weakAreaPhase === "loaded" && recommendations && (
-          <WeakAreaSection recommendations={recommendations} />
+          // Spec 025 User Story 6: the learner's own dashboard gets the
+          // softened, encouraging rendering -- WeakAreaSection (raw
+          // percentages/reason codes/misconception detail) remains the
+          // instructor dashboard's own view of the same report.
+          <WeakAreaSummary recommendations={recommendations} unlockedGrade={unlockedGrade} />
         )}
       </div>
       <div data-testid="dashboard-path-slot">

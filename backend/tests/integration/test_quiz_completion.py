@@ -117,6 +117,7 @@ def test_non_quiz_answer_unaffected(db_session, demo_learner, algebra_subject):
         "prior_p_mastery",
         "posterior_p_mastery",
         "band",
+        "refreshed",
     }
 
     quiz_events = (

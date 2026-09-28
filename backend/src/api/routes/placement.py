@@ -20,9 +20,9 @@ from src.agents.diagnostic.agent import (
     grade_entry_topics,
     preferred_question_type,
 )
-from src.agents.sequencing.mastery_tool import apply_mastery_update
+from src.agents.sequencing.mastery_tool import apply_mastery_update, refreshed_from_bands
 from src.api.errors import ConflictError, NotFoundError, UnprocessableError
-from src.api.routes.questions import time_spent_seconds
+from src.api.routes.questions import StepResultOut, time_spent_seconds
 from src.db import get_db
 from src.models.assessment_event import AssessmentEvent
 from src.models.enums import AssessmentEventType, DifficultyBand, QuestionType, ValidationStatus
@@ -165,8 +165,31 @@ class MasteryStateOut(BaseModel):
     band: str | None = None
 
 
+class PlacementQuestionResult(BaseModel):
+    """Spec 025 User Story 3/FR-009-011. `criteria_met`/`criteria_missed`/
+    `step_results` are always `None` in practice -- placement never
+    generates a free-text/multi-step question (research.md §4
+    correction) -- kept for shape consistency with `AnswerOut`. Unlike
+    quiz's own per-question results, `band` is populated here: this is
+    the live grading result (`MasteryUpdateResult.posterior_band`), not
+    a reconstruction from history, so the reconstructability problem
+    data-model.md §3 documents for quiz doesn't apply to placement."""
+
+    question_id: uuid.UUID
+    topic_id: str
+    correct: bool
+    criteria_met: list[str] | None = None
+    criteria_missed: list[str] | None = None
+    step_results: list[StepResultOut] | None = None
+    prior_p_mastery: float | None = None
+    posterior_p_mastery: float
+    band: str
+    refreshed: bool
+
+
 class PlacementSubmitResponse(BaseModel):
     mastery_state: list[MasteryStateOut]
+    per_question_results: list[PlacementQuestionResult] = []
 
 
 def _validate_response_shape(question: GeneratedQuestion, response: Any) -> None:
@@ -354,6 +377,7 @@ async def submit_placement(
     if any(q.subject_id != subject_id or q.learner_id != learner_id for q in questions):
         raise UnprocessableError("answers span more than one subject/learner")
 
+    per_question_results: list[PlacementQuestionResult] = []
     with traced_request():
         for question, answer in zip(questions, body.answers, strict=True):
             correct = grade_answer(
@@ -422,6 +446,25 @@ async def submit_placement(
                     },
                 )
 
+            per_question_results.append(
+                PlacementQuestionResult(
+                    question_id=question.question_id,
+                    topic_id=question.topic_id,
+                    correct=correct,
+                    criteria_met=None,
+                    criteria_missed=None,
+                    step_results=None,
+                    prior_p_mastery=result.prior_p_mastery,
+                    posterior_p_mastery=result.posterior_p_mastery,
+                    band=result.posterior_band.value,
+                    refreshed=refreshed_from_bands(
+                        result.prior_band,
+                        result.posterior_band,
+                        had_been_mastered_before=result.had_been_mastered_before,
+                    ),
+                )
+            )
+
     if _session_fully_resolved(db, placement_session_id=placement_session_id):
         _assign_starting_grade_if_graded(
             db,
@@ -456,7 +499,9 @@ async def submit_placement(
             )
 
     db.commit()
-    return PlacementSubmitResponse(mastery_state=mastery_state_out)
+    return PlacementSubmitResponse(
+        mastery_state=mastery_state_out, per_question_results=per_question_results
+    )
 
 
 class SkipRequest(BaseModel):
