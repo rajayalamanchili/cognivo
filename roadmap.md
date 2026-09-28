@@ -1926,8 +1926,8 @@ restricting decay to only prerequisite-free topics.
 ## Milestone 23: Learner-Facing Explainability UI
 
 **Spec**: `specs/025-learner-explainability-ui/spec.md`.
-**Status**: `/speckit-specify` complete (2026-09-27, branch
-`025-learner-explainability-ui`, created from `origin/staging`). Spun
+**Status**: Implemented, PR-reviewed, and merged to `staging` via PR #90
+(2026-09-28); promotion to `main` in progress. Spun
 out of Milestone 22's own `/speckit-clarify` session per spec 024's own
 Clarifications Resolution note: the mastered-topic-fallback decay work
 surfaced that the Sequencing Agent's "why this question" flow has never
@@ -2022,19 +2022,51 @@ All six corrections (3 from `/speckit-clarify`, 1 from `/speckit-analyze`,
 2 from `/speckit-implement`) are recorded in spec.md's Clarifications/
 Assumptions, research.md, data-model.md, and contracts/api-changes.md --
 the same discipline this project has applied to every milestone since
-Milestone 3's stale-status lesson. Full regression: `backend` 735/735,
-`frontend` 169/169, `tsc --noEmit` and `eslint` both clean,
-`check_no_subject_conditionals.py` clean, schema-drift check clean (zero
-migration -- this milestone ships no schema change). Quickstart.md's 6
-scenarios (7 checks) verified live against a real, freshly reseeded dev
-database via a throwaway `TestClient`-based script (run once, not
-committed, matching Milestone 22's own precedent) -- all 7 passed,
-including one real-world wrinkle worth recording: live LLM-backed quiz
-generation legitimately dedup-exhausted on the first topic tried,
-resolved by trying a less-recently-exercised topic rather than a code
-change (the dedup-exhaustion mechanism itself is Milestone 1/13's
-existing, correct behavior, not a defect this milestone introduced).
-Branch `025-learner-explainability-ui`, not yet merged to `staging`.
+Milestone 3's stale-status lesson. Quickstart.md's 6 scenarios (7 checks)
+verified live against a real, freshly reseeded dev database via a
+throwaway `TestClient`-based script (run once, not committed, matching
+Milestone 22's own precedent) -- all 7 passed, including one real-world
+wrinkle worth recording: live LLM-backed quiz generation legitimately
+dedup-exhausted on the first topic tried, resolved by trying a
+less-recently-exercised topic rather than a code change (the
+dedup-exhaustion mechanism itself is Milestone 1/13's existing, correct
+behavior, not a defect this milestone introduced).
+
+**Post-implementation self-audit found a real gap before the PR even
+opened**: FR-016's age-adaptive copy tier was only genuinely wired for
+1 of 5 surfaces (`SelectionReasonChip`, which gets a real
+`unlocked_grade`) -- `MasteryView` hardcoded `null`, `RefreshedBanner`
+and `QuizSummary`'s refreshed reveal hardcoded a fixed string instead of
+routing through the tier, and `WeakAreaSummary`'s `unlockedGrade` prop
+was never populated by its dashboard caller. Fixed by adding
+`unlocked_grade` to the `/mastery-state` response and threading it
+through all five call sites.
+
+**`/code-review`'s automated PR pass on \#90 then found three more real
+issues, all fixed before merge**: (1) placement's `per_question_results`/
+`refreshed` were computed server-side but never rendered --
+`placement-flow.tsx` now shows per-question grading detail and a
+refreshed acknowledgment immediately, matching practice/quiz, closing a
+genuine User Story 3/4 gap for that flow that `tasks.md` itself never
+planned a task for; (2) `MasteryView`'s recovery framing copy was
+hover-only (a `title` tooltip, invisible on touch devices) --now
+rendered as visible text; (3) most significantly, `refreshed_from_bands`
+fired on *any* crossing into `mastered`, including a topic's completely
+ordinary first-time progression, not just genuine decay/wrong-answer
+recovery -- since first-time mastery is far more common than actual
+recovery, most "reached mastery" moments were showing "you've brought
+this one back up" copy. Fixing this correctly required a small schema
+addition mid-PR: `mastery_states.has_been_mastered` (migration
+`824e2c5a0678`), a sticky flag distinguishing "mastered before" from
+"mastered for the first time," since `band` is deliberately not
+persisted history (data-model.md).
+
+Final regression before merge: `backend` 736/737 (the sole failure was
+the pre-existing, known Neon/PgBouncer JSON-type-OID cache flake --
+confirmed transient by re-running standalone, twice, on two different
+unrelated tests), `frontend` 171/171, `tsc --noEmit` and `eslint` both
+clean. Merged to `staging` via PR #90 (2026-09-28) after the automated
+review check passed with zero remaining violations.
 
 **Definition of done**: All of spec 025's Success Criteria verified.
 SC-001/SC-007 (every explanation traces to a real persisted decision,
@@ -2249,6 +2281,26 @@ presentation-only).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.22.0 -- 2026-09-28, Milestone 23 merged to `staging` via
+PR #90, promotion to `main` in progress. A post-implementation
+self-audit (before the PR even opened) found FR-016's age-adaptive copy
+tier was only genuinely wired for 1 of 5 surfaces -- fixed by adding
+`unlocked_grade` to the `/mastery-state` response and threading it
+through `MasteryView`/`RefreshedBanner`/`QuizSummary`/`WeakAreaSummary`.
+The automated PR review then found three more real issues, all fixed
+before merge: placement's `per_question_results`/`refreshed` were
+computed but never rendered (a genuine User Story 3/4 gap `tasks.md`
+never planned a task for -- `placement-flow.tsx` now shows grading
+detail and a refreshed acknowledgment immediately); `MasteryView`'s
+recovery framing was a hover-only tooltip, invisible on touch devices,
+now rendered as visible text; and, most significantly,
+`refreshed_from_bands` fired on any crossing into `mastered`, including
+ordinary first-time mastery, not just genuine decay recovery -- fixed
+with a small mid-PR schema addition (`mastery_states.has_been_mastered`,
+migration `824e2c5a0678`, a sticky flag since `band` is deliberately not
+persisted history). Final regression: `backend` 736/737 (one confirmed-
+transient pre-existing Neon/PgBouncer flake), `frontend` 171/171.
 
 **Version**: 3.21.0 -- 2026-09-27, Milestone 23 `/speckit-clarify`
 (3 questions, all catching real gaps -- User Story 3 re-scoped to
