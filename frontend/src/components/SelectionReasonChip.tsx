@@ -62,7 +62,7 @@ export default function SelectionReasonChip({
   return (
     <p
       data-testid="selection-reason-chip"
-      className="rounded-full bg-muted/50 px-3 py-1 text-sm text-muted"
+      className="rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary"
     >
       {text}
     </p>
