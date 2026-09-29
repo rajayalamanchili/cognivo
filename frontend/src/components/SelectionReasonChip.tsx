@@ -52,8 +52,18 @@ export default function SelectionReasonChip({
     if (p_mastery == null || effective_p_mastery == null || last_practiced_at == null) {
       return null;
     }
-    const tier = getExplanationCopyTier(unlocked_grade);
-    text = `${tier.decayFraming} (last practiced ${formatElapsed(last_practiced_at)})`;
+    // A fallback pick (every topic mastered) isn't necessarily a decayed
+    // one -- decay.py's GRACE_PERIOD leaves effective_p_mastery equal to
+    // p_mastery until it actually elapses, same rounding MasteryView's
+    // own decayed-vs-peak check uses. Without this, a topic practiced
+    // minutes ago could be served with "it's been a while" copy.
+    const hasDecayed = Math.round(effective_p_mastery * 100) < Math.round(p_mastery * 100);
+    if (hasDecayed) {
+      const tier = getExplanationCopyTier(unlocked_grade);
+      text = `${tier.decayFraming} (last practiced ${formatElapsed(last_practiced_at)})`;
+    } else {
+      text = "Reviewing one of your mastered topics to help it stick.";
+    }
   } else {
     if (!explainEveryPick) return null;
     text = "Next step in your practice path.";
