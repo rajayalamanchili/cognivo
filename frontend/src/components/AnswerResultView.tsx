@@ -25,7 +25,7 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
   const hasCriteria =
     (result.criteria_met && result.criteria_met.length > 0) ||
     (result.criteria_missed && result.criteria_missed.length > 0);
-  const hasStepResults = result.step_results !== null && result.step_results.length > 0;
+  const hasStepResults = !!result.step_results && result.step_results.length > 0;
 
   return (
     <div className="flex flex-col gap-4" data-testid="answer-result-view">
