@@ -59,7 +59,11 @@ from src.services.grading_client.client import (
     grade_free_text_answer,
     grade_stepwise_answer,
 )
-from src.services.grading_client.moderation import MODERATION_INSTRUCTION_VERSION, check_moderation
+from src.services.grading_client.moderation import (
+    MODERATION_INSTRUCTION_VERSION,
+    ModerationUnavailableError,
+    check_moderation,
+)
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.moderation_cache.cache import get_or_check_moderation
 from src.services.mediation.grade import resolve_unlocked_grade
@@ -402,14 +406,26 @@ async def _grade_free_text_submission(
         _reject_free_text(db, question=question, reason="rate_limited", response_text=response_text)
         raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
 
-    allowed, moderation_cache_outcome = await get_or_check_moderation(
-        db,
-        text=response_text,
-        instruction_version=MODERATION_INSTRUCTION_VERSION,
-        check_fn=functools.partial(
-            check_moderation, response_text, session_service=get_database_session_service()
-        ),
-    )
+    try:
+        allowed, moderation_cache_outcome = await get_or_check_moderation(
+            db,
+            text=response_text,
+            instruction_version=MODERATION_INSTRUCTION_VERSION,
+            check_fn=functools.partial(
+                check_moderation, response_text, session_service=get_database_session_service()
+            ),
+        )
+    except ModerationUnavailableError:
+        # A service failure, not a genuine classification -- reject
+        # (fail closed) same as before this cache existed, but never let
+        # get_or_check_moderation's insert run for this text (it can't,
+        # since the exception propagates before that call returns), so
+        # this outage is never memoized as a permanent block (Principles
+        # II/V, PR feedback).
+        _reject_free_text(
+            db, question=question, reason="moderation_unavailable", response_text=response_text
+        )
+        raise ModerationRejectedError() from None
     if not allowed:
         _reject_free_text(
             db,
@@ -496,14 +512,22 @@ async def _grade_stepwise_submission(
         _reject_free_text(db, question=question, reason="rate_limited", response_text=concatenated)
         raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
 
-    allowed, moderation_cache_outcome = await get_or_check_moderation(
-        db,
-        text=concatenated,
-        instruction_version=MODERATION_INSTRUCTION_VERSION,
-        check_fn=functools.partial(
-            check_moderation, concatenated, session_service=get_database_session_service()
-        ),
-    )
+    try:
+        allowed, moderation_cache_outcome = await get_or_check_moderation(
+            db,
+            text=concatenated,
+            instruction_version=MODERATION_INSTRUCTION_VERSION,
+            check_fn=functools.partial(
+                check_moderation, concatenated, session_service=get_database_session_service()
+            ),
+        )
+    except ModerationUnavailableError:
+        # See _grade_free_text_submission's identical handling -- a
+        # service failure must never be cached as a genuine verdict.
+        _reject_free_text(
+            db, question=question, reason="moderation_unavailable", response_text=concatenated
+        )
+        raise ModerationRejectedError() from None
     if not allowed:
         _reject_free_text(
             db,

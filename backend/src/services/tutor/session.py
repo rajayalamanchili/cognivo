@@ -43,7 +43,10 @@ from src.models.tutoring_session import TutoringSession
 from src.observability.session import get_database_session_service
 from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
-from src.services.grading_client.moderation import check_moderation
+from src.services.grading_client.moderation import (
+    ModerationUnavailableError,
+    check_moderation,
+)
 from src.services.retrieval.passage_search import search_passages
 from src.services.shielding_cache.cache import get_or_classify_match
 from src.services.tutor.rate_limit import check_tutor_rate_limit
@@ -229,7 +232,17 @@ async def prepare_message(
     # site in this codebase (questions.py's is covered by its own
     # caller's traced_request()).
     with traced_request(learner_id=session.learner_id, session_id=session.session_id):
-        allowed = await check_moderation(question, session_service=get_database_session_service())
+        try:
+            allowed = await check_moderation(
+                question, session_service=get_database_session_service()
+            )
+        except ModerationUnavailableError:
+            # Fail closed same as an explicit block verdict -- this call
+            # site isn't cached (spec 026 scope is questions.py's two
+            # call sites only), so no caching concern here, but the
+            # external behavior must stay identical to before this
+            # exception existed.
+            raise ModerationRejectedError() from None
     if not allowed:
         raise ModerationRejectedError()
 
