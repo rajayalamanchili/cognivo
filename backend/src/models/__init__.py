@@ -12,6 +12,7 @@ from src.models.grade_progress import GradeProgress
 from src.models.grading_response_cache import GradingResponseCache
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
+from src.models.moderation_cache import ModerationCache
 from src.models.practice_session import PracticeSession
 from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.question_generation_cache import QuestionGenerationCache
@@ -21,6 +22,7 @@ from src.models.quiz_session import QuizSession
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
+from src.models.shielding_classification_cache import ShieldingClassificationCache
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.models.tutor_exchange import TutorExchange
@@ -41,6 +43,7 @@ __all__ = [
     "GradingResponseCache",
     "LearnerProfile",
     "MasteryState",
+    "ModerationCache",
     "PracticeSession",
     "PrerequisiteEdge",
     "QuestionGenerationCache",
@@ -50,6 +53,7 @@ __all__ = [
     "RealGuardianAccount",
     "RealInstructorAccount",
     "RetentionRecord",
+    "ShieldingClassificationCache",
     "Subject",
     "Topic",
     "TutorExchange",
