@@ -43,9 +43,9 @@ export interface PlacementQuestionResultEntry {
   question_id: string;
   topic_id: string;
   correct: boolean;
-  criteria_met: string[] | null;
-  criteria_missed: string[] | null;
-  step_results: StepResult[] | null;
+  criteria_met?: string[] | null;
+  criteria_missed?: string[] | null;
+  step_results?: StepResult[] | null;
   prior_p_mastery: number | null;
   posterior_p_mastery: number;
   band: MasteryBand;
@@ -213,11 +213,11 @@ export interface AnswerResult {
   // reuses this same AnswerResultView-consuming type.
   band?: MasteryBand;
   graduated_score: number | null;
-  criteria_met: string[] | null;
-  criteria_missed: string[] | null;
+  criteria_met?: string[] | null;
+  criteria_missed?: string[] | null;
   grading_logic_version: string | null;
   first_diverging_step_index: number | null;
-  step_results: StepResult[] | null;
+  step_results?: StepResult[] | null;
 }
 
 export interface FlagResult {
@@ -276,9 +276,9 @@ export interface QuizAnswerResultEntry {
   question_id: string;
   topic_id: string;
   correct: boolean;
-  criteria_met: string[] | null;
-  criteria_missed: string[] | null;
-  step_results: StepResult[] | null;
+  criteria_met?: string[] | null;
+  criteria_missed?: string[] | null;
+  step_results?: StepResult[] | null;
   prior_p_mastery: number | null;
   posterior_p_mastery: number;
 }

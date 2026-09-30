@@ -45,6 +45,22 @@ describe("SelectionReasonChip", () => {
     expect(chip.textContent).toMatch(/month/i);
   });
 
+  it("does not claim elapsed time for a fallback pick that hasn't actually decayed (issue: practiced today)", () => {
+    render(
+      <SelectionReasonChip
+        question={question({
+          is_fallback: true,
+          p_mastery: 0.9,
+          effective_p_mastery: 0.9,
+          last_practiced_at: new Date().toISOString(),
+        })}
+      />
+    );
+    const chip = screen.getByTestId("selection-reason-chip");
+    expect(chip.textContent).not.toMatch(/while|today|month|week|year/i);
+    expect(chip.textContent).toMatch(/mastered topics/i);
+  });
+
   it("renders next-step-style copy for an eligible-pool pick by default", () => {
     render(<SelectionReasonChip question={question({ is_fallback: false })} />);
     const chip = screen.getByTestId("selection-reason-chip");
