@@ -103,12 +103,12 @@ Single existing tree touched: `backend/` (models, services, api/routes, scripts,
 
 ### Tests for User Story 3
 
-- [ ] T017 [P] [US3] Unit tests for the extended hit-rate aggregation in `backend/tests/unit/caching/test_hit_rate_report.py`: given a mix of `AssessmentEvent` rows with `moderation_served_from_cache` true/false across `FREE_TEXT_SUBMISSION_REJECTED` and `ANSWER_SUBMITTED`, the aggregation returns the correct moderation hit-rate percentage; given a mix of `TutorExchange` rows with varying `shielding_checks_total`/`shielding_checks_from_cache`, the aggregation returns the correct shielding hit-rate percentage (summed checks, not summed exchanges) (SC-001's per-type scoping)
+- [X] T017 [P] [US3] Unit tests for the extended hit-rate aggregation in `backend/tests/unit/caching/test_hit_rate_report.py`: given a mix of `AssessmentEvent` rows with `moderation_served_from_cache` true/false across `FREE_TEXT_SUBMISSION_REJECTED` and `ANSWER_SUBMITTED`, the aggregation returns the correct moderation hit-rate percentage; given a mix of `TutorExchange` rows with varying `shielding_checks_total`/`shielding_checks_from_cache`, the aggregation returns the correct shielding hit-rate percentage (summed checks, not summed exchanges) (SC-001's per-type scoping)
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Extend `backend/scripts/cache_hit_rate_report.py`: add a `moderation` cache-type entry sourced from `FREE_TEXT_SUBMISSION_REJECTED`/`ANSWER_SUBMITTED` event payloads' `moderation_served_from_cache`/`moderation_cache_miss_reason` keys, and a `shielding` cache-type entry sourced from `tutor_exchanges.shielding_checks_total`/`shielding_checks_from_cache` summed over the window (research.md §8) (depends on T011, T016, T017 failing first)
-- [ ] T019 [US3] Implement `backend/scripts/guardrail_cache_load_test.py`: replay a synthetic, configurable-volume mix of duplicate-heavy answer-submission text (a small set of common blank/short/wrong strings repeated across many synthetic learners) and duplicate-heavy tutoring-chat (question, message) pairings against `get_or_check_moderation`/`get_or_classify_match` directly (no live server), once with caching enabled and once with a `--no-cache` flag bypassing the lookup entirely; report each cache type's hit rate (reusing T018's aggregation logic against in-memory `CacheOutcome` results, not a live DB query) and the model-call-volume delta between the two runs; exit non-zero if either cache type's hit rate is below 30% (SC-001/SC-002) (research.md §7) (depends on T009, T014, T018)
+- [X] T018 [US3] Extend `backend/scripts/cache_hit_rate_report.py`: add a `moderation` cache-type entry sourced from `FREE_TEXT_SUBMISSION_REJECTED`/`ANSWER_SUBMITTED` event payloads' `moderation_served_from_cache`/`moderation_cache_miss_reason` keys, and a `shielding` cache-type entry sourced from `tutor_exchanges.shielding_checks_total`/`shielding_checks_from_cache` summed over the window (research.md §8) (depends on T011, T016, T017 failing first)
+- [X] T019 [US3] Implement `backend/scripts/guardrail_cache_load_test.py`: replay a synthetic, configurable-volume mix of duplicate-heavy answer-submission text (a small set of common blank/short/wrong strings repeated across many synthetic learners) and duplicate-heavy tutoring-chat (question, message) pairings against `get_or_check_moderation`/`get_or_classify_match` directly (no live server), once with caching enabled and once with a `--no-cache` flag bypassing the lookup entirely; report each cache type's hit rate (reusing T018's aggregation logic against in-memory `CacheOutcome` results, not a live DB query) and the model-call-volume delta between the two runs; exit non-zero if either cache type's hit rate is below 30% (SC-001/SC-002) (research.md §7) (depends on T009, T014, T018)
 
 **Checkpoint**: quickstart.md Scenarios 4-5 pass -- the hit-rate report reflects real traffic, and the load test demonstrates SC-001/SC-002's per-type hit-rate and cost-reduction targets.
 
@@ -118,12 +118,12 @@ Single existing tree touched: `backend/` (models, services, api/routes, scripts,
 
 **Purpose**: Regression safety and the end-to-end checks that only make sense once every story above is done.
 
-- [ ] T020 [P] Run `backend/scripts/check_no_subject_conditionals.py`; confirm the two new cache modules introduce zero subject-id-keyed conditionals (Constitution Principle III)
-- [ ] T021 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`; confirm it passes unchanged -- neither new table introduces a foreign key to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII, spec.md FR-008)
-- [ ] T022 [P] Run Milestones 1-25's full `backend`, `grading-agent`, `tutor-agent`, and `frontend` test suites; confirm the same pass rate as immediately before this feature's changes, with particular attention to spec 007's and spec 016's existing acceptance-scenario tests (SC-005)
-- [ ] T023 Run `backend/scripts/guardrail_cache_load_test.py` (T019) against a live/dev environment; confirm each cache type independently reaches >=30% hit rate and model-call volume is measurably reduced vs. the `--no-cache` run (SC-001/SC-002) (depends on T019)
-- [ ] T024 Run `quickstart.md`'s full validation scenarios (1-6) end to end against a live/dev environment (depends on T010, T011, T015, T016, T018, T019, T020, T021, T023)
-- [ ] T025 Update `roadmap.md`'s status line for this feature to reflect implementation completion (depends on T024)
+- [X] T020 [P] Run `backend/scripts/check_no_subject_conditionals.py`; confirm the two new cache modules introduce zero subject-id-keyed conditionals (Constitution Principle III)
+- [X] T021 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`; confirm it passes unchanged -- neither new table introduces a foreign key to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII, spec.md FR-008)
+- [X] T022 [P] Run Milestones 1-25's full `backend`, `grading-agent`, `tutor-agent`, and `frontend` test suites; confirm the same pass rate as immediately before this feature's changes, with particular attention to spec 007's and spec 016's existing acceptance-scenario tests (SC-005)
+- [X] T023 Run `backend/scripts/guardrail_cache_load_test.py` (T019) against a live/dev environment; confirm each cache type independently reaches >=30% hit rate and model-call volume is measurably reduced vs. the `--no-cache` run (SC-001/SC-002) (depends on T019)
+- [X] T024 Run `quickstart.md`'s full validation scenarios (1-6) end to end against a live/dev environment (depends on T010, T011, T015, T016, T018, T019, T020, T021, T023)
+- [X] T025 Update `roadmap.md`'s status line for this feature to reflect implementation completion (depends on T024)
 
 ---
 
