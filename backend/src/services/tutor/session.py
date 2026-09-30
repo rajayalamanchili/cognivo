@@ -47,6 +47,7 @@ from src.services.grading_client.moderation import (
     ModerationUnavailableError,
     check_moderation,
 )
+from src.services.llm_provider import resolve_model
 from src.services.retrieval.passage_search import search_passages
 from src.services.shielding_cache.cache import get_or_classify_match
 from src.services.tutor.rate_limit import check_tutor_rate_limit
@@ -253,6 +254,13 @@ async def prepare_message(
     # moderation's once did before that was fixed (`/speckit-analyze`
     # finding I1).
     check_counts = {"total": 0, "from_cache": 0}
+    # Folded into the cache key below, not just SHIELDING_CLASSIFICATION_
+    # INSTRUCTION_VERSION (PR #97 review, Principles II/V): resolved once
+    # per message so every check in this exchange keys consistently --
+    # TUTOR_SHIELDING_CLASSIFICATION_MODEL/LLM_PROVIDER can change the
+    # actual model without a version bump (mirrors questions.py's
+    # identical fix for moderation).
+    resolved_shielding_model = resolve_model("TUTOR_SHIELDING_CLASSIFICATION_MODEL", "cheap")
 
     async def _cached_match_fn(*, open_question_stem: str, tutor_question: str) -> bool:
         """The only point with per-check visibility into `determine_
@@ -264,12 +272,15 @@ async def prepare_message(
             db,
             open_question_stem=open_question_stem,
             tutor_question=tutor_question,
-            instruction_version=SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION,
+            instruction_version=(
+                f"{SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION}:{resolved_shielding_model}"
+            ),
             classify_fn=functools.partial(
                 classify_match,
                 open_question_stem=open_question_stem,
                 tutor_question=tutor_question,
                 session_service=get_database_session_service(),
+                model_name=resolved_shielding_model,
             ),
         )
         if outcome.hit:

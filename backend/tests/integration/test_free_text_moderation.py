@@ -112,3 +112,57 @@ def test_moderation_service_failure_is_never_cached_as_a_block(
             json={"response": submitted_text},
         )
     assert retry.status_code == 200, retry.text
+
+
+def test_moderation_cache_key_folds_in_the_resolved_model(
+    db_session, demo_learner, algebra_subject
+):
+    """spec 026 PR feedback (Principles II/V): the cache key must
+    include the resolved moderation model, not just
+    MODERATION_INSTRUCTION_VERSION -- `MODERATION_MODEL`/`LLM_PROVIDER`
+    can change a deployment's actual model without a version bump
+    (mirrors the 2026-09-18 `ASSESSMENT_GEN_MODEL` incident). Without
+    this, the identical text submitted under two different resolved
+    models would wrongly serve the first model's cached verdict for the
+    second."""
+    from src.api.main import app
+
+    client = TestClient(app)
+    submitted_text = "the same answer text submitted under two different resolved models"
+    check_calls = {"n": 0}
+
+    async def fake_check_moderation(text, *, session_service, model_name=None):
+        check_calls["n"] += 1
+        return True
+
+    question_a = get_free_text_question(client, db_session, demo_learner, algebra_subject)
+    with (
+        patch("src.api.routes.questions.resolve_model", return_value="model-a"),
+        patch(
+            "src.api.routes.questions.check_moderation",
+            new=AsyncMock(side_effect=fake_check_moderation),
+        ),
+        patch_grading_result(graduated_score=1.0, criteria_met=["a"], criteria_missed=[]),
+    ):
+        response_a = client.post(
+            f"/api/questions/{question_a['question_id']}/answer",
+            json={"response": submitted_text},
+        )
+    assert response_a.status_code == 200, response_a.text
+    assert check_calls["n"] == 1
+
+    question_b = get_free_text_question(client, db_session, demo_learner, algebra_subject)
+    with (
+        patch("src.api.routes.questions.resolve_model", return_value="model-b"),
+        patch(
+            "src.api.routes.questions.check_moderation",
+            new=AsyncMock(side_effect=fake_check_moderation),
+        ),
+        patch_grading_result(graduated_score=1.0, criteria_met=["a"], criteria_missed=[]),
+    ):
+        response_b = client.post(
+            f"/api/questions/{question_b['question_id']}/answer",
+            json={"response": submitted_text},
+        )
+    assert response_b.status_code == 200, response_b.text
+    assert check_calls["n"] == 2

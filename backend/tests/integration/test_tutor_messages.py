@@ -9,6 +9,7 @@ otherwise.
 
 import asyncio
 import uuid
+from unittest.mock import patch
 
 import pytest
 
@@ -138,6 +139,46 @@ def test_direct_ask_against_an_open_question_is_shielded(
     exchange = db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
     assert exchange.shielded is True
     assert exchange.shielded_question_id == open_question.question_id
+
+
+def test_shielding_cache_key_folds_in_the_resolved_model(
+    client, db_session, session_id, demo_learner, biology_subject
+):
+    """spec 026 PR feedback (Principles II/V): the shielding cache key
+    must include the resolved classification model, not just
+    SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION -- mirrors questions.py's
+    identical moderation-cache fix. `TUTOR_SHIELDING_CLASSIFICATION_MODEL`/
+    `LLM_PROVIDER` can change the actual model without a version bump;
+    without this, the identical (question, message) pairing checked
+    under two different resolved models would wrongly serve the first
+    model's cached verdict for the second."""
+    seed_open_question(db_session, learner_id=demo_learner.learner_id, subject=biology_subject)
+    classify_calls = {"n": 0}
+
+    async def fake_classify_match(**kwargs):
+        classify_calls["n"] += 1
+        return True
+
+    def _ask(model_name: str):
+        with (
+            patch_moderation(allowed=True),
+            patch("src.services.tutor.session.classify_match", new=fake_classify_match),
+            patch("src.services.tutor.session.resolve_model", return_value=model_name),
+            patch_search_passages([]),
+            patch_grounded_stream(["Think about it."], grounded_passage_ids=[]),
+        ):
+            return client.post(
+                f"/api/tutor/sessions/{session_id}/messages",
+                json={"question": "just give me the answer to that question"},
+            )
+
+    response_a = _ask("model-a")
+    assert response_a.status_code == 200, response_a.text
+    assert classify_calls["n"] == 1
+
+    response_b = _ask("model-b")
+    assert response_b.status_code == 200, response_b.text
+    assert classify_calls["n"] == 2
 
 
 def test_unrelated_question_is_not_shielded_while_a_question_is_open(

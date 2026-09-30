@@ -64,6 +64,7 @@ from src.services.grading_client.moderation import (
     ModerationUnavailableError,
     check_moderation,
 )
+from src.services.llm_provider import resolve_model
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.moderation_cache.cache import get_or_check_moderation
 from src.services.mediation.grade import resolve_unlocked_grade
@@ -388,6 +389,65 @@ def _reject_free_text(
     db.commit()
 
 
+async def _check_moderation_or_reject(
+    db: Session, *, question: GeneratedQuestion, text: str
+) -> CacheOutcome:
+    """Shared by both submission paths below (PR #97 review: this
+    try/except was previously duplicated verbatim in each). Runs the
+    cached moderation guardrail; on a genuine block or a classifier
+    outage, logs the rejection and raises `ModerationRejectedError`
+    (never returns in either case). On an allow, returns the
+    `CacheOutcome` for the caller's own trace/payload use.
+
+    The cache key folds in the resolved model name, not just
+    `MODERATION_INSTRUCTION_VERSION` (PR #97 review, Principles II/V):
+    `MODERATION_MODEL`/`LLM_PROVIDER` can change a deployment's actual
+    moderation model without a version bump (mirrors the 2026-09-18
+    `ASSESSMENT_GEN_MODEL` incident, `llm_provider.py`'s own docstring)
+    -- without this, a provider/model switch would keep serving
+    verdicts classified by a model no longer in use.
+
+    Deliberately uses a distinct `"moderation_unavailable"` reason
+    (never `"moderation"`) for an outage: `moderation_review.py`'s
+    FR-013 learner-escalation count only counts `reason == "moderation"`
+    rejections, and a transient service failure is not the learner's
+    behavior -- reusing `"moderation"` here would wrongly escalate a
+    learner for an outage that was never about what they submitted.
+    """
+    resolved_model = resolve_model("MODERATION_MODEL", "cheap")
+    try:
+        allowed, moderation_cache_outcome = await get_or_check_moderation(
+            db,
+            text=text,
+            instruction_version=f"{MODERATION_INSTRUCTION_VERSION}:{resolved_model}",
+            check_fn=functools.partial(
+                check_moderation,
+                text,
+                session_service=get_database_session_service(),
+                model_name=resolved_model,
+            ),
+        )
+    except ModerationUnavailableError:
+        # A service failure, not a genuine classification -- reject
+        # (fail closed) same as before this cache existed, but never let
+        # get_or_check_moderation's insert run for this text (it can't,
+        # since the exception propagates before that call returns), so
+        # this outage is never memoized as a permanent block (Principles
+        # II/V, PR feedback).
+        _reject_free_text(db, question=question, reason="moderation_unavailable", response_text=text)
+        raise ModerationRejectedError() from None
+    if not allowed:
+        _reject_free_text(
+            db,
+            question=question,
+            reason="moderation",
+            response_text=text,
+            moderation_cache_outcome=moderation_cache_outcome,
+        )
+        raise ModerationRejectedError()
+    return moderation_cache_outcome
+
+
 async def _grade_free_text_submission(
     db: Session, *, question: GeneratedQuestion, response_text: str
 ) -> tuple[GradingResult, CacheOutcome, CacheOutcome]:
@@ -406,35 +466,9 @@ async def _grade_free_text_submission(
         _reject_free_text(db, question=question, reason="rate_limited", response_text=response_text)
         raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
 
-    try:
-        allowed, moderation_cache_outcome = await get_or_check_moderation(
-            db,
-            text=response_text,
-            instruction_version=MODERATION_INSTRUCTION_VERSION,
-            check_fn=functools.partial(
-                check_moderation, response_text, session_service=get_database_session_service()
-            ),
-        )
-    except ModerationUnavailableError:
-        # A service failure, not a genuine classification -- reject
-        # (fail closed) same as before this cache existed, but never let
-        # get_or_check_moderation's insert run for this text (it can't,
-        # since the exception propagates before that call returns), so
-        # this outage is never memoized as a permanent block (Principles
-        # II/V, PR feedback).
-        _reject_free_text(
-            db, question=question, reason="moderation_unavailable", response_text=response_text
-        )
-        raise ModerationRejectedError() from None
-    if not allowed:
-        _reject_free_text(
-            db,
-            question=question,
-            reason="moderation",
-            response_text=response_text,
-            moderation_cache_outcome=moderation_cache_outcome,
-        )
-        raise ModerationRejectedError()
+    moderation_cache_outcome = await _check_moderation_or_reject(
+        db, question=question, text=response_text
+    )
 
     grading_result, grading_cache_outcome = await get_or_grade_answer(
         db,
@@ -512,31 +546,9 @@ async def _grade_stepwise_submission(
         _reject_free_text(db, question=question, reason="rate_limited", response_text=concatenated)
         raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
 
-    try:
-        allowed, moderation_cache_outcome = await get_or_check_moderation(
-            db,
-            text=concatenated,
-            instruction_version=MODERATION_INSTRUCTION_VERSION,
-            check_fn=functools.partial(
-                check_moderation, concatenated, session_service=get_database_session_service()
-            ),
-        )
-    except ModerationUnavailableError:
-        # See _grade_free_text_submission's identical handling -- a
-        # service failure must never be cached as a genuine verdict.
-        _reject_free_text(
-            db, question=question, reason="moderation_unavailable", response_text=concatenated
-        )
-        raise ModerationRejectedError() from None
-    if not allowed:
-        _reject_free_text(
-            db,
-            question=question,
-            reason="moderation",
-            response_text=concatenated,
-            moderation_cache_outcome=moderation_cache_outcome,
-        )
-        raise ModerationRejectedError()
+    moderation_cache_outcome = await _check_moderation_or_reject(
+        db, question=question, text=concatenated
+    )
 
     stepwise_result = await grade_stepwise_answer(
         question_stem=question.stem,
