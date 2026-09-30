@@ -43,6 +43,17 @@ class ModerationResult(BaseModel):
     allowed: bool
 
 
+class ModerationUnavailableError(Exception):
+    """The classifier returned no response -- a service failure, not a
+    genuine classification of `text` (spec 026 PR feedback, Principles
+    II/V). Callers MUST still fail closed (reject the submission) on
+    this, but MUST NOT let a caching layer persist it as if it were a
+    real verdict -- unlike a true allow/block result, this carries no
+    signal about the submitted text itself, so caching it would
+    permanently block that exact text for every learner over one
+    transient outage."""
+
+
 def _build_agent(model_name: str) -> LlmAgent:
     return LlmAgent(
         name="moderation_agent",
@@ -59,7 +70,9 @@ async def check_moderation(
     model_name: str | None = None,
 ) -> bool:
     """FR-012: True if `text` passes moderation (safe to grade), False if
-    it should be blocked."""
+    it should be blocked. Raises `ModerationUnavailableError` if the
+    classifier returns no response at all -- callers must fail closed on
+    that, but it is not itself an allow/block verdict."""
     resolved_model_name = model_name or resolve_model("MODERATION_MODEL", "cheap")
     agent = _build_agent(resolved_model_name)
     runner = Runner(app_name=APP_NAME, agent=agent, session_service=session_service)
@@ -75,7 +88,5 @@ async def check_moderation(
             final_text = "".join(part.text or "" for part in event.content.parts)
 
     if final_text is None:
-        # Fail closed -- an unclassifiable response must not silently let
-        # an unmoderated answer through to grading.
-        return False
+        raise ModerationUnavailableError("no response from the moderation classifier")
     return ModerationResult.model_validate_json(final_text).allowed
