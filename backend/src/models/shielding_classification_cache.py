@@ -20,6 +20,14 @@ class ShieldingClassificationCache(Base):
     (FR-008) -- only the combined signature. No cap or TTL in this
     milestone -- only an instruction-version mismatch makes a row
     unreachable.
+
+    The lookup index is `unique=True` (PR #97 review, same rationale as
+    `ModerationCache`): two concurrent first-time checks for the same
+    pairing would otherwise both miss and both insert, leaving
+    `.first()` to return an arbitrary one of two rows.
+    `shielding_cache/cache.py`'s insert uses `ON CONFLICT DO NOTHING`
+    against this same index so the losing concurrent insert is a
+    routine no-op, never an error.
     """
 
     __tablename__ = "shielding_classification_cache"
@@ -28,6 +36,7 @@ class ShieldingClassificationCache(Base):
             "ix_shielding_classification_cache_lookup",
             "pair_signature",
             "shielding_classification_instruction_version",
+            unique=True,
         ),
     )
 

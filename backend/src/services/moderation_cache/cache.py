@@ -9,6 +9,8 @@ a lookup hit is served directly.
 import datetime
 from collections.abc import Awaitable, Callable
 
+from sqlalchemy import update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from src.models.moderation_cache import ModerationCache
@@ -38,6 +40,13 @@ async def get_or_check_moderation(
     private one -- unusable for every later query/commit in the same
     request. Rolling back only to the SAVEPOINT keeps the rest of the
     caller's transaction intact.
+
+    The lookup index is `unique=True` (PR #97 review), so `.first()` is
+    deterministic; the insert uses `ON CONFLICT DO NOTHING` against that
+    same index so two concurrent first-time requests for the same text
+    never both insert -- the losing side's row is a routine no-op, not
+    an error. `hit_count` is bumped via a SQL-side `+1` (not a Python
+    read-modify-write) so concurrent hits never lose an increment.
     """
     text_signature = compute_text_signature(text)
 
@@ -59,9 +68,14 @@ async def get_or_check_moderation(
     if row is not None:
         try:
             with db.begin_nested():
-                row.hit_count += 1
-                row.last_served_at = datetime.datetime.now(datetime.UTC)
-                db.flush()
+                db.execute(
+                    update(ModerationCache)
+                    .where(ModerationCache.cache_entry_id == row.cache_entry_id)
+                    .values(
+                        hit_count=ModerationCache.hit_count + 1,
+                        last_served_at=datetime.datetime.now(datetime.UTC),
+                    )
+                )
         except Exception:  # noqa: BLE001 -- hit-count bump is best-effort too
             pass
         return row.allowed, CacheOutcome(hit=True, cache_entry_id=row.cache_entry_id)
@@ -72,13 +86,17 @@ async def get_or_check_moderation(
 
     try:
         with db.begin_nested():
-            new_row = ModerationCache(
-                text_signature=text_signature,
-                moderation_instruction_version=instruction_version,
-                allowed=allowed,
+            db.execute(
+                pg_insert(ModerationCache)
+                .values(
+                    text_signature=text_signature,
+                    moderation_instruction_version=instruction_version,
+                    allowed=allowed,
+                )
+                .on_conflict_do_nothing(
+                    index_elements=["text_signature", "moderation_instruction_version"]
+                )
             )
-            db.add(new_row)
-            db.flush()
     except Exception:  # noqa: BLE001 -- best-effort write, never blocks the request (FR-006)
         pass
 

@@ -17,6 +17,14 @@ class ModerationCache(Base):
     signature, which is not reversible to the original text. No cap or
     TTL in this milestone -- only a `moderation_instruction_version`
     mismatch makes a row unreachable.
+
+    The lookup index is `unique=True` (PR #97 review): two concurrent
+    first-time requests for the same text would otherwise both miss and
+    both insert, leaving `.first()` to return an arbitrary one of two
+    rows with no `ORDER BY` -- nondeterministic serving, not just a
+    duplicate-storage annoyance. `moderation_cache/cache.py`'s insert
+    uses `ON CONFLICT DO NOTHING` against this same index so the losing
+    concurrent insert is a routine no-op, never an error.
     """
 
     __tablename__ = "moderation_cache"
@@ -25,6 +33,7 @@ class ModerationCache(Base):
             "ix_moderation_cache_lookup",
             "text_signature",
             "moderation_instruction_version",
+            unique=True,
         ),
     )
 

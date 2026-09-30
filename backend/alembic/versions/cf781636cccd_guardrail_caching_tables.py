@@ -49,6 +49,7 @@ def upgrade() -> None:
         "ix_moderation_cache_lookup",
         "moderation_cache",
         ["text_signature", "moderation_instruction_version"],
+        unique=True,
     )
 
     op.create_table(
@@ -70,6 +71,7 @@ def upgrade() -> None:
         "ix_shielding_classification_cache_lookup",
         "shielding_classification_cache",
         ["pair_signature", "shielding_classification_instruction_version"],
+        unique=True,
     )
 
     op.add_column(
