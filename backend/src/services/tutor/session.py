@@ -41,12 +41,17 @@ from src.models.enums import AssessmentEventType, TutoringSessionStatus
 from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
 from src.observability.session import get_database_session_service
-from src.observability.tracing import traced_request
+from src.observability.tracing import record_cache_hit_trace, traced_request
 from src.services.audit_log.writer import record_event
 from src.services.grading_client.moderation import check_moderation
 from src.services.retrieval.passage_search import search_passages
+from src.services.shielding_cache.cache import get_or_classify_match
 from src.services.tutor.rate_limit import check_tutor_rate_limit
-from src.services.tutor.shielding import classify_match, determine_shielding
+from src.services.tutor.shielding import (
+    SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION,
+    classify_match,
+    determine_shielding,
+)
 from src.services.tutor_agent_client.client import (
     TutorAnswerDelta,
     TutorAnswerResult,
@@ -234,15 +239,44 @@ async def prepare_message(
     # classification call and must not lose its Langfuse span the way
     # moderation's once did before that was fixed (`/speckit-analyze`
     # finding I1).
+    check_counts = {"total": 0, "from_cache": 0}
+
+    async def _cached_match_fn(*, open_question_stem: str, tutor_question: str) -> bool:
+        """The only point with per-check visibility into `determine_
+        shielding`'s (potentially several, one per open question) match
+        calls -- so counting and cache-hit tracing (FR-009) must happen
+        here, not around the aggregate `ShieldingDecision` it returns."""
+        check_counts["total"] += 1
+        matches, outcome = await get_or_classify_match(
+            db,
+            open_question_stem=open_question_stem,
+            tutor_question=tutor_question,
+            instruction_version=SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION,
+            classify_fn=functools.partial(
+                classify_match,
+                open_question_stem=open_question_stem,
+                tutor_question=tutor_question,
+                session_service=get_database_session_service(),
+            ),
+        )
+        if outcome.hit:
+            check_counts["from_cache"] += 1
+            record_cache_hit_trace(
+                name="shielding_cache_hit",
+                cache_type="shielding",
+                cache_entry_id=outcome.cache_entry_id,
+                prompt_version=SHIELDING_CLASSIFICATION_INSTRUCTION_VERSION,
+                learner_id=session.learner_id,
+            )
+        return matches
+
     with traced_request(learner_id=session.learner_id, session_id=session.session_id):
         shielding_decision = await determine_shielding(
             db,
             learner_id=session.learner_id,
             subject_id=session.subject_id,
             tutor_question=question,
-            match_fn=functools.partial(
-                classify_match, session_service=get_database_session_service()
-            ),
+            match_fn=_cached_match_fn,
         )
 
     # FR-006 (US2): a real in-process Recommendation Agent lookup when
@@ -266,6 +300,8 @@ async def prepare_message(
         delegation_context=delegation_context,
         shielded=shielding_decision.shielded,
         shielded_question_id=shielding_decision.shielded_question_id,
+        shielding_checks_total=check_counts["total"],
+        shielding_checks_from_cache=check_counts["from_cache"],
     )
     db.add(exchange)
     db.commit()

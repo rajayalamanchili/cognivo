@@ -59,8 +59,9 @@ from src.services.grading_client.client import (
     grade_free_text_answer,
     grade_stepwise_answer,
 )
-from src.services.grading_client.moderation import check_moderation
+from src.services.grading_client.moderation import MODERATION_INSTRUCTION_VERSION, check_moderation
 from src.services.mastery.grading import grade_answer, validate_response_shape
+from src.services.moderation_cache.cache import get_or_check_moderation
 from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.mediation.read_aloud import resolve_read_aloud_eligible
 from src.services.quiz.session import check_and_expire_if_needed, record_quiz_answer
@@ -344,7 +345,12 @@ def _already_answered(db: Session, question_id: uuid.UUID) -> bool:
 
 
 def _reject_free_text(
-    db: Session, *, question: GeneratedQuestion, reason: str, response_text: str
+    db: Session,
+    *,
+    question: GeneratedQuestion,
+    reason: str,
+    response_text: str,
+    moderation_cache_outcome: CacheOutcome | None = None,
 ) -> None:
     """Logs a `free_text_submission_rejected` event and commits it
     immediately (data-model.md) -- the caller raises the matching
@@ -358,6 +364,14 @@ def _reject_free_text(
     free-text's) -- no separate event type exists for it, `response_text`
     is simply the submission's concatenated step text in that case.
     """
+    payload = {
+        "reason": reason,
+        "submitted_text": response_text[: guardrails.MAX_ANSWER_LENGTH],
+        "length": len(response_text),
+    }
+    if moderation_cache_outcome is not None:
+        payload["moderation_served_from_cache"] = moderation_cache_outcome.hit
+        payload["moderation_cache_miss_reason"] = moderation_cache_outcome.reason
     record_event(
         db,
         learner_id=question.learner_id,
@@ -365,22 +379,20 @@ def _reject_free_text(
         subject_id=question.subject_id,
         topic_id=question.topic_id,
         question_id=question.question_id,
-        payload={
-            "reason": reason,
-            "submitted_text": response_text[: guardrails.MAX_ANSWER_LENGTH],
-            "length": len(response_text),
-        },
+        payload=payload,
     )
     db.commit()
 
 
 async def _grade_free_text_submission(
     db: Session, *, question: GeneratedQuestion, response_text: str
-) -> tuple[GradingResult, CacheOutcome]:
+) -> tuple[GradingResult, CacheOutcome, CacheOutcome]:
     """Runs the four pre-grading guardrails in contracts/api.md's locked
     order -- length (cheapest) -> rate limit (one DB query) -> moderation
-    (one LLM call) -> grading (cache-checked, then the A2A call on a
-    miss) -- short-circuiting on the first rejection."""
+    (cache-checked, spec 026) -> grading (cache-checked, then the A2A
+    call on a miss) -- short-circuiting on the first rejection. Returns
+    `(grading_result, moderation_cache_outcome, grading_cache_outcome)`.
+    """
     if not guardrails.check_length(response_text):
         _reject_free_text(db, question=question, reason="too_long", response_text=response_text)
         raise TooLongError(max_length=guardrails.MAX_ANSWER_LENGTH)
@@ -390,12 +402,25 @@ async def _grade_free_text_submission(
         _reject_free_text(db, question=question, reason="rate_limited", response_text=response_text)
         raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
 
-    allowed = await check_moderation(response_text, session_service=get_database_session_service())
+    allowed, moderation_cache_outcome = await get_or_check_moderation(
+        db,
+        text=response_text,
+        instruction_version=MODERATION_INSTRUCTION_VERSION,
+        check_fn=functools.partial(
+            check_moderation, response_text, session_service=get_database_session_service()
+        ),
+    )
     if not allowed:
-        _reject_free_text(db, question=question, reason="moderation", response_text=response_text)
+        _reject_free_text(
+            db,
+            question=question,
+            reason="moderation",
+            response_text=response_text,
+            moderation_cache_outcome=moderation_cache_outcome,
+        )
         raise ModerationRejectedError()
 
-    return await get_or_grade_answer(
+    grading_result, grading_cache_outcome = await get_or_grade_answer(
         db,
         question_stem=question.stem,
         rubric_criteria=question.answer_key["criteria"],
@@ -424,11 +449,12 @@ async def _grade_free_text_submission(
             matches_cached_criteria_pattern, session_service=get_database_session_service()
         ),
     )
+    return grading_result, moderation_cache_outcome, grading_cache_outcome
 
 
 async def _grade_stepwise_submission(
     db: Session, *, question: GeneratedQuestion, response_steps: list[str]
-) -> StepwiseGradingResult:
+) -> tuple[StepwiseGradingResult, CacheOutcome]:
     """Multi-step counterpart to `_grade_free_text_submission` (spec 018).
     Same length/rate-limit/moderation guardrail order, run against the
     submission's concatenated step text (contracts/api.md) -- but calls
@@ -470,18 +496,32 @@ async def _grade_stepwise_submission(
         _reject_free_text(db, question=question, reason="rate_limited", response_text=concatenated)
         raise RateLimitedError(retry_after_seconds=rate_limit_status.retry_after_seconds)
 
-    allowed = await check_moderation(concatenated, session_service=get_database_session_service())
+    allowed, moderation_cache_outcome = await get_or_check_moderation(
+        db,
+        text=concatenated,
+        instruction_version=MODERATION_INSTRUCTION_VERSION,
+        check_fn=functools.partial(
+            check_moderation, concatenated, session_service=get_database_session_service()
+        ),
+    )
     if not allowed:
-        _reject_free_text(db, question=question, reason="moderation", response_text=concatenated)
+        _reject_free_text(
+            db,
+            question=question,
+            reason="moderation",
+            response_text=concatenated,
+            moderation_cache_outcome=moderation_cache_outcome,
+        )
         raise ModerationRejectedError()
 
-    return await grade_stepwise_answer(
+    stepwise_result = await grade_stepwise_answer(
         question_stem=question.stem,
         steps=question.answer_key["steps"],
         learner_steps=response_steps,
         question_id=question.question_id,
         learner_id=question.learner_id,
     )
+    return stepwise_result, moderation_cache_outcome
 
 
 @router.post("/api/questions/{question_id}/answer", response_model=AnswerOut)
@@ -518,9 +558,19 @@ async def answer_question(
     stepwise_result: StepwiseGradingResult | None = None
     if question.question_type == QuestionType.FREE_TEXT:
         with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
-            grading_result, cache_outcome = await _grade_free_text_submission(
-                db, question=question, response_text=body.response
+            grading_result, moderation_cache_outcome, cache_outcome = (
+                await _grade_free_text_submission(
+                    db, question=question, response_text=body.response
+                )
             )
+            if moderation_cache_outcome.hit:
+                record_cache_hit_trace(
+                    name="moderation_cache_hit",
+                    cache_type="moderation",
+                    cache_entry_id=moderation_cache_outcome.cache_entry_id,
+                    prompt_version=MODERATION_INSTRUCTION_VERSION,
+                    learner_id=question.learner_id,
+                )
             if cache_outcome.hit:
                 record_cache_hit_trace(
                     name="grading_cache_hit",
@@ -540,13 +590,23 @@ async def answer_question(
             "grading_logic_version": grading_result.grading_logic_version,
             "served_from_cache": cache_outcome.hit,
             "cache_miss_reason": cache_outcome.reason,
+            "moderation_served_from_cache": moderation_cache_outcome.hit,
+            "moderation_cache_miss_reason": moderation_cache_outcome.reason,
             "read_aloud_used": body.read_aloud_used,
         }
     elif question.question_type == QuestionType.MULTI_STEP:
         with traced_request(learner_id=question.learner_id, session_id=question.quiz_session_id):
-            stepwise_result = await _grade_stepwise_submission(
+            stepwise_result, moderation_cache_outcome = await _grade_stepwise_submission(
                 db, question=question, response_steps=body.response
             )
+            if moderation_cache_outcome.hit:
+                record_cache_hit_trace(
+                    name="moderation_cache_hit",
+                    cache_type="moderation",
+                    cache_entry_id=moderation_cache_outcome.cache_entry_id,
+                    prompt_version=MODERATION_INSTRUCTION_VERSION,
+                    learner_id=question.learner_id,
+                )
         correct = stepwise_result.correct
         answer_payload = {
             "response": body.response,
@@ -564,6 +624,8 @@ async def answer_question(
                 for s in stepwise_result.step_results
             ],
             "grading_logic_version": stepwise_result.grading_logic_version,
+            "moderation_served_from_cache": moderation_cache_outcome.hit,
+            "moderation_cache_miss_reason": moderation_cache_outcome.reason,
             "read_aloud_used": body.read_aloud_used,
         }
     else:
