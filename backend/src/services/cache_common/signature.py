@@ -20,3 +20,24 @@ def compute_question_signature(stem: str, answer_key: dict) -> str:
     dict key ordering (`sort_keys=True`)."""
     canonical = json.dumps({"stem": stem, "answer_key": answer_key}, sort_keys=True)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _normalize(text: str) -> str:
+    return text.strip().casefold()
+
+
+def compute_text_signature(text: str) -> str:
+    """Exact-match lookup key for `moderation_cache` (spec 026 research.md
+    §2). Normalization is deliberately minimal (trim + casefold) -- FR-003
+    requires exact-signature matching, not fuzzy matching, so this only
+    absorbs incidental whitespace/case differences, never wording ones."""
+    return hashlib.sha256(_normalize(text).encode("utf-8")).hexdigest()
+
+
+def compute_paired_signature(first: str, second: str) -> str:
+    """Exact-match lookup key for `shielding_classification_cache`
+    (spec 026 research.md §2), order-sensitive -- `(first, second)` and
+    `(second, first)` hash differently, which is what makes matching
+    scoped per open-question (FR-004)."""
+    canonical = json.dumps([_normalize(first), _normalize(second)])
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()

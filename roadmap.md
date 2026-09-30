@@ -2100,6 +2100,84 @@ presentation-only).
 
 ---
 
+## Milestone 24: Moderation & Shielding Classification Caching
+
+**Spec**: `specs/026-moderation-shielding-cache/spec.md`.
+**Status**: Implementation complete (2026-09-30, branch
+`036-moderation-shielding-cache`), all 25 tasks across 3 user stories +
+Polish. Identified as the two remaining high-call-volume, non-cached
+model calls left after Milestone 13 (Semantic Caching): the moderation
+guardrail (spec 007 FR-012, runs on every free-text/stepwise
+submission) and the Tutor Agent's answer-shielding match classifier
+(spec 016, up to `MAX_OPEN_QUESTIONS` calls per tutor message).
+
+Shipped: two new Postgres tables (`moderation_cache`,
+`shielding_classification_cache`), both exact-signature (hashed,
+normalized-text) keyed rather than embedding-based like Milestone 13's
+grading cache -- a deliberate divergence, since these are short,
+low-context safety/leakage-relevant booleans where a false-positive
+near-duplicate match carries more risk than grading's richer free-text
+answers; two new `tutor_exchanges` columns (`shielding_checks_total`/
+`shielding_checks_from_cache`, a count pair rather than a single flag
+since one exchange can span several independent per-open-question
+checks with mixed outcomes). `get_or_check_moderation`/
+`get_or_classify_match` wrap `questions.py`'s two `check_moderation`
+call sites and `tutor/session.py`'s `determine_shielding` `match_fn`
+injection respectively, with zero change to either guardrail module
+itself. `cache_hit_rate_report.py` extended with `moderation`/
+`shielding` cache-type entries; a new `guardrail_cache_load_test.py`
+script is the SC-001/SC-002 verification mechanism -- live run:
+moderation 99.0% hit rate (5 real model calls vs. 500 requests),
+shielding 99.4% (3 real calls vs. 500), both far above the 30% floor,
+with the `--no-cache` baseline run confirming the call-volume drop (500
+real calls each with caching off). Every cache hit gets a
+`record_cache_hit_trace` Langfuse trace plus new payload/column fields
+on the existing `FREE_TEXT_SUBMISSION_REJECTED`/`ANSWER_SUBMITTED`
+audit events and the `TutorExchange` row (FR-009) -- no new audit event
+type, no new per-check log row. Neither cache stores the raw submitted
+text/stem/message, only a non-reversible signature (FR-008), so neither
+introduces a new deletion-cascade dependency. Full regression clean:
+`backend` 778/778, `grading-agent` 32/32, `tutor-agent` 41/41,
+`frontend` 174/174 (SC-005) -- Milestones 1-23's suites needed zero
+edits.
+
+Also surfaced and fixed in passing: the dev database's `alembic_version`
+claimed this feature's own migration head while missing every
+application table entirely (the project's known "stamped-past-
+migrations" flake, previously hit 3x) -- resolved via the documented
+`alembic stamp base` + `upgrade head` recovery before live
+verification could run at all.
+
+**Scope**: Cross-learner caching of two guardrail model calls'
+allow/block and match/no-match verdicts, keyed on an exact signature of
+the normalized input plus the current instruction version -- extending
+Milestone 13's caching strategy to the two highest-call-volume checks
+it didn't cover. The misconception classifier's per-answer call is
+explicitly excluded (its concern is unbatched invocation, a structural
+fix, not a repeated-input caching opportunity -- tracked separately per
+Milestone 11's status notes).
+
+**Definition of done**: All 5 of spec.md's Success Criteria verified.
+SC-001/SC-002 (>=30% hit rate per cache type, measurable call-volume
+reduction) -- `guardrail_cache_load_test.py`'s live cached vs.
+`--no-cache` run above. SC-003 (a hit and a miss are behaviorally
+indistinguishable to the caller) -- `test_guardrail_caching.py`'s
+hit/miss-parity integration tests. SC-004 (a superseded instruction
+version's entries are unreachable) -- covered per cache type in both
+`test_moderation_cache.py`/`test_shielding_cache.py` and the
+integration suite. SC-005 (spec 007/016 regression) -- full suites
+above, zero existing test file touched.
+
+**Explicitly not included**: any storage cap, TTL, or eviction policy
+for either cache (an exact-signature verdict never goes stale except
+via an explicit instruction-version bump, so unbounded retention is not
+a correctness concern in this milestone, mirroring Milestone 13's
+identical deferral); semantic/embedding-based matching for either cache
+(exact-signature only, per spec.md's Assumptions); batching the
+misconception classifier's per-answer call (separate follow-up).
+
+---
+
 ## Out of current roadmap (not planned, not rejected)
 - A second, cross-language A2A agent purely to demonstrate
   interoperability (e.g. a Go-based Grading service) -- Milestone 6
@@ -2281,6 +2359,18 @@ presentation-only).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.23.0 -- 2026-09-30, added Milestone 24 (Moderation &
+Shielding Classification Caching) and marked it `/speckit-implement`
+complete same day: all 25 tasks across 3 user stories + Polish, live
+`guardrail_cache_load_test.py` run confirming SC-001/SC-002 (moderation
+99.0%, shielding 99.4% hit rate, both against a `--no-cache` baseline),
+full regression clean (`backend` 778/778, `grading-agent` 32/32,
+`tutor-agent` 41/41, `frontend` 174/174). Also fixed, in passing, a
+recurrence of the known dev-DB "stamped-past-migrations" flake
+(`alembic_version` at this feature's head with every application table
+missing) via the already-documented `alembic stamp base` + `upgrade
+head` recovery.
 
 **Version**: 3.22.0 -- 2026-09-28, Milestone 23 merged to `staging` via
 PR #90, promotion to `main` in progress. A post-implementation

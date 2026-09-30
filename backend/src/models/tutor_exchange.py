@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import ARRAY, JSON, Boolean, DateTime, ForeignKey, Text, func
+from sqlalchemy import ARRAY, JSON, Boolean, DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,6 +24,16 @@ class TutorExchange(Base):
     reverse -- an FR-010 inconclusive-determination shield can set
     `shielded = true` with no single triggering question identified
     (spec 016 data-model.md's invariant).
+
+    `shielding_checks_total`/`shielding_checks_from_cache` (spec 026
+    FR-009, data-model.md §3) count the per-open-question shielding-
+    match checks `determine_shielding` performed for this exchange (one
+    per open question, up to `MAX_OPEN_QUESTIONS`) and how many of those
+    were served from `shielding_classification_cache` -- a count pair
+    rather than a single boolean, since one exchange can span several
+    independent checks with potentially mixed hit/miss outcomes. Both
+    default to 0 so every pre-existing row (before this column existed)
+    reads as "zero checks performed" rather than NULL.
     """
 
     __tablename__ = "tutor_exchanges"
@@ -48,6 +58,8 @@ class TutorExchange(Base):
     shielded_question_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("generated_questions.question_id"), nullable=True
     )
+    shielding_checks_total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    shielding_checks_from_cache: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
