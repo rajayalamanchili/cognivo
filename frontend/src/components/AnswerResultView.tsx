@@ -4,8 +4,9 @@ import type { AnswerResult } from "@/services/api";
 // the bare correct/incorrect outcome every question type already had,
 // plus (free-text only) the rubric criteria behind that grade, so a
 // learner sees more than a black-box verdict. `criteria_met`/
-// `criteria_missed` are `null` for MC/numeric (contracts/api.md), so this
-// section renders nothing for those question types.
+// `criteria_missed`/`step_results` are `null` or absent entirely for
+// MC/numeric (contracts/api.md), so this section renders nothing for
+// those question types.
 
 // Spec 025 User Story 3: narrowed to only the fields this component
 // actually renders, so a quiz summary's reconstructed per-question
@@ -25,7 +26,7 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
   const hasCriteria =
     (result.criteria_met && result.criteria_met.length > 0) ||
     (result.criteria_missed && result.criteria_missed.length > 0);
-  const hasStepResults = result.step_results !== null && result.step_results.length > 0;
+  const hasStepResults = !!result.step_results && result.step_results.length > 0;
 
   return (
     <div className="flex flex-col gap-4" data-testid="answer-result-view">
