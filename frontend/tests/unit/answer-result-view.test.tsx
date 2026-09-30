@@ -10,7 +10,7 @@ import type { AnswerResultViewData } from "@/components/AnswerResultView";
 
 describe("AnswerResultView", () => {
   it("renders an MC/numeric result whose optional fields are absent, not null", () => {
-    const result = {
+    const result: AnswerResultViewData = {
       correct: true,
       topic_id: "order-of-operations",
       posterior_p_mastery: 0.6,
@@ -18,9 +18,31 @@ describe("AnswerResultView", () => {
       criteria_met: null,
       criteria_missed: null,
       // step_results deliberately omitted -- matches the real JSON body.
-    } as unknown as AnswerResultViewData;
+    };
 
     expect(() => render(<AnswerResultView result={result} />)).not.toThrow();
     expect(screen.getByText("Correct!")).toBeInTheDocument();
+    expect(screen.queryByTestId("step-results")).not.toBeInTheDocument();
+  });
+
+  it("renders the step-by-step section when step_results is populated", () => {
+    const result: AnswerResultViewData = {
+      correct: false,
+      topic_id: "linear-equations",
+      posterior_p_mastery: 0.4,
+      band: "developing",
+      criteria_met: null,
+      criteria_missed: null,
+      step_results: [
+        { step_index: 0, correct: true, criteria_met: ["Isolates the variable"], criteria_missed: [] },
+        { step_index: 1, correct: false, criteria_met: [], criteria_missed: ["Computes the final value"] },
+      ],
+    };
+
+    render(<AnswerResultView result={result} />);
+
+    expect(screen.getByTestId("step-results")).toBeInTheDocument();
+    expect(screen.getByText("Isolates the variable")).toBeInTheDocument();
+    expect(screen.getByText("Computes the final value")).toBeInTheDocument();
   });
 });

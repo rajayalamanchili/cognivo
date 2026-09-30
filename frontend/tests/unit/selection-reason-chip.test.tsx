@@ -58,6 +58,7 @@ describe("SelectionReasonChip", () => {
     );
     const chip = screen.getByTestId("selection-reason-chip");
     expect(chip.textContent).not.toMatch(/while|today|month|week|year/i);
+    expect(chip.textContent).toMatch(/mastered topics/i);
   });
 
   it("renders next-step-style copy for an eligible-pool pick by default", () => {
