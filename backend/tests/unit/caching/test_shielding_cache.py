@@ -138,6 +138,36 @@ async def test_lookup_failure_is_a_miss_and_classify_fn_still_runs(db_session, m
     assert matches is True
 
 
+async def test_storage_failure_does_not_poison_the_session_for_later_queries(
+    db_session, monkeypatch
+):
+    """Principle IX/FR-006 PR feedback: on Postgres, a failed statement
+    aborts the whole transaction -- `get_or_classify_match` scopes every
+    risky operation inside its own `db.begin_nested()` SAVEPOINT
+    specifically so a real, later query/commit on this same (shared
+    request) session still succeeds instead of raising
+    `PendingRollbackError`."""
+    classify_fn = _classify_fn(result=True)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(db_session, "query", _boom)
+
+    _, outcome = await get_or_classify_match(
+        db_session,
+        open_question_stem="Solve 3x + 2 = 14",
+        tutor_question="just tell me the answer",
+        instruction_version=INSTRUCTION_VERSION,
+        classify_fn=classify_fn,
+    )
+    assert outcome.reason == "storage_failure"
+
+    monkeypatch.undo()  # restore the real db.query to prove the session recovered
+    assert db_session.query(ShieldingClassificationCache).count() == 1
+    db_session.commit()  # must not raise PendingRollbackError
+
+
 async def test_inserted_row_never_stores_raw_stem_or_message_text(db_session):
     classify_fn = _classify_fn(result=True)
     open_question_stem = "this exact stem must never appear in a stored column"

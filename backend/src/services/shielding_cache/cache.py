@@ -39,28 +39,41 @@ async def get_or_classify_match(
     failure"`); `classify_fn()` still runs so the request always
     succeeds. A `classify_fn` exception itself (e.g. `ClassificationFailedError`)
     is never caught here -- it propagates to the caller unchanged.
+
+    Every cache-storage operation runs inside its own `db.begin_nested()`
+    SAVEPOINT (Principle IX/FR-006 PR feedback): on Postgres, a failed
+    statement aborts the whole transaction, so a bare `except` with no
+    rollback would leave `db` -- the caller's own shared request
+    session, not a private one -- unusable for every later query/commit
+    in the same request. Rolling back only to the SAVEPOINT keeps the
+    rest of the caller's transaction intact.
     """
     pair_signature = compute_paired_signature(open_question_stem, tutor_question)
 
     storage_failed = False
     row: ShieldingClassificationCache | None = None
     try:
-        row = (
-            db.query(ShieldingClassificationCache)
-            .filter(
-                ShieldingClassificationCache.pair_signature == pair_signature,
-                ShieldingClassificationCache.shielding_classification_instruction_version
-                == instruction_version,
+        with db.begin_nested():
+            row = (
+                db.query(ShieldingClassificationCache)
+                .filter(
+                    ShieldingClassificationCache.pair_signature == pair_signature,
+                    ShieldingClassificationCache.shielding_classification_instruction_version
+                    == instruction_version,
+                )
+                .first()
             )
-            .first()
-        )
     except Exception:  # noqa: BLE001 -- any lookup failure fails open (FR-006)
         storage_failed = True
 
     if row is not None:
-        row.hit_count += 1
-        row.last_served_at = datetime.datetime.now(datetime.UTC)
-        db.flush()
+        try:
+            with db.begin_nested():
+                row.hit_count += 1
+                row.last_served_at = datetime.datetime.now(datetime.UTC)
+                db.flush()
+        except Exception:  # noqa: BLE001 -- hit-count bump is best-effort too
+            pass
         return row.matches, CacheOutcome(hit=True, cache_entry_id=row.cache_entry_id)
 
     miss_reason = "storage_failure" if storage_failed else "no_matching_entry"
@@ -68,13 +81,14 @@ async def get_or_classify_match(
     matches = await classify_fn()
 
     try:
-        new_row = ShieldingClassificationCache(
-            pair_signature=pair_signature,
-            shielding_classification_instruction_version=instruction_version,
-            matches=matches,
-        )
-        db.add(new_row)
-        db.flush()
+        with db.begin_nested():
+            new_row = ShieldingClassificationCache(
+                pair_signature=pair_signature,
+                shielding_classification_instruction_version=instruction_version,
+                matches=matches,
+            )
+            db.add(new_row)
+            db.flush()
     except Exception:  # noqa: BLE001 -- best-effort write, never blocks the request (FR-006)
         pass
 
