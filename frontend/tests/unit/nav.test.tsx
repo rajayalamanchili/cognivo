@@ -13,6 +13,7 @@ const push = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+  usePathname: () => "/",
 }));
 
 vi.mock("@/services/api", async () => {

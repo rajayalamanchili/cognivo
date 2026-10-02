@@ -110,9 +110,9 @@ export default function DashboardSubjectSection({
   return (
     <section
       data-testid={`dashboard-subject-section-${subjectId}`}
-      className="flex flex-col gap-4 rounded-lg border border-border p-6"
+      className="flex flex-col gap-4 rounded-card border border-border bg-surface p-7"
     >
-      <h2 className="text-xl font-semibold">{displayName}</h2>
+      <h2 className="font-heading text-[26px] font-bold text-heading">{displayName}</h2>
       <div data-testid="dashboard-mastery-slot">
         {masteryPhase === "loading" && (
           <LoadingIndicator message="Gathering your progress…" compact />

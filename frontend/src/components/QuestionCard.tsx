@@ -90,14 +90,18 @@ export default function QuestionCard({
   const canReadAloud = readAloudEnabled && canUseReadAloud();
 
   return (
-    <fieldset className="flex flex-col gap-3" disabled={disabled} data-testid="question-card">
-      <legend className="font-medium">{question.stem}</legend>
+    <fieldset
+      className="flex flex-col gap-[22px] rounded-card border border-border bg-surface p-8"
+      disabled={disabled}
+      data-testid="question-card"
+    >
+      <legend className="font-heading text-[28px] font-bold text-heading">{question.stem}</legend>
 
       {canReadAloud && (
         <button
           type="button"
           onClick={handleReadAloud}
-          className="self-start rounded-lg border border-border px-3 py-1.5 text-sm"
+          className="self-start rounded-full border-2 border-primary/30 px-4 py-2 text-sm font-bold text-primary"
           data-testid="read-aloud-button"
         >
           🔊 {readAloudUsed ? "Replay" : "Read aloud"}
@@ -114,7 +118,7 @@ export default function QuestionCard({
           <img
             src={question.image_url}
             alt={question.image_alt_text ?? ""}
-            className="max-w-full rounded-lg border border-border"
+            className="max-w-full rounded-[16px] border border-border"
           />
         </>
       ) : null}
@@ -159,7 +163,7 @@ export default function QuestionCard({
         <input
           type="number"
           step="any"
-          className="rounded-lg border border-border px-3 py-2"
+          className="rounded-[14px] border-2 border-primary/30 px-[18px] py-3 text-lg"
           value={response}
           onChange={(event) => onResponseChange(event.target.value)}
         />

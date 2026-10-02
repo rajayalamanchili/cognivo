@@ -165,19 +165,19 @@ export default function PlacementFlow() {
 
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-        <h1 className="text-2xl font-semibold">Placement Results</h1>
+        <h1 className="font-heading text-[32px] font-bold text-heading">Placement Results</h1>
         <MasteryView topics={masteryState} />
         {refreshedTopicIds.length > 0 && (
           <p
             data-testid="placement-refreshed-topics"
-            className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
+            className="rounded-[18px] bg-success/15 px-5 py-4 text-[15px] font-bold text-success"
           >
             {tier.refreshedFraming} ({refreshedTopicIds.map(formatTopicId).join(", ")})
           </p>
         )}
         {perQuestionResults.length > 0 && (
           <div className="flex flex-col gap-4" data-testid="placement-per-question-results">
-            <p className="text-sm font-medium text-muted">How each question was graded</p>
+            <p className="text-[15px] font-bold text-heading">How each question was graded</p>
             {perQuestionResults.map((result) => (
               <AnswerResultView key={result.question_id} result={result} />
             ))}
@@ -186,7 +186,7 @@ export default function PlacementFlow() {
         <div className="flex items-center gap-4">
           <Link
             href={`/practice?subject=${subjectId}`}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground"
           >
             Start Practicing
           </Link>
@@ -200,14 +200,17 @@ export default function PlacementFlow() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
-      <h1 className="text-2xl font-semibold">Placement Assessment</h1>
+      <h1 className="font-heading text-[32px] font-bold text-heading">Placement Assessment</h1>
       {skipError && <p className="text-error">{skipError}</p>}
       {questions.map((question, index) => (
-        <fieldset key={question.question_id} className="flex flex-col gap-3">
-          <legend className="font-medium">
+        <fieldset
+          key={question.question_id}
+          className="flex flex-col gap-4 rounded-card border border-border bg-surface p-7"
+        >
+          <legend className="font-heading text-[24px] font-semibold leading-snug text-heading">
             {index + 1}. {question.stem}
             {question.grade !== null && (
-              <span className="ml-2 rounded-full bg-muted/10 px-2 py-0.5 text-xs font-normal text-muted">
+              <span className="ml-2 rounded-full bg-surface-subtle px-3 py-0.5 text-xs font-extrabold text-muted">
                 Grade {question.grade}
               </span>
             )}
@@ -218,7 +221,7 @@ export default function PlacementFlow() {
                   type="button"
                   disabled={skippingQuestionId === question.question_id}
                   onClick={() => handleSkip(question.question_id)}
-                  className="ml-2 text-xs font-normal text-link underline disabled:opacity-40"
+                  className="ml-2 text-xs font-bold text-muted underline disabled:opacity-40"
                 >
                   {skippingQuestionId === question.question_id ? "Skipping…" : "Skip (too hard)"}
                 </button>
@@ -231,7 +234,7 @@ export default function PlacementFlow() {
                 speak(buildReadAloudText(question));
                 setReadAloudUsed((prev) => ({ ...prev, [question.question_id]: true }));
               }}
-              className="self-start rounded-lg border border-border px-3 py-1.5 text-sm"
+              className="self-start rounded-full border-2 border-primary/30 px-4 py-2 text-sm font-bold text-primary"
               data-testid="read-aloud-button"
             >
               🔊 Read aloud
@@ -261,7 +264,7 @@ export default function PlacementFlow() {
             <input
               type="number"
               step="any"
-              className="rounded-lg border border-border px-3 py-2"
+              className="rounded-[14px] border-2 border-primary/30 px-[18px] py-3 text-lg"
               value={responses[question.question_id] ?? ""}
               onChange={(event) =>
                 setResponses((prev) => ({
@@ -277,7 +280,7 @@ export default function PlacementFlow() {
         type="button"
         disabled={!allAnswered || phase === "submitting"}
         onClick={handleSubmit}
-        className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+        className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
       >
         {phase === "submitting" ? (
           <LoadingIndicator message="Figuring out where to start you…" compact />

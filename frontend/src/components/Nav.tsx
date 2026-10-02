@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import CognivoMark from "@/components/CognivoMark";
 import {
@@ -113,8 +113,16 @@ function useVisitorState() {
   };
 }
 
+// 027-learner-ui-redesign: pill-shaped nav-link treatment, scoped to the
+// demo-learner bucket only (per spec.md's Edge Cases) -- guardian/instructor
+// links keep their existing plain-text styling.
+function demoLearnerLinkClassName(active: boolean): string {
+  return `rounded-full px-4 py-2 font-bold ${active ? "bg-primary-subtle text-heading" : "text-muted"}`;
+}
+
 export default function Nav() {
   const router = useRouter();
+  const pathname = usePathname();
   const {
     accountType,
     identifier,
@@ -165,11 +173,11 @@ export default function Nav() {
 
   return (
     <>
-      <nav className="flex flex-wrap items-center gap-4 border-b border-border px-8 py-3 text-sm">
+      <nav className="flex flex-wrap items-center gap-4 border-b border-border bg-surface px-8 py-3 text-sm">
         <Link
           href={logoHref(accountType)}
           data-testid="nav-logo"
-          className="flex items-center gap-2 font-heading text-lg font-bold text-foreground"
+          className="flex items-center gap-2 font-heading text-lg font-bold text-heading"
         >
           <CognivoMark size={28} />
           Cognivo
@@ -182,11 +190,26 @@ export default function Nav() {
         <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-muted">
           {PERSONALIZATION_EVIDENCE_LINK.label}
         </Link>
-        {links.map((link) => (
-          <Link key={link.href} href={link.href} className="text-muted">
-            {link.label}
-          </Link>
-        ))}
+        {links.map((link) => {
+          if (bucket !== "demo-learner") {
+            return (
+              <Link key={link.href} href={link.href} className="text-muted">
+                {link.label}
+              </Link>
+            );
+          }
+          const active = pathname === link.href.split("?")[0];
+          return (
+            <Link
+              key={link.href}
+              href={link.href}
+              aria-current={active ? "page" : undefined}
+              className={demoLearnerLinkClassName(active)}
+            >
+              {link.label}
+            </Link>
+          );
+        })}
         {bucket === "demo-learner" && (
           <button type="button" onClick={handleExitDemo} className="text-muted underline">
             Exit Demo

@@ -90,16 +90,16 @@ export default function MasteryFlow() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Your Mastery</h1>
+      <h1 className="font-heading text-[32px] font-bold text-heading">Your Mastery</h1>
       <MasteryView topics={topics} unlockedGrade={unlockedGrade} />
       {scoredTopics.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <label className="flex flex-col gap-1 text-sm font-medium">
+        <div className="flex flex-col gap-4 rounded-card border border-border bg-surface p-7">
+          <label className="flex flex-col gap-2 text-[15px] font-bold text-heading">
             See a topic&apos;s trend over time
             <select
               value={selectedTopicId ?? ""}
               onChange={(event) => setSelectedTopicId(event.target.value || null)}
-              className="rounded-lg border border-border px-3 py-2"
+              className="rounded-[14px] border-2 border-primary/30 px-[18px] py-3 font-normal text-foreground"
             >
               <option value="">Choose a topic</option>
               {scoredTopics.map((topic) => (

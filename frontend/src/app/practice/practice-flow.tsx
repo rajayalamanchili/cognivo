@@ -274,7 +274,7 @@ export default function PracticeFlow() {
   if (phase === "ended") {
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-ended">
-        <h1 className="text-2xl font-semibold">Practice session ended</h1>
+        <h1 className="font-heading text-[32px] font-bold text-heading">Practice session ended</h1>
         {endedSummary && (
           <>
             <p className="text-lg">
@@ -291,7 +291,7 @@ export default function PracticeFlow() {
           <button
             type="button"
             onClick={handleStartOver}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground"
           >
             Practice again
           </button>
@@ -314,7 +314,7 @@ export default function PracticeFlow() {
           <button
             type="button"
             onClick={() => void advanceToNextQuestion()}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground"
           >
             Next question
           </button>
@@ -332,7 +332,7 @@ export default function PracticeFlow() {
     if (!question) return null;
     return (
       <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
-        <h1 className="text-2xl font-semibold">Practice</h1>
+        <h1 className="font-heading text-[32px] font-bold text-heading">Practice</h1>
         {expiresAt && (
           <div className="flex items-center justify-between gap-4">
             <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
@@ -368,7 +368,7 @@ export default function PracticeFlow() {
             type="button"
             disabled={response === "" || phase === "submitting"}
             onClick={handleSubmit}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
           >
             {phase === "submitting" ? (
               <LoadingIndicator message="Checking your answer…" compact />
@@ -384,7 +384,7 @@ export default function PracticeFlow() {
   // phase === "start"
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-start-form">
-      <h1 className="text-2xl font-semibold">Practice</h1>
+      <h1 className="font-heading text-[32px] font-bold text-heading">Practice</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">
           Subject
@@ -421,7 +421,7 @@ export default function PracticeFlow() {
         type="button"
         disabled={!selectedSubjectId}
         onClick={handleStart}
-        className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+        className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
       >
         {timeLimitSeconds === null ? "Start practicing" : "Start timed practice"}
       </button>

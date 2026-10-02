@@ -14,6 +14,12 @@ Milestone 8 introduced the project's first design-token theme system (semantic l
 
 The six reference mockups (one static HTML file per screen: Dashboard, Practice, Mastery, Placement, AI Tutor, Answer Result) are visual references only. Their inline styles carry the exact values (colors, type sizes, spacing, radii, shapes) to replicate; their markup structure and hardcoded sample data are not meant to be copied as-is.
 
+## Clarifications
+
+### Session 2026-10-02
+
+- Q: The new palette values (`--color-primary`, `--background`, `--color-border`, `--color-muted`, `--color-success`, `--color-warning`) live in `globals.css`'s global, site-wide token block -- already consumed by out-of-scope surfaces (instructor rosters/review pages, guardian pages, sign-in, auth forms), discovered mid-implementation. FR-006 (centralize shared values in the existing token system) and FR-007 (out-of-scope screens unchanged) directly conflict once that's known: a global token edit is exactly what FR-006 asks for, and exactly what FR-007 forbids. Which wins? → A: Global rebrand. The shared color tokens are a legitimate site-wide update -- the same category of change as Milestone 8's original theme system, which also restyled every component in one pass, not a scoped subset. FR-007's "unchanged" scope is amended to cover layout, component shapes, and structure only; the shared brand-color tokens were always global by design, and letting them cascade is the intended, honest behavior of a "design-token system," not a side effect to prevent. Out-of-scope pages get the new palette's colors but no new components, shapes, or layout changes.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A learner sees the refreshed visual design with no change in behavior (Priority: P1)
@@ -28,7 +34,7 @@ A learner using the Dashboard, Practice, Mastery, Placement, AI Tutor, or Answer
 
 1. **Given** the Dashboard, Practice, Mastery, Placement, AI Tutor, and Answer Result screens, **When** each renders, **Then** its colors, typography, spacing, corner radii, and button/nav shapes match the corresponding design mockup's values.
 2. **Given** a learner performs any existing action on one of the six screens (e.g. starting practice, submitting an answer, opening "why this question?", asking the tutor a question), **When** the action completes, **Then** the outcome (data shown, navigation, state change) is identical to the pre-redesign behavior.
-3. **Given** a screen or component outside the six named screens (e.g. the instructor dashboard, guardian/auth flows), **When** the redesign ships, **Then** it is visually unchanged.
+3. **Given** a screen or component outside the six named screens (e.g. the instructor dashboard, guardian/auth flows), **When** the redesign ships, **Then** its layout, component shapes, and structure are unchanged -- except for the shared color-token rebrand covered by FR-007's amended scope below, which intentionally does cascade there.
 
 ---
 
@@ -65,7 +71,7 @@ The colors, type scale, spacing, and radius values the new design introduces are
 
 ### Edge Cases
 
-- What happens on a screen that mixes redesigned and not-yet-redesigned shared components (e.g. a shared nav bar used by both learner and instructor routes)? The redesign must not visually break the non-learner surfaces that reuse the same shared component.
+- What happens on a screen that mixes redesigned and not-yet-redesigned shared components (e.g. a shared nav bar used by both learner and instructor routes)? The shared component's new color tokens cascade there (Clarifications, Session 2026-10-02), but any new layout/shape treatment (e.g. pill-shaped nav links) stays scoped to the demo-learner bucket only -- the non-learner surface must not visually break or gain new structure it didn't have before.
 - How does the system handle a learner on a screen state the mockups didn't depict (e.g. an empty state, an error state, a loading state)? These states must still render using the new design tokens even though no mockup explicitly covers them.
 - What happens to in-flight interactive states the mockups show statically (e.g. the "Why this question?" expanded/collapsed disclosure, hover/focus states on pill buttons)? These must remain fully functional and keyboard-accessible in the new style, not just visually present in one state.
 
@@ -79,7 +85,7 @@ The colors, type scale, spacing, and radius values the new design introduces are
 - **FR-004**: The persistent demo-account badge MUST remain present and visually prominent, in the new style, on every redesigned demo-learner surface.
 - **FR-005**: Non-color accessibility cues already established on these screens (elapsed-time text labels, required image alt text) MUST be preserved.
 - **FR-006**: Shared visual values (color, type scale, spacing, radii) introduced by the redesign MUST be defined in the project's existing shared design-token system, not duplicated as one-off literal values per component.
-- **FR-007**: Screens and components outside the six named screens (instructor dashboard, guardian/auth flows, non-learner nav buckets) are out of scope and MUST NOT change as a side effect of this redesign.
+- **FR-007**: Screens and components outside the six named screens (instructor dashboard, guardian/auth flows, non-learner nav buckets) are out of scope for layout, component-shape, and structural changes, which MUST NOT change as a side effect of this redesign. The shared color tokens (FR-006) are the one exception, by design: they are global, and their new values MUST cascade to out-of-scope surfaces rather than being duplicated into a second, scoped-only color system (Clarifications, Session 2026-10-02).
 - **FR-008**: The redesign MUST introduce no new backend/API endpoint, response field, or database change.
 
 ### Key Entities

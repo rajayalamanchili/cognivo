@@ -49,7 +49,7 @@ export default function DashboardFlow() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">Your Dashboard</h1>
+      <h1 className="font-heading text-[32px] font-bold text-heading">Your Dashboard</h1>
       {subjects.map((subject) => (
         <DashboardSubjectSection
           key={subject.subject_id}
