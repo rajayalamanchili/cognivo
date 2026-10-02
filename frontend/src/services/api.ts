@@ -455,6 +455,21 @@ export function getTopicPriorityPreview(
   );
 }
 
+// 027-learner-ui-redesign FR-009: the one new endpoint this feature
+// introduces, backing the Dashboard's "questions this week" stat tile.
+export interface ActivitySummaryResponse {
+  questions_this_week: number;
+}
+
+export function getActivitySummary(
+  learnerId: string,
+  subjectId: string,
+): Promise<ActivitySummaryResponse> {
+  return request<ActivitySummaryResponse>(
+    `/api/learners/${learnerId}/activity-summary?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
 export function getNextQuestion(learnerId: string, subjectId: string): Promise<NextQuestion> {
   return request<NextQuestion>(
     `/api/learners/${learnerId}/next-question?subject_id=${encodeURIComponent(subjectId)}`,

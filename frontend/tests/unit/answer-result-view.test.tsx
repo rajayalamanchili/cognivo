@@ -13,6 +13,7 @@ describe("AnswerResultView", () => {
     const result: AnswerResultViewData = {
       correct: true,
       topic_id: "order-of-operations",
+      prior_p_mastery: 0.48,
       posterior_p_mastery: 0.6,
       band: "developing",
       criteria_met: null,
@@ -23,12 +24,31 @@ describe("AnswerResultView", () => {
     expect(() => render(<AnswerResultView result={result} />)).not.toThrow();
     expect(screen.getByText("Correct!")).toBeInTheDocument();
     expect(screen.queryByTestId("step-results")).not.toBeInTheDocument();
+    expect(screen.getByText("48%")).toBeInTheDocument();
+    expect(screen.getByText("60%")).toBeInTheDocument();
+  });
+
+  it("omits the mastery-change section when prior_p_mastery is null (e.g. a reconstructed quiz result)", () => {
+    const result: AnswerResultViewData = {
+      correct: true,
+      topic_id: "order-of-operations",
+      prior_p_mastery: null,
+      posterior_p_mastery: 0.6,
+      band: "developing",
+      criteria_met: null,
+      criteria_missed: null,
+    };
+
+    render(<AnswerResultView result={result} />);
+
+    expect(screen.queryByText("YOUR MASTERY")).not.toBeInTheDocument();
   });
 
   it("renders the step-by-step section when step_results is populated", () => {
     const result: AnswerResultViewData = {
       correct: false,
       topic_id: "linear-equations",
+      prior_p_mastery: 0.45,
       posterior_p_mastery: 0.4,
       band: "developing",
       criteria_met: null,

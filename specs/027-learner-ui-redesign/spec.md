@@ -20,6 +20,14 @@ The six reference mockups (one static HTML file per screen: Dashboard, Practice,
 
 - Q: The new palette values (`--color-primary`, `--background`, `--color-border`, `--color-muted`, `--color-success`, `--color-warning`) live in `globals.css`'s global, site-wide token block -- already consumed by out-of-scope surfaces (instructor rosters/review pages, guardian pages, sign-in, auth forms), discovered mid-implementation. FR-006 (centralize shared values in the existing token system) and FR-007 (out-of-scope screens unchanged) directly conflict once that's known: a global token edit is exactly what FR-006 asks for, and exactly what FR-007 forbids. Which wins? → A: Global rebrand. The shared color tokens are a legitimate site-wide update -- the same category of change as Milestone 8's original theme system, which also restyled every component in one pass, not a scoped subset. FR-007's "unchanged" scope is amended to cover layout, component shapes, and structure only; the shared brand-color tokens were always global by design, and letting them cascade is the intended, honest behavior of a "design-token system," not a side effect to prevent. Out-of-scope pages get the new palette's colors but no new components, shapes, or layout changes.
 
+### Session 2026-10-02 (second pass)
+
+- Q: A faithfulness pass against the mockups found the live Dashboard and Answer Result are structurally simpler than their mockups -- Dashboard has no subject-pill toggle, "Up next" hero, refresh card, or stat-tile row (it stacks every subject's mastery/weak-area view instead); Answer Result has no mastery before→after bar. FR-002's original "no new data" line would forbid closing these gaps. Should the gap stay (restyle only what exists) or should the spec's scope grow to close it? → A: Close it, with a bias toward zero new data over inventing a feature. Audited what's already available first: `AnswerResult`/`PlacementQuestionResultEntry`/`QuizAnswerResultEntry` already carry `prior_p_mastery` in the API response -- `AnswerResultView` just never consumed it, so the before→after bar needs no new data at all. Dashboard's subject toggle, "Up next" hero (topic + why-text), and refresh card are all derivable client-side from data `DashboardSubjectSection` already fetches (`topic-priority-preview`'s `next_topic`/`is_fallback`, plus `mastery-state`'s per-topic `p_mastery`/`effective_p_mastery`) -- no new fetch either. The one true gap is "questions this week," which no existing endpoint exposes anywhere -- for that one number, FR-008 is narrowly amended (see below) to permit exactly one new minimal, read-only backend endpoint, rather than fabricating the number client-side or omitting the whole stat-tile row the mockup depicts.
+
+### Session 2026-10-02 (third pass, user-confirmed scope)
+
+- The user's own framing for this pass: "stay true to the mockup and add data UI if needed, update the spec if needed." Recorded here verbatim as the directive this pass's FR-002/FR-008 amendments and the new FR-009 are built against, so a future reader doesn't mistake this as unprompted scope growth.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A learner sees the refreshed visual design with no change in behavior (Priority: P1)
@@ -32,7 +40,7 @@ A learner using the Dashboard, Practice, Mastery, Placement, AI Tutor, or Answer
 
 **Acceptance Scenarios**:
 
-1. **Given** the Dashboard, Practice, Mastery, Placement, AI Tutor, and Answer Result screens, **When** each renders, **Then** its colors, typography, spacing, corner radii, and button/nav shapes match the corresponding design mockup's values.
+1. **Given** the Dashboard, Practice, Mastery, Placement, AI Tutor, and Answer Result screens, **When** each renders, **Then** its colors, typography, spacing, corner radii, and button/nav shapes match the corresponding design mockup's values -- including Dashboard's subject-pill toggle, "Up next" hero, and refresh/stat-tile row, and Answer Result's mastery before→after bar, once those are built per the second Clarifications pass above.
 2. **Given** a learner performs any existing action on one of the six screens (e.g. starting practice, submitting an answer, opening "why this question?", asking the tutor a question), **When** the action completes, **Then** the outcome (data shown, navigation, state change) is identical to the pre-redesign behavior.
 3. **Given** a screen or component outside the six named screens (e.g. the instructor dashboard, guardian/auth flows), **When** the redesign ships, **Then** its layout, component shapes, and structure are unchanged -- except for the shared color-token rebrand covered by FR-007's amended scope below, which intentionally does cascade there.
 
@@ -80,17 +88,18 @@ The colors, type scale, spacing, and radius values the new design introduces are
 ### Functional Requirements
 
 - **FR-001**: The Dashboard, Practice, Mastery, Placement, AI Tutor, and Answer Result screens MUST visually match the provided design mockups' color palette, typography, spacing, corner radii, and component shapes (pill-shaped buttons and nav, rounded cards).
-- **FR-002**: The redesign MUST NOT alter the underlying data, business logic, navigation structure, or API calls made by any of the six screens.
+- **FR-002**: The redesign MUST NOT alter grading, mastery-model, or sequencing logic, nor any navigation target, on any of the six screens. Display-level data composition MAY change where needed to match the mockups (Clarifications, second pass) -- prefer consuming a value already returned by an existing API response over fetching something new, and prefer a new client-side derivation from already-fetched data over a new network call, in that order.
 - **FR-003**: Every already-shipped learner-facing behavior on these screens -- including the "why this question?" selection-reason disclosure, decay-aware mastery display, refreshed/recovery acknowledgment, per-criterion grading detail, mastery-over-time sparkline, and softened weak-area report -- MUST continue to function identically after the redesign.
 - **FR-004**: The persistent demo-account badge MUST remain present and visually prominent, in the new style, on every redesigned demo-learner surface.
 - **FR-005**: Non-color accessibility cues already established on these screens (elapsed-time text labels, required image alt text) MUST be preserved.
 - **FR-006**: Shared visual values (color, type scale, spacing, radii) introduced by the redesign MUST be defined in the project's existing shared design-token system, not duplicated as one-off literal values per component.
 - **FR-007**: Screens and components outside the six named screens (instructor dashboard, guardian/auth flows, non-learner nav buckets) are out of scope for layout, component-shape, and structural changes, which MUST NOT change as a side effect of this redesign. The shared color tokens (FR-006) are the one exception, by design: they are global, and their new values MUST cascade to out-of-scope surfaces rather than being duplicated into a second, scoped-only color system (Clarifications, Session 2026-10-02).
-- **FR-008**: The redesign MUST introduce no new backend/API endpoint, response field, or database change.
+- **FR-008**: The redesign MUST introduce no new database table, column, or migration, and no new backend/API endpoint beyond the one narrow exception FR-009 permits.
+- **FR-009**: Dashboard's "questions this week" stat tile MAY be backed by exactly one new, read-only backend endpoint (a count of this subject's `answer_submitted` events in the trailing 7 days for this learner) -- the sole exception to FR-008, justified because no existing endpoint or already-fetched response exposes this number. No other new backend surface is permitted under this feature.
 
 ### Key Entities
 
-*(none -- this feature introduces no new data; it restyles the display of data that already exists)*
+*(none -- this feature introduces no new persisted data or entity. FR-009's one new endpoint is a read-only aggregate query over the existing `AssessmentEvent` audit log, not a new entity.)*
 
 ## Success Criteria *(mandatory)*
 
@@ -109,3 +118,4 @@ The colors, type scale, spacing, and radius values the new design introduces are
 - The instructor dashboard, guardian/auth flows, and the demo entry point are out of scope for this feature; only the six named learner-facing screens and the shared components they depend on are restyled.
 - This is a visual-design-system update, not a new product milestone -- it does not add an entry to `roadmap.md`'s milestone sequence, consistent with how Milestone 8's own theme overhaul was handled as bundled work rather than a dedicated milestone.
 - No real learner data is affected or newly displayed; synthetic demo-learner data continues to be the only data shown, per Constitution Principle VIII.
+- FR-009's new endpoint reuses the existing `AssessmentEvent` audit-log table (Constitution Principle V) read-only -- no new table, no write path, no change to what's logged or why.

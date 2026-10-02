@@ -30,6 +30,7 @@ from src.api.errors import (
     UnprocessableError,
 )
 from src.api.routes import (
+    activity_summary,
     auth,
     content_review,
     cron,
@@ -181,6 +182,7 @@ def health() -> dict:
 
 
 app.include_router(placement.router)
+app.include_router(activity_summary.router)
 app.include_router(mastery.router)
 app.include_router(mastery_history.router)
 app.include_router(demo_learner.router)
