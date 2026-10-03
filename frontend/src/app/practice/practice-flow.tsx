@@ -316,20 +316,46 @@ export default function PracticeFlow() {
   if (phase === "result" && result) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
-        <AnswerResultView result={result} />
+        <AnswerResultView
+          result={result}
+          actions={
+            <>
+              <button
+                type="button"
+                onClick={() => void advanceToNextQuestion()}
+                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-primary px-7 text-[17px] font-extrabold text-primary-foreground"
+              >
+                Next question
+              </button>
+              <Link
+                href="/tutor"
+                className="inline-flex min-h-[48px] w-full items-center justify-center rounded-full border-2 border-primary/30 px-7 text-[16px] font-extrabold text-primary"
+              >
+                Talk it through with the AI Tutor
+              </Link>
+              {selectedSubjectId && (
+                <Link
+                  href={`/mastery?subject=${selectedSubjectId}`}
+                  className="text-center text-sm text-link underline"
+                >
+                  View mastery state
+                </Link>
+              )}
+            </>
+          }
+        />
         <RefreshedBanner refreshed={result.refreshed} unlockedGrade={question?.unlocked_grade ?? null} />
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => void advanceToNextQuestion()}
-            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground"
-          >
-            Next question
-          </button>
-          {selectedSubjectId && (
-            <Link href={`/mastery?subject=${selectedSubjectId}`} className="text-link underline">
-              View mastery state
-            </Link>
+        <div className="flex justify-center">
+          {flagged ? (
+            <p className="text-sm text-muted">Flagged for review -- thanks for the report.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleFlag("Learner flagged this answer's grading as incorrect.")}
+              className="min-h-[44px] text-[15px] font-bold text-muted underline"
+            >
+              Think this was graded wrong? Flag it for your instructor
+            </button>
           )}
         </div>
       </div>
