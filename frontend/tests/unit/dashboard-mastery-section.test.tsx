@@ -23,6 +23,7 @@ describe("DashboardSubjectSection mastery", () => {
   it("fetches the subject's mastery state and renders it via MasteryView", async () => {
     vi.mocked(api.getMasteryState).mockResolvedValue({
       unlocked_grade: null,
+      recently_refreshed_topic_id: null,
       topics: [
         {
           topic_id: "fractions",
@@ -59,7 +60,11 @@ describe("DashboardSubjectSection mastery", () => {
   });
 
   it("fetches mastery state fresh on every mount, never from a cache (FR-006)", async () => {
-    vi.mocked(api.getMasteryState).mockResolvedValue({ topics: [], unlocked_grade: null });
+    vi.mocked(api.getMasteryState).mockResolvedValue({
+      topics: [],
+      unlocked_grade: null,
+      recently_refreshed_topic_id: null,
+    });
 
     const { unmount } = render(
       <DashboardSubjectSection subjectId="algebra-1" displayName="Algebra I" learnerId="learner-1" />,

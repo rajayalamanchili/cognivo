@@ -336,6 +336,17 @@ class TopicPriorityPreview:
     next_topic: TopicPreviewEntry
     upcoming_topics: list[TopicPreviewEntry]
     is_fallback: bool
+    # 027-learner-ui-redesign, gap-closing pass: the Dashboard's "why
+    # this question?" disclosure names the immediate prerequisite that
+    # makes `next_topic` the pick (mockup: "You've mastered X, its
+    # prerequisite"). Direct `prereqs_by_topic` lookup already built by
+    # `_load_topic_ranking_context` -- not the recursive unmastered-gap
+    # walk `next_step.py` does, since by construction `next_topic`'s
+    # own direct prerequisites are already satisfied. `None` when
+    # `next_topic` has no prerequisite (e.g. the first topic in the
+    # path) or when this is a fallback pick (no "next step" framing
+    # applies there).
+    next_topic_prerequisite_display_name: str | None = None
 
 
 def preview_topic_priority(
@@ -368,11 +379,21 @@ def preview_topic_priority(
             p_mastery=ctx.p_mastery_by_topic[topic_id],
         )
 
+    next_topic_id = ranked[0]
+    prerequisite_display_name: str | None = None
+    if not is_fallback:
+        prereq_ids = ctx.prereqs_by_topic.get(next_topic_id, [])
+        if prereq_ids:
+            order_rank = {t: i for i, t in enumerate(ctx.topic_ids_in_order)}
+            immediate_prereq = min(prereq_ids, key=lambda p: order_rank[p])
+            prerequisite_display_name = ctx.display_name_by_topic[immediate_prereq]
+
     return TopicPriorityPreview(
         subject_id=subject_id,
-        next_topic=to_entry(ranked[0]),
+        next_topic=to_entry(next_topic_id),
         upcoming_topics=[to_entry(t) for t in ranked[1 : 1 + upcoming_count]],
         is_fallback=is_fallback,
+        next_topic_prerequisite_display_name=prerequisite_display_name,
     )
 
 

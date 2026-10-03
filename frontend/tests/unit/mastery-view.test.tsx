@@ -82,4 +82,22 @@ describe("MasteryView", () => {
     );
     expect(screen.getByText("Not yet assessed")).toBeInTheDocument();
   });
+
+  it("still shows the empty status-bar track for a not-yet-assessed topic, just with no fill (mockup parity)", () => {
+    render(
+      <MasteryView
+        topics={[{ topic_id: "x", status: "unknown", p_mastery: null, band: null }]}
+      />
+    );
+    const row = screen.getByTestId("mastery-topic-x");
+    expect(row.querySelector('[data-testid="mastery-bar"]')).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="mastery-bar-fill"]')).not.toBeInTheDocument();
+  });
+
+  it("renders both the track and a colored fill for an assessed topic", () => {
+    render(<MasteryView topics={[topic({ p_mastery: 0.8, effective_p_mastery: 0.8 })]} />);
+    const row = screen.getByTestId("mastery-topic-integers-and-operations");
+    expect(row.querySelector('[data-testid="mastery-bar"]')).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="mastery-bar-fill"]')).toBeInTheDocument();
+  });
 });

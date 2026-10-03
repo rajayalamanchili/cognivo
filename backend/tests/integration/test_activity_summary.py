@@ -14,14 +14,14 @@ from src.models.enums import AssessmentEventType
 _TOPIC_ID = "integers-and-operations"
 
 
-def _record_answer_submitted(db_session, *, learner_id, subject_id, created_at):
+def _record_answer_submitted(db_session, *, learner_id, subject_id, created_at, correct=True):
     db_session.add(
         AssessmentEvent(
             learner_id=learner_id,
             event_type=AssessmentEventType.ANSWER_SUBMITTED,
             subject_id=subject_id,
             topic_id=_TOPIC_ID,
-            payload={},
+            payload={"correct": correct},
             created_at=created_at,
         )
     )
@@ -36,12 +36,14 @@ def test_counts_only_answers_within_the_trailing_week(db_session, demo_learner, 
         learner_id=demo_learner.learner_id,
         subject_id="algebra-1",
         created_at=now - datetime.timedelta(days=1),
+        correct=True,
     )
     _record_answer_submitted(
         db_session,
         learner_id=demo_learner.learner_id,
         subject_id="algebra-1",
         created_at=now - datetime.timedelta(days=3),
+        correct=False,
     )
     # Outside the 7-day window -- must not be counted.
     _record_answer_submitted(
@@ -49,6 +51,7 @@ def test_counts_only_answers_within_the_trailing_week(db_session, demo_learner, 
         learner_id=demo_learner.learner_id,
         subject_id="algebra-1",
         created_at=now - datetime.timedelta(days=10),
+        correct=True,
     )
     db_session.commit()
 
@@ -58,7 +61,9 @@ def test_counts_only_answers_within_the_trailing_week(db_session, demo_learner, 
         params={"subject_id": "algebra-1"},
     )
     assert response.status_code == 200, response.text
-    assert response.json()["questions_this_week"] == 2
+    body = response.json()
+    assert body["questions_this_week"] == 2
+    assert body["questions_correct_this_week"] == 1
 
 
 def test_no_events_returns_zero_not_404(db_session, demo_learner, algebra_subject):

@@ -273,7 +273,7 @@ export default function PracticeFlow() {
 
   if (phase === "ended") {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-ended">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="practice-ended">
         <h1 className="font-heading text-[32px] font-bold text-heading">Practice session ended</h1>
         {endedSummary && (
           <>
@@ -307,7 +307,7 @@ export default function PracticeFlow() {
 
   if (phase === "result" && result) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
         <AnswerResultView result={result} />
         <RefreshedBanner refreshed={result.refreshed} unlockedGrade={question?.unlocked_grade ?? null} />
         <div className="flex items-center gap-4">
@@ -331,7 +331,7 @@ export default function PracticeFlow() {
   if (phase === "answering" || phase === "submitting") {
     if (!question) return null;
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-8">
         <h1 className="font-heading text-[32px] font-bold text-heading">Practice</h1>
         {expiresAt && (
           <div className="flex items-center justify-between gap-4">
@@ -383,7 +383,7 @@ export default function PracticeFlow() {
 
   // phase === "start"
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-start-form">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="practice-start-form">
       <h1 className="font-heading text-[32px] font-bold text-heading">Practice</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">

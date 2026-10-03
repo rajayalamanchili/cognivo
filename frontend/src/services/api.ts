@@ -73,6 +73,10 @@ export interface MasteryStateResponse {
   // spec 025 FR-016 -- lets callers route explanation copy through the
   // same age-adaptive tier as the rest of the explainability UI.
   unlocked_grade: number | null;
+  // 027-learner-ui-redesign, gap-closing pass: backs the Dashboard's
+  // "Refreshed!" banner -- the topic_id of the most recently recovered
+  // topic within the trailing window, or null.
+  recently_refreshed_topic_id: string | null;
 }
 
 // Spec 025 User Story 5, FR-012.
@@ -156,6 +160,10 @@ export interface TopicPriorityPreview {
   next_topic: TopicPreviewEntry;
   upcoming_topics: TopicPreviewEntry[];
   is_fallback: boolean;
+  // 027-learner-ui-redesign, gap-closing pass: the Dashboard's "why
+  // this question?" disclosure names this when present (non-fallback
+  // picks with a direct prerequisite only -- see backend docstring).
+  next_topic_prerequisite_display_name: string | null;
 }
 
 export interface NextQuestion {
@@ -459,6 +467,8 @@ export function getTopicPriorityPreview(
 // introduces, backing the Dashboard's "questions this week" stat tile.
 export interface ActivitySummaryResponse {
   questions_this_week: number;
+  // 027-learner-ui-redesign, gap-closing pass: the stat tile's sub-line.
+  questions_correct_this_week: number;
 }
 
 export function getActivitySummary(

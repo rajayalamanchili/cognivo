@@ -164,7 +164,7 @@ export default function PlacementFlow() {
     const tier = getExplanationCopyTier(null);
 
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
         <h1 className="font-heading text-[32px] font-bold text-heading">Placement Results</h1>
         <MasteryView topics={masteryState} />
         {refreshedTopicIds.length > 0 && (
@@ -199,7 +199,7 @@ export default function PlacementFlow() {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-8">
       <h1 className="font-heading text-[32px] font-bold text-heading">Placement Assessment</h1>
       {skipError && <p className="text-error">{skipError}</p>}
       {questions.map((question, index) => (

@@ -99,17 +99,17 @@ export default function MasteryView({ topics, unlockedGrade = null }: MasteryVie
               </span>
             )}
           </div>
-          {topic.status !== "unknown" && topic.band !== null && topic.p_mastery !== null && (
-            <MasteryBar
-              band={topic.band}
-              peak={Math.round(topic.p_mastery * 100)}
-              effective={
-                topic.effective_p_mastery != null
+          <MasteryBar
+            band={topic.band}
+            peak={topic.p_mastery !== null ? Math.round(topic.p_mastery * 100) : null}
+            effective={
+              topic.p_mastery === null
+                ? null
+                : topic.effective_p_mastery != null
                   ? Math.round(topic.effective_p_mastery * 100)
                   : Math.round(topic.p_mastery * 100)
-              }
-            />
-          )}
+            }
+          />
           {topic.status !== "unknown" &&
             topic.band !== null &&
             topic.last_updated_at != null && (
@@ -123,25 +123,38 @@ export default function MasteryView({ topics, unlockedGrade = null }: MasteryVie
 
 // Peak (dashed outline) vs. effective/decayed (solid fill) mastery, same
 // two values `MasteryFigures` already renders as text -- no new data.
+// The track itself always renders, even for a not-yet-assessed topic
+// (`peak`/`effective` both null then) -- matching the mockup, which
+// shows every topic's empty bar track for visual consistency down the
+// list rather than only showing a bar once there's something to fill.
 function MasteryBar({
   band,
   peak,
   effective,
 }: {
-  band: MasteryBand;
-  peak: number;
-  effective: number;
+  band: MasteryBand | null;
+  peak: number | null;
+  effective: number | null;
 }) {
   return (
-    <div className="relative h-3 rounded-full bg-surface-subtle" aria-hidden="true">
-      <div
-        className="absolute inset-y-0 left-0 box-border rounded-full border-2 border-dashed border-primary/40"
-        style={{ width: `${peak}%` }}
-      />
-      <div
-        className={`absolute inset-y-0 left-0 rounded-full ${BAND_BAR_CLASSES[band]}`}
-        style={{ width: `${effective}%` }}
-      />
+    <div
+      data-testid="mastery-bar"
+      className="relative h-3 rounded-full bg-surface-subtle"
+      aria-hidden="true"
+    >
+      {peak !== null && (
+        <div
+          className="absolute inset-y-0 left-0 box-border rounded-full border-2 border-dashed border-primary/40"
+          style={{ width: `${peak}%` }}
+        />
+      )}
+      {band !== null && effective !== null && (
+        <div
+          data-testid="mastery-bar-fill"
+          className={`absolute inset-y-0 left-0 rounded-full ${BAND_BAR_CLASSES[band]}`}
+          style={{ width: `${effective}%` }}
+        />
+      )}
     </div>
   );
 }

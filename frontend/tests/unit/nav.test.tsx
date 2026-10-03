@@ -1,7 +1,9 @@
 // Unit test: Nav's per-visitor-type menu (anonymous/demo-learner/
-// guardian/instructor buckets), the always-visible Personalization
-// Evidence link (SC-005, no login required), and the "signed in as"
-// identity readout for real guardian/instructor sessions.
+// guardian/instructor buckets), the Personalization Evidence link
+// (SC-005, no login required -- inline for every bucket except
+// demo-learner, where it's tucked behind the avatar/name menu along
+// with Exit Demo/Sign In), and the "signed in as" identity readout for
+// real guardian/instructor sessions.
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +24,7 @@ vi.mock("@/services/api", async () => {
     ...actual,
     getWhoAmI: vi.fn(),
     logout: vi.fn(),
+    getDemoLearner: vi.fn(),
   };
 });
 
@@ -32,6 +35,11 @@ describe("Nav", () => {
     push.mockReset();
     vi.mocked(api.getWhoAmI).mockReset();
     vi.mocked(api.logout).mockReset();
+    vi.mocked(api.getDemoLearner).mockReset();
+    vi.mocked(api.getDemoLearner).mockResolvedValue({
+      learner_id: "learner-1",
+      display_name: "Demo Learner",
+    });
     window.localStorage.removeItem(DEMO_LEARNER_MODE_KEY);
   });
 
@@ -80,10 +88,39 @@ describe("Nav", () => {
     expect(screen.getByText("Practice")).toBeInTheDocument();
     expect(screen.getByText("Mastery")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.queryByText("Try Demo")).not.toBeInTheDocument();
+
+    // Exit Demo/Personalization Evidence/Sign In are tucked behind the
+    // avatar/name menu now, not shown inline (user feedback).
+    expect(screen.queryByText("Exit Demo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Demo Learner (demo)"));
     expect(screen.getByText("Exit Demo")).toBeInTheDocument();
     expect(screen.getByText("Personalization Evidence")).toBeInTheDocument();
+  });
 
-    expect(screen.queryByText("Try Demo")).not.toBeInTheDocument();
+  it("shows an avatar and the demo learner's real name in the demo-learner bucket, with Sign In behind that same menu (027-learner-ui-redesign gap-closing pass)", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: null,
+      identifier: null,
+      pending_deletion_warnings: [],
+    });
+    vi.mocked(api.getDemoLearner).mockResolvedValue({
+      learner_id: "learner-1",
+      display_name: "Sam",
+    });
+    window.localStorage.setItem(DEMO_LEARNER_MODE_KEY, "true");
+    render(<Nav />);
+
+    const trigger = await screen.findByText("Sam (demo)");
+    expect(screen.queryByText("Sign In")).not.toBeInTheDocument();
+
+    fireEvent.click(trigger);
+    expect(screen.getByText("Sign In")).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText("Sign In")).not.toBeInTheDocument();
   });
 
   it("exiting demo mode clears the flag and navigates home", async () => {
@@ -95,7 +132,8 @@ describe("Nav", () => {
     window.localStorage.setItem(DEMO_LEARNER_MODE_KEY, "true");
     render(<Nav />);
 
-    fireEvent.click(await screen.findByText("Exit Demo"));
+    fireEvent.click(await screen.findByText("Demo Learner (demo)"));
+    fireEvent.click(screen.getByText("Exit Demo"));
 
     expect(window.localStorage.getItem(DEMO_LEARNER_MODE_KEY)).toBeNull();
     expect(push).toHaveBeenCalledWith("/");

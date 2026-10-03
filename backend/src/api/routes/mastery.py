@@ -19,6 +19,7 @@ from src.services.auth.dependencies import (
 )
 from src.services.auth.tokens import SessionClaims
 from src.services.mastery.decay import effective_mastery_for_review
+from src.services.mastery.recently_refreshed import find_recently_refreshed_topic
 from src.services.mediation.grade import resolve_unlocked_grade
 
 router = APIRouter()
@@ -43,6 +44,11 @@ class MasteryStateResponse(BaseModel):
     # (`getExplanationCopyTier`) instead of always falling back to the
     # ungraded/default tier.
     unlocked_grade: int | None = None
+    # 027-learner-ui-redesign, gap-closing pass: backs the Dashboard's
+    # "Refreshed!" banner (mockup) -- the topic_id of the most recently
+    # recovered topic within the trailing window, or None. See
+    # `services/mastery/recently_refreshed.py` for the exact definition.
+    recently_refreshed_topic_id: str | None = None
 
 
 @router.get("/api/learners/{learner_id}/mastery-state", response_model=MasteryStateResponse)
@@ -87,7 +93,14 @@ def get_mastery_state(
                 )
             )
 
+    recently_refreshed = find_recently_refreshed_topic(
+        db, learner_id=learner_id, subject_id=subject_id
+    )
+
     return MasteryStateResponse(
         topics=topics_out,
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+        recently_refreshed_topic_id=(
+            recently_refreshed.topic_id if recently_refreshed is not None else None
+        ),
     )

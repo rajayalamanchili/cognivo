@@ -13,6 +13,7 @@ type Phase = "loading" | "loaded" | "error";
 export default function DashboardFlow() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [learnerId, setLearnerId] = useState<string | null>(null);
+  const [learnerName, setLearnerName] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<SubjectSummary[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // 027-learner-ui-redesign, second pass: a subject-pill toggle showing
@@ -27,6 +28,7 @@ export default function DashboardFlow() {
       .then(([learner, subjectsResponse]) => {
         if (cancelled) return;
         setLearnerId(learner.learner_id);
+        setLearnerName(learner.display_name);
         setSubjects(subjectsResponse.subjects);
         setSelectedSubjectId(subjectsResponse.subjects[0]?.subject_id ?? null);
         setPhase("loaded");
@@ -57,9 +59,16 @@ export default function DashboardFlow() {
     subjects.find((subject) => subject.subject_id === selectedSubjectId) ?? subjects[0] ?? null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-7 p-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="font-heading text-[32px] font-bold text-heading">Your Dashboard</h1>
+        <div>
+          <h1 className="font-heading text-[40px] font-bold leading-tight text-heading">
+            Welcome back, {learnerName}
+          </h1>
+          <p className="mt-1.5 text-[18px] text-muted">
+            Here&rsquo;s what&rsquo;s next in your practice path.
+          </p>
+        </div>
         {subjects.length > 1 && (
           <div
             role="group"
@@ -75,7 +84,7 @@ export default function DashboardFlow() {
                   aria-pressed={active}
                   onClick={() => setSelectedSubjectId(subject.subject_id)}
                   className={
-                    "rounded-full px-5 py-2.5 text-[15px] font-extrabold " +
+                    "rounded-full px-5 py-2.5 font-extrabold " +
                     (active ? "bg-primary text-primary-foreground" : "text-muted")
                   }
                 >

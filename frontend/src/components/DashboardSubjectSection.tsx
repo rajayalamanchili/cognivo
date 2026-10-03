@@ -19,7 +19,6 @@ import {
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
 import WeakAreaSummary from "@/components/WeakAreaSummary";
-import PathVisualization from "@/components/PathVisualization";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { formatTopicId } from "@/lib/format-topic-id";
 import { getExplanationCopyTier } from "@/lib/explainabilityCopy";
@@ -62,6 +61,10 @@ export default function DashboardSubjectSection({
   const [masteryPhase, setMasteryPhase] = useState<SectionPhase>("loading");
   const [masteryTopics, setMasteryTopics] = useState<MasteryTopicEntry[]>([]);
   const [unlockedGrade, setUnlockedGrade] = useState<number | null>(null);
+  // 027-learner-ui-redesign, gap-closing pass: the "Refreshed!" banner
+  // -- part of the same mastery-state response already fetched below,
+  // no new fetch.
+  const [recentlyRefreshedTopicId, setRecentlyRefreshedTopicId] = useState<string | null>(null);
 
   const [weakAreaPhase, setWeakAreaPhase] = useState<SectionPhase>("loading");
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
@@ -74,6 +77,14 @@ export default function DashboardSubjectSection({
   // independent of each other -- a failure here must not affect them.
   const [activityPhase, setActivityPhase] = useState<SectionPhase>("loading");
   const [questionsThisWeek, setQuestionsThisWeek] = useState<number | null>(null);
+  const [questionsCorrectThisWeek, setQuestionsCorrectThisWeek] = useState<number | null>(null);
+
+  // 027-learner-ui-redesign, gap-closing pass: the "Why this question?"
+  // expand/collapse disclosure -- purely local UI state, same pattern
+  // as `whyOpen` in the mockup's own script. Collapsed by default,
+  // unlike the mockup's static sample (which shows it open) -- a real
+  // disclosure should start closed.
+  const [whyOpen, setWhyOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +94,7 @@ export default function DashboardSubjectSection({
         if (cancelled) return;
         setMasteryTopics(result.topics);
         setUnlockedGrade(result.unlocked_grade);
+        setRecentlyRefreshedTopicId(result.recently_refreshed_topic_id);
         setMasteryPhase("loaded");
       })
       .catch(() => {
@@ -138,6 +150,7 @@ export default function DashboardSubjectSection({
       .then((result) => {
         if (cancelled) return;
         setQuestionsThisWeek(result.questions_this_week);
+        setQuestionsCorrectThisWeek(result.questions_correct_this_week);
         setActivityPhase("loaded");
       })
       .catch(() => {
@@ -166,7 +179,8 @@ export default function DashboardSubjectSection({
   )[0];
 
   const nextTopicState =
-    pathPreview && masteryTopics.find((topic) => topic.topic_id === pathPreview.next_topic.topic_id);
+    pathPreview &&
+    masteryTopics.find((topic) => topic.topic_id === pathPreview.next_topic.topic_id);
   const tier = getExplanationCopyTier(unlockedGrade);
 
   function upNextWhyText(): string {
@@ -183,88 +197,205 @@ export default function DashboardSubjectSection({
     return "Reviewing one of your mastered topics to help it stick.";
   }
 
+  // 027-learner-ui-redesign, gap-closing pass: the "Why this question?"
+  // disclosure's three rows -- reuses the exact same fields
+  // `upNextWhyText` above already derives from already-fetched data,
+  // just split into the mockup's three-line layout instead of one
+  // sentence. `null` only when `pathPreview` hasn't loaded yet.
+  function whyDisclosureRows(): { pickedBecause: string; currentEstimate: string } | null {
+    if (!pathPreview) return null;
+    if (!pathPreview.is_fallback) {
+      const prereq = pathPreview.next_topic_prerequisite_display_name;
+      const pickedBecause = prereq
+        ? `You've mastered ${prereq}, its prerequisite — this is the next step on your path.`
+        : "This is the next topic in your practice path.";
+      const currentEstimate =
+        nextTopicState?.p_mastery != null
+          ? `${Math.round(nextTopicState.p_mastery * 100)}% — not yet at the mastered line.`
+          : "Not yet attempted.";
+      return { pickedBecause, currentEstimate };
+    }
+
+    const peak = nextTopicState?.p_mastery;
+    const effective = nextTopicState?.effective_p_mastery;
+    const hasDecayed =
+      peak != null && effective != null && Math.round(effective * 100) < Math.round(peak * 100);
+    const pickedBecause = hasDecayed
+      ? tier.recoveryFraming
+      : "Reviewing one of your mastered topics to help it stick.";
+    const currentEstimate = hasDecayed
+      ? `${Math.round((effective ?? 0) * 100)}% retained — your peak was ${Math.round((peak ?? 0) * 100)}%.`
+      : peak != null
+        ? `${Math.round(peak * 100)}% mastered.`
+        : "Not yet attempted.";
+    return { pickedBecause, currentEstimate };
+  }
+
   return (
     <section
       data-testid={`dashboard-subject-section-${subjectId}`}
       className="flex flex-col gap-5 rounded-card border border-border bg-surface p-7"
     >
-      <h2 className="font-heading text-[26px] font-bold text-heading">{displayName}</h2>
+      {/* 027-learner-ui-redesign, gap-closing pass: the mockup has no
+          visible per-card subject heading (the subject-pill toggle
+          above already names it) -- kept as a screen-reader-only
+          heading rather than removed, so the section still has an
+          accessible name when there's only one subject and no pills
+          render at all. */}
+      <h2 className="sr-only">{displayName}</h2>
 
-      {pathPhase === "loaded" && pathPreview && (
-        <div className="grid grid-cols-1 gap-5 rounded-[20px] bg-surface-subtle p-6 md:grid-cols-[1.4fr_1fr]">
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-extrabold tracking-[0.08em] text-primary">UP NEXT</span>
-            <h3 className="font-heading text-[26px] font-bold leading-tight text-heading">
-              {pathPreview.next_topic.display_name}
-            </h3>
-            <span className="w-fit rounded-full bg-primary-subtle px-4 py-1.5 text-[15px] font-bold text-heading">
-              {upNextWhyText()}
-            </span>
-            <div className="mt-2 flex flex-wrap gap-3">
-              <Link
-                href={`/practice?subject=${subjectId}`}
-                className="rounded-full bg-primary px-6 py-3 text-[16px] font-extrabold text-primary-foreground"
-              >
-                Start practicing
-              </Link>
-              <Link
-                href="/tutor"
-                className="rounded-full border-2 border-primary/30 px-6 py-3 text-[16px] font-extrabold text-primary"
-              >
-                Ask the AI Tutor first
-              </Link>
+      <div data-testid="dashboard-path-slot">
+        {pathPhase === "loading" && <LoadingIndicator message="Mapping your path…" compact />}
+        {pathPhase === "error" && <CouldntLoad what="your up-next pick" />}
+        {pathPhase === "loaded" && pathPreview && (
+          <div className="grid grid-cols-1 gap-5 rounded-[20px] bg-surface-subtle p-6 md:grid-cols-[1.4fr_1fr]">
+            <div className="flex flex-col gap-3">
+              <span className="text-[13px] font-extrabold tracking-[0.08em] text-primary">
+                UP NEXT
+              </span>
+              <h3 className="font-heading text-[32px] font-bold leading-tight text-heading">
+                {pathPreview.next_topic.display_name}
+              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="w-fit rounded-full bg-primary-subtle px-4 py-1.5 text-[15px] font-bold text-heading">
+                  {upNextWhyText()}
+                </span>
+                <button
+                  type="button"
+                  aria-expanded={whyOpen}
+                  onClick={() => setWhyOpen((open) => !open)}
+                  className="font-extrabold text-primary underline"
+                >
+                  Why this question?
+                </button>
+              </div>
+              {whyOpen &&
+                (() => {
+                  const rows = whyDisclosureRows();
+                  if (!rows) return null;
+                  return (
+                    <div className="flex flex-col gap-2 rounded-[16px] bg-surface-subtle p-5 text-[15px]">
+                      <div className="flex gap-2">
+                        <span className="min-w-[150px] font-extrabold">Picked because</span>
+                        <span>{rows.pickedBecause}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="min-w-[150px] font-extrabold">Your current estimate</span>
+                        <span>{rows.currentEstimate}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className="min-w-[150px] font-extrabold">Recorded by</span>
+                        <span>The Sequencing Agent&rsquo;s selection log for this pick.</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              <div className="mt-2 flex flex-wrap gap-3">
+                <Link
+                  href={`/practice?subject=${subjectId}`}
+                  className="rounded-full bg-primary px-6 py-3 text-[17px] font-extrabold text-primary-foreground"
+                >
+                  Start practicing
+                </Link>
+                <Link
+                  href="/tutor"
+                  className="rounded-full border-2 border-primary/30 px-6 py-3 text-[17px] font-extrabold text-primary"
+                >
+                  Ask the AI Tutor first
+                </Link>
+              </div>
+              {pathPreview.upcoming_topics.length > 0 && (
+                // 027-learner-ui-redesign, gap-closing pass: the one piece of
+                // PathVisualization.tsx that wasn't already shown elsewhere on
+                // this screen (the rest -- "assessed so far," the single
+                // "up next" topic -- fully duplicated "Your topics" and this
+                // same hero), folded into the hero it's actually about rather
+                // than kept as its own unstyled, mostly-redundant block.
+                <p className="text-sm text-muted">
+                  Likely coming up:{" "}
+                  {pathPreview.upcoming_topics
+                    .slice(0, 3)
+                    .map((topic) => topic.display_name)
+                    .join(", ")}
+                  .{" "}
+                  <span className="italic">
+                    Illustrative only -- subject to change as your mastery updates.
+                  </span>
+                </p>
+              )}
             </div>
+
+            {refreshTopic ? (
+              <div className="flex flex-col gap-3 rounded-[16px] bg-warning/10 p-5">
+                <span className="font-extrabold text-warning">Ready for a refresh</span>
+                <span className="font-heading text-[22px] font-bold text-heading">
+                  {formatTopicId(refreshTopic.topic_id)}
+                </span>
+                <p className="text-[15px] text-muted">
+                  {refreshTopic.last_updated_at
+                    ? `Last practiced ${formatElapsed(refreshTopic.last_updated_at)}. `
+                    : ""}
+                  {tier.recoveryFraming}
+                </p>
+                {refreshTopic.effective_p_mastery != null && refreshTopic.p_mastery != null && (
+                  <div className="flex flex-col gap-1.5">
+                    <div className="relative h-3 rounded-full bg-warning/15">
+                      <div
+                        className="absolute inset-y-0 left-0 box-border rounded-full border-2 border-dashed border-warning/60"
+                        style={{ width: `${Math.round(refreshTopic.p_mastery * 100)}%` }}
+                      />
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-warning"
+                        style={{ width: `${Math.round(refreshTopic.effective_p_mastery * 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-sm font-bold text-muted">
+                      <span>Retained {Math.round(refreshTopic.effective_p_mastery * 100)}%</span>
+                      <span>Your best {Math.round(refreshTopic.p_mastery * 100)}%</span>
+                    </div>
+                  </div>
+                )}
+                <Link
+                  href={`/practice?subject=${subjectId}`}
+                  className="w-fit font-extrabold text-warning underline"
+                >
+                  Practice now
+                </Link>
+              </div>
+            ) : null}
           </div>
-
-          {refreshTopic ? (
-            <div className="flex flex-col gap-2 rounded-[16px] bg-warning/10 p-5">
-              <span className="text-xs font-extrabold tracking-[0.08em] text-warning">
-                READY FOR A REFRESH
-              </span>
-              <span className="font-heading text-[18px] font-bold text-heading">
-                {formatTopicId(refreshTopic.topic_id)}
-              </span>
-              <p className="text-sm text-muted">
-                {refreshTopic.last_updated_at
-                  ? `Last practiced ${formatElapsed(refreshTopic.last_updated_at)}. `
-                  : ""}
-                {tier.recoveryFraming}
-              </p>
-              <Link
-                href={`/practice?subject=${subjectId}`}
-                className="w-fit text-sm font-extrabold text-warning underline"
-              >
-                Practice now
-              </Link>
-            </div>
-          ) : null}
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1 rounded-[16px] border border-border p-5">
-          <span className="text-sm font-bold text-muted">Topics mastered</span>
-          <span className="font-heading text-[28px] font-bold text-heading">
+          <span className="text-[15px] font-bold text-muted">Topics mastered</span>
+          <span className="font-heading text-[36px] font-bold text-heading">
             {masteredCount} of {scoredTopics.length || masteryTopics.length}
           </span>
+          <span className="text-sm text-muted">{displayName}</span>
         </div>
         <div className="flex flex-col gap-1 rounded-[16px] border border-border p-5">
-          <span className="text-sm font-bold text-muted">Questions this week</span>
-          <span className="font-heading text-[28px] font-bold text-heading">
+          <span className="text-[15px] font-bold text-muted">Questions this week</span>
+          <span className="font-heading text-[36px] font-bold text-heading">
             {activityPhase === "loaded" ? questionsThisWeek : activityPhase === "error" ? "—" : "…"}
           </span>
+          <span className="text-sm text-muted">
+            {activityPhase === "loaded" ? `${questionsCorrectThisWeek} answered correctly` : ""}
+          </span>
         </div>
         <div className="flex flex-col gap-1 rounded-[16px] border border-border p-5">
-          <span className="text-sm font-bold text-muted">Ready to refresh</span>
-          <span className="font-heading text-[28px] font-bold text-heading">
+          <span className="text-[15px] font-bold text-muted">Ready to refresh</span>
+          <span className="font-heading text-[36px] font-bold text-heading">
             {refreshCandidates.length}
           </span>
+          <span className="text-sm text-muted">Practice restores it</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div data-testid="dashboard-weak-area-slot" className="flex flex-col gap-2">
-          <h3 className="font-heading text-[20px] font-bold text-heading">Where to focus next</h3>
+          <h3 className="font-heading text-[26px] font-bold text-heading">Where to focus next</h3>
           {weakAreaPhase === "loading" && (
             <LoadingIndicator message="Spotting areas to practice…" compact />
           )}
@@ -278,7 +409,15 @@ export default function DashboardSubjectSection({
           )}
         </div>
         <div data-testid="dashboard-mastery-slot" className="flex flex-col gap-2">
-          <h3 className="font-heading text-[20px] font-bold text-heading">Your topics</h3>
+          <h3 className="font-heading text-[26px] font-bold text-heading">Your topics</h3>
+          {recentlyRefreshedTopicId && (
+            <p
+              data-testid="dashboard-refreshed-banner"
+              className="rounded-[14px] bg-success/15 px-4 py-3 text-[15px] font-bold text-success"
+            >
+              Refreshed! {formatTopicId(recentlyRefreshedTopicId)} — {tier.refreshedFraming}
+            </p>
+          )}
           {masteryPhase === "loading" && (
             <LoadingIndicator message="Gathering your progress…" compact />
           )}
@@ -287,17 +426,6 @@ export default function DashboardSubjectSection({
             <MasteryView topics={masteryTopics} unlockedGrade={unlockedGrade} />
           )}
         </div>
-      </div>
-
-      <div data-testid="dashboard-path-slot">
-        {pathPhase === "loading" && <LoadingIndicator message="Mapping your path…" compact />}
-        {pathPhase === "error" && <CouldntLoad what="path visualization" />}
-        {pathPhase === "loaded" && pathPreview && (
-          <PathVisualization
-            assessedTopics={masteryTopics.filter((topic) => topic.status === "scored")}
-            preview={pathPreview}
-          />
-        )}
       </div>
     </section>
   );

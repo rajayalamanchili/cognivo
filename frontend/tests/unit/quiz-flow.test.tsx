@@ -46,6 +46,7 @@ async function renderAndStartQuiz() {
   });
   vi.mocked(api.getMasteryState).mockResolvedValue({
     unlocked_grade: null,
+    recently_refreshed_topic_id: null,
     topics: [
       {
         topic_id: "linear-equations",
@@ -86,6 +87,7 @@ describe("QuizFlow", () => {
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
       unlocked_grade: null,
+      recently_refreshed_topic_id: null,
       topics: [
         {
           topic_id: "linear-equations",
@@ -221,6 +223,7 @@ describe("QuizFlow", () => {
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
       unlocked_grade: null,
+      recently_refreshed_topic_id: null,
       topics: [
         {
           topic_id: "linear-equations",
@@ -303,6 +306,7 @@ describe("QuizFlow", () => {
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
       unlocked_grade: null,
+      recently_refreshed_topic_id: null,
       topics: [
         {
           topic_id: "linear-equations",

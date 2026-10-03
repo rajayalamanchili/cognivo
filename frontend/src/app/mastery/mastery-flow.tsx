@@ -89,7 +89,7 @@ export default function MasteryFlow() {
   const scoredTopics = topics.filter((topic) => topic.status !== "unknown");
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
       <h1 className="font-heading text-[32px] font-bold text-heading">Your Mastery</h1>
       <MasteryView topics={topics} unlockedGrade={unlockedGrade} />
       {scoredTopics.length > 0 && (

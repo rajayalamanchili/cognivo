@@ -71,7 +71,7 @@ export default function TutorFlow() {
 
   if (phase === "chatting" && sessionId) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
         <h1 className="font-heading text-[32px] font-bold text-heading">Ask the Tutor</h1>
         <TutorChat sessionId={sessionId} />
       </div>
@@ -79,7 +79,7 @@ export default function TutorFlow() {
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="tutor-start-form">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="tutor-start-form">
       <h1 className="font-heading text-[32px] font-bold text-heading">Ask the Tutor</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">
