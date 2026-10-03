@@ -59,7 +59,7 @@ const DEFAULT_FLAG_REASON = "Learner flagged this question's answer key as incor
 
 const DIFFICULTY_DOTS_FILLED: Record<Difficulty, number> = { easy: 1, medium: 2, hard: 3 };
 
-function DifficultyPill({ difficulty }: { difficulty: Difficulty }) {
+export function DifficultyPill({ difficulty }: { difficulty: Difficulty }) {
   const filled = DIFFICULTY_DOTS_FILLED[difficulty];
   return (
     <span
