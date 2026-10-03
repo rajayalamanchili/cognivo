@@ -182,6 +182,11 @@ export interface NextQuestion {
   // spec 019 FR-009/research.md Decision 6 -- null when the learner has
   // no GradeProgress row for this subject (ungraded, or not yet placed).
   unlocked_grade: number | null;
+  // spec 027: the question's own topic's grade band (distinct from
+  // `unlocked_grade` above) -- only ever set via `NextQuestionOut`
+  // (practice/timed-practice), same optionality reasoning as
+  // `is_fallback` below.
+  grade?: number | null;
   // spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
   // reason for this pick. Optional, not `| null` like this interface's
   // other nullable fields -- `NextQuestion` is QuestionCard's shared prop

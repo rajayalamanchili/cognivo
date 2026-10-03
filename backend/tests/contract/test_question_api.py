@@ -80,6 +80,7 @@ def test_next_question_response_shape(client, demo_learner, algebra_subject, moc
         "steps",
         "read_aloud_eligible",
         "unlocked_grade",
+        "grade",
         "is_fallback",
         "p_mastery",
         "effective_p_mastery",

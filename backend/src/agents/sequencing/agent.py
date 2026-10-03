@@ -80,6 +80,12 @@ class NextTopicSelection:
     # last time it was practiced -- lets the "why this question" chip name
     # actual elapsed time for a fallback/decayed pick, not just a value.
     updated_at: datetime.datetime | None = None
+    # Spec 027: the chosen topic's own grade band (Topic.grade), already
+    # loaded into `_TopicRankingContext.grade_by_topic` for the unlocked-
+    # grade gate above -- a read-only lookup against data already in
+    # memory for this request, not a new query. None for an ungraded
+    # subject's topics, same as Topic.grade itself.
+    grade: int | None = None
     candidates_considered: list[TopicCandidate] = field(default_factory=list)
 
 
@@ -318,6 +324,7 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
         updated_at=ctx.updated_at_by_topic.get(chosen_id),
+        grade=ctx.grade_by_topic[chosen_id],
         candidates_considered=candidates,
     )
 

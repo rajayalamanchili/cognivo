@@ -154,6 +154,10 @@ class NextQuestionOut(BaseModel):
     steps: list[str] | None = None
     read_aloud_eligible: bool = False
     unlocked_grade: int | None = None
+    # Spec 027: the question's own topic's grade band (distinct from
+    # `unlocked_grade`, the learner's own progress) -- the redesigned
+    # Practice card's grade pill.
+    grade: int | None = None
     # Spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
     # reason for this pick, already computed by `select_next_topic` (and
     # `NEXT_TOPIC_SELECTED`'s audit payload) but previously discarded before
@@ -274,6 +278,7 @@ def build_next_question_out(
             db, learner_id=learner_id, subject_id=subject_id
         ),
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
+        grade=result.selection.grade,
         is_fallback=result.selection.is_fallback,
         p_mastery=result.selection.p_mastery,
         effective_p_mastery=result.selection.effective_p_mastery,
