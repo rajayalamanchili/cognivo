@@ -2,7 +2,11 @@
 // distinct "couldn't load" state in the weak-area section while the
 // mastery view (US1) still renders correctly (FR-007). T012. Extended
 // (T025) with the equivalent case for a failed topic-priority-preview
-// fetch, isolated to the path-visualization portion only (FR-008).
+// fetch, isolated to the UP NEXT hero portion only (FR-008) -- that
+// hero (and the "Likely coming up" line folded into it, 027-learner-
+// ui-redesign gap-closing pass) is this fetch's only consumer now that
+// the standalone PathVisualization block has been removed as
+// redundant with it and "Your topics".
 // Further extended (T031) to confirm FR-007's and FR-008's failure
 // states share one presentation pattern rather than two independently-
 // styled variants, and that neither auto-retries within a page load
@@ -25,6 +29,7 @@ vi.mock("@/services/api", async () => {
 
 const scoredMasteryState = {
   unlocked_grade: null,
+  recently_refreshed_topic_id: null,
   topics: [
     {
       topic_id: "fractions",
@@ -57,6 +62,7 @@ const topicPriorityPreview = {
   },
   upcoming_topics: [],
   is_fallback: false,
+  next_topic_prerequisite_display_name: null,
 };
 
 describe("DashboardSubjectSection failure isolation", () => {
@@ -84,7 +90,7 @@ describe("DashboardSubjectSection failure isolation", () => {
     expect(screen.queryByTestId("weak-area-summary")).not.toBeInTheDocument();
   });
 
-  it("renders a distinct couldn't-load state for a failed path-visualization fetch while mastery and weak-area still render (FR-008)", async () => {
+  it("renders a distinct couldn't-load state for a failed topic-priority-preview fetch while mastery and weak-area still render (FR-008)", async () => {
     vi.mocked(api.getMasteryState).mockResolvedValue(scoredMasteryState);
     vi.mocked(api.getRecommendations).mockResolvedValue(confidentRecommendations);
     vi.mocked(api.getTopicPriorityPreview).mockRejectedValue(new Error("boom"));
@@ -99,7 +105,7 @@ describe("DashboardSubjectSection failure isolation", () => {
     await waitFor(() =>
       expect(screen.getByTestId("dashboard-path-slot")).toHaveTextContent(/couldn.t load/i),
     );
-    expect(screen.queryByTestId("path-visualization")).not.toBeInTheDocument();
+    expect(screen.queryByText("UP NEXT")).not.toBeInTheDocument();
   });
 
   it("renders FR-007's and FR-008's failure states via the same shared presentation pattern (FR-010)", async () => {

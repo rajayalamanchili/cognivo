@@ -17,7 +17,7 @@ export default function MasteryTrend({ points }: MasteryTrendProps) {
 
   if (points.length === 1) {
     return (
-      <div data-testid="mastery-trend" className="text-sm text-muted">
+      <div data-testid="mastery-trend" className="text-[15px] font-bold text-muted">
         {Math.round(points[0].p_mastery * 100)}% (not enough history yet for a trend)
       </div>
     );
@@ -43,7 +43,9 @@ export default function MasteryTrend({ points }: MasteryTrendProps) {
           points={coords.join(" ")}
           fill="none"
           stroke="currentColor"
-          strokeWidth={2}
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
           className="text-primary"
         />
       </svg>

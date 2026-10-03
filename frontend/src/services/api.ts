@@ -73,6 +73,10 @@ export interface MasteryStateResponse {
   // spec 025 FR-016 -- lets callers route explanation copy through the
   // same age-adaptive tier as the rest of the explainability UI.
   unlocked_grade: number | null;
+  // 027-learner-ui-redesign, gap-closing pass: backs the Dashboard's
+  // "Refreshed!" banner -- the topic_id of the most recently recovered
+  // topic within the trailing window, or null.
+  recently_refreshed_topic_id: string | null;
 }
 
 // Spec 025 User Story 5, FR-012.
@@ -156,6 +160,10 @@ export interface TopicPriorityPreview {
   next_topic: TopicPreviewEntry;
   upcoming_topics: TopicPreviewEntry[];
   is_fallback: boolean;
+  // 027-learner-ui-redesign, gap-closing pass: the Dashboard's "why
+  // this question?" disclosure names this when present (non-fallback
+  // picks with a direct prerequisite only -- see backend docstring).
+  next_topic_prerequisite_display_name: string | null;
 }
 
 export interface NextQuestion {
@@ -174,6 +182,11 @@ export interface NextQuestion {
   // spec 019 FR-009/research.md Decision 6 -- null when the learner has
   // no GradeProgress row for this subject (ungraded, or not yet placed).
   unlocked_grade: number | null;
+  // spec 027: the question's own topic's grade band (distinct from
+  // `unlocked_grade` above) -- only ever set via `NextQuestionOut`
+  // (practice/timed-practice), same optionality reasoning as
+  // `is_fallback` below.
+  grade?: number | null;
   // spec 025 FR-001/FR-002: the Sequencing Agent's own recorded selection
   // reason for this pick. Optional, not `| null` like this interface's
   // other nullable fields -- `NextQuestion` is QuestionCard's shared prop
@@ -452,6 +465,23 @@ export function getTopicPriorityPreview(
 ): Promise<TopicPriorityPreview> {
   return request<TopicPriorityPreview>(
     `/api/learners/${learnerId}/topic-priority-preview?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+// 027-learner-ui-redesign FR-009: the one new endpoint this feature
+// introduces, backing the Dashboard's "questions this week" stat tile.
+export interface ActivitySummaryResponse {
+  questions_this_week: number;
+  // 027-learner-ui-redesign, gap-closing pass: the stat tile's sub-line.
+  questions_correct_this_week: number;
+}
+
+export function getActivitySummary(
+  learnerId: string,
+  subjectId: string,
+): Promise<ActivitySummaryResponse> {
+  return request<ActivitySummaryResponse>(
+    `/api/learners/${learnerId}/activity-summary?subject_id=${encodeURIComponent(subjectId)}`,
   );
 }
 

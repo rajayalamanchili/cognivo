@@ -21,7 +21,7 @@ export default function RefreshedBanner({
   return (
     <p
       data-testid="refreshed-banner"
-      className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
+      className="rounded-[18px] bg-success/15 px-5 py-4 text-[15px] font-bold text-success"
     >
       {tier.refreshedFraming}
     </p>

@@ -40,7 +40,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
           type="button"
           disabled={disabled}
           onClick={() => onInsert(option.insert)}
-          className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
+          className="rounded-[10px] border border-border bg-surface-subtle px-2.5 py-1.5 text-sm font-bold text-heading disabled:opacity-40"
           data-testid={`notation-fraction-${option.label}`}
           aria-label={`Insert ${option.description}`}
         >
@@ -54,7 +54,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
           type="button"
           disabled={disabled}
           onClick={() => onInsert(option.insert)}
-          className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
+          className="rounded-[10px] border border-border bg-surface-subtle px-2.5 py-1.5 text-sm font-bold text-heading disabled:opacity-40"
           data-testid={`notation-exponent-${option.label}`}
           aria-label={`Insert ${option.description}`}
         >
@@ -68,7 +68,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
           type="button"
           disabled={disabled}
           onClick={() => onInsert(option.insert)}
-          className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
+          className="rounded-[10px] border border-border bg-surface-subtle px-2.5 py-1.5 text-sm font-bold text-heading disabled:opacity-40"
           data-testid={`notation-subscript-${option.label}`}
           aria-label={`Insert ${option.description}`}
         >
@@ -82,7 +82,7 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
         value={numerator}
         disabled={disabled}
         onChange={(event) => setNumerator(event.target.value)}
-        className="w-12 rounded border border-border px-1 py-1 text-sm"
+        className="w-12 rounded-[10px] border border-border px-1 py-1 text-sm"
         data-testid="notation-fraction-numerator"
       />
       <span className="text-sm">/</span>
@@ -92,14 +92,14 @@ export default function NotationToolbar({ onInsert, disabled }: NotationToolbarP
         value={denominator}
         disabled={disabled}
         onChange={(event) => setDenominator(event.target.value)}
-        className="w-12 rounded border border-border px-1 py-1 text-sm"
+        className="w-12 rounded-[10px] border border-border px-1 py-1 text-sm"
         data-testid="notation-fraction-denominator"
       />
       <button
         type="button"
         disabled={disabled || !customFraction}
         onClick={insertCustomFraction}
-        className="rounded border border-border px-2 py-1 text-sm disabled:opacity-40"
+        className="rounded-[10px] border border-border bg-surface-subtle px-2.5 py-1.5 text-sm font-bold text-heading disabled:opacity-40"
         data-testid="notation-fraction-insert"
       >
         Insert

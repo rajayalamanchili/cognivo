@@ -58,12 +58,30 @@ export default function SessionCountdown({ expiresAt, onExpire }: SessionCountdo
   const low = remaining <= 60;
 
   return (
-    <p
+    <span
       data-testid="session-countdown"
       aria-live="polite"
-      className={low ? "font-heading text-error" : "font-heading text-primary"}
+      aria-label={`Time left in session: ${formatRemaining(remaining)}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border-2 px-3.5 py-1 text-[15px] font-extrabold ${
+        low ? "border-error text-error" : "border-warning text-warning"
+      }`}
     >
-      Time remaining: {formatRemaining(remaining)}
-    </p>
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="13" r="8" />
+        <path d="M12 9v4l2 2" />
+        <path d="M10 2h4" />
+      </svg>
+      {formatRemaining(remaining)} left
+    </span>
   );
 }

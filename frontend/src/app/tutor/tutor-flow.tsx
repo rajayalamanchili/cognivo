@@ -71,23 +71,23 @@ export default function TutorFlow() {
 
   if (phase === "chatting" && sessionId) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
-        <h1 className="text-2xl font-semibold">Ask the Tutor</h1>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
+        <h1 className="font-heading text-[32px] font-bold text-heading">Ask the Tutor</h1>
         <TutorChat sessionId={sessionId} />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="tutor-start-form">
-      <h1 className="text-2xl font-semibold">Ask the Tutor</h1>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="tutor-start-form">
+      <h1 className="font-heading text-[32px] font-bold text-heading">Ask the Tutor</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">
           Subject
           <select
             value={selectedSubjectId ?? ""}
             onChange={(event) => setSelectedSubjectId(event.target.value)}
-            className="rounded-lg border border-border px-3 py-2"
+            className="rounded-[14px] border-2 border-primary/30 px-[18px] py-3"
           >
             {subjects.map((subject) => (
               <option key={subject.subject_id} value={subject.subject_id}>
@@ -101,7 +101,7 @@ export default function TutorFlow() {
         type="button"
         disabled={!selectedSubjectId}
         onClick={() => void handleStart()}
-        className="self-start rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+        className="self-start rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
       >
         Start Tutoring
       </button>

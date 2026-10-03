@@ -15,7 +15,14 @@ import type { AnswerResult } from "@/services/api";
 // used anyway) satisfies this type without padding in unused fields.
 export type AnswerResultViewData = Pick<
   AnswerResult,
-  "correct" | "topic_id" | "posterior_p_mastery" | "band" | "criteria_met" | "criteria_missed" | "step_results"
+  | "correct"
+  | "topic_id"
+  | "prior_p_mastery"
+  | "posterior_p_mastery"
+  | "band"
+  | "criteria_met"
+  | "criteria_missed"
+  | "step_results"
 >;
 
 export interface AnswerResultViewProps {
@@ -28,36 +35,84 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
     (result.criteria_missed && result.criteria_missed.length > 0);
   const hasStepResults = !!result.step_results && result.step_results.length > 0;
 
+  const heroTone = result.correct
+    ? "bg-success/15 text-success"
+    : "bg-warning/15 text-warning";
+
   return (
-    <div className="flex flex-col gap-4" data-testid="answer-result-view">
-      <h1 className="text-2xl font-semibold">{result.correct ? "Correct!" : "Not quite."}</h1>
-      <p className="text-muted">
-        Topic: {result.topic_id}
-        {result.band != null && (
-          <>
-            {" "}
-            &mdash; now <strong>{result.band}</strong> (
-            {Math.round(result.posterior_p_mastery * 100)}%)
-          </>
-        )}
-      </p>
+    <div className="flex flex-col gap-5" data-testid="answer-result-view">
+      <section className={`flex items-center gap-5 rounded-card px-8 py-7 ${heroTone}`}>
+        <div
+          aria-hidden="true"
+          className={`flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-full text-2xl font-bold ${result.correct ? "bg-success text-white" : "bg-warning text-white"}`}
+        >
+          {result.correct ? "✓" : "~"}
+        </div>
+        <div className="flex flex-col gap-1">
+          <h1 className="font-heading text-[30px] font-bold leading-tight">
+            {result.correct ? "Correct!" : "Not quite."}
+          </h1>
+          <p>
+            Topic: {result.topic_id}
+            {result.band != null && (
+              <>
+                {" "}
+                &mdash; now <strong>{result.band}</strong> (
+                {Math.round(result.posterior_p_mastery * 100)}%)
+              </>
+            )}
+          </p>
+        </div>
+      </section>
+
+      {result.prior_p_mastery != null && (
+        <section
+          aria-labelledby="mastery-change-h"
+          className="flex flex-col gap-3 rounded-card border border-border bg-surface p-7"
+        >
+          <h2 id="mastery-change-h" className="text-xs font-extrabold tracking-[0.08em] text-primary">
+            YOUR MASTERY
+          </h2>
+          <div className="flex items-baseline gap-3">
+            <span className="font-heading text-[22px] font-bold text-muted">
+              {Math.round(result.prior_p_mastery * 100)}%
+            </span>
+            <span aria-hidden="true" className="text-muted">
+              →
+            </span>
+            <span className="font-heading text-[36px] font-bold leading-none text-heading">
+              {Math.round(result.posterior_p_mastery * 100)}%
+            </span>
+          </div>
+          <div className="relative h-3 rounded-full bg-surface-subtle" aria-hidden="true">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-primary/40"
+              style={{ width: `${Math.round(result.prior_p_mastery * 100)}%` }}
+            />
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-primary"
+              style={{ width: `${Math.round(result.posterior_p_mastery * 100)}%` }}
+            />
+          </div>
+        </section>
+      )}
 
       {hasCriteria && (
-        <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
-          <p className="text-sm font-medium text-muted">Rubric criteria</p>
-          <ul className="flex flex-col gap-1">
+        <div className="flex flex-col gap-3 rounded-card border border-border bg-surface p-7">
+          <p className="text-sm font-bold text-heading">Rubric criteria</p>
+          <ul className="flex flex-col gap-2">
             {result.criteria_met?.map((criterion) => (
-              <li key={criterion} className="flex items-start gap-2 text-sm">
-                <span aria-hidden="true" className="text-success">
-                  ✓
+              <li key={criterion} className="flex items-start gap-3 text-[15px]">
+                <span className="flex-shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-bold text-success">
+                  Met
                 </span>
                 <span>{criterion}</span>
               </li>
             ))}
             {result.criteria_missed?.map((criterion) => (
-              <li key={criterion} className="flex items-start gap-2 text-sm">
-                <span aria-hidden="true" className="text-error">
-                  ✗
+              <li key={criterion} className="flex items-start gap-3 text-[15px]">
+                <span className="flex-shrink-0 rounded-full bg-warning/15 px-2.5 py-0.5 text-xs font-bold text-warning">
+                  Missed
                 </span>
                 <span>{criterion}</span>
               </li>
@@ -68,35 +123,37 @@ export default function AnswerResultView({ result }: AnswerResultViewProps) {
 
       {hasStepResults && (
         <div
-          className="flex flex-col gap-3 rounded-lg border border-border p-4"
+          className="flex flex-col gap-3 rounded-card border border-border bg-surface p-7"
           data-testid="step-results"
         >
-          <p className="text-sm font-medium text-muted">Step-by-step result</p>
-          <ul className="flex flex-col gap-2">
+          <p className="text-sm font-bold text-heading">Step-by-step result</p>
+          <ul className="flex flex-col gap-3">
             {result.step_results?.map((step) => (
-              <li key={step.step_index} className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 text-sm font-medium">
+              <li
+                key={step.step_index}
+                className="flex flex-col gap-2 rounded-[16px] bg-surface-subtle p-4"
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-heading">
                   <span
-                    aria-hidden="true"
-                    className={step.correct ? "text-success" : "text-error"}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${step.correct ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
                   >
-                    {step.correct ? "✓" : "✗"}
+                    {step.correct ? "Met" : "Missed"}
                   </span>
                   <span>Step {step.step_index + 1}</span>
                 </div>
-                <ul className="ml-6 flex flex-col gap-1">
+                <ul className="ml-2 flex flex-col gap-1">
                   {step.criteria_met.map((criterion) => (
-                    <li key={criterion} className="flex items-start gap-2 text-sm">
-                      <span aria-hidden="true" className="text-success">
-                        ✓
+                    <li key={criterion} className="flex items-start gap-3 text-[15px]">
+                      <span className="flex-shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-bold text-success">
+                        Met
                       </span>
                       <span>{criterion}</span>
                     </li>
                   ))}
                   {step.criteria_missed.map((criterion) => (
-                    <li key={criterion} className="flex items-start gap-2 text-sm">
-                      <span aria-hidden="true" className="text-error">
-                        ✗
+                    <li key={criterion} className="flex items-start gap-3 text-[15px]">
+                      <span className="flex-shrink-0 rounded-full bg-warning/15 px-2.5 py-0.5 text-xs font-bold text-warning">
+                        Missed
                       </span>
                       <span>{criterion}</span>
                     </li>

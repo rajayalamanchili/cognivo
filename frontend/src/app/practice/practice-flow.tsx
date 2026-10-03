@@ -22,7 +22,6 @@ import {
 } from "@/services/api";
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
-import SelectionReasonChip from "@/components/SelectionReasonChip";
 import RefreshedBanner from "@/components/RefreshedBanner";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import SessionCountdown from "@/components/SessionCountdown";
@@ -56,6 +55,10 @@ export default function PracticeFlow() {
   const [endedSummary, setEndedSummary] = useState<PracticeSessionSummaryResponse | null>(null);
 
   const [question, setQuestion] = useState<NextQuestion | null>(null);
+  // Spec 027: the mockup's "Question N this session" caption -- a plain
+  // client-side counter of questions shown since the session last
+  // (re)started, not fetched/persisted data (no endpoint reports this).
+  const [questionNumber, setQuestionNumber] = useState(0);
   const [response, setResponse] = useState("");
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [flagged, setFlagged] = useState(false);
@@ -99,6 +102,7 @@ export default function PracticeFlow() {
     getNextQuestion(currentLearnerId, subjectId)
       .then((nextQuestion) => {
         setQuestion(nextQuestion);
+        setQuestionNumber((n) => n + 1);
         setPhase("answering");
       })
       .catch((error: unknown) => {
@@ -113,6 +117,7 @@ export default function PracticeFlow() {
     setResult(null);
     setFlagged(false);
     setReadAloudUsed(false);
+    setQuestionNumber(0);
     if (timeLimitSeconds === null) {
       loadUntimedQuestion(learnerId, selectedSubjectId);
       return;
@@ -123,6 +128,7 @@ export default function PracticeFlow() {
       setPracticeSessionId(started.practice_session_id);
       setExpiresAt(started.expires_at);
       setQuestion(started.question);
+      setQuestionNumber((n) => n + 1);
       setPhase("answering");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : String(error));
@@ -154,6 +160,7 @@ export default function PracticeFlow() {
         setExpiresAt(next.expires_at ?? null);
         if (next.status === "in_progress" && next.question) {
           setQuestion(next.question);
+          setQuestionNumber((n) => n + 1);
           setPhase("answering");
         } else {
           await goToEnded(practiceSessionId);
@@ -207,6 +214,7 @@ export default function PracticeFlow() {
     setExpiresAt(null);
     setEndedSummary(null);
     setQuestion(null);
+    setQuestionNumber(0);
     setPhase("start");
   }
 
@@ -273,8 +281,8 @@ export default function PracticeFlow() {
 
   if (phase === "ended") {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-ended">
-        <h1 className="text-2xl font-semibold">Practice session ended</h1>
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="practice-ended">
+        <h1 className="font-heading text-[32px] font-bold text-heading">Practice session ended</h1>
         {endedSummary && (
           <>
             <p className="text-lg">
@@ -291,7 +299,7 @@ export default function PracticeFlow() {
           <button
             type="button"
             onClick={handleStartOver}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground"
           >
             Practice again
           </button>
@@ -307,14 +315,14 @@ export default function PracticeFlow() {
 
   if (phase === "result" && result) {
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8">
         <AnswerResultView result={result} />
         <RefreshedBanner refreshed={result.refreshed} unlockedGrade={question?.unlocked_grade ?? null} />
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={() => void advanceToNextQuestion()}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground"
+            className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground"
           >
             Next question
           </button>
@@ -330,25 +338,48 @@ export default function PracticeFlow() {
 
   if (phase === "answering" || phase === "submitting") {
     if (!question) return null;
+    const subjectName = subjects.find((s) => s.subject_id === selectedSubjectId)?.display_name;
+    const ownsSubmit =
+      question.question_type !== "free_text" && question.question_type !== "multi_step";
     return (
-      <div className="mx-auto flex max-w-2xl flex-col gap-8 p-8">
-        <h1 className="text-2xl font-semibold">Practice</h1>
-        {expiresAt && (
-          <div className="flex items-center justify-between gap-4">
-            <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />
+      <div className="mx-auto flex w-full max-w-[860px] flex-col gap-5 p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {subjectName && (
+              <span className="text-[13px] font-extrabold uppercase tracking-wide text-primary">
+                {subjectName} · Practice
+              </span>
+            )}
+            {question.unlocked_grade != null && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3.5 py-1 text-sm font-bold text-heading">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="5" y="11" width="14" height="10" rx="2" />
+                  <path d="M8 11V7a4 4 0 0 1 8 0" />
+                </svg>
+                Unlocked up to Grade {question.unlocked_grade}
+              </span>
+            )}
+            {expiresAt && <SessionCountdown expiresAt={expiresAt} onExpire={handleCountdownExpire} />}
+          </div>
+          {practiceSessionId ? (
             <button
               type="button"
               disabled={phase === "submitting" || answerBusy}
               onClick={handleEndPracticeNow}
-              className="text-sm text-link underline disabled:opacity-40"
+              className="text-[15px] font-extrabold text-link disabled:opacity-40"
             >
               End practice now
             </button>
-          </div>
-        )}
-        <SelectionReasonChip question={question} />
+          ) : (
+            <Link href="/dashboard" className="text-[15px] font-extrabold text-link">
+              End session
+            </Link>
+          )}
+        </div>
+
         <QuestionCard
           key={question.question_id}
+          variant="practice"
           question={question}
           response={response}
           onResponseChange={setResponse}
@@ -362,29 +393,45 @@ export default function PracticeFlow() {
           onBusyChange={setAnswerBusy}
           readAloudEnabled={question.read_aloud_eligible}
           onReadAloudUsed={() => setReadAloudUsed(true)}
+          footer={
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <Link href="/tutor" className="text-[15px] font-extrabold text-link">
+                Stuck? Ask the AI Tutor for a hint
+              </Link>
+              {ownsSubmit && (
+                <button
+                  type="button"
+                  disabled={response === "" || phase === "submitting"}
+                  onClick={handleSubmit}
+                  className="inline-flex items-center gap-2.5 rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
+                >
+                  {phase === "submitting" ? (
+                    <LoadingIndicator message="Checking your answer…" compact />
+                  ) : (
+                    <>
+                      Submit Answer
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M5 12h14" />
+                        <path d="m13 6 6 6-6 6" />
+                      </svg>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          }
         />
-        {question.question_type !== "free_text" && question.question_type !== "multi_step" && (
-          <button
-            type="button"
-            disabled={response === "" || phase === "submitting"}
-            onClick={handleSubmit}
-            className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
-          >
-            {phase === "submitting" ? (
-              <LoadingIndicator message="Checking your answer…" compact />
-            ) : (
-              "Submit Answer"
-            )}
-          </button>
-        )}
+        <p className="text-center text-sm text-muted">
+          Question {questionNumber} this session · Your answer updates your mastery for this topic
+        </p>
       </div>
     );
   }
 
   // phase === "start"
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6 p-8" data-testid="practice-start-form">
-      <h1 className="text-2xl font-semibold">Practice</h1>
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="practice-start-form">
+      <h1 className="font-heading text-[32px] font-bold text-heading">Practice</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">
           Subject
@@ -421,7 +468,7 @@ export default function PracticeFlow() {
         type="button"
         disabled={!selectedSubjectId}
         onClick={handleStart}
-        className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+        className="rounded-full bg-primary px-7 py-3.5 text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
       >
         {timeLimitSeconds === null ? "Start practicing" : "Start timed practice"}
       </button>

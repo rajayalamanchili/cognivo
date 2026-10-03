@@ -68,7 +68,7 @@ function RoleAvatar({ role }: { role: ChatMessage["role"] }) {
         "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base " +
         (role === "learner"
           ? "bg-primary text-primary-foreground"
-          : "border border-border text-foreground")
+          : "bg-primary-subtle text-heading")
       }
     >
       {role === "learner" ? "🙂" : "🦉"}
@@ -145,8 +145,8 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
               data-exchange-id={message.exchangeId}
               className={
                 message.role === "learner"
-                  ? "rounded-lg bg-primary px-4 py-2 text-primary-foreground"
-                  : "rounded-lg border border-border px-4 py-2"
+                  ? "rounded-[22px] rounded-br-[6px] bg-primary px-[18px] py-3.5 text-primary-foreground"
+                  : "rounded-[22px] rounded-bl-[6px] bg-surface-subtle px-5 py-4"
               }
             >
               {message.role === "tutor" && message.text ? (
@@ -188,7 +188,7 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
       <div className="flex gap-2">
         <input
           type="text"
-          className="flex-1 rounded-lg border border-border px-3 py-2"
+          className="flex-1 rounded-full border-2 border-primary/30 px-5 py-3"
           maxLength={MAX_LENGTH}
           value={question}
           disabled={streaming}
@@ -205,7 +205,7 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
           type="button"
           onClick={() => void handleSubmit()}
           disabled={streaming || question.trim() === ""}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
+          className="rounded-full bg-primary px-6 py-3 text-[15px] font-extrabold text-primary-foreground disabled:opacity-40"
         >
           {streaming ? <LoadingIndicator message="Thinking…" compact /> : "Ask"}
         </button>
