@@ -26,7 +26,12 @@ from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
 from src.services.auth.dependencies import optional_session_claims
 from src.services.auth.tokens import SessionClaims
-from src.services.tutor.session import open_session, prepare_message, stream_message_response
+from src.services.tutor.session import (
+    end_session,
+    open_session,
+    prepare_message,
+    stream_message_response,
+)
 
 router = APIRouter()
 
@@ -94,6 +99,25 @@ def open_session_route(
     )
 
 
+@router.post("/api/tutor/sessions/{session_id}/end", status_code=204)
+def end_session_route(
+    session_id: uuid.UUID,
+    claims: SessionClaims | None = Depends(optional_session_claims),
+    db: Session = Depends(get_db),
+) -> None:
+    """027-learner-ui-redesign gap-closing pass: backs the Tutor page's
+    "New chat" button. `open_session` is get-or-create against the one-
+    active-session-per-subject constraint (FR-014), so there was
+    previously no way to start a visually fresh conversation without
+    just resuming the same session -- this ends the current one so the
+    next `POST /api/tutor/sessions` call creates a new row instead."""
+    session = db.get(TutoringSession, session_id)
+    if session is None:
+        raise NotFoundError(f"unknown session_id: {session_id}")
+    _authorize_learner(db, learner_id=session.learner_id, claims=claims)
+    end_session(db, session=session)
+
+
 class SubmitMessageIn(BaseModel):
     question: str
 
@@ -144,10 +168,16 @@ def _authorize_exchange_inspection(
 ) -> None:
     """US3 auth (contracts/api.md): the owning guardian, the learner's
     enrolled-classroom instructor, or the demo-instructor session --
-    deliberately no demo-learner no-auth carve-out here (unlike the
-    session/message endpoints' FR-001): inspection is instructor/
-    guardian-facing, not something the anonymous demo-learner UI itself
-    calls."""
+    plus (027-learner-ui-redesign gap-closing pass) the demo learner
+    itself, same FR-001 no-auth carve-out the session/message endpoints
+    already give it, now that the Tutor page's own "grounded in" /
+    "sources used" UI reads this endpoint for its own session's
+    citations. A real (non-demo) learner still has no direct caller of
+    this route -- inspection of someone else's exchange stays instructor/
+    guardian-only."""
+    learner = db.get(LearnerProfile, session.learner_id)
+    if learner is not None and learner.is_demo:
+        return
     if claims is not None and claims.account_type == "guardian":
         if session.guardian_id == claims.account_id:
             return

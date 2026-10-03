@@ -1144,3 +1144,36 @@ export async function streamTutorMessage(
     }
   }
 }
+
+// 027-learner-ui-redesign, gap-closing pass: ends the session's one
+// `active` row (FR-014's get-or-create otherwise just resumes it) so
+// the Tutor page's "New chat" button can start a visually fresh
+// conversation.
+export function endTutorSession(sessionId: string): Promise<void> {
+  return requestVoid(`/api/tutor/sessions/${sessionId}/end`, { method: "POST" });
+}
+
+// 027-learner-ui-redesign, gap-closing pass: backs the "grounded in"
+// pill row and "sources used in this chat" sidebar card. Same shape as
+// `GET /api/tutor/exchanges/{id}` returns for the guardian/instructor
+// inspection view (spec 012) -- the demo learner can now call it for
+// its own exchanges too (backend/src/api/routes/tutor.py).
+export interface TutorRetrievedPassage {
+  passage_id: string;
+  topic_id: string;
+  field: string;
+  text: string;
+}
+
+export interface TutorExchangeDetail {
+  exchange_id: string;
+  status: string;
+  question_text: string;
+  answer_text: string | null;
+  grounded: boolean;
+  retrieved_passages: TutorRetrievedPassage[];
+}
+
+export function getTutorExchange(exchangeId: string): Promise<TutorExchangeDetail> {
+  return request<TutorExchangeDetail>(`/api/tutor/exchanges/${exchangeId}`);
+}

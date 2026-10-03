@@ -173,6 +173,18 @@ def open_session(
     return session, True
 
 
+def end_session(db: Session, *, session: TutoringSession) -> None:
+    """027-learner-ui-redesign gap-closing pass: marks a session `ended`
+    -- `TutoringSessionStatus.ENDED` was already defined but nothing
+    ever set it. Idempotent (an already-ended session is a no-op, not
+    an error) since the route has no reason to distinguish "I ended it"
+    from "it was already ended"."""
+    if session.status != TutoringSessionStatus.ENDED:
+        session.status = TutoringSessionStatus.ENDED
+        db.add(session)
+        db.commit()
+
+
 def _in_flight_exchange(db: Session, *, session_id: uuid.UUID) -> TutorExchange | None:
     """FR-015's in-flight marker: `answer_text IS NULL AND failed_at IS
     NULL` on this session's most recent exchange (data-model.md, closes
