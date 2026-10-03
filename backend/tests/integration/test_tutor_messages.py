@@ -392,6 +392,17 @@ def test_409_still_answering_while_a_prior_exchange_is_in_flight(client, db_sess
     assert "exchange_id" in body
 
 
+def test_409_message_after_session_ended(client, session_id):
+    end_response = client.post(f"/api/tutor/sessions/{session_id}/end")
+    assert end_response.status_code == 204, end_response.text
+
+    response = client.post(
+        f"/api/tutor/sessions/{session_id}/messages", json={"question": "still here?"}
+    )
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "session_ended"
+
+
 def test_429_rate_limited(client, db_session, session_id, monkeypatch):
     from src.services.tutor import rate_limit as rate_limit_module
 

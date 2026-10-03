@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from src.agents.recommendation.agent import build_weak_area_report
 from src.api.errors import (
+    ConflictError,
     ModerationRejectedError,
     QuestionTooLongError,
     RateLimitedError,
@@ -213,20 +214,28 @@ async def prepare_message(
     db: Session, *, session: TutoringSession, question: str
 ) -> PreparedTutorMessage:
     """Runs contracts/api.md's server steps, in its documented order
-    (cheapest/most-likely-to-reject first): in-flight (FR-015) -> rate
-    limit (FR-013) -> length/moderation -> retrieval (FR-002/FR-012) ->
-    bundle -> open the A2A stream. Raises `StillAnsweringError`/
-    `RateLimitedError`/`QuestionTooLongError`/`ModerationRejectedError`/
+    (cheapest/most-likely-to-reject first): ended-session check ->
+    in-flight (FR-015) -> rate limit (FR-013) -> length/moderation ->
+    retrieval (FR-002/FR-012) -> bundle -> open the A2A stream. Raises
+    `ConflictError`/`StillAnsweringError`/`RateLimitedError`/
+    `QuestionTooLongError`/`ModerationRejectedError`/
     `TutorUnavailableError` (raised directly if retrieval fails after
     its own internal retries, or -- since opening the A2A stream can
     fail in ways other than `TutorUnavailableError` too, confirmed live,
     PR #36 -- re-raised as whatever other exception opening it actually
-    was); every one of these marks the just-created exchange `failed_at`
-    first (the exchange row itself is created before retrieval runs,
-    specifically so a retrieval failure has a row to mark). The caller
-    (the route) must not construct a `StreamingResponse` until this
-    returns successfully.
+    was); every one of these after the ended-session check marks the
+    just-created exchange `failed_at` first (the exchange row itself is
+    created before retrieval runs, specifically so a retrieval failure
+    has a row to mark). The caller (the route) must not construct a
+    `StreamingResponse` until this returns successfully.
     """
+    if session.status != TutoringSessionStatus.ACTIVE:
+        # "New chat" (`end_session`) can race a stale client's in-flight
+        # send: without this, a message posted after (or concurrently
+        # with) ending the session would silently create a real answered
+        # exchange on a session the UI already treats as closed.
+        raise ConflictError("session_ended")
+
     in_flight = _in_flight_exchange(db, session_id=session.session_id)
     if in_flight is not None:
         raise StillAnsweringError(exchange_id=in_flight.exchange_id)

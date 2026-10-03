@@ -145,6 +145,10 @@ class AssessmentEventType(enum.StrEnum):
 # required, not just one.
 MASTERY_CONFIRMATION_THRESHOLD = 2
 
+# The posterior cutoff "mastered" is measured against, below which a
+# topic is at best "developing" regardless of confirmation streak.
+MASTERED_BAND_THRESHOLD = 0.7
+
 
 def mastery_band_for(p_mastery: float, consecutive_mastered_observations: int) -> MasteryBand:
     """Derive the three-band mastery classification from a BKT posterior.
@@ -161,7 +165,7 @@ def mastery_band_for(p_mastery: float, consecutive_mastered_observations: int) -
     """
     if p_mastery < 0.4:
         return MasteryBand.STRUGGLING
-    if p_mastery < 0.7:
+    if p_mastery < MASTERED_BAND_THRESHOLD:
         return MasteryBand.DEVELOPING
     if consecutive_mastered_observations >= MASTERY_CONFIRMATION_THRESHOLD:
         return MasteryBand.MASTERED

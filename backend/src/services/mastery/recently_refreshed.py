@@ -18,20 +18,14 @@ checked across the audit trail instead of one sticky column.
 
 import datetime
 import uuid
+from collections import defaultdict
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import AssessmentEventType, MasteryBand
+from src.models.enums import MASTERED_BAND_THRESHOLD, AssessmentEventType, MasteryBand
 from src.models.mastery_state import MasteryState
-
-# Same raw-score cutoff `mastery_band_for` (models/enums.py) uses for
-# "mastered" -- duplicated here (not imported) because the confirmation
-# streak that function also requires isn't recoverable from the audit
-# log, so this is deliberately an approximation of that rule, not a
-# call to it.
-MASTERED_THRESHOLD = 0.7
 
 TRAILING_WINDOW = datetime.timedelta(days=7)
 
@@ -67,24 +61,30 @@ def find_recently_refreshed_topic(
     if not mastered_topic_ids:
         return None
 
-    best: RecentlyRefreshedTopic | None = None
-    for topic_id in mastered_topic_ids:
-        events = (
-            db.query(AssessmentEvent)
-            .filter(
-                AssessmentEvent.learner_id == learner_id,
-                AssessmentEvent.subject_id == subject_id,
-                AssessmentEvent.topic_id == topic_id,
-                AssessmentEvent.event_type == AssessmentEventType.MASTERY_UPDATED,
-            )
-            .order_by(AssessmentEvent.created_at)
-            .all()
+    events_by_topic: dict[str, list[AssessmentEvent]] = defaultdict(list)
+    all_events = (
+        db.query(AssessmentEvent)
+        .filter(
+            AssessmentEvent.learner_id == learner_id,
+            AssessmentEvent.subject_id == subject_id,
+            AssessmentEvent.topic_id.in_(mastered_topic_ids),
+            AssessmentEvent.event_type == AssessmentEventType.MASTERY_UPDATED,
         )
+        .order_by(AssessmentEvent.created_at)
+        .all()
+    )
+    for event in all_events:
+        events_by_topic[event.topic_id].append(event)
+
+    best: RecentlyRefreshedTopic | None = None
+    for topic_id, events in events_by_topic.items():
         reached_mastered_before = False
         for event in events:
+            posterior = event.payload.get("posterior_p_mastery")
+            if posterior is None:
+                continue
             prior = event.payload.get("prior_p_mastery")
-            posterior = event.payload["posterior_p_mastery"]
-            crossed_now = prior is not None and prior < MASTERED_THRESHOLD <= posterior
+            crossed_now = prior is not None and prior < MASTERED_BAND_THRESHOLD <= posterior
             if (
                 crossed_now
                 and reached_mastered_before
@@ -92,7 +92,7 @@ def find_recently_refreshed_topic(
                 and (best is None or event.created_at > best.crossed_at)
             ):
                 best = RecentlyRefreshedTopic(topic_id=topic_id, crossed_at=event.created_at)
-            if posterior >= MASTERED_THRESHOLD:
+            if posterior >= MASTERED_BAND_THRESHOLD:
                 reached_mastered_before = True
 
     return best

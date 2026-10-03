@@ -324,7 +324,7 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
         updated_at=ctx.updated_at_by_topic.get(chosen_id),
-        grade=ctx.grade_by_topic[chosen_id],
+        grade=ctx.grade_by_topic.get(chosen_id),
         candidates_considered=candidates,
     )
 
@@ -392,7 +392,7 @@ def preview_topic_priority(
         prereq_ids = ctx.prereqs_by_topic.get(next_topic_id, [])
         if prereq_ids:
             order_rank = {t: i for i, t in enumerate(ctx.topic_ids_in_order)}
-            immediate_prereq = min(prereq_ids, key=lambda p: order_rank[p])
+            immediate_prereq = min(prereq_ids, key=lambda p: order_rank.get(p, len(order_rank)))
             prerequisite_display_name = ctx.display_name_by_topic[immediate_prereq]
 
     return TopicPriorityPreview(

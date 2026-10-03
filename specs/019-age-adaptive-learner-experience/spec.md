@@ -380,10 +380,12 @@ are implemented.
   guarantee (Constitution Principle V).
 - **FR-013**: System MUST leave a learner or subject with no grade-band
   data (per Milestone 15's all-or-nothing rule) entirely unaffected in
-  observable/functional behavior by this feature's read-aloud,
-  mediation-tier, and pacing behavior -- a new audit-log entry recording
-  `tier: null` may still be written per FR-012; that alone is not a
-  behavior change.
+  observable/functional behavior by this feature's mediation-tier and
+  pacing behavior -- a new audit-log entry recording `tier: null` may
+  still be written per FR-012; that alone is not a behavior change.
+  Read-aloud is excluded from this guarantee as of the unconditional-
+  eligibility Clarification (2026-10-03): an ungraded subject now gets
+  the same read-aloud control as any other, by design.
 - **FR-014**: System MUST leave a demo learner's quiz session
   completely outside guardian-mediation-tier logic -- no tier is ever
   determined, no `GUARDIAN_MEDIATION_APPLIED` event is logged, and no
