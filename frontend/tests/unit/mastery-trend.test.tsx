@@ -34,4 +34,19 @@ describe("MasteryTrend", () => {
     render(<MasteryTrend points={[]} />);
     expect(screen.queryByTestId("mastery-trend")).not.toBeInTheDocument();
   });
+
+  it("renders a row-sized sparkline for the per-topic list view", () => {
+    render(
+      <MasteryTrend
+        points={[point("2026-01-01T00:00:00Z", 0.3), point("2026-02-01T00:00:00Z", 0.8)]}
+        size="row"
+      />
+    );
+    expect(screen.getByTestId("mastery-trend-line")).toBeInTheDocument();
+  });
+
+  it("renders nothing (not the sm fallback text) for a single point at row size", () => {
+    render(<MasteryTrend points={[point("2026-01-01T00:00:00Z", 0.5)]} size="row" />);
+    expect(screen.queryByTestId("mastery-trend")).not.toBeInTheDocument();
+  });
 });
