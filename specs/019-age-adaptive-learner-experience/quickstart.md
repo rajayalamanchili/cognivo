@@ -23,7 +23,12 @@ Milestone 15's placement flow to place one learner's `algebra-1`
 A third and fourth pair at grades 4 (check-in) and 7 (opt-in-nudges) are
 needed for SC-004/SC-005 specifically.
 
-## Scenario 1 -- User Story 1: read-aloud offered only below grade 3 (SC-001, SC-002)
+## Scenario 1 -- User Story 1: read-aloud offered to every learner (SC-001, SC-002)
+
+**Note (2026-10-03 Clarification)**: read-aloud is no longer grade-gated
+-- the walkthrough below (originally written to contrast a grade-1 vs.
+grade-10 learner) now just confirms the control appears for both, and
+for an ungraded subject too.
 
 `/practice`, `/quiz`, and `/placement` are demo-learner-only routes
 (they always resolve the seeded demo learner internally and accept no
@@ -42,11 +47,9 @@ guardian's own session drives it, no hand-off token needed).
 plays the question text and every answer choice aloud via the browser's
 own text-to-speech; replaying does not navigate away or clear the
 in-progress response (FR-002). The same `QuestionCard` component
-(Decision 1) backs `/practice`, `/quiz`, and `/placement` too -- if the
-seeded demo learner has an `unlocked_grade` of 1-2 for the subject
-under test (an ungraded subject, or no `GradeProgress` row yet, is
-never eligible per FR-013), spot check `/practice` and `/placement` to
-confirm the control appears there as well.
+(Decision 1) backs `/practice`, `/quiz`, and `/placement` too -- spot
+check `/practice` and `/placement` to confirm the control appears there
+as well, including for an ungraded subject (e.g. `biology`).
 
 Start an assignment for the grade-10 learner the same way (independent
 tier -- copy the response's `handoff_token` and open the quiz from a
@@ -54,7 +57,9 @@ second, guardian-cookie-less session using `X-Quiz-Handoff-Token`, or
 just load `/guardian/learners` as that learner's guardian for a
 same-session smoke check).
 
-**Expected**: no read-aloud control appears (FR-003).
+**Expected**: the read-aloud control still appears (FR-001/FR-003, as
+amended 2026-10-03) -- grade band no longer affects whether it's
+offered, only the guardian-mediation tier (Scenario 2) still does.
 
 ## Scenario 2 -- User Story 2: guardian starts every tier; hand-off token differs (SC-003)
 

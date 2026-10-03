@@ -103,6 +103,28 @@ opt-in nudges (guardian notified, no action required), 9-12 independent
   FR-013 clarifying that a `tier: null` audit-log entry for an ungraded
   subject is not itself a behavior change.
 
+### Session 2026-10-03 (spec 027 UI-redesign follow-up)
+
+- Q: While restyling Placement/Practice to match spec 027's mockups
+  (which depict the read-aloud control appearing unconditionally on
+  every question card), live testing found the control never renders
+  at all -- neither seeded demo subject ever reaches the grades-1-2
+  band FR-003 restricts it to (`algebra-1` is grade-banded 6-8;
+  `biology` is ungraded entirely). Should read-aloud stay gated to
+  grades 1-2, or become available for every learner/subject? → A:
+  Remove the grade gate entirely. Read-aloud is now offered for every
+  question, every grade band, every subject -- including previously-
+  excluded ungraded subjects like `biology` -- matching the mockups'
+  unconditional depiction and reframing it as a general accessibility/
+  convenience affordance rather than one scoped to pre-fluent readers
+  specifically. FR-001/FR-003/FR-011 and SC-001/SC-002/SC-008 below are
+  amended accordingly. Guardian-mediation tier determination (FR-004,
+  Story 2) is unaffected -- `mediation/tier.py` is a structurally
+  separate derivation that only happened to share today's 1-2 boundary
+  by coincidence (the stale Assumptions note tying them together is
+  removed below), not a shared implementation; it still applies only to
+  grade-banded subjects, same as before.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Read-aloud support for pre-fluent readers (Priority: P1)
@@ -126,14 +148,17 @@ Story 2 or Story 3 are implemented.
 
 **Acceptance Scenarios**:
 
-1. **Given** a learner whose unlocked grade band is 1 or 2, **When**
-   they are shown any question (any subject, any question type),
-   **Then** a control to hear the question text and every answer choice
-   read aloud is available before they answer.
+1. **Given** any learner, regardless of grade band or whether the
+   subject is grade-banded at all, **When** they are shown any question
+   (any subject, any question type), **Then** a control to hear the
+   question text and every answer choice read aloud is available before
+   they answer (Clarifications, 2026-10-03).
 2. **Given** a learner in grades 3-12, **When** they are shown a
-   question, **Then** no read-aloud control is forced on them (today's
-   text-only presentation is unchanged).
-3. **Given** a grade-1 or grade-2 learner mid-question, **When** they
+   question, **Then** read-aloud is offered the same as it is for
+   grades 1-2 -- it is never forced or auto-played either way, so the
+   text-only reading experience stays available to anyone who ignores
+   the control (Clarifications, 2026-10-03).
+3. **Given** a learner mid-question, **When** they
    replay the read-aloud audio, **Then** it plays again in full without
    navigating away from the question or losing their in-progress
    answer.
@@ -257,9 +282,11 @@ are implemented.
   tier (FR-014), which does log an event and does mint a token.
 - What happens for a subject/topic with no grade-band data at all
   (e.g., `biology`, deliberately left ungraded per Milestone 15's
-  precedent)? No read-aloud gating or mediation-tier behavior applies --
-  these learners see today's unmodified experience for that subject,
-  the same regression guarantee Milestone 15 already established.
+  precedent)? Guardian-mediation-tier behavior still does not apply
+  (FR-004 remains grade-band-derived, and an ungraded subject has
+  none) -- these learners see today's unmodified mediation experience.
+  Read-aloud, however, is no longer grade-derived at all (Clarifications,
+  2026-10-03) and is offered there the same as any grade-banded subject.
 - What happens if a learner is in a grade band with a required
   reinforcement stopping point (Story 3) but is also in a blocking
   guardian tier (Story 2) and the guardian ended the quiz session
@@ -273,11 +300,12 @@ are implemented.
 ### Functional Requirements
 
 - **FR-001**: System MUST offer on-demand read-aloud audio for a
-  question's full text and every answer choice to any learner whose
-  unlocked grade band is 1 or 2, across every subject and question
-  type, generated client-side via the learner's device/browser
-  text-to-speech capability -- no server-side audio generation or new
-  external dependency.
+  question's full text and every answer choice to every learner, across
+  every subject (grade-banded or not) and question type, generated
+  client-side via the learner's device/browser text-to-speech
+  capability -- no server-side audio generation or new external
+  dependency. Originally scoped to grades 1-2 only; the grade
+  restriction was removed (Clarifications, 2026-10-03).
 - **FR-002**: System MUST NOT force-play or auto-advance past read-aloud
   audio -- the learner controls when it plays and may replay it as many
   times as needed before answering.
@@ -285,8 +313,10 @@ are implemented.
   simply unavailable, question remains fully usable as text) on a
   device/browser that lacks text-to-speech support, rather than
   blocking the learner from answering.
-- **FR-003**: System MUST NOT offer or require read-aloud for learners
-  in grade bands 3 and above as part of this feature.
+- **FR-003**: System MUST NOT restrict read-aloud eligibility by grade
+  band -- it is available to every learner, every grade, every subject,
+  including ungraded ones. Supersedes this FR's original "no read-aloud
+  for grades 3+" restriction (Clarifications, 2026-10-03).
 - **FR-004**: System MUST determine a learner's guardian-mediation tier
   from one of exactly four bands, keyed to their unlocked grade: 1-2
   (co-present), 3-5 (check-in), 6-8 (opt-in nudges), 9-12 (independent).
@@ -337,10 +367,11 @@ are implemented.
   selection, or topic ordering as part of this feature -- those remain
   governed exclusively by Milestone 15's existing grade-band content
   logic.
-- **FR-011**: System MUST derive read-aloud eligibility, guardian-
-  mediation tier, and quiz-session-pacing profile from the learner's
-  existing grade-band state (Milestone 15), never from a second,
-  independently maintained copy of grade.
+- **FR-011**: System MUST derive guardian-mediation tier and
+  quiz-session-pacing profile from the learner's existing grade-band
+  state (Milestone 15), never from a second, independently maintained
+  copy of grade. Read-aloud eligibility is no longer grade-derived at
+  all (Clarifications, 2026-10-03) -- it is unconditional.
 - **FR-012**: System MUST log every guardian-mediation-tier
   determination as an auditable event, and every question's read-aloud
   usage (whether it was triggered at least once for that question, not
@@ -381,12 +412,13 @@ are implemented.
 
 ### Measurable Outcomes
 
-- **SC-001**: 100% of questions shown to a grade-1 or grade-2 learner,
-  across every subject and question type, offer a read-aloud control
-  for the question text and every answer choice.
-- **SC-002**: A grade-1 or grade-2 learner can start, stop, and replay
-  read-aloud audio without leaving the current question or losing an
-  in-progress answer, on every attempt.
+- **SC-001**: 100% of questions shown to any learner, across every
+  subject (grade-banded or not) and question type, offer a read-aloud
+  control for the question text and every answer choice (Clarifications,
+  2026-10-03 -- originally scoped to grade-1/2 learners only).
+- **SC-002**: Any learner can start, stop, and replay read-aloud audio
+  without leaving the current question or losing an in-progress answer,
+  on every attempt.
 - **SC-003**: 100% of real learners' quiz sessions, across every tier,
   require an explicit guardian start before the first question is
   served. 0% of grade 1-2 (co-present) quiz sessions ever accept a
@@ -411,8 +443,11 @@ are implemented.
   per-question yes/no fact, not a per-replay count), is reconstructable
   after the fact from the audit log.
 - **SC-008**: A pre-existing, ungraded subject's (e.g., `biology`)
-  learner experience shows zero behavior change, measured against its
-  own pre-feature baseline.
+  learner experience shows zero behavior change in guardian-mediation-
+  tier and pacing behavior, measured against its own pre-feature
+  baseline. Read-aloud is excluded from this guarantee as of the
+  2026-10-03 Clarification -- it is now offered there too, same as
+  every other subject.
 - **SC-009**: 100% of quiz sessions for an early grade band surface a
   stopping-point prompt once they reach that band's configured
   recommended-question-count; 0% of quiz sessions for a late grade band
@@ -437,9 +472,6 @@ are implemented.
   that adding email later (a new transactional-email provider
   dependency, a `tech-stack.md` update, and Milestone 7's existing
   consent/verified-email flow) is additive, not a rework of tier logic.
-- The read-aloud grade-band boundary (1-2) reuses the same boundary
-  already decided for the co-present guardian-mediation tier, rather
-  than introducing a second, independently-tuned literacy threshold.
 - Guardian-mediation tiers are fixed per grade band in v1; a
   guardian-configurable per-learner override is a reasonable v2
   addition, not built here (per `roadmap.md`'s pre-spec clarification
