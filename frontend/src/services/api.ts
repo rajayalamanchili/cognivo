@@ -81,6 +81,15 @@ export interface StandardCoverageEntry {
   status: StandardCoverageStatus;
 }
 
+// Spec 039 FR-002 -- one entry per topic in the requested subject that
+// both has an authored career_connection and belongs to a learner whose
+// career_connections_enabled is true (empty otherwise, server-computed).
+export interface CareerConnectionEntry {
+  topic_id: string;
+  career: string;
+  description: string;
+}
+
 export interface MasteryStateResponse {
   topics: MasteryTopicEntry[];
   // spec 025 FR-016 -- lets callers route explanation copy through the
@@ -93,6 +102,9 @@ export interface MasteryStateResponse {
   // Spec 038 FR-004 -- optional/empty when the subject has zero
   // StandardsTag rows, matching the backend's own default (mastery.py).
   standards?: StandardCoverageEntry[];
+  // Spec 039 FR-003/FR-006 -- optional/empty when the learner's
+  // preference is off or the subject has zero authored connections.
+  career_connections?: CareerConnectionEntry[];
 }
 
 // Spec 025 User Story 5, FR-012.
@@ -452,6 +464,31 @@ export function getMasteryState(
 ): Promise<MasteryStateResponse> {
   return request<MasteryStateResponse>(
     `/api/learners/${learnerId}/mastery-state?subject_id=${encodeURIComponent(subjectId)}`,
+  );
+}
+
+// Spec 039 FR-004/FR-005 -- same `require_learner_ownership_if_real()`
+// gate as getMasteryState above: a demo learner_id round-trips with no
+// session, a real one requires the owning guardian's session.
+export interface CareerConnectionsPreference {
+  enabled: boolean;
+}
+
+export function getCareerConnectionsPreference(
+  learnerId: string,
+): Promise<CareerConnectionsPreference> {
+  return request<CareerConnectionsPreference>(
+    `/api/learners/${learnerId}/career-connections-preference`,
+  );
+}
+
+export function setCareerConnectionsPreference(
+  learnerId: string,
+  enabled: boolean,
+): Promise<CareerConnectionsPreference> {
+  return request<CareerConnectionsPreference>(
+    `/api/learners/${learnerId}/career-connections-preference`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
   );
 }
 

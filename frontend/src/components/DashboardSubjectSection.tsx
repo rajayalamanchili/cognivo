@@ -13,11 +13,13 @@ import {
   getMasteryState,
   getRecommendations,
   getTopicPriorityPreview,
+  type CareerConnectionEntry,
   type MasteryTopicEntry,
   type RecommendationsResponse,
   type TopicPriorityPreview,
 } from "@/services/api";
 import MasteryView from "@/components/MasteryView";
+import CareerConnectionsList from "@/components/CareerConnectionsList";
 import WeakAreaSummary from "@/components/WeakAreaSummary";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { formatTopicId } from "@/lib/format-topic-id";
@@ -65,6 +67,9 @@ export default function DashboardSubjectSection({
   // -- part of the same mastery-state response already fetched below,
   // no new fetch.
   const [recentlyRefreshedTopicId, setRecentlyRefreshedTopicId] = useState<string | null>(null);
+  // Spec 039 FR-003 -- off its already-fetched getMasteryState call
+  // below, no new fetch.
+  const [careerConnections, setCareerConnections] = useState<CareerConnectionEntry[]>([]);
 
   const [weakAreaPhase, setWeakAreaPhase] = useState<SectionPhase>("loading");
   const [recommendations, setRecommendations] = useState<RecommendationsResponse | null>(null);
@@ -95,6 +100,7 @@ export default function DashboardSubjectSection({
         setMasteryTopics(result.topics);
         setUnlockedGrade(result.unlocked_grade);
         setRecentlyRefreshedTopicId(result.recently_refreshed_topic_id);
+        setCareerConnections(result.career_connections ?? []);
         setMasteryPhase("loaded");
       })
       .catch(() => {
@@ -423,7 +429,10 @@ export default function DashboardSubjectSection({
           )}
           {masteryPhase === "error" && <CouldntLoad what="mastery state" />}
           {masteryPhase === "loaded" && (
-            <MasteryView topics={masteryTopics} unlockedGrade={unlockedGrade} />
+            <>
+              <MasteryView topics={masteryTopics} unlockedGrade={unlockedGrade} />
+              <CareerConnectionsList careerConnections={careerConnections} />
+            </>
           )}
         </div>
       </div>
