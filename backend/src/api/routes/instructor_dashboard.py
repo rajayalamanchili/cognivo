@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.api.errors import ForbiddenError, NotFoundError
+from src.api.routes.mastery import StandardCoverageOut, standards_out_from_coverage
 from src.api.routes.recommendation import (
     RecommendationsResponse,
     recommendations_response_from_report,
@@ -25,6 +26,9 @@ class DashboardLearnerOut(BaseModel):
     learner_id: uuid.UUID
     display_name: str
     recommendations: RecommendationsResponse
+    # Spec 038 FR-004 -- identical in shape/derivation to the
+    # guardian-facing mastery-state surface's `standards` field.
+    standards: list[StandardCoverageOut]
 
 
 class DashboardOut(BaseModel):
@@ -55,6 +59,7 @@ def get_roster_dashboard(
                 learner_id=entry.learner_id,
                 display_name=entry.display_name,
                 recommendations=recommendations_response_from_report(entry.report),
+                standards=standards_out_from_coverage(entry.standards),
             )
             for entry in entries
         ],

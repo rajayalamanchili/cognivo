@@ -22,6 +22,7 @@ from src.agents.recommendation.agent import WeakAreaReport, build_weak_area_repo
 from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
 from src.models.learner_profile import LearnerProfile
+from src.services.standards.coverage import StandardCoverageEntry, compute_standards_coverage
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,10 @@ class LearnerDashboardEntry:
     learner_id: uuid.UUID
     display_name: str
     report: WeakAreaReport
+    # Spec 038 FR-004 -- same shape/derivation as the guardian-facing
+    # mastery-state surface (api/routes/mastery.py), via the same shared
+    # compute_standards_coverage() call.
+    standards: tuple[StandardCoverageEntry, ...]
 
 
 def build_roster_dashboard(db: Session, *, roster: ClassroomRoster) -> list[LearnerDashboardEntry]:
@@ -50,6 +55,11 @@ def build_roster_dashboard(db: Session, *, roster: ClassroomRoster) -> list[Lear
             display_name=learner.display_name,
             report=build_weak_area_report(
                 db, learner_id=learner.learner_id, subject_id=roster.subject_id
+            ),
+            standards=tuple(
+                compute_standards_coverage(
+                    db, learner_id=learner.learner_id, subject_id=roster.subject_id
+                )
             ),
         )
         for learner in enrolled_learners

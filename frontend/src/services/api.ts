@@ -68,6 +68,19 @@ export interface MasteryTopicEntry extends MasteryStateEntry {
   effective_p_mastery: number | null;
 }
 
+// Spec 038 FR-004/FR-007 -- derived from existing MasteryState bands
+// only, never a new computation. Shared, identical shape across the
+// guardian (mastery-state) and instructor (roster dashboard) surfaces.
+export type StandardCoverageStatus = "met" | "in_progress" | "not_yet_reached";
+
+export interface StandardCoverageEntry {
+  framework: string;
+  code: string;
+  title: string;
+  topic_ids: string[];
+  status: StandardCoverageStatus;
+}
+
 export interface MasteryStateResponse {
   topics: MasteryTopicEntry[];
   // spec 025 FR-016 -- lets callers route explanation copy through the
@@ -77,6 +90,8 @@ export interface MasteryStateResponse {
   // "Refreshed!" banner -- the topic_id of the most recently recovered
   // topic within the trailing window, or null.
   recently_refreshed_topic_id: string | null;
+  // Spec 038 FR-004 -- empty when the subject has zero StandardsTag rows.
+  standards: StandardCoverageEntry[];
 }
 
 // Spec 025 User Story 5, FR-012.
@@ -868,6 +883,8 @@ export interface DashboardLearnerEntry {
   learner_id: string;
   display_name: string;
   recommendations: RecommendationsResponse;
+  // Spec 038 FR-004 -- same shape/derivation as MasteryStateResponse.standards.
+  standards: StandardCoverageEntry[];
 }
 
 export interface DashboardResponse {
