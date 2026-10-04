@@ -1927,7 +1927,7 @@ restricting decay to only prerequisite-free topics.
 
 **Spec**: `specs/025-learner-explainability-ui/spec.md`.
 **Status**: Implemented, PR-reviewed, and merged to `staging` via PR #90
-(2026-09-28); promotion to `main` in progress. Spun
+and promoted to `main` via PR #91 (both 2026-09-28). Spun
 out of Milestone 22's own `/speckit-clarify` session per spec 024's own
 Clarifications Resolution note: the mastered-topic-fallback decay work
 surfaced that the Sequencing Agent's "why this question" flow has never
@@ -2105,7 +2105,9 @@ presentation-only).
 **Spec**: `specs/026-moderation-shielding-cache/spec.md`.
 **Status**: Implementation complete (2026-09-30, branch
 `036-moderation-shielding-cache`), all 25 tasks across 3 user stories +
-Polish. Identified as the two remaining high-call-volume, non-cached
+Polish. Merged to `staging` via PR #97 and promoted to `main` via PR #98
+(both 2026-09-30) -- fully shipped. Identified as the two remaining
+high-call-volume, non-cached
 model calls left after Milestone 13 (Semantic Caching): the moderation
 guardrail (spec 007 FR-012, runs on every free-text/stepwise
 submission) and the Tutor Agent's answer-shielding match classifier
@@ -2359,6 +2361,21 @@ misconception classifier's per-answer call (separate follow-up).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.24.0 -- 2026-10-04, corrected two milestone status lines
+that had never caught up to their actual merge state, the same class of
+gap this roadmap has corrected before (Milestones 2/3, 14, 15-18):
+Milestone 23 previously read "merged to `staging` via PR #90, promotion
+to `main` in progress" -- it was promoted the same day via PR #91, never
+recorded. Milestone 24 previously read only "Implementation complete,"
+with no merge/promotion note at all -- it merged to `staging` via PR #97
+and promoted to `main` via PR #98 (both 2026-09-30). Also shipped since,
+deliberately outside this milestone sequence per its own spec's
+Assumptions (a design-system update, the same category as Milestone 8's
+original theme overhaul): the Learner-Facing UI Redesign
+(`specs/027-learner-ui-redesign/spec.md`), merged to `staging` via PR
+#99 (2026-10-02) and promoted to `main` via PR #100 (2026-10-04) -- noted
+here for an honest record, not as a new milestone entry.
 
 **Version**: 3.23.0 -- 2026-09-30, added Milestone 24 (Moderation &
 Shielding Classification Caching) and marked it `/speckit-implement`
