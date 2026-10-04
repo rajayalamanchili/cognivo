@@ -98,11 +98,15 @@ backend/
 │   │   │                             #   computed via coverage.py -- backs the guardian-facing view
 │   │   │                             #   (FR-004) through the existing ownership-gated endpoint,
 │   │   │                             #   no change to require_learner_ownership_if_real()
-│   │   └── instructor_dashboard.py   # EXTENDED: DashboardLearnerOut gains `standards`; DashboardOut
-│   │                                 #   gains `standards_summary` (US2's roster-wide aggregate,
-│   │                                 #   computed by combining each learner's coverage.py result --
-│   │                                 #   no new query, no new permission check beyond the existing
-│   │                                 #   roster.instructor_id ownership check)
+│   │   ├── instructor_dashboard.py   # EXTENDED: DashboardLearnerOut gains `standards`; DashboardOut
+│   │   │                             #   gains `standards_summary` (US2's roster-wide aggregate,
+│   │   │                             #   computed by combining each learner's coverage.py result --
+│   │   │                             #   no new query, no new permission check beyond the existing
+│   │   │                             #   roster.instructor_id ownership check)
+│   │   └── rosters.py                # EXTENDED (T014 correction, research.md Decision 4): NEW
+│   │                                 #   GET /api/learners/{learner_id}/enrollments -- not in the
+│   │                                 #   original design; the guardian frontend had no existing way
+│   │                                 #   to learn which subject(s) a learner is enrolled in
 │   └── services/dashboard/
 │       └── aggregation.py            # EXTENDED: LearnerDashboardEntry gains `standards`, computed
 │                                     #   via the same coverage.py call as mastery.py above
@@ -123,14 +127,18 @@ frontend/
 │   ├── app/instructor/dashboard/
 │   │   └── instructor-dashboard-flow.tsx  # EXTENDED: renders StandardsCoverage per learner row plus
 │   │                                       #   the roster-wide standards_summary (US2)
+│   ├── components/
+│   │   └── GuardianLearnerStandards.tsx  # NEW (T014 correction): fetches the learner's enrolled
+│   │                                     #   subject(s) via the new enrollments endpoint, then each
+│   │                                     #   subject's mastery-state, rendering StandardsCoverage per
+│   │                                     #   subject
 │   └── app/(auth)/guardian/learners/
-│       └── page.tsx                  # EXTENDED: renders a NEW per-learner progress section (calls
-│                                      #   the existing mastery-state endpoint, now carrying
-│                                      #   `standards`) alongside the existing LearnerAssignments --
-│                                      #   no guardian-facing progress view exists today (confirmed by
-│                                      #   reading the current page: only JoinRosterForm +
-│                                      #   LearnerAssignments render there), so this is net-new UI,
-│                                      #   not an extension of an existing one (research.md Decision 4)
+│       └── page.tsx                  # EXTENDED: renders GuardianLearnerStandards alongside the
+│                                      #   existing LearnerAssignments -- no guardian-facing progress
+│                                      #   view exists today (confirmed by reading the current page:
+│                                      #   only JoinRosterForm + LearnerAssignments render there), so
+│                                      #   this is net-new UI, not an extension of an existing one
+│                                      #   (research.md Decision 4)
 ```
 
 **Structure Decision**: Existing `backend/` (FastAPI) + `frontend/` (Next.js) split, unchanged. One new backend model/table (`StandardsTag`) and one new pure service function (`coverage.py`) shared by two existing routes; the content-artifact validator/loader gain one new field each, mirroring the `grade`/`misconceptions` pattern exactly. On the frontend, one new shared presentational component (self-gated by the FR-013 developer toggle) and one genuinely new surface (the guardian's per-learner progress section, which did not exist before this feature). No new top-level directory, no new service boundary, no new A2A call, no new feature-flag mechanism.

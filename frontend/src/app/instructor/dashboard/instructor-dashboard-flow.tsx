@@ -8,6 +8,7 @@ import {
   type RosterSummary,
 } from "@/services/api";
 import WeakAreaSection from "@/components/WeakAreaSection";
+import StandardsCoverage from "@/components/StandardsCoverage";
 import LoadingIndicator from "@/components/LoadingIndicator";
 
 function errorText(error: unknown): string {
@@ -120,6 +121,7 @@ export default function InstructorDashboardFlow() {
               className="flex flex-col gap-3 rounded-lg border border-border p-4"
             >
               <h2 className="font-medium">{entry.display_name}</h2>
+              <StandardsCoverage standards={entry.standards ?? []} />
               <WeakAreaSection recommendations={entry.recommendations} />
             </div>
           ))}

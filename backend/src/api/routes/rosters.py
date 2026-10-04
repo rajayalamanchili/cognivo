@@ -253,6 +253,44 @@ def list_enrollments_route(
     )
 
 
+class LearnerEnrollmentOut(BaseModel):
+    roster_id: uuid.UUID
+    subject_id: str
+
+
+class ListLearnerEnrollmentsOut(BaseModel):
+    enrollments: list[LearnerEnrollmentOut]
+
+
+@router.get("/api/learners/{learner_id}/enrollments", response_model=ListLearnerEnrollmentsOut)
+def list_learner_enrollments_route(
+    learner_id: uuid.UUID,
+    guardian: RealGuardianAccount = Depends(current_guardian),
+    db: Session = Depends(get_db),
+) -> ListLearnerEnrollmentsOut:
+    """Not in spec 038's original contracts/api-changes.md -- added
+    while wiring the guardian's own learner-progress page (T014): no
+    existing endpoint told the guardian frontend which subject(s) a
+    learner is enrolled in, which `GET /mastery-state` needs as a query
+    param. Same shape/ownership-check pattern as `list_enrollments_route`
+    above, scoped by learner instead of by roster."""
+    learner = db.get(LearnerProfile, learner_id)
+    if learner is None or learner.guardian_id != guardian.guardian_id:
+        raise ForbiddenError("not_your_learner")
+    rows = (
+        db.query(ClassroomRoster)
+        .join(Enrollment, Enrollment.roster_id == ClassroomRoster.roster_id)
+        .filter(Enrollment.learner_id == learner_id)
+        .all()
+    )
+    return ListLearnerEnrollmentsOut(
+        enrollments=[
+            LearnerEnrollmentOut(roster_id=roster.roster_id, subject_id=roster.subject_id)
+            for roster in rows
+        ]
+    )
+
+
 def _get_owned_pending_request(
     db: Session,
     roster_id: uuid.UUID,

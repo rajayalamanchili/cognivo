@@ -90,8 +90,9 @@ export interface MasteryStateResponse {
   // "Refreshed!" banner -- the topic_id of the most recently recovered
   // topic within the trailing window, or null.
   recently_refreshed_topic_id: string | null;
-  // Spec 038 FR-004 -- empty when the subject has zero StandardsTag rows.
-  standards: StandardCoverageEntry[];
+  // Spec 038 FR-004 -- optional/empty when the subject has zero
+  // StandardsTag rows, matching the backend's own default (mastery.py).
+  standards?: StandardCoverageEntry[];
 }
 
 // Spec 025 User Story 5, FR-012.
@@ -818,6 +819,25 @@ export type JoinRosterResponse =
   | { status: "enrolled"; enrollment_id: string }
   | { status: "pending"; enrollment_request_id: string };
 
+// Spec 038 FR-004 -- added while wiring the guardian's own learner
+// progress view: no existing endpoint told the frontend which
+// subject(s) a learner is enrolled in, which getMasteryState needs as a
+// query param (not in the original contracts/api-changes.md).
+export interface LearnerEnrollmentEntry {
+  roster_id: string;
+  subject_id: string;
+}
+
+export interface ListLearnerEnrollmentsResponse {
+  enrollments: LearnerEnrollmentEntry[];
+}
+
+export function listLearnerEnrollments(
+  learnerId: string,
+): Promise<ListLearnerEnrollmentsResponse> {
+  return request<ListLearnerEnrollmentsResponse>(`/api/learners/${learnerId}/enrollments`);
+}
+
 export function joinRoster(learnerId: string, joinCode: string): Promise<JoinRosterResponse> {
   return request<JoinRosterResponse>("/api/rosters/join", {
     method: "POST",
@@ -884,7 +904,7 @@ export interface DashboardLearnerEntry {
   display_name: string;
   recommendations: RecommendationsResponse;
   // Spec 038 FR-004 -- same shape/derivation as MasteryStateResponse.standards.
-  standards: StandardCoverageEntry[];
+  standards?: StandardCoverageEntry[];
 }
 
 export interface DashboardResponse {

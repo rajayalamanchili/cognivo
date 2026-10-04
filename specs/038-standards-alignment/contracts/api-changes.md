@@ -48,6 +48,19 @@ total_count: int   # total enrolled learners in the roster, not total tagged top
 ```
 One entry per distinct `(framework, code)` present in the roster's subject (US2, FR-005). Absent entirely (empty list) for a subject with zero `StandardsTag` rows -- the frontend renders no standards-summary section in that case (US2 Acceptance Scenario 2), not an empty table.
 
+## New (found during implementation, not in the original design): `GET /api/learners/{learner_id}/enrollments`
+
+Auth: guardian-owns-this-learner (same ownership check shape as `list_enrollments_route`, scoped by learner instead of by roster). Added while wiring T014 (research.md Decision 4's correction) -- no existing endpoint told the guardian frontend which subject(s) a learner is enrolled in, which `mastery-state` needs as a query param.
+
+```
+enrollments: list[LearnerEnrollmentOut]
+```
+where `LearnerEnrollmentOut` is:
+```
+roster_id: uuid
+subject_id: str
+```
+
 ## Unmodified: everything else
 
 No change to `POST /api/learners/{learner_id}/...` write routes, `questions.py`, `placement.py`, `quiz.py`, sequencing, or grading endpoints -- this feature is read-only over existing `MasteryState` data (FR-008).
