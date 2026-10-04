@@ -17,6 +17,7 @@ from src.models.content_passage_embedding import ContentPassageEmbedding
 from src.models.enums import PassageField
 from src.models.grade_band import GradeBand
 from src.models.prerequisite_edge import PrerequisiteEdge
+from src.models.standards_tag import StandardsTag
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.services.content_artifact.validator import (
@@ -124,6 +125,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
         subject.validated_at = None
 
     db.query(PrerequisiteEdge).filter(PrerequisiteEdge.subject_id == artifact.subject_id).delete()
+    db.query(StandardsTag).filter(StandardsTag.subject_id == artifact.subject_id).delete()
 
     existing_grades = {
         row.grade
@@ -186,6 +188,16 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
                     subject_id=artifact.subject_id,
                     from_topic_id=topic.topic_id,
                     to_topic_id=prereq_id,
+                )
+            )
+        for standard in topic.standards:
+            db.add(
+                StandardsTag(
+                    subject_id=artifact.subject_id,
+                    topic_id=topic.topic_id,
+                    framework=standard["framework"],
+                    code=standard["code"],
+                    title=standard["title"],
                 )
             )
 

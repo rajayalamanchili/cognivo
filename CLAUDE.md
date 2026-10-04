@@ -99,12 +99,23 @@ between what's a local ADK sub-agent vs. a remote A2A service.
 
 ## Useful context for any session
 
-- Current milestone: **Milestone 23** -- learner-facing explainability
-  UI for the Sequencing Agent's question selection and the mastery
-  model (merged to `staging` via PR #90; promotion to `main` in
-  progress). See `specs/025-learner-explainability-ui/spec.md` for full
-  scope, and `roadmap.md` for the full milestone-by-milestone history --
-  Milestones 1-22 are all shipped.
+- Current milestone: **Milestone 24** -- Moderation & Shielding
+  Classification Caching, extending Milestone 13's caching strategy to
+  the two highest-call-volume guardrail checks it didn't cover (merged
+  to `staging` via PR #97, promoted to `main` via PR #98, both
+  2026-09-30). See `specs/026-moderation-shielding-cache/spec.md` for
+  full scope, and `roadmap.md` for the full milestone-by-milestone
+  history -- Milestones 1-24 are all shipped. Since then, the
+  Learner-Facing UI Redesign (`specs/027-learner-ui-redesign/spec.md`)
+  shipped as a design-system update outside the milestone sequence
+  (merged to `staging` via PR #99, promoted to `main` via PR #100, both
+  2026-10-02/2026-10-04) -- see that spec's Assumptions for why it
+  doesn't carry a milestone number. A **Standards Alignment** feature
+  (`specs/038-standards-alignment/spec.md`), promoted from the
+  roadmap's own backlog, is implemented as of 2026-10-04 (PR #101,
+  pending review/merge to `staging`) -- also outside the milestone
+  sequence, per that spec's own framing as a content/presentation
+  addition rather than a new product capability.
 - Two subjects' content artifacts are required in Milestone 1 itself
   (not deferred to a later milestone) specifically to prove the
   domain-agnostic claim early -- see that spec's Assumptions for the

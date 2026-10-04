@@ -29,6 +29,7 @@ class ValidatedTopic:
     misconceptions: tuple[dict, ...]
     grade: int | None
     step_grading_enabled: bool
+    standards: tuple[dict, ...]
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
     prereqs_by_topic: dict[str, tuple[str, ...]] = {}
     normalized_by_topic: dict[str, dict] = {}
     seen_misconception_ids: set[str] = set()
+    seen_titles_by_code: dict[tuple[str, str], str] = {}
 
     for index, raw_topic in enumerate(raw_topics):
         _require_fields(
@@ -102,6 +104,9 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         step_grading_enabled = _validate_process_level_grading(
             subject_id, topic_id, raw_topic.get("process_level_grading")
         )
+        standards = _validate_standards(
+            subject_id, topic_id, raw_topic.get("standards"), grade, seen_titles_by_code
+        )
 
         topic_ids.append(topic_id)
         prereqs_by_topic[topic_id] = prerequisites
@@ -116,6 +121,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             "misconceptions": misconceptions,
             "grade": grade,
             "step_grading_enabled": step_grading_enabled,
+            "standards": standards,
         }
 
     topic_id_set = set(topic_ids)
@@ -146,6 +152,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             misconceptions=t["misconceptions"],
             grade=t["grade"],
             step_grading_enabled=t["step_grading_enabled"],
+            standards=t["standards"],
         )
         for t in normalized_by_topic.values()
     )
@@ -315,6 +322,69 @@ def _validate_misconceptions(
             )
         seen_ids.add(misconception_id)
         validated.append({"misconception_id": misconception_id, "description": description})
+    return tuple(validated)
+
+
+def _validate_standards(
+    subject_id: str,
+    topic_id: str,
+    standards: object,
+    grade: int | None,
+    seen_titles_by_code: dict[tuple[str, str], str],
+) -> tuple[dict, ...]:
+    """Schema-only check for an optional per-topic `standards` list (spec
+    038 FR-001/FR-003/FR-012) -- a topic declaring none is valid. A
+    standards tag may only be declared on a graded topic (FR-003); when
+    the same `(framework, code)` pair recurs across topics in this
+    subject, every occurrence must carry the identical `title` (FR-012),
+    tracked via `seen_titles_by_code`, shared across every topic in the
+    subject the same way `_validate_misconceptions`' `seen_ids` is.
+    """
+    if standards is None:
+        return ()
+    if not isinstance(standards, list):
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' standards must be a list"
+        )
+    if standards and grade is None:
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' declares 'standards' but has no "
+            "'grade' -- a standards tag may only be declared on a graded topic"
+        )
+    validated: list[dict] = []
+    for entry in standards:
+        if not isinstance(entry, dict):
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' standards entries must be mappings"
+            )
+        framework = entry.get("framework")
+        if not isinstance(framework, str) or not framework:
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' standards entry missing a "
+                "non-empty 'framework'"
+            )
+        code = entry.get("code")
+        if not isinstance(code, str) or not code:
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' standards entry missing a "
+                "non-empty 'code'"
+            )
+        title = entry.get("title")
+        if not isinstance(title, str) or not title.strip():
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' standards entry "
+                f"'{framework}'/'{code}' missing a non-empty 'title'"
+            )
+        key = (framework, code)
+        if key in seen_titles_by_code and seen_titles_by_code[key] != title:
+            raise ContentArtifactValidationError(
+                f"subject '{subject_id}': topic '{topic_id}' declares '{framework}'/'{code}' "
+                f"with title {title!r}, which conflicts with the title "
+                f"{seen_titles_by_code[key]!r} already declared for the same framework/code "
+                "elsewhere in this subject -- every occurrence must carry the identical title"
+            )
+        seen_titles_by_code[key] = title
+        validated.append({"framework": framework, "code": code, "title": title})
     return tuple(validated)
 
 
