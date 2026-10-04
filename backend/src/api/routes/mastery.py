@@ -54,6 +54,12 @@ def standards_out_from_coverage(
     ]
 
 
+class CareerConnectionOut(BaseModel):
+    topic_id: str
+    career: str
+    description: str
+
+
 class MasteryTopicOut(BaseModel):
     topic_id: str
     status: str
@@ -82,6 +88,11 @@ class MasteryStateResponse(BaseModel):
     # rows. Derived only from the MasteryState rows above -- no new
     # mastery computation.
     standards: list[StandardCoverageOut] = []
+    # Spec 039 FR-003/FR-006: empty when the learner's
+    # career_connections_enabled is False, or the subject has zero topics
+    # with an authored career_connection. Server-computed, not a
+    # frontend-only filter.
+    career_connections: list[CareerConnectionOut] = []
 
 
 @router.get("/api/learners/{learner_id}/mastery-state", response_model=MasteryStateResponse)
@@ -91,7 +102,7 @@ def get_mastery_state(
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> MasteryStateResponse:
-    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     subject = db.get(Subject, subject_id)
     if subject is None:
         raise NotFoundError(f"unknown subject_id: {subject_id!r}")
@@ -131,6 +142,18 @@ def get_mastery_state(
     )
     standards = compute_standards_coverage(db, learner_id=learner_id, subject_id=subject_id)
 
+    career_connections: list[CareerConnectionOut] = []
+    if learner is not None and learner.career_connections_enabled:
+        for topic in topics:
+            if topic.career_connection is not None:
+                career_connections.append(
+                    CareerConnectionOut(
+                        topic_id=topic.topic_id,
+                        career=topic.career_connection["career"],
+                        description=topic.career_connection["description"],
+                    )
+                )
+
     return MasteryStateResponse(
         topics=topics_out,
         unlocked_grade=resolve_unlocked_grade(db, learner_id=learner_id, subject_id=subject_id),
@@ -138,4 +161,5 @@ def get_mastery_state(
             recently_refreshed.topic_id if recently_refreshed is not None else None
         ),
         standards=standards_out_from_coverage(standards),
+        career_connections=career_connections,
     )
