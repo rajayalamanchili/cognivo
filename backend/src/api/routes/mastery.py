@@ -198,6 +198,16 @@ def set_career_connections_preference(
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> CareerConnectionsPreferenceOut:
+    """This PR's first write path reusing `require_learner_ownership_if_real()` --
+    every prior use was read-only. For the demo learner specifically, that
+    means this PATCH is unauthenticated: any visitor can flip the single
+    shared demo learner's preference. This is not a new exposure --
+    `questions.py`'s `answer_question` already lets any anonymous caller
+    mutate that same demo learner's mastery state (the far more
+    consequential write) with no ownership check at all for the
+    non-quiz-session case. A real learner's write is still guardian-only,
+    unchanged. Revisit only if the demo learner ever gets its own
+    per-visitor identity -- it doesn't today (`visitor-state.ts`)."""
     learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     if learner is None:
         raise NotFoundError(f"unknown learner_id: {learner_id}")
