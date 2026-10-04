@@ -1,11 +1,11 @@
-"""Integration test: guardian-ownership authorization on the five
+"""Integration test: guardian-ownership authorization on the six
 learner-scoped GET routes gated by `require_learner_ownership_if_real()`
 (services/auth/dependencies.py) -- PR #93's own review flagged this as
 shipping with zero regression coverage for the check it exists to add.
 
 Exercises `mastery-state`, `mastery-history`, `recommendations`,
-`topic-priority-preview`, and `next-question` with (a) the owning
-guardian -> success, (b) a different real guardian -> 403
+`topic-priority-preview`, `activity-summary`, and `next-question` with
+(a) the owning guardian -> success, (b) a different real guardian -> 403
 `not_your_learner`, and (c) no session at all -> 403 `not_your_learner`.
 """
 
@@ -74,6 +74,10 @@ def _get_routes(learner_id, subject_id):
         ),
         "topic-priority-preview": (
             f"/api/learners/{learner_id}/topic-priority-preview",
+            {"subject_id": subject_id},
+        ),
+        "activity-summary": (
+            f"/api/learners/{learner_id}/activity-summary",
             {"subject_id": subject_id},
         ),
     }

@@ -344,15 +344,19 @@ class TopicPriorityPreview:
     upcoming_topics: list[TopicPreviewEntry]
     is_fallback: bool
     # 027-learner-ui-redesign, gap-closing pass: the Dashboard's "why
-    # this question?" disclosure names the immediate prerequisite that
-    # makes `next_topic` the pick (mockup: "You've mastered X, its
+    # this question?" disclosure names the prerequisite that makes
+    # `next_topic` the pick (mockup: "You've mastered X, its
     # prerequisite"). Direct `prereqs_by_topic` lookup already built by
     # `_load_topic_ranking_context` -- not the recursive unmastered-gap
     # walk `next_step.py` does, since by construction `next_topic`'s
-    # own direct prerequisites are already satisfied. `None` when
-    # `next_topic` has no prerequisite (e.g. the first topic in the
-    # path) or when this is a fallback pick (no "next step" framing
-    # applies there).
+    # own direct prerequisites are already satisfied. When there are
+    # several, the most recently mastered one is named (PR #99 review:
+    # picking by path order was arbitrary and could name a prerequisite
+    # unrelated to why this topic just became eligible) -- the one that
+    # most recently crossed into mastered is the one that plausibly just
+    # unlocked `next_topic`. `None` when `next_topic` has no prerequisite
+    # (e.g. the first topic in the path) or when this is a fallback pick
+    # (no "next step" framing applies there).
     next_topic_prerequisite_display_name: str | None = None
 
 
@@ -391,9 +395,12 @@ def preview_topic_priority(
     if not is_fallback:
         prereq_ids = ctx.prereqs_by_topic.get(next_topic_id, [])
         if prereq_ids:
-            order_rank = {t: i for i, t in enumerate(ctx.topic_ids_in_order)}
-            immediate_prereq = min(prereq_ids, key=lambda p: order_rank.get(p, len(order_rank)))
-            prerequisite_display_name = ctx.display_name_by_topic[immediate_prereq]
+            never_updated = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+            immediate_prereq = max(
+                prereq_ids,
+                key=lambda p: ctx.updated_at_by_topic.get(p, never_updated),
+            )
+            prerequisite_display_name = ctx.display_name_by_topic.get(immediate_prereq)
 
     return TopicPriorityPreview(
         subject_id=subject_id,

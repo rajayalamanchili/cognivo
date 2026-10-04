@@ -35,6 +35,16 @@ class AssessmentEvent(Base):
             unique=True,
             postgresql_where=text("event_type = 'answer_submitted'"),
         ),
+        # PR #99 review: activity_summary.py and recently_refreshed.py
+        # both filter on this triple (plus event_type, low-cardinality)
+        # and were doing a full-table scan on this audit log as it
+        # grows -- fine at demo scale, not once it doesn't.
+        Index(
+            "ix_assessment_events_learner_subject_created_at",
+            "learner_id",
+            "subject_id",
+            "created_at",
+        ),
     )
 
     event_id: Mapped[uuid.UUID] = mapped_column(
