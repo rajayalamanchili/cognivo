@@ -28,6 +28,20 @@ topics:
       easy: "Single-operation problems with small integers, e.g. -3 + 7."
       medium: "Two-step integer arithmetic mixing operations and signs, e.g. -4 * (2 - 5)."
       hard: "Multi-step integer arithmetic with nested parentheses and larger magnitudes."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.NS.A.1
+        title: >-
+          Apply and extend previous understandings of addition and
+          subtraction to add and subtract rational numbers; represent
+          addition and subtraction on a horizontal or vertical number
+          line diagram.
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.NS.A.2
+        title: >-
+          Apply and extend previous understandings of multiplication and
+          division and of fractions to multiply and divide rational
+          numbers.
 
   - topic_id: variables-and-expressions
     display_name: Variables and Expressions
@@ -42,6 +56,12 @@ topics:
       easy: "Evaluate a one-variable expression like 3x + 2 for a given x."
       medium: "Simplify an expression by combining like terms across 2-3 terms."
       hard: "Simplify a multi-term expression requiring the distributive property first."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.6.EE.A.3
+        title: >-
+          Apply the properties of operations to generate equivalent
+          expressions.
 
   - topic_id: order-of-operations
     display_name: Order of Operations
@@ -57,6 +77,10 @@ topics:
       easy: "A two-operation expression with no parentheses, e.g. 4 + 3 * 2."
       medium: "An expression combining parentheses and exponents, e.g. (2 + 3)^2 - 4."
       hard: "A nested expression mixing all four operation tiers."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.6.EE.A.1
+        title: "Write and evaluate numerical expressions involving whole-number exponents."
 
   - topic_id: solving-one-step-equations
     display_name: Solving One-Step Equations
@@ -76,6 +100,12 @@ topics:
       easy: "A one-step equation with positive integer coefficients, e.g. x + 4 = 10."
       medium: "A one-step equation involving a negative coefficient or fraction."
       hard: "A one-step equation requiring division by a non-integer coefficient."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.6.EE.B.7
+        title: >-
+          Solve real-world and mathematical problems by writing and
+          solving equations of the form x + p = q and px = q.
 
   - topic_id: solving-multi-step-equations
     display_name: Solving Multi-Step Equations
@@ -99,6 +129,14 @@ topics:
       easy: "A two-step equation, e.g. 2x + 3 = 11."
       medium: "A multi-step equation with variables on one side requiring distribution first."
       hard: "A multi-step equation with variables on both sides."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.8.EE.C.7.B
+        title: >-
+          Solve linear equations with rational number coefficients,
+          including equations whose solutions require expanding
+          expressions using the distributive property and collecting
+          like terms.
 
   - topic_id: linear-inequalities
     display_name: Linear Inequalities
@@ -113,6 +151,13 @@ topics:
       easy: "A one-step inequality with a positive coefficient, e.g. x + 3 > 7."
       medium: "A two-step inequality requiring one inverse operation with a negative coefficient."
       hard: "A multi-step inequality combining like terms before isolating the variable."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.EE.B.4.B
+        title: >-
+          Solve word problems leading to inequalities of the form
+          px + q > r or px + q < r, and graph the solution set of the
+          inequality.
 
   - topic_id: graphing-linear-equations
     display_name: Graphing Linear Equations
@@ -133,6 +178,13 @@ topics:
       easy: "Identify the slope and y-intercept of an equation already in y = mx + b form."
       medium: "Determine whether a given point lies on the line described by an equation."
       hard: "Convert an equation from standard form to slope-intercept form, then identify slope."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.8.EE.B.6
+        title: >-
+          Derive the equation y = mx for a line through the origin and
+          the equation y = mx + b for a line intercepting the vertical
+          axis at b.
     misconceptions:
       - misconception_id: swaps-slope-and-y-intercept
         description: >-
@@ -156,6 +208,13 @@ topics:
       easy: "A system where one equation is already solved for a variable."
       medium: "A system solvable by straightforward elimination with matching coefficients."
       hard: "A system requiring scaling one or both equations before elimination."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.8.EE.C.8.B
+        title: >-
+          Solve systems of two linear equations in two variables
+          algebraically, and estimate solutions by graphing the
+          equations.
     # Milestone 10 (spec 003): this topic's first preferred_question_type
     # is multiple_choice, satisfying FR-004's structured-question
     # requirement for image-bearing topics.

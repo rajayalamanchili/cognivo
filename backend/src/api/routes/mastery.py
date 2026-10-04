@@ -21,8 +21,37 @@ from src.services.auth.tokens import SessionClaims
 from src.services.mastery.decay import effective_mastery_for_review
 from src.services.mastery.recently_refreshed import find_recently_refreshed_topic
 from src.services.mediation.grade import resolve_unlocked_grade
+from src.services.standards.coverage import StandardCoverageEntry, compute_standards_coverage
 
 router = APIRouter()
+
+
+class StandardCoverageOut(BaseModel):
+    framework: str
+    code: str
+    title: str
+    topic_ids: list[str]
+    status: str
+
+
+def standards_out_from_coverage(
+    entries: "list[StandardCoverageEntry]",
+) -> list["StandardCoverageOut"]:
+    """Shared shaping from `compute_standards_coverage`'s domain objects
+    to the wire format -- reused by `instructor_dashboard.py` so both
+    surfaces serialize identically (FR-004), the same pattern
+    `recommendation.py`'s `recommendations_response_from_report` already
+    establishes for `instructor_dashboard.py` to import."""
+    return [
+        StandardCoverageOut(
+            framework=entry.framework,
+            code=entry.code,
+            title=entry.title,
+            topic_ids=list(entry.topic_ids),
+            status=entry.status,
+        )
+        for entry in entries
+    ]
 
 
 class MasteryTopicOut(BaseModel):
@@ -49,6 +78,10 @@ class MasteryStateResponse(BaseModel):
     # recovered topic within the trailing window, or None. See
     # `services/mastery/recently_refreshed.py` for the exact definition.
     recently_refreshed_topic_id: str | None = None
+    # Spec 038 FR-004/FR-006: empty when the subject has zero StandardsTag
+    # rows. Derived only from the MasteryState rows above -- no new
+    # mastery computation.
+    standards: list[StandardCoverageOut] = []
 
 
 @router.get("/api/learners/{learner_id}/mastery-state", response_model=MasteryStateResponse)
@@ -96,6 +129,7 @@ def get_mastery_state(
     recently_refreshed = find_recently_refreshed_topic(
         db, learner_id=learner_id, subject_id=subject_id
     )
+    standards = compute_standards_coverage(db, learner_id=learner_id, subject_id=subject_id)
 
     return MasteryStateResponse(
         topics=topics_out,
@@ -103,4 +137,5 @@ def get_mastery_state(
         recently_refreshed_topic_id=(
             recently_refreshed.topic_id if recently_refreshed is not None else None
         ),
+        standards=standards_out_from_coverage(standards),
     )

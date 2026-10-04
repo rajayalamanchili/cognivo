@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import { ApiError, createLearner } from "@/services/api";
 import JoinRosterForm from "@/components/JoinRosterForm";
 import LearnerAssignments from "@/components/LearnerAssignments";
+import GuardianLearnerStandards from "@/components/GuardianLearnerStandards";
 
 interface AddedLearner {
   learner_id: string;
@@ -78,6 +79,7 @@ export default function GuardianLearnersPage() {
             >
               <span>{learner.display_name} added.</span>
               <JoinRosterForm learnerId={learner.learner_id} />
+              <GuardianLearnerStandards learnerId={learner.learner_id} />
               <LearnerAssignments learnerId={learner.learner_id} />
             </li>
           ))}
