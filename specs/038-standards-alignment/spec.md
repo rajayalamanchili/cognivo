@@ -28,26 +28,57 @@
   mastered, matching the "on pace with grade-level standards" framing
   literally rather than the more forgiving any-one-topic reading.
 
+### Session 2026-10-04 (second pass, `/speckit-clarify`)
+
+- Q: How should the real Common Core Math / NGSS codes required by
+  FR-010 actually get sourced and entered into the content artifacts --
+  a manual/LLM-assisted research pass written directly into the
+  existing content-artifact files, or an integration with an external
+  standards API/dataset? → A: Manual/LLM-researched pass, written
+  directly into content-artifact files as static data, matching this
+  project's existing content-authoring pattern (topic graphs, skill
+  definitions, difficulty calibration) -- no new external dependency or
+  live integration, and no `tech-stack.md` amendment needed.
+- Q: Should a guardian viewing their own enrolled child's progress also
+  see that child's standards coverage, or is this feature's
+  standards-coverage view instructor-only? → A: Also wire it into the
+  guardian's view of their own child's progress in this same milestone,
+  reusing the real, non-demo-learner ownership gate already established
+  by the `require_learner_ownership_if_real()` dependency (`services/
+  auth/dependencies.py`) rather than inventing a second permission
+  model -- a guardian sees only their own enrolled learner's coverage,
+  never a roster-wide aggregate (User Story 2 stays instructor-only).
+- Q: Should the "met / in-progress / not-yet-reached" status for each
+  standard be shown with a text label (not color alone), the same
+  accessibility pattern this project already requires elsewhere? → A:
+  Yes -- every status always pairs a color with a visible text label
+  (e.g. "Met", "In progress", "Not yet reached"), matching the
+  established precedent from Milestone 10's accessibility requirement
+  and Milestone 23's "last practiced" indicator (spec 025's own
+  `/speckit-clarify` session).
+
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - Instructor sees a learner's standards coverage (Priority: P1)
+### User Story 1 - Instructor or guardian sees a learner's standards coverage (Priority: P1)
 
-An instructor opens a learner's detail view on their classroom dashboard
+An instructor opens a learner's detail view on their classroom
+dashboard, or a guardian opens their own enrolled child's progress view,
 and sees, for a graded subject, which grade-level curriculum standards
 (e.g. a Common Core Math code, an NGSS code) that learner has met,
 which are in progress, and which haven't been reached yet -- in place
 of, or alongside, today's abstract per-topic mastery percentage.
 
 **Why this priority**: This is the entire point of the feature per the
-roadmap's own framing -- an instructor can answer "is this learner on
-pace with what the state/district expects at their grade level," a
-question an abstract mastery number cannot answer on its own.
+roadmap's own framing -- an instructor or guardian can answer "is this
+learner on pace with what the state/district expects at their grade
+level," a question an abstract mastery number cannot answer on its own.
 
 **Independent Test**: Tag a graded subject's topics with standards
 codes, have a learner answer questions until at least one topic crosses
-into `mastered`, then confirm the instructor's learner-detail view shows
-that topic's standard as met and names the specific code -- independent
-of any roster-aggregate view.
+into `mastered`, then confirm both the instructor's learner-detail view
+and the owning guardian's view of that same learner show the topic's
+standard as met and name the specific code -- independent of any
+roster-aggregate view.
 
 **Acceptance Scenarios**:
 
@@ -65,6 +96,11 @@ of any roster-aggregate view.
    views standards coverage, **Then** that topic is excluded from the
    standards list entirely (it still appears normally in the existing
    per-topic mastery view, unaffected).
+5. **Given** a guardian who owns a real, non-demo learner, **When** the
+   guardian views that learner's own progress, **Then** they see the
+   same standards-met/in-progress/not-yet-reached information for that
+   one learner, gated by the existing guardian-ownership check -- never
+   another guardian's learner, and never a roster-wide aggregate.
 
 ---
 
@@ -174,7 +210,8 @@ afterward.
   belongs to a graded subject (i.e. the topic has a non-null `grade`,
   per Milestone 15/17's `GradeBand`/`Topic.grade`). Content-artifact
   validation MUST reject a standards tag on an ungraded topic.
-- **FR-004**: The instructor dashboard's per-learner detail view MUST
+- **FR-004**: The instructor dashboard's per-learner detail view, and
+  the guardian-facing view of their own enrolled learner, MUST both
   show, for each standards-tagged topic in a graded subject the learner
   is enrolled in, whether that standard is met, in-progress, or
   not-yet-reached, derived only from that learner's existing
@@ -182,7 +219,9 @@ afterward.
   computation. When a standard's framework+code is tagged on more than
   one topic, the standard is met only when every one of those topics is
   at `mastered` for that learner (Clarifications); any one of them below
-  `mastered` holds the standard at in-progress.
+  `mastered` holds the standard at in-progress. The guardian-facing
+  surface MUST reuse the existing `require_learner_ownership_if_real()`
+  gate (Clarifications) -- no second permission model.
 - **FR-005**: The instructor dashboard's roster-level view MUST show,
   for each standards-tagged topic in a graded subject, a count of
   enrolled learners who have met that standard (per FR-004's all-topics
@@ -205,10 +244,17 @@ afterward.
 - **FR-010**: Every graded topic in this project's existing content
   artifacts (per Clarifications) MUST be tagged with the real,
   verified Common Core Math and/or NGSS code(s) that topic actually
-  corresponds to -- sourced from the published frameworks, not
-  placeholder or illustrative codes. A graded topic with no genuinely
-  corresponding published standard is left untagged (FR-009) rather
-  than assigned an inaccurate code.
+  corresponds to -- sourced from the published frameworks via a
+  manual/LLM-assisted research pass and written directly into the
+  content-artifact files as static data (Clarifications), the same
+  authoring pattern as every other content-artifact field. No external
+  standards API or live data integration is introduced. A graded topic
+  with no genuinely corresponding published standard is left untagged
+  (FR-009) rather than assigned an inaccurate code.
+- **FR-011**: Every standards status (met / in-progress / not-yet-
+  reached) MUST be conveyed with a visible text label, never by color
+  alone (Clarifications), matching the accessibility precedent set by
+  Milestone 10 and Milestone 23.
 
 ### Key Entities
 
@@ -247,14 +293,18 @@ afterward.
   `mastered` / `developing` / (not yet attempted or below) mastery-band
   vocabulary from Milestone 1 -- no new band or threshold is introduced
   by this feature.
-- This feature targets the instructor dashboard only, per the roadmap
-  entry's own framing. A learner-facing standards view is not in scope
-  and would need its own spec, consistent with how Milestone 23's
-  explainability UI was scoped feature-by-feature rather than
-  everything-at-once.
+- This feature's per-learner view (User Story 1) extends to both the
+  instructor dashboard and the guardian's existing view of their own
+  enrolled learner (Clarifications); the roster-wide aggregate (User
+  Story 2) stays instructor-only. A standalone self-service view for
+  the learner themselves is not in scope -- learners do not hold their
+  own accounts in this product (guardians act on their behalf), so this
+  is a distinct, much larger concern this feature does not touch.
 - Standards tags are additive metadata on `Topic`; no new permission or
   role is introduced -- any instructor who can already view a roster's
-  dashboard can see that roster's standards coverage.
+  dashboard, or any guardian who can already view their own learner's
+  data via the existing ownership gate, can see that learner's standards
+  coverage.
 - Per Clarifications, this feature's scope includes sourcing and
   verifying real Common Core Math / NGSS codes for every graded topic
   in this project's existing content artifacts -- not just building the

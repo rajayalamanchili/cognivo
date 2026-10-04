@@ -31,6 +31,12 @@
 
 ## Notes
 
-- Both clarifications (content-population scope, multi-topic-per-code
-  "met" semantics) resolved 2026-10-04 -- see spec.md's Clarifications
-  section. All checklist items pass.
+- First `/speckit-specify` pass: two clarifications (content-population
+  scope, multi-topic-per-code "met" semantics) resolved 2026-10-04.
+- Second `/speckit-clarify` pass (same day): three more resolved --
+  standards-code sourcing method (manual/LLM research, no external
+  API), guardian-facing visibility (included, reusing the existing
+  ownership gate), and accessibility (status always pairs color with a
+  text label). See spec.md's Clarifications sections for both passes.
+  All checklist items pass; no outstanding or deferred high-impact
+  categories remain.
