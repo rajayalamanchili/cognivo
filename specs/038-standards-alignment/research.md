@@ -36,7 +36,15 @@ All decisions below were resolved by reading the actual code and content artifac
 
 **Alternatives considered**: Generalizing `mastery-flow.tsx` to accept a `learner_id` prop so the guardian page could reuse the whole page -- rejected as materially larger than this feature's scope (that page's full per-topic mastery view, "refreshed" banner, and sparkline are not part of this feature's ask); `StandardsCoverage.tsx` only needs the new `standards` field, not the rest of `MasteryStateResponse`.
 
-## 5. Accessibility encoding (Clarifications, FR-011)
+## 5. Developer toggle (Clarifications, FR-013)
+
+**Decision**: `StandardsCoverage.tsx` takes an `enabled?: boolean` prop, defaulting to `process.env.NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED !== "false"`, and renders `null` when false. This exactly mirrors `SelectionReasonChip.tsx`'s existing `explainEveryPick?: boolean` prop (spec 025) -- a prop, not a bare module-level `const`, specifically so component tests can pass `enabled={false}` directly instead of fighting Next.js's build-time env-var inlining. No change to either call site (`instructor-dashboard-flow.tsx`, `guardian/learners/page.tsx`) beyond passing the already-fetched data through; both simply render `<StandardsCoverage .../>` and let the component self-gate.
+
+**Rationale**: The component owning its own visibility decision means there is exactly one place this logic lives, reused identically by both call sites -- consistent with FR-004's "both views identical" requirement extending naturally to "both views toggle identically" too, with no new shared wrapper component needed.
+
+**Alternatives considered**: Checking the env var at each call site and conditionally rendering `<StandardsCoverage>` at all -- rejected; that duplicates the check in two files for no benefit, and risks the two call sites drifting out of sync (e.g. one checking `!== "false"`, the other `=== "true"`) the way a repeated conditional always risks.
+
+## 6. Accessibility encoding (Clarifications, FR-011)
 
 **Decision**: `StandardsCoverage.tsx` renders status as `{color-coded icon/background} + {visible text label}` always -- "Met" / "In progress" / "Not yet reached" -- never a color-only chip or hover-only tooltip.
 

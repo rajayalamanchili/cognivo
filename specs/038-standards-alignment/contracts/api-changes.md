@@ -51,3 +51,5 @@ One entry per distinct `(framework, code)` present in the roster's subject (US2,
 ## Unmodified: everything else
 
 No change to `POST /api/learners/{learner_id}/...` write routes, `questions.py`, `placement.py`, `quiz.py`, sequencing, or grading endpoints -- this feature is read-only over existing `MasteryState` data (FR-008).
+
+**The FR-013 developer toggle changes nothing in this document.** It is a frontend-only render switch (`NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED`) -- both endpoints above always return `standards`/`standards_summary` regardless of the toggle's state; only `StandardsCoverage.tsx`'s rendering is gated (research.md Decision 5).

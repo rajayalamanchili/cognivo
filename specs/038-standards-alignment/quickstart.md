@@ -71,6 +71,10 @@ except ContentArtifactValidationError as e:
 
 **Expected**: raises, naming the missing `code` field. Repeat by adding a `standards` entry to a topic with `grade: null` in a copy of `biology/subject.yaml` (which has no `grade_bands` at all): **Expected** raises, naming FR-003's graded-topic-only rule. Repeat once more by giving two different topics the same `(framework, code)` pair but different `title` text: **Expected** raises, naming FR-012's title-consistency rule.
 
+## Developer toggle check (FR-013)
+
+With `NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED=false` set and the frontend rebuilt/restarted, repeat Scenario 1's browser checks for both the instructor dashboard and the guardian's learner view. **Expected**: no standards section renders anywhere, identical in appearance to a subject with zero `StandardsTag` rows -- even though `GET /api/rosters/<roster_id>/dashboard` and `GET /api/learners/<learner_id>/mastery-state` still return populated `standards`/`standards_summary` fields (confirm via `curl`, same commands as Scenario 1). Unset the variable (or set it to anything other than `"false"`) and confirm both views render again with no backend change needed.
+
 ## Accessibility check (FR-011)
 
 Load the instructor dashboard and the guardian's learner-progress page in a browser. For every standard shown, confirm the status is readable with color perception disabled (e.g. a grayscale browser filter) -- each status must still be distinguishable by its text label ("Met" / "In progress" / "Not yet reached"), not by color alone.

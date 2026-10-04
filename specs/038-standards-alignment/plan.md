@@ -6,13 +6,13 @@
 
 ## Summary
 
-Tag graded topics with real Common Core Math / NGSS standards codes (a new `StandardsTag` table, content-artifact-authored), and surface per-standard coverage (met / in-progress / not-yet-reached, derived only from existing `MasteryState` bands -- no new mastery computation) on the instructor's per-learner and roster-aggregate dashboard views, and on a new guardian-facing view of their own enrolled learner. Pure read/presentation layer plus one new content-authored entity -- no sequencing, grading, or mastery-model change (FR-008).
+Tag graded topics with real Common Core Math / NGSS standards codes (a new `StandardsTag` table, content-artifact-authored), and surface per-standard coverage (met / in-progress / not-yet-reached, derived only from existing `MasteryState` bands -- no new mastery computation) on the instructor's per-learner and roster-aggregate dashboard views, and on a new guardian-facing view of their own enrolled learner. Pure read/presentation layer plus one new content-authored entity -- no sequencing, grading, or mastery-model change (FR-008). The whole feature is gated by a developer-controlled, frontend-only render toggle (FR-013) -- backend computation and content-artifact validation are unaffected by its state.
 
 ## Technical Context
 
 **Language/Version**: Python 3.12 (backend, FastAPI), TypeScript 5 (frontend, Next.js/React) -- both already locked in `tech-stack.md`, no change.
 
-**Primary Dependencies**: FastAPI, SQLAlchemy, Alembic, Next.js/React -- all already installed. **Zero new dependencies** (ladder step 5): per Clarifications, standards codes are sourced by manual/LLM research directly into content-artifact YAML, not a live external standards API.
+**Primary Dependencies**: FastAPI, SQLAlchemy, Alembic, Next.js/React -- all already installed. **Zero new dependencies** (ladder step 5): per Clarifications, standards codes are sourced by manual/LLM research directly into content-artifact YAML, not a live external standards API. The developer toggle (FR-013) is a plain `process.env.NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED` read, the same mechanism `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` already uses -- no feature-flag library.
 
 **Storage**: PostgreSQL via Neon. **One new table** (`standards_tags`), following the existing `GradeBand`/`PrerequisiteEdge` pattern exactly -- no new columns on any existing table, no change to `MasteryState`/`Topic` schema beyond a new FK target.
 
@@ -113,7 +113,13 @@ frontend/
 │   │   └── StandardsCoverage.tsx     # NEW: renders met/in-progress/not-yet-reached per standard,
 │   │                                 #   text label always paired with color (FR-011); shared by
 │   │                                 #   both the instructor per-learner view and the new guardian
-│   │                                 #   page below -- same response shape, same component
+│   │                                 #   page below -- same response shape, same component. Takes
+│   │                                 #   an `enabled?: boolean` prop defaulting to
+│   │                                 #   `NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED` (FR-013,
+│   │                                 #   research.md Decision 5), mirroring
+│   │                                 #   `SelectionReasonChip.tsx`'s `explainEveryPick` prop
+│   │                                 #   exactly; renders `null` when disabled, self-gated --
+│   │                                 #   neither call site below needs its own check
 │   ├── app/instructor/dashboard/
 │   │   └── instructor-dashboard-flow.tsx  # EXTENDED: renders StandardsCoverage per learner row plus
 │   │                                       #   the roster-wide standards_summary (US2)
@@ -127,4 +133,4 @@ frontend/
 │                                      #   not an extension of an existing one (research.md Decision 4)
 ```
 
-**Structure Decision**: Existing `backend/` (FastAPI) + `frontend/` (Next.js) split, unchanged. One new backend model/table (`StandardsTag`) and one new pure service function (`coverage.py`) shared by two existing routes; the content-artifact validator/loader gain one new field each, mirroring the `grade`/`misconceptions` pattern exactly. On the frontend, one new shared presentational component and one genuinely new surface (the guardian's per-learner progress section, which did not exist before this feature). No new top-level directory, no new service boundary, no new A2A call.
+**Structure Decision**: Existing `backend/` (FastAPI) + `frontend/` (Next.js) split, unchanged. One new backend model/table (`StandardsTag`) and one new pure service function (`coverage.py`) shared by two existing routes; the content-artifact validator/loader gain one new field each, mirroring the `grade`/`misconceptions` pattern exactly. On the frontend, one new shared presentational component (self-gated by the FR-013 developer toggle) and one genuinely new surface (the guardian's per-learner progress section, which did not exist before this feature). No new top-level directory, no new service boundary, no new A2A call, no new feature-flag mechanism.

@@ -48,3 +48,7 @@ class StandardCoverageEntry:
 - `DashboardOut` (`instructor_dashboard.py`): `+ standards_summary: list[RosterStandardSummaryOut]` -- one entry per distinct `(framework, code)` across the roster's subject, each carrying `met_count` / `total_count` (US2, FR-005).
 
 No existing field on any of the above is renamed, retyped, or removed.
+
+## Developer toggle (FR-013): no data-model impact
+
+`NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED` is a frontend-only render switch (research.md Decision 5) -- it introduces no column, no table, and no change to any response shape above. Both `StandardCoverageOut` and `RosterStandardSummaryOut` are always populated identically regardless of the toggle's state.

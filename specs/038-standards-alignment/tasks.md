@@ -52,13 +52,13 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 - [ ] T008 [P] [US1] Contract test: `GET /api/learners/{learner_id}/mastery-state` response includes a `standards` field with correct met/in-progress/not-yet-reached status for the owning guardian, and still `403`s for a non-owning guardian (`require_learner_ownership_if_real()` unchanged) in `backend/tests/contract/test_mastery_state_standards.py`
 - [ ] T009 [P] [US1] Integration test: `GET /api/rosters/{roster_id}/dashboard` response's `DashboardLearnerOut.standards` matches `compute_standards_coverage`'s output exactly for each enrolled learner, scoped by the existing roster-ownership check, in `backend/tests/integration/test_dashboard_standards_coverage.py`
-- [ ] T010 [P] [US1] Component test: `StandardsCoverage` renders met/in-progress/not-yet-reached with a visible text label always paired with color (never color alone, FR-011), and omits a topic with zero tags entirely (FR-006) in `frontend/tests/unit/standards-coverage.test.tsx`
+- [ ] T010 [P] [US1] Component test: `StandardsCoverage` renders met/in-progress/not-yet-reached with a visible text label always paired with color (never color alone, FR-011), omits a topic with zero tags entirely (FR-006), and renders nothing when passed `enabled={false}` (FR-013, research.md Decision 5) in `frontend/tests/unit/standards-coverage.test.tsx`
 
 ### Implementation for User Story 1
 
 - [ ] T011 [US1] Add `standards: list[StandardCoverageOut]` to `MasteryStateResponse`, computed via `compute_standards_coverage`, in `backend/src/api/routes/mastery.py` (depends on T007, T008)
 - [ ] T012 [US1] Add `standards: tuple[StandardCoverageEntry, ...]` to `LearnerDashboardEntry` in `backend/src/services/dashboard/aggregation.py`, computed via `compute_standards_coverage` per enrolled learner, and expose it as `DashboardLearnerOut.standards` in `backend/src/api/routes/instructor_dashboard.py` (depends on T007, T009)
-- [ ] T013 [P] [US1] Create `StandardsCoverage` component (framework/code/title/status, color+text label per FR-011) in `frontend/src/components/StandardsCoverage.tsx` (depends on T010)
+- [ ] T013 [P] [US1] Create `StandardsCoverage` component (framework/code/title/status, color+text label per FR-011) with an `enabled?: boolean` prop defaulting to `process.env.NEXT_PUBLIC_STANDARDS_ALIGNMENT_ENABLED !== "false"` and rendering `null` when false (FR-013, mirrors `SelectionReasonChip.tsx`'s `explainEveryPick` prop exactly) in `frontend/src/components/StandardsCoverage.tsx` (depends on T010)
 - [ ] T014 [US1] Add a standards-coverage section to the guardian's own learner view in `frontend/src/app/(auth)/guardian/learners/page.tsx` -- this page currently renders only `JoinRosterForm`/`LearnerAssignments` (research.md Decision 4); fetch `mastery-state` for the added learner and render `StandardsCoverage` (depends on T011, T013)
 - [ ] T015 [US1] Wire `StandardsCoverage` into each learner's row in `frontend/src/app/instructor/dashboard/instructor-dashboard-flow.tsx` (depends on T012, T013)
 
@@ -109,7 +109,7 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 - [ ] T023 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `StandardsTag` has no FK to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII)
 - [ ] T024 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24 and the Learner UI Redesign
 - [ ] T025 Run the full frontend regression suite (`npx vitest run`), confirm no regressions
-- [ ] T026 Execute `quickstart.md`'s 3 scenarios plus its accessibility check against a real dev database and record the results
+- [ ] T026 Execute `quickstart.md`'s 3 scenarios plus its developer-toggle and accessibility checks against a real dev database and record the results
 
 ---
 
