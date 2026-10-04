@@ -2,6 +2,7 @@
 placed here" mastery view (Constitution Principle V)."""
 
 import datetime
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -24,6 +25,7 @@ from src.services.mediation.grade import resolve_unlocked_grade
 from src.services.standards.coverage import StandardCoverageEntry, compute_standards_coverage
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class StandardCoverageOut(BaseModel):
@@ -155,6 +157,12 @@ def get_mastery_state(
             # never a partial entry, and never a reason to 500 the whole
             # mastery-state response.
             if not career or not description:
+                logger.warning(
+                    "topic %s/%s has a malformed career_connection (edited outside the "
+                    "validator/loader) -- skipping",
+                    topic.subject_id,
+                    topic.topic_id,
+                )
                 continue
             career_connections.append(
                 CareerConnectionOut(
