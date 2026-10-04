@@ -42,6 +42,12 @@ topics:
           Apply and extend previous understandings of multiplication and
           division and of fractions to multiply and divide rational
           numbers.
+    career_connection:
+      career: Accountant
+      description: >-
+        Accountants add and subtract positive and negative integers
+        constantly -- a negative balance represents a debit, and getting
+        the sign wrong on a transaction throws off an entire ledger.
 
   - topic_id: variables-and-expressions
     display_name: Variables and Expressions
@@ -62,6 +68,13 @@ topics:
         title: >-
           Apply the properties of operations to generate equivalent
           expressions.
+    career_connection:
+      career: Software Engineer
+      description: >-
+        Variables and expressions are the basic building blocks of every
+        programming language -- a variable holds a value, and an
+        expression combines variables to compute a new one, exactly like
+        a line of code.
 
   - topic_id: order-of-operations
     display_name: Order of Operations
@@ -81,6 +94,13 @@ topics:
       - framework: Common Core Math
         code: CCSS.MATH.CONTENT.6.EE.A.1
         title: "Write and evaluate numerical expressions involving whole-number exponents."
+    career_connection:
+      career: Pharmacist
+      description: >-
+        Pharmacists calculate medication doses using multi-part formulas
+        involving a patient's weight, concentration, and frequency --
+        applying the steps in the wrong order can mean a dangerously
+        wrong dose.
 
   - topic_id: solving-one-step-equations
     display_name: Solving One-Step Equations
@@ -106,6 +126,12 @@ topics:
         title: >-
           Solve real-world and mathematical problems by writing and
           solving equations of the form x + p = q and px = q.
+    career_connection:
+      career: Electrician
+      description: >-
+        Ohm's law (V = IR) is a one-step equation -- electricians solve
+        it constantly to find the voltage, current, or resistance in a
+        circuit when the other two values are known.
 
   - topic_id: solving-multi-step-equations
     display_name: Solving Multi-Step Equations
@@ -137,6 +163,12 @@ topics:
           including equations whose solutions require expanding
           expressions using the distributive property and collecting
           like terms.
+    career_connection:
+      career: Civil Engineer
+      description: >-
+        Civil engineers solve multi-step equations to calculate load
+        limits on structures like bridges and beams, combining several
+        known forces and material properties to find a single unknown.
 
   - topic_id: linear-inequalities
     display_name: Linear Inequalities
@@ -158,6 +190,13 @@ topics:
           Solve word problems leading to inequalities of the form
           px + q > r or px + q < r, and graph the solution set of the
           inequality.
+    career_connection:
+      career: Financial Analyst
+      description: >-
+        Budgets are built from inequalities -- a financial analyst
+        writes "spending must stay under this amount" as a linear
+        inequality, then solves it to find the range of affordable
+        options.
 
   - topic_id: graphing-linear-equations
     display_name: Graphing Linear Equations
@@ -194,6 +233,12 @@ topics:
         description: >-
           Treats the y-intercept as an x-coordinate, plotting or
           reporting the line's starting point on the wrong axis.
+    career_connection:
+      career: Economist
+      description: >-
+        Economists graph linear supply and demand curves, where the
+        slope represents the rate at which price changes as quantity
+        changes, and the y-intercept is the starting price or cost.
 
   - topic_id: systems-of-linear-equations
     display_name: Systems of Linear Equations
@@ -224,3 +269,10 @@ topics:
         A coordinate plane showing two intersecting lines, y = x + 1 and
         y = -x + 5, crossing at the point (2, 3), which is the system's
         solution.
+    career_connection:
+      career: Chemist
+      description: >-
+        Chemists solve systems of equations to figure out how much of
+        two different solutions to combine to reach a target
+        concentration or volume, where each equation represents one
+        known constraint.
