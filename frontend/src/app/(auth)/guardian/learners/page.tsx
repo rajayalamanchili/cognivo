@@ -5,6 +5,8 @@ import { ApiError, createLearner } from "@/services/api";
 import JoinRosterForm from "@/components/JoinRosterForm";
 import LearnerAssignments from "@/components/LearnerAssignments";
 import GuardianLearnerStandards from "@/components/GuardianLearnerStandards";
+import GuardianLearnerCareerConnections from "@/components/GuardianLearnerCareerConnections";
+import CareerConnectionsToggle from "@/components/CareerConnectionsToggle";
 
 interface AddedLearner {
   learner_id: string;
@@ -80,6 +82,8 @@ export default function GuardianLearnersPage() {
               <span>{learner.display_name} added.</span>
               <JoinRosterForm learnerId={learner.learner_id} />
               <GuardianLearnerStandards learnerId={learner.learner_id} />
+              <CareerConnectionsToggle learnerId={learner.learner_id} />
+              <GuardianLearnerCareerConnections learnerId={learner.learner_id} />
               <LearnerAssignments learnerId={learner.learner_id} />
             </li>
           ))}

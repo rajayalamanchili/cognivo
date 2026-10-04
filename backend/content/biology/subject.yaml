@@ -21,6 +21,12 @@ topics:
       easy: "Identify a single organelle from a one-sentence description of its function."
       medium: "Compare the functions of two related organelles, e.g. rough vs. smooth ER."
       hard: "Explain how multiple organelles cooperate in a single cellular process, e.g. protein secretion."
+    career_connection:
+      career: Cell Biologist
+      description: >-
+        Cell biologists study organelles directly, often under a
+        microscope, to understand how each one's structure lets it carry
+        out its specific function within the cell.
 
   - topic_id: biomolecules
     display_name: Biomolecules
@@ -34,6 +40,12 @@ topics:
       easy: "Match a single biomolecule example to its class, e.g. glucose is a carbohydrate."
       medium: "Identify which biomolecule class performs a stated function, e.g. long-term energy storage."
       hard: "Distinguish between two structurally similar biomolecules by a subtle functional difference."
+    career_connection:
+      career: Biochemist
+      description: >-
+        Biochemists study how carbohydrates, lipids, proteins, and
+        nucleic acids are built and broken down, and how each class's
+        structure determines the role it plays in a living cell.
 
   - topic_id: cell-transport
     display_name: Cell Transport
@@ -58,6 +70,13 @@ topics:
         description: >-
           Treats passive transport (diffusion/osmosis) as requiring
           cellular energy, failing to distinguish it from active transport.
+    career_connection:
+      career: Nephrologist
+      description: >-
+        Nephrologists (kidney specialists) rely on osmosis and diffusion
+        every day -- dialysis works by moving waste products and fluid
+        across a membrane along a concentration gradient, the same
+        process this topic covers.
 
   - topic_id: cellular-respiration
     display_name: Cellular Respiration
@@ -71,6 +90,12 @@ topics:
       easy: "State which stage of cellular respiration occurs in a named cell location."
       medium: "Compute the net ATP yield from a single named stage, e.g. glycolysis yields 2 net ATP."
       hard: "Compute the total net ATP yield across all three stages given a stated per-stage yield table."
+    career_connection:
+      career: Exercise Physiologist
+      description: >-
+        Exercise physiologists study how efficiently an athlete's cells
+        convert food into usable ATP through cellular respiration, which
+        directly affects endurance and recovery time.
 
   - topic_id: mendelian-genetics
     display_name: Mendelian Genetics
@@ -93,6 +118,13 @@ topics:
         A 2x2 Punnett square for a cross between two Aa parents, with
         A and a alleles labeled on each axis and the four offspring
         genotypes AA, Aa, Aa, and aa filled in the grid cells.
+    career_connection:
+      career: Genetic Counselor
+      description: >-
+        Genetic counselors use Punnett squares constantly to explain a
+        couple's odds of passing on an inherited condition, predicting
+        offspring genotype and phenotype ratios from the parents' own
+        genotypes.
 
   - topic_id: dna-replication-and-protein-synthesis
     display_name: DNA Replication and Protein Synthesis
@@ -106,6 +138,12 @@ topics:
       easy: "Identify the complementary DNA base pair for a given base, e.g. adenine pairs with thymine."
       medium: "Transcribe a short DNA sequence into its mRNA complement."
       hard: "Translate a short mRNA codon sequence into its corresponding amino acid sequence using a codon table."
+    career_connection:
+      career: Forensic Scientist
+      description: >-
+        Forensic scientists analyze DNA sequences from crime-scene
+        evidence, relying on the same base-pairing and replication rules
+        this topic covers to match a sample to a suspect.
 
   - topic_id: photosynthesis
     display_name: Photosynthesis
@@ -119,6 +157,12 @@ topics:
       easy: "Identify a single input or output of photosynthesis, e.g. it consumes carbon dioxide."
       medium: "Identify which stage of photosynthesis a described input/output belongs to."
       hard: "Explain how the products of the light-dependent reactions are used by the Calvin cycle."
+    career_connection:
+      career: Agricultural Scientist
+      description: >-
+        Agricultural scientists study how light, water, and carbon
+        dioxide availability affect a crop's rate of photosynthesis, to
+        help growers increase yield.
 
   - topic_id: natural-selection-and-evolution
     display_name: Natural Selection and Evolution
@@ -133,3 +177,9 @@ topics:
       easy: "Given the recessive allele frequency q, compute the recessive phenotype frequency q^2."
       medium: "Given one allele frequency, compute the heterozygote frequency 2pq."
       hard: "Given a phenotype frequency, solve for both allele frequencies p and q and verify p + q = 1."
+    career_connection:
+      career: Epidemiologist
+      description: >-
+        Epidemiologists use the Hardy-Weinberg equation to track how an
+        allele's frequency shifts across a population over time, such as
+        a disease-resistance gene becoming more or less common.
