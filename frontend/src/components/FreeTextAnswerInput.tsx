@@ -120,7 +120,7 @@ export default function FreeTextAnswerInput({
       <NotationToolbar onInsert={insertNotation} disabled={busy} />
       <textarea
         ref={textareaRef}
-        className="rounded-lg border border-border px-3 py-2"
+        className="rounded-[14px] border-2 border-primary/30 px-[18px] py-3 text-lg text-heading"
         rows={4}
         maxLength={MAX_LENGTH}
         value={text}
@@ -131,7 +131,7 @@ export default function FreeTextAnswerInput({
         type="button"
         onClick={handleSubmit}
         disabled={busy || text.trim() === ""}
-        className="self-start rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
+        className="self-start rounded-full bg-primary px-4 py-2 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
       >
         {state === "grading-in-progress" ? (
           <LoadingIndicator message="Reading your answer…" compact />

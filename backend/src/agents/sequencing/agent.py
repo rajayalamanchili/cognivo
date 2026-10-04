@@ -80,6 +80,12 @@ class NextTopicSelection:
     # last time it was practiced -- lets the "why this question" chip name
     # actual elapsed time for a fallback/decayed pick, not just a value.
     updated_at: datetime.datetime | None = None
+    # Spec 027: the chosen topic's own grade band (Topic.grade), already
+    # loaded into `_TopicRankingContext.grade_by_topic` for the unlocked-
+    # grade gate above -- a read-only lookup against data already in
+    # memory for this request, not a new query. None for an ungraded
+    # subject's topics, same as Topic.grade itself.
+    grade: int | None = None
     candidates_considered: list[TopicCandidate] = field(default_factory=list)
 
 
@@ -318,6 +324,7 @@ def select_next_topic(db: Session, *, learner_id: uuid.UUID, subject_id: str) ->
         difficulty=_DIFFICULTY_BY_BAND[chosen_band],
         is_fallback=is_fallback,
         updated_at=ctx.updated_at_by_topic.get(chosen_id),
+        grade=ctx.grade_by_topic.get(chosen_id),
         candidates_considered=candidates,
     )
 
@@ -336,6 +343,21 @@ class TopicPriorityPreview:
     next_topic: TopicPreviewEntry
     upcoming_topics: list[TopicPreviewEntry]
     is_fallback: bool
+    # 027-learner-ui-redesign, gap-closing pass: the Dashboard's "why
+    # this question?" disclosure names the prerequisite that makes
+    # `next_topic` the pick (mockup: "You've mastered X, its
+    # prerequisite"). Direct `prereqs_by_topic` lookup already built by
+    # `_load_topic_ranking_context` -- not the recursive unmastered-gap
+    # walk `next_step.py` does, since by construction `next_topic`'s
+    # own direct prerequisites are already satisfied. When there are
+    # several, the most recently mastered one is named (PR #99 review:
+    # picking by path order was arbitrary and could name a prerequisite
+    # unrelated to why this topic just became eligible) -- the one that
+    # most recently crossed into mastered is the one that plausibly just
+    # unlocked `next_topic`. `None` when `next_topic` has no prerequisite
+    # (e.g. the first topic in the path) or when this is a fallback pick
+    # (no "next step" framing applies there).
+    next_topic_prerequisite_display_name: str | None = None
 
 
 def preview_topic_priority(
@@ -368,11 +390,24 @@ def preview_topic_priority(
             p_mastery=ctx.p_mastery_by_topic[topic_id],
         )
 
+    next_topic_id = ranked[0]
+    prerequisite_display_name: str | None = None
+    if not is_fallback:
+        prereq_ids = ctx.prereqs_by_topic.get(next_topic_id, [])
+        if prereq_ids:
+            never_updated = datetime.datetime.min.replace(tzinfo=datetime.UTC)
+            immediate_prereq = max(
+                prereq_ids,
+                key=lambda p: ctx.updated_at_by_topic.get(p, never_updated),
+            )
+            prerequisite_display_name = ctx.display_name_by_topic.get(immediate_prereq)
+
     return TopicPriorityPreview(
         subject_id=subject_id,
-        next_topic=to_entry(ranked[0]),
+        next_topic=to_entry(next_topic_id),
         upcoming_topics=[to_entry(t) for t in ranked[1 : 1 + upcoming_count]],
         is_fallback=is_fallback,
+        next_topic_prerequisite_display_name=prerequisite_display_name,
     )
 
 

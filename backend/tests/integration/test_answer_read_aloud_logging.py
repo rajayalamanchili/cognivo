@@ -1,11 +1,9 @@
 """Integration test: read-aloud eligibility and usage logging (spec 019
 FR-001/FR-003/FR-011/FR-012/SC-001/SC-007, research.md Decisions 1-2).
 
-`read_aloud_eligible` on the next-question response is derived live
-from `GradeProgress.unlocked_grade`, never a separately stored copy of
-grade -- this test manipulates that row directly rather than assuming
-any particular subject's real starting grade, since `algebra-1`'s own
-grade bands (Milestone 15) start well above grade 2.
+`read_aloud_eligible` is unconditional as of the 2026-10-03
+Clarification -- no longer derived from `GradeProgress.unlocked_grade`
+at all.
 """
 
 from fastapi.testclient import TestClient
@@ -48,35 +46,37 @@ def _place_and_answer_once(client, db_session, demo_learner, algebra_subject, *,
     return question, answer
 
 
-def test_read_aloud_ineligible_above_grade_two(db_session, demo_learner, algebra_subject):
-    """`algebra-1`'s own grade bands start at 6+ (Milestone 15) -- a
-    freshly-placed learner is not read-aloud eligible."""
+def test_read_aloud_eligible_above_grade_two(db_session, demo_learner, algebra_subject):
+    """`algebra-1`'s own grade bands start at 6+ (Milestone 15) -- read-
+    aloud is still offered, since eligibility no longer depends on
+    grade at all."""
     from src.api.main import app
 
     client = TestClient(app)
     question, _ = _place_and_answer_once(
         client, db_session, demo_learner, algebra_subject, body={"response": 1}
     )
-    assert question["read_aloud_eligible"] is False
+    assert question["read_aloud_eligible"] is True
 
 
-def test_read_aloud_eligible_at_grade_two(db_session, demo_learner, algebra_subject):
+def test_read_aloud_eligible_regardless_of_grade_progress(db_session, demo_learner, algebra_subject):
     """Exercises `resolve_read_aloud_eligible` directly against a
-    manually-seeded `GradeProgress` row, rather than driving the full
-    placement/next-question pipeline: `algebra-1`'s own grade bands
-    floor at 6 (Milestone 15's `determine_starting_grade` never places a
-    real learner below a subject's declared floor), so a real
-    unlocked_grade of 2 cannot occur for this subject -- forcing it
-    through the live sequencing path would exercise an unrelated,
-    pre-existing edge case in grade-eligible topic ranking rather than
-    this feature's own logic."""
+    manually-seeded `GradeProgress` row to confirm it no longer consults
+    `unlocked_grade` at all -- true both with and without a row."""
     from src.services.mediation.read_aloud import resolve_read_aloud_eligible
+
+    assert (
+        resolve_read_aloud_eligible(
+            db_session, learner_id=demo_learner.learner_id, subject_id=algebra_subject.subject_id
+        )
+        is True
+    )
 
     db_session.add(
         GradeProgress(
             learner_id=demo_learner.learner_id,
             subject_id=algebra_subject.subject_id,
-            unlocked_grade=2,
+            unlocked_grade=8,
         )
     )
     db_session.commit()

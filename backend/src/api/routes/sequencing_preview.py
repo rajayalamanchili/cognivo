@@ -48,6 +48,7 @@ class TopicPriorityPreviewOut(BaseModel):
     next_topic: TopicPreviewEntryOut
     upcoming_topics: list[TopicPreviewEntryOut]
     is_fallback: bool
+    next_topic_prerequisite_display_name: str | None = None
 
 
 @router.get(
@@ -78,4 +79,5 @@ def get_topic_priority_preview(
         next_topic=to_out(preview.next_topic),
         upcoming_topics=[to_out(entry) for entry in preview.upcoming_topics],
         is_fallback=preview.is_fallback,
+        next_topic_prerequisite_display_name=preview.next_topic_prerequisite_display_name,
     )

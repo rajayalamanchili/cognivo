@@ -12,10 +12,18 @@ import { test, expect, type Locator, type Page } from "@playwright/test";
 
 async function answerVisibleQuestion(page: Page, root: Page | Locator = page): Promise<void> {
   const firstRadio = root.locator('input[type="radio"]').first();
+  const firstRadioButton = root.getByRole("radio").first();
   const numericInput = root.locator('input[type="number"]').first();
 
   if (await firstRadio.isVisible().catch(() => false)) {
     await firstRadio.check();
+    return;
+  }
+  // Placement's mockup-matched options are button[role="radio"], not
+  // native inputs (practice's own multiple_choice branch, checked above,
+  // is unaffected -- see QuestionCard.tsx).
+  if (await firstRadioButton.isVisible().catch(() => false)) {
+    await firstRadioButton.click();
     return;
   }
   await numericInput.waitFor({ state: "visible" });
@@ -33,14 +41,14 @@ test("demo badge, placement, and first follow-up question all work end to end", 
   await page.goto("/placement?subject=algebra-1");
   await expect(page.getByTestId("demo-badge")).toBeVisible();
 
-  const questionFieldsets = page.locator("fieldset");
-  await expect(questionFieldsets.first()).toBeVisible({ timeout: 30_000 });
-  const questionCount = await questionFieldsets.count();
+  const questionCards = page.getByTestId("placement-question");
+  await expect(questionCards.first()).toBeVisible({ timeout: 30_000 });
+  const questionCount = await questionCards.count();
   for (let i = 0; i < questionCount; i++) {
-    await answerVisibleQuestion(page, questionFieldsets.nth(i));
+    await answerVisibleQuestion(page, questionCards.nth(i));
   }
 
-  await page.getByRole("button", { name: "Submit Placement" }).click();
+  await page.getByRole("button", { name: "Finish placement" }).click();
 
   await expect(page.getByTestId("mastery-view")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("heading", { name: "Placement Results" })).toBeVisible();

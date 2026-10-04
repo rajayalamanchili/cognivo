@@ -22,6 +22,7 @@ const DEMO_LEARNER_PATHNAMES = new Set([
   "/mastery",
   "/dashboard",
   "/quiz",
+  "/tutor",
 ]);
 
 export default function DemoBadge() {
@@ -54,7 +55,7 @@ export default function DemoBadge() {
     <div
       role="status"
       data-testid="demo-badge"
-      className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-demo px-4 py-1.5 text-sm font-semibold text-demo-foreground"
+      className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-demo px-4 py-1.5 text-[13px] font-extrabold tracking-[0.02em] text-demo-foreground"
     >
       DEMO ACCOUNT -- synthetic data, not a real learner
     </div>

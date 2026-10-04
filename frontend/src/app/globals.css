@@ -8,20 +8,20 @@
    component that happens to use a color. */
 
 :root {
-  --background: #ffffff;
+  --background: #f6f4fb; /* lavender-tinted page background, 027-learner-ui-redesign */
   --foreground: #1e293b; /* slate-800 -- softer than near-black */
 
-  --color-primary: oklch(0.58 0.15 300); /* lilac -- Cognivo Logo Concepts, turn 3 */
+  --color-primary: #7650b8; /* purple, 027-learner-ui-redesign mockups */
   --color-primary-foreground: #ffffff;
   --color-accent: oklch(0.76 0.14 65); /* warm amber -- the mark's pupil */
   --color-accent-foreground: #451a03; /* amber-950 */
 
-  --color-border: #e4e4e7; /* zinc-200 */
-  --color-muted: #71717a; /* zinc-500 */
+  --color-border: #e4e1ec; /* lavender-tinted border, 027-learner-ui-redesign */
+  --color-muted: #4a4d5c; /* 027-learner-ui-redesign */
 
   --color-error: #dc2626; /* red-600 */
-  --color-success: #059669; /* emerald-600 */
-  --color-warning: #d97706; /* amber-600 */
+  --color-success: #065f46; /* emerald-800, 027-learner-ui-redesign "refreshed" green */
+  --color-warning: #b4610b; /* burnt orange, 027-learner-ui-redesign "refresh due" accent */
   --color-link: #2563eb; /* blue-600 */
 
   /* Demo-account banner (Constitution Principle VIII) -- a bold, fixed
@@ -29,6 +29,14 @@
      `--color-warning`'s softer in-content pill use. */
   --color-demo: #fbbf24; /* amber-400 */
   --color-demo-foreground: #451a03; /* amber-950 */
+
+  /* 027-learner-ui-redesign: added for the purple design system's pill/
+     card surfaces and large-heading tone, distinct from the base
+     foreground/background pair above. */
+  --color-primary-subtle: #eee8f8; /* light-purple pill/card-accent background */
+  --color-surface: #ffffff; /* elevated card fill -- distinct from --background, now a lavender page tint */
+  --color-surface-subtle: #f8f6fc; /* neutral soft-card background, nested inside a --color-surface card */
+  --color-heading: #2a1a4a; /* large-heading tone, deeper than --foreground */
 }
 
 @theme inline {
@@ -46,9 +54,19 @@
   --color-link: var(--color-link);
   --color-demo: var(--color-demo);
   --color-demo-foreground: var(--color-demo-foreground);
+  --color-primary-subtle: var(--color-primary-subtle);
+  --color-surface: var(--color-surface);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-heading: var(--color-heading);
   --font-sans: var(--font-nunito);
   --font-heading: var(--font-baloo);
   --font-mono: var(--font-geist-mono);
+
+  /* 027-learner-ui-redesign: the large-card radius repeats across all
+     six redesigned screens (`rounded-card`) -- same reasoning as the
+     color tokens above, named once rather than duplicated as a literal
+     arbitrary value in every component. */
+  --radius-card: 24px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -56,7 +74,7 @@
     --background: #0f172a; /* slate-900 */
     --foreground: #f1f5f9; /* slate-100 */
 
-    --color-primary: oklch(0.78 0.13 300); /* lilac, lightened for dark bg */
+    --color-primary: #a78bfa; /* violet-400, lightened for dark bg -- 027-learner-ui-redesign */
     --color-primary-foreground: #2e1065; /* violet-950 */
     --color-accent: oklch(0.82 0.13 68);
     --color-accent-foreground: #451a03; /* amber-950 */
@@ -68,6 +86,13 @@
     --color-success: #34d399; /* emerald-400 */
     --color-warning: #fbbf24; /* amber-400 */
     --color-link: #60a5fa; /* blue-400 */
+
+    /* 027-learner-ui-redesign: dark-mode counterparts derived from the
+       light values above -- the mockups only depict light mode. */
+    --color-primary-subtle: #332750; /* dark muted purple surface */
+    --color-surface: #1c1830; /* elevated card fill, lighter than --background */
+    --color-surface-subtle: #241f3d; /* nested sub-card, lighter still */
+    --color-heading: #f3effb; /* soft lavender-white, lighter than --foreground */
   }
 }
 

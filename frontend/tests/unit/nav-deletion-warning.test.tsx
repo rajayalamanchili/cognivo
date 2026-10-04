@@ -10,6 +10,7 @@ import type { WhoAmIResponse } from "@/services/api";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/",
 }));
 
 vi.mock("@/services/api", async () => {
