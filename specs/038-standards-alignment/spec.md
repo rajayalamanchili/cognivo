@@ -57,6 +57,21 @@
   and Milestone 23's "last practiced" indicator (spec 025's own
   `/speckit-clarify` session).
 
+### Session 2026-10-04 (third pass, `/speckit-clarify`)
+
+- Q: When a developer switches Standards Alignment "off," what should
+  actually stop happening -- just the frontend UI disappearing, or
+  should the backend also stop computing/exposing standards data, or
+  should content artifacts stop accepting `standards:` tags entirely?
+  → A: Frontend-only render switch (`NEXT_PUBLIC_STANDARDS_ALIGNMENT_
+  ENABLED`, default `true`), matching this project's existing
+  `NEXT_PUBLIC_EXPLAIN_EVERY_PICK` precedent (spec 025) exactly -- the
+  backend always computes and exposes `standards`/`standards_summary`
+  (cheap, already-derived data); the switch only gates whether
+  `StandardsCoverage` renders. Toggling needs no backend redeploy, and
+  content-artifact validation/loading is entirely unaffected by the
+  switch's state.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Instructor or guardian sees a learner's standards coverage (Priority: P1)
@@ -96,7 +111,13 @@ roster-aggregate view.
    views standards coverage, **Then** that topic is excluded from the
    standards list entirely (it still appears normally in the existing
    per-topic mastery view, unaffected).
-5. **Given** a guardian who owns a real, non-demo learner, **When** the
+5. **Given** the developer toggle (FR-013) is off, **When** either an
+   instructor or a guardian views a learner who does have standards-
+   tagged, mastered topics, **Then** no standards section renders for
+   either of them, identical in appearance to the zero-tags case (FR-006)
+   -- even though the backend's `standards` field is still populated in
+   the underlying API response.
+6. **Given** a guardian who owns a real, non-demo learner, **When** the
    guardian views that learner's own progress, **Then** they see the
    same standards-met/in-progress/not-yet-reached information for that
    one learner, gated by the existing guardian-ownership check -- never
@@ -198,6 +219,11 @@ afterward.
   `GradeBand` rows at all (fully ungraded) -- the standards-coverage
   section is absent for that subject, same handling as the zero-tags
   case.
+- The developer toggle (FR-013) is off -- every standards-coverage
+  section is absent everywhere, the same visible behavior as the
+  zero-tags case, even for a subject with real, mastered, tagged
+  topics. Flipping it back on requires no backend change and no new
+  data -- the data was there the whole time.
 
 ## Requirements *(mandatory)*
 
@@ -267,6 +293,13 @@ afterward.
   where two topics declare the same framework+code with different title
   text (Edge Cases) -- a standard shown to an instructor or guardian
   always has exactly one title, never an ambiguous choice between two.
+- **FR-013**: A developer-controlled, frontend-only toggle MUST gate
+  whether `StandardsCoverage` renders in both the instructor dashboard
+  and the guardian's learner view (Clarifications). The backend's
+  computation and exposure of `standards`/`standards_summary` (FR-004,
+  FR-005) and content-artifact validation/loading of `standards:` tags
+  (FR-001-FR-003, FR-010) MUST be entirely unaffected by the toggle's
+  state -- only frontend rendering is gated. Default: enabled.
 
 ### Key Entities
 
@@ -324,6 +357,10 @@ afterward.
   standard (vanishingly rare for grade 1-12 math/science, but possible
   for a locally-authored enrichment topic) is tagged with zero
   standards per FR-009, not a fabricated code.
+- The developer toggle (FR-013) is a plain environment variable read at
+  render time, the same mechanism `NEXT_PUBLIC_EXPLAIN_EVERY_PICK`
+  already uses -- no new feature-flag service, admin UI, or per-account
+  setting is introduced.
 - NGSS is named throughout this spec for schema generality (FR-001
   supports any framework name, not just Common Core Math), but this
   milestone's actual, real-data population (FR-010) will contain

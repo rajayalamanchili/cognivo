@@ -37,6 +37,16 @@
   standards-code sourcing method (manual/LLM research, no external
   API), guardian-facing visibility (included, reusing the existing
   ownership gate), and accessibility (status always pairs color with a
-  text label). See spec.md's Clarifications sections for both passes.
-  All checklist items pass; no outstanding or deferred high-impact
+  text label).
+- `/speckit-analyze` pass (same day): four findings fixed -- SC-002
+  verification gap (new `check_no_standards_literals.py` + task),
+  NGSS-vs-actual-data inconsistency (Assumptions note), title-collision
+  ambiguity (new FR-012), and FR-007/SC-003 guardian-wording gap.
+- Third `/speckit-clarify` pass (same day): one more resolved -- the
+  whole feature gets a developer-controlled, frontend-only render
+  toggle (new FR-013), matching `NEXT_PUBLIC_EXPLAIN_EVERY_PICK`'s
+  existing precedent; backend computation and content-artifact
+  validation are unaffected by the toggle's state.
+  See spec.md's Clarifications sections for all three passes. All
+  checklist items pass; no outstanding or deferred high-impact
   categories remain.
