@@ -6,9 +6,12 @@ a non-owning guardian (spec 039 FR-003/FR-006).
 Requires a reachable `DATABASE_URL` (tests/conftest.py).
 """
 
+import uuid
+
 import pytest
 
 from src.models.learner_profile import LearnerProfile
+from src.models.topic import Topic
 from src.services.content_artifact.loader import persist_content_artifact
 from src.services.content_artifact.validator import validate_content_artifact
 from tests.integration.quiz_assignment_helpers import (
@@ -83,6 +86,40 @@ def test_disabled_preference_returns_empty_career_connections(client, db_session
     learner = db_session.get(LearnerProfile, learner_id)
     learner.career_connections_enabled = False
     db_session.commit()
+
+    response = client.get(
+        f"/api/learners/{learner_id}/mastery-state",
+        params={"subject_id": tagged_subject.subject_id},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["career_connections"] == []
+
+
+def test_nonexistent_learner_returns_empty_career_connections(client, tagged_subject):
+    """Matches `require_learner_ownership_if_real`'s existing no-op-for-
+    nonexistent-id contract: a nonexistent learner_id degrades to an
+    empty response here too, not a 404 or a crash."""
+    response = client.get(
+        f"/api/learners/{uuid.uuid4()}/mastery-state",
+        params={"subject_id": tagged_subject.subject_id},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["career_connections"] == []
+
+
+def test_malformed_career_connection_row_is_skipped_not_500(client, db_session, tagged_subject):
+    """A row edited outside the validator/loader (missing `description`)
+    is treated the same as no authored connection (FR-007) -- never a
+    crash, never a partial entry."""
+    topic = db_session.get(Topic, (tagged_subject.subject_id, "topic-a"))
+    topic.career_connection = {"career": "Civil Engineer"}  # missing description
+    db_session.commit()
+
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="career-malformed@example.com", learner_name="Owned Learner"
+    )
 
     response = client.get(
         f"/api/learners/{learner_id}/mastery-state",

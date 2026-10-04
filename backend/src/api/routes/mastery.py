@@ -145,14 +145,22 @@ def get_mastery_state(
     career_connections: list[CareerConnectionOut] = []
     if learner is not None and learner.career_connections_enabled:
         for topic in topics:
-            if topic.career_connection is not None:
-                career_connections.append(
-                    CareerConnectionOut(
-                        topic_id=topic.topic_id,
-                        career=topic.career_connection["career"],
-                        description=topic.career_connection["description"],
-                    )
+            connection = topic.career_connection
+            if not connection:
+                continue
+            career = connection.get("career")
+            description = connection.get("description")
+            # A malformed row (edited outside the validator/loader) is
+            # treated the same as "no authored connection" (FR-007) --
+            # never a partial entry, and never a reason to 500 the whole
+            # mastery-state response.
+            if not career or not description:
+                continue
+            career_connections.append(
+                CareerConnectionOut(
+                    topic_id=topic.topic_id, career=career, description=description
                 )
+            )
 
     return MasteryStateResponse(
         topics=topics_out,
