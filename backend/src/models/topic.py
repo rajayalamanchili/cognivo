@@ -42,5 +42,6 @@ class Topic(Base):
     image_asset: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     step_grading_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    career_connection: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     subject: Mapped["Subject"] = relationship(back_populates="topics")

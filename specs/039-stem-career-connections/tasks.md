@@ -30,12 +30,12 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 **⚠️ CRITICAL**: T001-T006 block all three user stories.
 
-- [ ] T001 [P] Unit test for `Topic` content-artifact validation of `career_connection`: rejects a mapping missing `career` or `description`, accepts a valid mapping on a topic regardless of `grade` (including an ungraded, `biology`-shaped topic -- research.md Decision 2), accepts `None`/absent, in `backend/tests/unit/test_content_artifact_career_connection_validation.py`
-- [ ] T002 Add `_validate_career_connection(subject_id, topic_id, career_connection)` to `backend/src/services/content_artifact/validator.py`, following `_validate_image_asset`'s shape exactly -- no grade-gate, unlike `_validate_standards`; add `career_connection: dict | None` to `ValidatedTopic` (depends on T001)
-- [ ] T003 [P] Add `career_connection: Mapped[dict | None]` JSON column to `Topic` in `backend/src/models/topic.py`, mirroring the existing `image_asset` column exactly (data-model.md)
-- [ ] T004 [P] Add `career_connections_enabled: Mapped[bool]` column (`server_default=sa.true()`, not null) to `LearnerProfile` in `backend/src/models/learner_profile.py` (data-model.md)
-- [ ] T005 Generate the Alembic migration adding both columns (`topics.career_connection` JSON nullable; `learner_profiles.career_connections_enabled` boolean, `server_default=sa.true()`, not null) in `backend/alembic/versions/`, mirroring `824e2c5a0678_mastery_state_has_been_mastered_column.py`'s add-column shape (depends on T003, T004)
-- [ ] T006 Extend `persist_content_artifact` in `backend/src/services/content_artifact/loader.py` to upsert `Topic.career_connection` in place, the same way it already sets `image_asset` (depends on T002, T003, T005) -- extends T001's test file with a round-trip assertion (load an artifact with a `career_connection` entry, query `topics`, confirm it matches)
+- [X] T001 [P] Unit test for `Topic` content-artifact validation of `career_connection`: rejects a mapping missing `career` or `description`, accepts a valid mapping on a topic regardless of `grade` (including an ungraded, `biology`-shaped topic -- research.md Decision 2), accepts `None`/absent, in `backend/tests/unit/test_content_artifact_career_connection_validation.py`
+- [X] T002 Add `_validate_career_connection(subject_id, topic_id, career_connection)` to `backend/src/services/content_artifact/validator.py`, following `_validate_image_asset`'s shape exactly -- no grade-gate, unlike `_validate_standards`; add `career_connection: dict | None` to `ValidatedTopic` (depends on T001)
+- [X] T003 [P] Add `career_connection: Mapped[dict | None]` JSON column to `Topic` in `backend/src/models/topic.py`, mirroring the existing `image_asset` column exactly (data-model.md)
+- [X] T004 [P] Add `career_connections_enabled: Mapped[bool]` column (`server_default=sa.true()`, not null) to `LearnerProfile` in `backend/src/models/learner_profile.py` (data-model.md)
+- [X] T005 Generate the Alembic migration adding both columns (`topics.career_connection` JSON nullable; `learner_profiles.career_connections_enabled` boolean, `server_default=sa.true()`, not null) in `backend/alembic/versions/`, mirroring `824e2c5a0678_mastery_state_has_been_mastered_column.py`'s add-column shape (depends on T003, T004)
+- [X] T006 Extend `persist_content_artifact` in `backend/src/services/content_artifact/loader.py` to upsert `Topic.career_connection` in place, the same way it already sets `image_asset` (depends on T002, T003, T005) -- extends T001's test file with a round-trip assertion (load an artifact with a `career_connection` entry, query `topics`, confirm it matches)
 
 **Checkpoint**: Schema, validation, and the loader are ready. US1 can now be implemented; US3's content-population work can proceed in parallel (it only depends on T002/T006).
 
@@ -49,15 +49,15 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] Contract test: `GET /api/learners/{learner_id}/mastery-state` response's `career_connections` field is populated correctly from `Topic.career_connection` rows for the requested subject, is an empty list when the learner's `career_connections_enabled` is `false`, and still `403`s for a non-owning guardian (`require_learner_ownership_if_real()` unchanged) in `backend/tests/contract/test_mastery_state_career_connections.py`
-- [ ] T008 [P] [US1] Component test: `CareerConnectionsList` renders each matched `(topic_id, career, description)` entry, and omits a topic with no matching entry entirely -- never an error, empty box, or placeholder text (FR-007) -- in `frontend/tests/unit/career-connections-list.test.tsx`
+- [X] T007 [P] [US1] Contract test: `GET /api/learners/{learner_id}/mastery-state` response's `career_connections` field is populated correctly from `Topic.career_connection` rows for the requested subject, is an empty list when the learner's `career_connections_enabled` is `false`, and still `403`s for a non-owning guardian (`require_learner_ownership_if_real()` unchanged) in `backend/tests/contract/test_mastery_state_career_connections.py`
+- [X] T008 [P] [US1] Component test: `CareerConnectionsList` renders each matched `(topic_id, career, description)` entry, and omits a topic with no matching entry entirely -- never an error, empty box, or placeholder text (FR-007) -- in `frontend/tests/unit/career-connections-list.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Add `CareerConnectionOut` and `career_connections: list[CareerConnectionOut] = []` to `MasteryStateResponse` in `backend/src/api/routes/mastery.py`, computed inline from the already-loaded `Topic` rows for the subject plus the learner's `career_connections_enabled` flag (empty list when `false`) (depends on T006, T007)
-- [ ] T010 [P] [US1] Create `CareerConnectionsList` (presentational, takes matched `career_connections` entries plus the topic list) in `frontend/src/components/CareerConnectionsList.tsx` (depends on T008)
-- [ ] T011 [US1] Wire `CareerConnectionsList` into `frontend/src/components/DashboardSubjectSection.tsx`, using the `career_connections` field off its already-fetched `getMasteryState` call -- no new fetch (depends on T009, T010)
-- [ ] T012 [US1] Create `GuardianLearnerCareerConnections.tsx` (sibling to `GuardianLearnerStandards.tsx`: same `listLearnerEnrollments` + per-subject `getMasteryState` fetch shape, extracting `.career_connections` instead of `.standards`) in `frontend/src/components/GuardianLearnerCareerConnections.tsx`, and render it inside the existing per-added-learner `<li>` block in `frontend/src/app/(auth)/guardian/learners/page.tsx` (depends on T009, T010)
+- [X] T009 [US1] Add `CareerConnectionOut` and `career_connections: list[CareerConnectionOut] = []` to `MasteryStateResponse` in `backend/src/api/routes/mastery.py`, computed inline from the already-loaded `Topic` rows for the subject plus the learner's `career_connections_enabled` flag (empty list when `false`) (depends on T006, T007)
+- [X] T010 [P] [US1] Create `CareerConnectionsList` (presentational, takes matched `career_connections` entries plus the topic list) in `frontend/src/components/CareerConnectionsList.tsx` (depends on T008)
+- [X] T011 [US1] Wire `CareerConnectionsList` into `frontend/src/components/DashboardSubjectSection.tsx`, using the `career_connections` field off its already-fetched `getMasteryState` call -- no new fetch (depends on T009, T010)
+- [X] T012 [US1] Create `GuardianLearnerCareerConnections.tsx` (sibling to `GuardianLearnerStandards.tsx`: same `listLearnerEnrollments` + per-subject `getMasteryState` fetch shape, extracting `.career_connections` instead of `.standards`) in `frontend/src/components/GuardianLearnerCareerConnections.tsx`, and render it inside the existing per-added-learner `<li>` block in `frontend/src/app/(auth)/guardian/learners/page.tsx` (depends on T009, T010)
 
 **Checkpoint**: User Story 1 is fully functional and independently testable/demoable on both surfaces, using the default-on preference (the write path for turning it off is US2).
 

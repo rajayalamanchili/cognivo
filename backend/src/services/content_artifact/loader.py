@@ -160,6 +160,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
             row.image_asset = topic.image_asset
             row.grade = topic.grade
             row.step_grading_enabled = topic.step_grading_enabled
+            row.career_connection = topic.career_connection
         else:
             db.add(
                 Topic(
@@ -172,6 +173,7 @@ def persist_content_artifact(db: Session, artifact: ValidatedContentArtifact) ->
                     image_asset=topic.image_asset,
                     grade=topic.grade,
                     step_grading_enabled=topic.step_grading_enabled,
+                    career_connection=topic.career_connection,
                 )
             )
     db.flush()

@@ -30,6 +30,7 @@ class ValidatedTopic:
     grade: int | None
     step_grading_enabled: bool
     standards: tuple[dict, ...]
+    career_connection: dict | None
 
 
 @dataclass(frozen=True)
@@ -107,6 +108,8 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
         standards = _validate_standards(
             subject_id, topic_id, raw_topic.get("standards"), grade, seen_titles_by_code
         )
+        career_connection = raw_topic.get("career_connection")
+        _validate_career_connection(subject_id, topic_id, career_connection)
 
         topic_ids.append(topic_id)
         prereqs_by_topic[topic_id] = prerequisites
@@ -122,6 +125,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             "grade": grade,
             "step_grading_enabled": step_grading_enabled,
             "standards": standards,
+            "career_connection": career_connection,
         }
 
     topic_id_set = set(topic_ids)
@@ -153,6 +157,7 @@ def validate_content_artifact(raw: dict) -> ValidatedContentArtifact:
             grade=t["grade"],
             step_grading_enabled=t["step_grading_enabled"],
             standards=t["standards"],
+            career_connection=t["career_connection"],
         )
         for t in normalized_by_topic.values()
     )
@@ -271,6 +276,32 @@ def _validate_image_asset(subject_id: str, topic_id: str, image_asset: object) -
         raise ContentArtifactValidationError(
             f"subject '{subject_id}': topic '{topic_id}' image_asset.alt_text "
             "must be a non-empty string (FR-003)"
+        )
+
+
+def _validate_career_connection(subject_id: str, topic_id: str, career_connection: object) -> None:
+    """Schema-only check for an optional per-topic `career_connection`
+    (spec 039 FR-001/FR-002) -- zero or one per topic, mirroring
+    `_validate_image_asset`'s shape exactly. Unlike `_validate_standards`,
+    there is no grade-gate (research.md Decision 2): a career connection
+    may be declared on any topic regardless of `grade`."""
+    if career_connection is None:
+        return
+    if not isinstance(career_connection, dict):
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' career_connection must be a mapping"
+        )
+    career = career_connection.get("career")
+    if not isinstance(career, str) or not career.strip():
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' career_connection.career "
+            "must be a non-empty string"
+        )
+    description = career_connection.get("description")
+    if not isinstance(description, str) or not description.strip():
+        raise ContentArtifactValidationError(
+            f"subject '{subject_id}': topic '{topic_id}' career_connection.description "
+            "must be a non-empty string"
         )
 
 
