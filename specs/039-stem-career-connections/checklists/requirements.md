@@ -35,3 +35,7 @@
   every open question (default toggle state, surfacing location, instructor vs.
   learner scope, content-authoring approach) and are recorded in spec.md's
   Assumptions section. All items pass on the first validation pass.
+- 2026-10-04 `/speckit-clarify` session: resolved two architectural unknowns not
+  covered by a reasonable default (preference persistence mechanism; location of
+  the on/off control) -- see spec.md's Clarifications section. All checklist
+  items still pass after integrating both answers; no regressions.
