@@ -184,6 +184,12 @@ afterward.
   `mastered` (Clarifications); a single tagged topic still at
   `developing` holds the whole standard at in-progress even if its
   sibling topics are already mastered.
+- Two different topics declare the same framework+code with different
+  title text (e.g. a typo in one, or an inconsistent edit) -- rejected
+  at content-artifact validation time (FR-012), not silently resolved
+  by picking one arbitrarily; a standard shown to an instructor or
+  guardian must have exactly one title, never an ambiguous choice
+  between two.
 - A subject has `GradeBand` rows for some grades but a given topic's
   grade has no standards tagged at all yet -- that topic is simply
   excluded from standards views, not treated as "not yet reached" (it
@@ -229,11 +235,11 @@ afterward.
 - **FR-006**: A topic with zero standards tags MUST be excluded from
   every standards-coverage view. It MUST continue to appear, unaffected,
   in the existing per-topic mastery view.
-- **FR-007**: Every standards-coverage figure shown to an instructor
-  MUST be traceable to the specific standard code(s) and topic
-  mastery band(s) that produced it (Constitution Principle V) -- an
-  instructor can see which exact topics/codes are and are not yet met,
-  not only a rolled-up percentage.
+- **FR-007**: Every standards-coverage figure shown to an instructor or
+  guardian MUST be traceable to the specific standard code(s) and topic
+  mastery band(s) that produced it (Constitution Principle V) -- both
+  can see which exact topics/codes are and are not yet met, not only a
+  rolled-up percentage.
 - **FR-008**: Standards tags MUST NOT influence the Sequencing Agent's
   topic selection, the mastery model's computation, or assessment
   generation in any way. This feature is presentation-only, identical in
@@ -255,6 +261,12 @@ afterward.
   reached) MUST be conveyed with a visible text label, never by color
   alone (Clarifications), matching the accessibility precedent set by
   Milestone 10 and Milestone 23.
+- **FR-012**: When the same framework+code pair is declared on more than
+  one topic within a subject, every declaration MUST carry the identical
+  title. Content-artifact validation MUST reject a content artifact
+  where two topics declare the same framework+code with different title
+  text (Edge Cases) -- a standard shown to an instructor or guardian
+  always has exactly one title, never an ambiguous choice between two.
 
 ### Key Entities
 
@@ -275,10 +287,10 @@ afterward.
 - **SC-002**: Adding, editing, or removing a standards tag requires a
   content-artifact-only change; zero lines of engine source change as a
   result (verifies FR-002's subject/framework-agnostic boundary).
-- **SC-003**: 100% of standards-coverage figures shown on the dashboard
-  trace back to a specific topic, standard code, and mastery band --
-  zero figures are fabricated or computed outside the existing mastery
-  model.
+- **SC-003**: 100% of standards-coverage figures shown to an instructor
+  or guardian trace back to a specific topic, standard code, and mastery
+  band -- zero figures are fabricated or computed outside the existing
+  mastery model.
 - **SC-004**: Subjects and content artifacts with no standards tags show
   zero errors and zero visual regression in any existing dashboard
   section after this feature ships.
@@ -312,3 +324,13 @@ afterward.
   standard (vanishingly rare for grade 1-12 math/science, but possible
   for a locally-authored enrichment topic) is tagged with zero
   standards per FR-009, not a fabricated code.
+- NGSS is named throughout this spec for schema generality (FR-001
+  supports any framework name, not just Common Core Math), but this
+  milestone's actual, real-data population (FR-010) will contain
+  Common Core Math codes only: `biology` -- this project's only science
+  subject -- is deliberately kept ungraded (Milestone 15's own
+  ungraded-subject regression fixture), and FR-003 forbids tagging any
+  ungraded topic. Zero NGSS tags will exist anywhere in the running
+  system until a graded science subject is added later, a distinct,
+  not-yet-scoped backlog item (`roadmap.md`'s "Full K-12 STEM content
+  catalog" entry).

@@ -18,7 +18,9 @@ The standards-code tag FR-001 resolved to: a grouping layer above `Topic`, autho
 
 The 4-column composite PK makes an exact-duplicate tag on one topic (same framework, same code) a schema-level impossibility rather than a separate validation rule. A `(framework, code)` pair MAY repeat across more than one topic in the same subject (research.md Decision 2) -- that is the normal, expected shape for a standard spanning several topics, not an anomaly.
 
-**Validation rule** (enforced in `services/content_artifact/validator.py`, not a DB constraint -- the same place `grade`/`misconceptions` schema rules already live): a `StandardsTag` MUST only be declared on a topic whose `grade` is non-null (FR-003). A content artifact declaring a `standards` entry on an ungraded topic fails validation at load time, the same way a malformed `misconceptions` entry already does.
+**Validation rules** (enforced in `services/content_artifact/validator.py`, not a DB constraint -- the same place `grade`/`misconceptions` schema rules already live):
+- A `StandardsTag` MUST only be declared on a topic whose `grade` is non-null (FR-003). A content artifact declaring a `standards` entry on an ungraded topic fails validation at load time, the same way a malformed `misconceptions` entry already does.
+- When the same `(framework, code)` pair is declared on more than one topic within a subject, every occurrence MUST carry the identical `title` string. This closes an otherwise-real ambiguity: without it, `coverage.py`'s `StandardCoverageEntry.title` would have no defined answer for which topic's title to surface when they disagree. Enforced the same way `misconceptions`' subject-wide `misconception_id` uniqueness is -- a `seen_titles_by_code` dict built across the per-topic validation loop, raising on the first mismatch found.
 
 **Persistence**: delete-and-recreate on every content-artifact reload, matching `PrerequisiteEdge` (`loader.py`) rather than `Topic`/`GradeBand`'s upsert-in-place -- no other row holds a foreign key into a specific `StandardsTag` row, so there is no stale-reference hazard from dropping and reinserting the whole set for a subject on every load.
 

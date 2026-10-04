@@ -30,8 +30,8 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 **⚠️ CRITICAL**: T001-T005 block all three user stories; T006-T007 (the shared `coverage.py` function) block US1 and US2 specifically.
 
-- [ ] T001 [P] Unit test for `StandardsTag` content-artifact validation: rejects a `standards` entry on an ungraded topic (FR-003), rejects a missing `framework`/`code` (US3 Acceptance Scenario 3), accepts a valid entry on a graded topic, and accepts the same `(framework, code)` pair repeated across two different topics (research.md Decision 2) in `backend/tests/unit/test_content_artifact_standards_validation.py`
-- [ ] T002 Add `_validate_standards(subject_id, topic_id, standards, grade)` to `backend/src/services/content_artifact/validator.py`, following `_validate_misconceptions`'s shape exactly; add `standards: tuple[dict, ...]` to `ValidatedTopic` (depends on T001)
+- [ ] T001 [P] Unit test for `StandardsTag` content-artifact validation: rejects a `standards` entry on an ungraded topic (FR-003), rejects a missing `framework`/`code` (US3 Acceptance Scenario 3), accepts a valid entry on a graded topic, accepts the same `(framework, code)` pair repeated across two different topics when their `title` matches exactly (research.md Decision 2), and rejects it when their `title` text differs (data-model.md's title-consistency rule) in `backend/tests/unit/test_content_artifact_standards_validation.py`
+- [ ] T002 Add `_validate_standards(subject_id, topic_id, standards, grade, seen_titles_by_code)` to `backend/src/services/content_artifact/validator.py`, following `_validate_misconceptions`'s shape exactly (including the cross-topic `seen_titles_by_code` dict threaded through the caller's loop, mirroring `seen_misconception_ids`); add `standards: tuple[dict, ...]` to `ValidatedTopic` (depends on T001)
 - [ ] T003 [P] Create `StandardsTag` model in `backend/src/models/standards_tag.py`, mirroring `grade_band.py`'s minimal-table shape: composite PK `(subject_id, topic_id, framework, code)`, FK to `topics`, plus a non-key `title` column (data-model.md)
 - [ ] T004 Generate the Alembic migration for the new `standards_tags` table in `backend/alembic/versions/` (depends on T003)
 - [ ] T005 Extend `persist_content_artifact` in `backend/src/services/content_artifact/loader.py` to delete-and-recreate a subject's `StandardsTag` rows on every reload, matching `PrerequisiteEdge`'s existing pattern (data-model.md) (depends on T002, T003, T004) -- extends T001's test file with a round-trip assertion (load an artifact with a `standards` entry, query `standards_tags`, confirm it matches)
@@ -104,11 +104,12 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 **Purpose**: Confirm zero regression and zero constitutional drift across the whole feature.
 
-- [ ] T021 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (FR-002, Constitution Principle III)
-- [ ] T022 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `StandardsTag` has no FK to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII)
-- [ ] T023 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24 and the Learner UI Redesign
-- [ ] T024 Run the full frontend regression suite (`npx vitest run`), confirm no regressions
-- [ ] T025 Execute `quickstart.md`'s 3 scenarios plus its accessibility check against a real dev database and record the results
+- [ ] T021 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (Constitution Principle III)
+- [ ] T022 [P] Create `backend/scripts/check_no_standards_literals.py` (mirrors `check_no_subject_conditionals.py` exactly, scoped to `standards:` framework/code literals from `backend/content/*/subject.yaml`) and run it, confirm clean -- this is SC-002/FR-002's actual verification (`check_no_subject_conditionals.py` alone only covers subject-id literals, not framework/code) (depends on T020)
+- [ ] T023 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `StandardsTag` has no FK to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII)
+- [ ] T024 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24 and the Learner UI Redesign
+- [ ] T025 Run the full frontend regression suite (`npx vitest run`), confirm no regressions
+- [ ] T026 Execute `quickstart.md`'s 3 scenarios plus its accessibility check against a real dev database and record the results
 
 ---
 
@@ -132,7 +133,7 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 - Within US1: T008, T009, T010 in parallel; T013 in parallel with T011/T012.
 - Within US2: T016 has no parallel sibling in this story.
 - US3 (T019-T020) can run in parallel with all of US1/US2 once T002 lands.
-- Within Polish: T021, T022 in parallel.
+- Within Polish: T021, T022, T023 in parallel.
 
 ---
 

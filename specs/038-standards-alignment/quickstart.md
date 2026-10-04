@@ -69,7 +69,7 @@ except ContentArtifactValidationError as e:
 "
 ```
 
-**Expected**: raises, naming the missing `code` field. Repeat by adding a `standards` entry to a topic with `grade: null` in a copy of `biology/subject.yaml` (which has no `grade_bands` at all): **Expected** raises, naming FR-003's graded-topic-only rule.
+**Expected**: raises, naming the missing `code` field. Repeat by adding a `standards` entry to a topic with `grade: null` in a copy of `biology/subject.yaml` (which has no `grade_bands` at all): **Expected** raises, naming FR-003's graded-topic-only rule. Repeat once more by giving two different topics the same `(framework, code)` pair but different `title` text: **Expected** raises, naming FR-012's title-consistency rule.
 
 ## Accessibility check (FR-011)
 
@@ -78,7 +78,8 @@ Load the instructor dashboard and the guardian's learner-progress page in a brow
 ## Full regression
 
 ```bash
-cd backend && pytest
+cd backend && python scripts/check_no_standards_literals.py   # SC-002/FR-002 verification
+pytest
 cd ../frontend && npx vitest run
 ```
 

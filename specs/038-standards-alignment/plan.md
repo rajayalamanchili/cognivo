@@ -81,7 +81,9 @@ backend/
 │   │   │   ├── validator.py          # EXTENDED: `_validate_standards(...)`, same shape as
 │   │   │   │                         #   `_validate_misconceptions`/`_validate_topic_grade` --
 │   │   │   │                         #   rejects a tag on an ungraded topic (FR-003), rejects a
-│   │   │   │                         #   missing framework/code (US3 Acceptance Scenario 3)
+│   │   │   │                         #   missing framework/code (US3 Acceptance Scenario 3), and
+│   │   │   │                         #   rejects two topics sharing a (framework, code) with
+│   │   │   │                         #   mismatched titles (FR-012)
 │   │   │   └── loader.py             # EXTENDED: persist_content_artifact upserts StandardsTag rows
 │   │   │                             #   the same delete-and-recreate way as PrerequisiteEdge
 │   │   │                             #   (nothing else references a tag row)
