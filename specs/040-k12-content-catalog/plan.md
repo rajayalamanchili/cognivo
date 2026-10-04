@@ -26,7 +26,7 @@ feature.
 
 **Storage**: PostgreSQL via Neon. **Zero schema changes** — this feature writes only new rows (two `Subject` rows, their `Topic` rows, `GradeBand` rows for grades 9-11, `StandardsTag` and `career_connection`-bearing `Topic` rows) into tables that already exist from Milestones 1/15/038/039. No migration.
 
-**Testing**: `pytest` (backend contract/unit/integration), `Vitest` + React Testing Library (frontend) — existing patterns, no new tooling. New test fixtures: two content-artifact files loaded against the existing validator test suite, plus the existing acceptance-scenario suites (placement, practice, quiz assignment, instructor dashboard) parametrized or re-run against the two new `subject_id`s to prove SC-003/SC-004.
+**Testing**: `pytest` (backend contract/unit/integration), `Vitest` + React Testing Library (frontend) — existing patterns, no new tooling. New test fixtures (`algebra_2_subject`/`physics_subject` in `conftest.py`, mirroring the existing `algebra_subject`/`biology_subject` pair) plus dedicated new integration test files exercising the placement/practice, grade-filtering, cold-start-degradation, and quiz-assignment flows against the two new `subject_id`s — new files asserting the same behavior the existing Algebra I/Biology suites already assert, not a parametrization of those existing files, to prove SC-003/SC-004.
 
 **Target Platform**: Vercel serverless (existing). Content-artifact loading is a one-time, maintainer-run script invocation against each environment's database (same manual step every prior content addition has used, including Milestone 10's documented deploy-hook gotcha) — not a runtime process.
 
