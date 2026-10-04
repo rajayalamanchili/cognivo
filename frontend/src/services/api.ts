@@ -907,10 +907,21 @@ export interface DashboardLearnerEntry {
   standards?: StandardCoverageEntry[];
 }
 
+// Spec 038 FR-005, User Story 2 -- one entry per distinct (framework, code)
+// across the roster's subject; empty when the subject has zero tags.
+export interface RosterStandardSummaryEntry {
+  framework: string;
+  code: string;
+  title: string;
+  met_count: number;
+  total_count: number;
+}
+
 export interface DashboardResponse {
   roster_id: string;
   subject_id: string;
   learners: DashboardLearnerEntry[];
+  standards_summary?: RosterStandardSummaryEntry[];
 }
 
 export function getRosterDashboard(rosterId: string): Promise<DashboardResponse> {

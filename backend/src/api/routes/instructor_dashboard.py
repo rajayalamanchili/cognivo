@@ -17,7 +17,7 @@ from src.api.routes.recommendation import (
 from src.db import get_db
 from src.models.classroom_roster import ClassroomRoster
 from src.services.auth.dependencies import InstructorAccount, current_instructor
-from src.services.dashboard.aggregation import build_roster_dashboard
+from src.services.dashboard.aggregation import build_roster_dashboard, build_roster_standards_summary
 
 router = APIRouter()
 
@@ -31,10 +31,22 @@ class DashboardLearnerOut(BaseModel):
     standards: list[StandardCoverageOut]
 
 
+class RosterStandardSummaryOut(BaseModel):
+    framework: str
+    code: str
+    title: str
+    met_count: int
+    total_count: int
+
+
 class DashboardOut(BaseModel):
     roster_id: uuid.UUID
     subject_id: str
     learners: list[DashboardLearnerOut]
+    # Spec 038 FR-005, User Story 2 -- one entry per distinct
+    # (framework, code) across the roster; empty when the subject has
+    # zero StandardsTag rows (not an empty-table render, FR-006).
+    standards_summary: list[RosterStandardSummaryOut]
 
 
 @router.get("/api/rosters/{roster_id}/dashboard", response_model=DashboardOut)
@@ -50,6 +62,7 @@ def get_roster_dashboard(
         raise ForbiddenError("not_roster_owner")
 
     entries = build_roster_dashboard(db, roster=roster)
+    standards_summary = build_roster_standards_summary(entries)
 
     return DashboardOut(
         roster_id=roster.roster_id,
@@ -62,5 +75,15 @@ def get_roster_dashboard(
                 standards=standards_out_from_coverage(entry.standards),
             )
             for entry in entries
+        ],
+        standards_summary=[
+            RosterStandardSummaryOut(
+                framework=s.framework,
+                code=s.code,
+                title=s.title,
+                met_count=s.met_count,
+                total_count=s.total_count,
+            )
+            for s in standards_summary
         ],
     )

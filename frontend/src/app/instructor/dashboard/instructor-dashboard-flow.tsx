@@ -113,6 +113,28 @@ export default function InstructorDashboardFlow() {
         <p className="text-sm">No learners enrolled in this roster yet.</p>
       )}
 
+      {!dashboardLoading && dashboard && (dashboard.standards_summary?.length ?? 0) > 0 && (
+        <div
+          className="flex flex-col gap-1 rounded-card border border-border bg-surface p-3"
+          data-testid="roster-standards-summary"
+        >
+          <h2 className="text-sm font-semibold text-heading">Class standards coverage</h2>
+          {dashboard.standards_summary!.map((summary) => (
+            <div
+              key={`${summary.framework}:${summary.code}`}
+              className="flex items-center justify-between gap-3 px-1 py-1 text-sm"
+            >
+              <span>
+                <span className="font-semibold">{summary.code}</span> &mdash; {summary.title}
+              </span>
+              <span className="shrink-0 text-muted">
+                {summary.met_count}/{summary.total_count} learners
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {!dashboardLoading && dashboard && dashboard.learners.length > 0 && (
         <div className="flex flex-col gap-6" data-testid="dashboard-learners">
           {dashboard.learners.map((entry) => (

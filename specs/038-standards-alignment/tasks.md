@@ -74,12 +74,12 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 ### Tests for User Story 2
 
-- [ ] T016 [P] [US2] Integration test: `DashboardOut.standards_summary` reports correct `met_count`/`total_count` per `(framework, code)` across a roster's enrolled learners, and is an empty list for a subject with zero `StandardsTag` rows (US2 Acceptance Scenario 2) in `backend/tests/integration/test_dashboard_standards_summary.py`
+- [X] T016 [P] [US2] Integration test: `DashboardOut.standards_summary` reports correct `met_count`/`total_count` per `(framework, code)` across a roster's enrolled learners, and is an empty list for a subject with zero `StandardsTag` rows (US2 Acceptance Scenario 2) in `backend/tests/integration/test_dashboard_standards_summary.py`
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] Compute `standards_summary` (one entry per distinct `(framework, code)`, `met_count`/`total_count`) from the roster's already-computed per-learner `standards` results in `backend/src/services/dashboard/aggregation.py`, exposed as `DashboardOut.standards_summary` in `backend/src/api/routes/instructor_dashboard.py` (depends on T012, T016)
-- [ ] T018 [US2] Render the roster-wide standards summary (absent entirely when empty, not an empty table) in `frontend/src/app/instructor/dashboard/instructor-dashboard-flow.tsx` (depends on T017)
+- [X] T017 [US2] Compute `standards_summary` (one entry per distinct `(framework, code)`, `met_count`/`total_count`) from the roster's already-computed per-learner `standards` results in `backend/src/services/dashboard/aggregation.py`, exposed as `DashboardOut.standards_summary` in `backend/src/api/routes/instructor_dashboard.py` (depends on T012, T016)
+- [X] T018 [US2] Render the roster-wide standards summary (absent entirely when empty, not an empty table) in `frontend/src/app/instructor/dashboard/instructor-dashboard-flow.tsx` (depends on T017)
 
 **Checkpoint**: User Stories 1 and 2 both work independently.
 
