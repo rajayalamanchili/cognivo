@@ -4,9 +4,14 @@ import { getDemoLearnerId, getMasteryState } from "./helpers";
 // Playwright E2E: loads /dashboard and confirms the "just getting
 // started" state for any subject the demo learner has zero
 // MasteryState history in -- every topic "not yet assessed," the
-// Recommendation Agent's own "insufficient data" framing, and a path
-// visualization anchored on entry-level topics with the illustrative
-// disclosure visible (SC-002). T027.
+// Recommendation Agent's own "insufficient data" framing, and the UP
+// NEXT hero anchored on an entry-level topic, with the "Likely coming
+// up" illustrative disclosure visible when there's an upcoming-topics
+// preview to show (SC-002). T027. 027-learner-ui-redesign gap-closing
+// pass: the dedicated PathVisualization component this test originally
+// checked was removed as redundant with "Your topics" and the hero
+// itself; only the "Likely coming up" line it contributed moved into
+// the hero, so that's what this test now checks for.
 //
 // Milestone 1-4 has exactly one seeded DemoLearnerProfile (no
 // auth/multi-learner support yet -- spec.md Assumptions), so this test
@@ -62,11 +67,10 @@ test("dashboard renders a coherent just-getting-started state for any untouched 
     await expect(weakAreaSlot.locator("ul > li")).toHaveCount(0);
 
     const pathSlot = section.getByTestId("dashboard-path-slot");
-    await expect(pathSlot.getByTestId("path-visualization")).toBeVisible();
-    await expect(pathSlot.getByTestId("next-topic")).toBeVisible();
-    const upcomingTopics = pathSlot.getByTestId("upcoming-topics");
-    if (await upcomingTopics.count()) {
-      await expect(pathSlot.getByTestId("illustrative-disclosure")).toBeVisible();
+    await expect(pathSlot.getByText("UP NEXT")).toBeVisible();
+    const comingUp = pathSlot.getByText(/likely coming up/i);
+    if (await comingUp.count()) {
+      await expect(comingUp).toContainText(/illustrative only/i);
     }
   }
 });

@@ -1,8 +1,9 @@
 // Unit tests: MasteryView's decay-aware rendering (spec 025 User Story 2,
 // FR-005/FR-006/FR-007/FR-008).
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import MasteryView from "@/components/MasteryView";
 import type { MasteryTopicEntry } from "@/services/api";
 
@@ -81,5 +82,70 @@ describe("MasteryView", () => {
       />
     );
     expect(screen.getByText("Not yet assessed")).toBeInTheDocument();
+  });
+
+  it("still shows the empty status-bar track for a not-yet-assessed topic, just with no fill (mockup parity)", () => {
+    render(
+      <MasteryView
+        topics={[{ topic_id: "x", status: "unknown", p_mastery: null, band: null }]}
+      />
+    );
+    const row = screen.getByTestId("mastery-topic-x");
+    expect(row.querySelector('[data-testid="mastery-bar"]')).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="mastery-bar-fill"]')).not.toBeInTheDocument();
+  });
+
+  it("renders both the track and a colored fill for an assessed topic", () => {
+    render(<MasteryView topics={[topic({ p_mastery: 0.8, effective_p_mastery: 0.8 })]} />);
+    const row = screen.getByTestId("mastery-topic-integers-and-operations");
+    expect(row.querySelector('[data-testid="mastery-bar"]')).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="mastery-bar-fill"]')).toBeInTheDocument();
+  });
+
+  it("renders a mastery-line tick only when showMasteryLine is passed (Mastery screen only)", () => {
+    const { rerender } = render(<MasteryView topics={[topic()]} />);
+    expect(screen.queryByTestId("mastery-line")).not.toBeInTheDocument();
+
+    rerender(<MasteryView topics={[topic()]} showMasteryLine />);
+    expect(screen.getByTestId("mastery-line")).toBeInTheDocument();
+  });
+
+  it("renders a per-row sparkline only when historyByTopic is passed, scoped to each topic's own points", () => {
+    render(
+      <MasteryView
+        topics={[topic({ topic_id: "a" }), topic({ topic_id: "b" })]}
+        historyByTopic={{
+          a: [
+            { recorded_at: "2026-01-01T00:00:00Z", p_mastery: 0.4 },
+            { recorded_at: "2026-02-01T00:00:00Z", p_mastery: 0.8 },
+          ],
+        }}
+      />
+    );
+    expect(
+      within(screen.getByTestId("mastery-topic-a")).getByTestId("mastery-trend-line")
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("mastery-topic-b")).queryByTestId("mastery-trend-line")
+    ).not.toBeInTheDocument();
+  });
+
+  it("selects a row via onSelectTopic/selectedTopicId, leaving non-interactive usage unaffected", async () => {
+    const user = userEvent.setup();
+    const onSelectTopic = vi.fn();
+    render(
+      <MasteryView
+        topics={[topic({ topic_id: "a" }), topic({ topic_id: "b" })]}
+        selectedTopicId="a"
+        onSelectTopic={onSelectTopic}
+      />
+    );
+    const rowA = screen.getByTestId("mastery-topic-a").querySelector("button")!;
+    const rowB = screen.getByTestId("mastery-topic-b").querySelector("button")!;
+    expect(rowA).toHaveAttribute("aria-pressed", "true");
+    expect(rowB).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(rowB);
+    expect(onSelectTopic).toHaveBeenCalledWith("b");
   });
 });

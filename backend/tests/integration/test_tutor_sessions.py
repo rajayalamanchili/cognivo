@@ -99,3 +99,61 @@ def test_403_for_real_learner_with_no_session_at_all(client, biology_subject):
     )
     assert response.status_code == 403, response.text
     assert response.json() == {"detail": "not_your_learner"}
+
+
+def test_ending_a_session_lets_a_fresh_one_be_created(client, demo_learner, biology_subject):
+    """027-learner-ui-redesign gap-closing pass: backs the Tutor page's
+    "New chat" button -- `open_session` is get-or-create (FR-014), so
+    without an end step a second open always just resumed the same row."""
+    first = client.post(
+        "/api/tutor/sessions",
+        json={"learner_id": str(demo_learner.learner_id), "subject_id": biology_subject.subject_id},
+    )
+    session_id = first.json()["session_id"]
+
+    end_response = client.post(f"/api/tutor/sessions/{session_id}/end")
+    assert end_response.status_code == 204, end_response.text
+    assert end_response.content == b""
+
+    second = client.post(
+        "/api/tutor/sessions",
+        json={"learner_id": str(demo_learner.learner_id), "subject_id": biology_subject.subject_id},
+    )
+    assert second.status_code == 201, second.text
+    assert second.json()["session_id"] != session_id
+
+
+def test_ending_a_session_twice_is_a_no_op(client, demo_learner, biology_subject):
+    first = client.post(
+        "/api/tutor/sessions",
+        json={"learner_id": str(demo_learner.learner_id), "subject_id": biology_subject.subject_id},
+    )
+    session_id = first.json()["session_id"]
+
+    assert client.post(f"/api/tutor/sessions/{session_id}/end").status_code == 204
+    assert client.post(f"/api/tutor/sessions/{session_id}/end").status_code == 204
+
+
+def test_end_session_404_for_unknown_session(client):
+    response = client.post(f"/api/tutor/sessions/{'0' * 8}-0000-0000-0000-{'0' * 12}/end")
+    assert response.status_code == 404, response.text
+
+
+def test_end_session_403_when_guardian_does_not_own_learner(client, biology_subject):
+    _owner_guardian_id, learner_id = register_guardian_with_learner(
+        client, guardian_email="tutor-sessions-end-owner@example.com", learner_name="Owned Learner"
+    )
+    open_response = client.post(
+        "/api/tutor/sessions",
+        json={"learner_id": learner_id, "subject_id": biology_subject.subject_id},
+    )
+    session_id = open_response.json()["session_id"]
+
+    client.post("/api/auth/logout")
+    register_guardian_with_learner(
+        client, guardian_email="tutor-sessions-end-other@example.com", learner_name="Other Learner"
+    )
+
+    response = client.post(f"/api/tutor/sessions/{session_id}/end")
+    assert response.status_code == 403, response.text
+    assert response.json() == {"detail": "not_your_learner"}

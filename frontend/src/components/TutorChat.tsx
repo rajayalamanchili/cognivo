@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, type ComponentPropsWithoutRef } from "react";
+import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { ApiError, streamTutorMessage, type TutorMessageErrorBody } from "@/services/api";
+import {
+  ApiError,
+  getTutorExchange,
+  streamTutorMessage,
+  type TutorMessageErrorBody,
+  type TutorRetrievedPassage,
+} from "@/services/api";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import { formatTopicId } from "@/lib/format-topic-id";
 
 // Owns its own message list and streaming lifecycle (mirrors
 // FreeTextAnswerInput's self-contained submission pattern) so the
@@ -14,12 +21,26 @@ import LoadingIndicator from "@/components/LoadingIndicator";
 
 export interface TutorChatProps {
   sessionId: string;
+  // 027-learner-ui-redesign, gap-closing pass: reports the session's
+  // accumulated, deduped grounding sources upward so tutor-flow.tsx's
+  // sidebar can render "Sources used in this chat" -- this component
+  // still owns the fetch (it already owns exchangeId/streaming state).
+  onSourcesChange?: (sources: TutorRetrievedPassage[]) => void;
 }
 
 interface ChatMessage {
   role: "learner" | "tutor";
   text: string;
   exchangeId?: string;
+  sources?: TutorRetrievedPassage[];
+}
+
+function sourceKey(source: TutorRetrievedPassage): string {
+  return `${source.topic_id}:${source.field}`;
+}
+
+export function fieldLabel(field: string): string {
+  return field === "skill_summary" ? "skill summary" : "difficulty notes";
 }
 
 type ErrorState =
@@ -31,6 +52,16 @@ type ErrorState =
   | "tutor-unavailable";
 
 const MAX_LENGTH = 2000;
+
+// Tutor.dc.html's suggested-prompt pills, kept subject-agnostic (Constitution
+// Principle III) rather than the mockup's algebra-specific wording -- these
+// only ever pre-fill the input, so they're a restyle affordance, not new
+// behavior (the existing submit path still owns what happens next).
+const SUGGESTED_PROMPTS = [
+  "Give me a hint, not the answer",
+  "Can you explain that differently?",
+  "Show me a similar example",
+];
 
 // No @tailwindcss/typography plugin is installed, and Tailwind's
 // preflight reset strips default heading/list margins -- so markdown
@@ -68,7 +99,7 @@ function RoleAvatar({ role }: { role: ChatMessage["role"] }) {
         "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-base " +
         (role === "learner"
           ? "bg-primary text-primary-foreground"
-          : "border border-border text-foreground")
+          : "bg-primary-subtle text-heading")
       }
     >
       {role === "learner" ? "🙂" : "🦉"}
@@ -88,11 +119,50 @@ function stateFromError(error: unknown): ErrorState {
   return "none";
 }
 
-export default function TutorChat({ sessionId }: TutorChatProps) {
+export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [errorState, setErrorState] = useState<ErrorState>("none");
+  const [sessionSources, setSessionSources] = useState<TutorRetrievedPassage[]>([]);
+
+  const onSourcesChangeRef = useRef(onSourcesChange);
+  useEffect(() => {
+    onSourcesChangeRef.current = onSourcesChange;
+  });
+  useEffect(() => {
+    onSourcesChangeRef.current?.(sessionSources);
+  }, [sessionSources]);
+
+  // Citations are enrichment on top of an answer that already rendered
+  // successfully -- a failed fetch here shouldn't surface as a chat
+  // error, so this swallows and just leaves that message without a
+  // "Grounded in" row (spec 012's `grounded`/`retrieved_passage_ids`,
+  // now readable by the demo learner per backend/src/api/routes/tutor.py).
+  async function loadSources(exchangeId: string) {
+    try {
+      const detail = await getTutorExchange(exchangeId);
+      if (!detail.grounded || detail.retrieved_passages.length === 0) return;
+      setMessages((current) =>
+        current.map((message) =>
+          message.exchangeId === exchangeId
+            ? { ...message, sources: detail.retrieved_passages }
+            : message,
+        ),
+      );
+      setSessionSources((current) => {
+        const merged = [...current];
+        for (const source of detail.retrieved_passages) {
+          if (!merged.some((existing) => sourceKey(existing) === sourceKey(source))) {
+            merged.push(source);
+          }
+        }
+        return merged;
+      });
+    } catch {
+      // Best-effort -- see function comment above.
+    }
+  }
 
   async function handleSubmit() {
     const text = question.trim();
@@ -113,6 +183,7 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
               : { ...last, exchangeId: event.exchange_id };
           return next;
         });
+        if (!("delta" in event)) void loadSources(event.exchange_id);
       });
     } catch (error) {
       setErrorState(stateFromError(error));
@@ -136,23 +207,41 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
             }
           >
             <RoleAvatar role={message.role} />
-            <div
-              data-testid={
-                message.role === "learner"
-                  ? "tutor-chat-learner-message"
-                  : "tutor-chat-tutor-message"
-              }
-              data-exchange-id={message.exchangeId}
-              className={
-                message.role === "learner"
-                  ? "rounded-lg bg-primary px-4 py-2 text-primary-foreground"
-                  : "rounded-lg border border-border px-4 py-2"
-              }
-            >
-              {message.role === "tutor" && message.text ? (
-                <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
-              ) : (
-                message.text || (streaming && index === messages.length - 1 ? "…" : "")
+            <div className="flex flex-col gap-1.5">
+              <div
+                data-testid={
+                  message.role === "learner"
+                    ? "tutor-chat-learner-message"
+                    : "tutor-chat-tutor-message"
+                }
+                data-exchange-id={message.exchangeId}
+                className={
+                  message.role === "learner"
+                    ? "rounded-[22px] rounded-br-[6px] bg-primary px-[18px] py-3.5 text-primary-foreground"
+                    : "rounded-[22px] rounded-bl-[6px] bg-surface-subtle px-5 py-4"
+                }
+              >
+                {message.role === "tutor" && message.text ? (
+                  <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
+                ) : (
+                  message.text || (streaming && index === messages.length - 1 ? "…" : "")
+                )}
+              </div>
+              {message.role === "tutor" && message.sources && message.sources.length > 0 && (
+                <div
+                  className="flex flex-wrap items-center gap-2 text-[13px]"
+                  data-testid="tutor-grounded-in"
+                >
+                  <span className="font-bold text-heading">Grounded in</span>
+                  {message.sources.map((source) => (
+                    <span
+                      key={sourceKey(source)}
+                      className="rounded-full border border-border bg-surface px-3 py-1 font-bold text-heading"
+                    >
+                      {formatTopicId(source.topic_id)} · {fieldLabel(source.field)}
+                    </span>
+                  ))}
+                </div>
               )}
             </div>
           </div>
@@ -185,10 +274,28 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2" data-testid="tutor-suggested-prompts">
+        {SUGGESTED_PROMPTS.map((prompt) => (
+          <button
+            key={prompt}
+            type="button"
+            disabled={streaming}
+            onClick={() => setQuestion(prompt)}
+            className="min-h-11 rounded-full border-2 border-primary/30 px-4 py-2 text-[15px] font-bold text-heading disabled:opacity-40"
+          >
+            {prompt}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2.5">
+        <label htmlFor="tutor-question" className="sr-only">
+          Ask the AI Tutor
+        </label>
         <input
+          id="tutor-question"
           type="text"
-          className="flex-1 rounded-lg border border-border px-3 py-2"
+          className="min-h-[52px] flex-1 rounded-full border-2 border-primary/30 px-[22px] text-base"
           maxLength={MAX_LENGTH}
           value={question}
           disabled={streaming}
@@ -199,15 +306,33 @@ export default function TutorChat({ sessionId }: TutorChatProps) {
               void handleSubmit();
             }
           }}
-          placeholder="Ask the tutor a question…"
+          placeholder="Ask about this topic…"
         />
         <button
           type="button"
+          aria-label={streaming ? undefined : "Send"}
           onClick={() => void handleSubmit()}
           disabled={streaming || question.trim() === ""}
-          className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
+          className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
         >
-          {streaming ? <LoadingIndicator message="Thinking…" compact /> : "Ask"}
+          {streaming ? (
+            <LoadingIndicator message="Thinking…" compact />
+          ) : (
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14" />
+              <path d="m13 6 6 6-6 6" />
+            </svg>
+          )}
         </button>
       </div>
     </div>

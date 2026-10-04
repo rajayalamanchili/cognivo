@@ -156,9 +156,9 @@ describe("PlacementFlow read-aloud (spec 019 FR-001/FR-003)", () => {
     await screen.findByText(/What is -3 \+ 7\?/);
 
     await userEvent.click(screen.getByTestId("read-aloud-button"));
-    await userEvent.click(screen.getByLabelText("4"));
-    await userEvent.click(screen.getByLabelText("(1, 2)"));
-    await userEvent.click(screen.getByText("Submit Placement"));
+    await userEvent.click(screen.getByRole("radio", { name: "4" }));
+    await userEvent.click(screen.getByRole("radio", { name: "(1, 2)" }));
+    await userEvent.click(screen.getByText("Finish placement"));
 
     await waitFor(() =>
       expect(api.submitPlacement).toHaveBeenCalledWith(
@@ -215,9 +215,9 @@ describe("PlacementFlow results (spec 025 User Story 3/4)", () => {
     render(<PlacementFlow />);
     await screen.findByText(/What is -3 \+ 7\?/);
 
-    await userEvent.click(screen.getByLabelText("4"));
-    await userEvent.click(screen.getByLabelText("(1, 2)"));
-    await userEvent.click(screen.getByText("Submit Placement"));
+    await userEvent.click(screen.getByRole("radio", { name: "4" }));
+    await userEvent.click(screen.getByRole("radio", { name: "(1, 2)" }));
+    await userEvent.click(screen.getByText("Finish placement"));
 
     expect(await screen.findByTestId("placement-per-question-results")).toBeInTheDocument();
     expect(screen.getAllByTestId("answer-result-view")).toHaveLength(2);
@@ -252,8 +252,8 @@ describe("PlacementFlow results (spec 025 User Story 3/4)", () => {
     render(<PlacementFlow />);
     await screen.findByText(/What is -3 \+ 7\?/);
 
-    await userEvent.click(screen.getByLabelText("4"));
-    await userEvent.click(screen.getByText("Submit Placement"));
+    await userEvent.click(screen.getByRole("radio", { name: "4" }));
+    await userEvent.click(screen.getByText("Finish placement"));
 
     await screen.findByTestId("placement-per-question-results");
     expect(screen.queryByTestId("placement-refreshed-topics")).not.toBeInTheDocument();
@@ -275,7 +275,7 @@ describe("PlacementFlow skip button", () => {
     render(<PlacementFlow />);
     await screen.findByText(/Solve the system of equations\./);
 
-    expect(screen.getAllByRole("button", { name: /skip \(too hard\)/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /too hard\? skip/i })).toHaveLength(1);
   });
 
   it("swaps in the replacement question when skip returns one", async () => {
@@ -292,7 +292,7 @@ describe("PlacementFlow skip button", () => {
 
     // gradedQuestion (grade 6) is the lowest shown grade, so only
     // higherGradeQuestion (grade 8) gets a skip button.
-    await userEvent.click(screen.getByRole("button", { name: /skip \(too hard\)/i }));
+    await userEvent.click(screen.getByRole("button", { name: /too hard\? skip/i }));
 
     await screen.findByText(/Evaluate 3x \+ 2 for x = 4\./);
     expect(screen.queryByText(/Solve the system of equations\./)).not.toBeInTheDocument();
@@ -314,7 +314,7 @@ describe("PlacementFlow skip button", () => {
 
     // gradedQuestion (grade 6) is the lowest shown grade, so only
     // higherGradeQuestion (grade 8) gets a skip button.
-    await userEvent.click(screen.getByRole("button", { name: /skip \(too hard\)/i }));
+    await userEvent.click(screen.getByRole("button", { name: /too hard\? skip/i }));
 
     await waitFor(() =>
       expect(screen.queryByText(/Solve the system of equations\./)).not.toBeInTheDocument(),

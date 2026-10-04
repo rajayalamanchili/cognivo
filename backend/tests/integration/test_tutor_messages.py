@@ -9,7 +9,7 @@ otherwise.
 
 import asyncio
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -390,6 +390,49 @@ def test_409_still_answering_while_a_prior_exchange_is_in_flight(client, db_sess
     body = response.json()
     assert body["error"] == "still_answering"
     assert "exchange_id" in body
+
+
+def test_409_message_after_session_ended(client, session_id):
+    end_response = client.post(f"/api/tutor/sessions/{session_id}/end")
+    assert end_response.status_code == 204, end_response.text
+
+    response = client.post(
+        f"/api/tutor/sessions/{session_id}/messages", json={"question": "still here?"}
+    )
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "session_ended"
+
+
+def test_409_session_ended_concurrently_during_moderation(client, db_session, session_id):
+    """PR #99 review: the top-of-function ACTIVE check alone left a
+    multi-second window (moderation/shielding, both awaited before the
+    exchange is created) for a concurrent `end_session` to land. Mirrors
+    `test_timed_quiz_completion_race.py`'s pattern: simulate the race by
+    having the slow call itself commit the competing transition, rather
+    than real threads."""
+    from src.models.enums import TutoringSessionStatus
+
+    def _end_session_mid_moderation(*_args, **_kwargs):
+        session = db_session.get(TutoringSession, uuid.UUID(session_id))
+        session.status = TutoringSessionStatus.ENDED
+        db_session.commit()
+        return True
+
+    passage = make_passage(topic_id="photosynthesis", text="Light drives photosynthesis.")
+    with (
+        patch(
+            "src.services.tutor.session.check_moderation",
+            new=AsyncMock(side_effect=_end_session_mid_moderation),
+        ),
+        patch_search_passages([passage]),
+        patch_grounded_stream(["answer"], grounded_passage_ids=[passage.passage_id]),
+    ):
+        response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages", json={"question": "still here?"}
+        )
+    assert response.status_code == 409, response.text
+    assert response.json()["detail"] == "session_ended"
+    assert db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).count() == 0
 
 
 def test_429_rate_limited(client, db_session, session_id, monkeypatch):

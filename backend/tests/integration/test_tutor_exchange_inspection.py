@@ -253,6 +253,65 @@ def test_derived_status_is_in_progress_before_completion(
     assert response.json()["status"] == "in_progress"
 
 
+def test_demo_learner_can_inspect_own_exchange_without_auth(
+    client, db_session, demo_learner, biology_subject
+):
+    """027-learner-ui-redesign gap-closing pass: the Tutor page's
+    "grounded in" / "sources used" UI calls this endpoint for the demo
+    learner's own session, with no login at all -- same FR-001 carve-out
+    `POST /api/tutor/sessions` already gives it."""
+    open_response = client.post(
+        "/api/tutor/sessions",
+        json={"learner_id": str(demo_learner.learner_id), "subject_id": biology_subject.subject_id},
+    )
+    assert open_response.status_code == 201, open_response.text
+    session_id = open_response.json()["session_id"]
+
+    passage = make_passage(topic_id="photosynthesis", text="Light drives photosynthesis.")
+    db_session.add(
+        ContentPassageEmbedding(
+            passage_id=passage.passage_id,
+            subject_id=biology_subject.subject_id,
+            topic_id=passage.topic_id,
+            field=passage.field,
+            text=passage.text,
+            embedding=[0.0] * EMBEDDING_DIMENSION,
+            content_version=biology_subject.content_version,
+        )
+    )
+    db_session.commit()
+    with (
+        patch_moderation(allowed=True),
+        patch_search_passages([passage]),
+        patch_grounded_stream(
+            ["Light provides energy."], grounded_passage_ids=[passage.passage_id]
+        ),
+    ):
+        message_response = client.post(
+            f"/api/tutor/sessions/{session_id}/messages",
+            json={"question": "why does photosynthesis need light?"},
+        )
+    assert message_response.status_code == 200, message_response.text
+
+    exchange_row = (
+        db_session.query(TutorExchange).filter(TutorExchange.session_id == session_id).one()
+    )
+
+    # No login at all.
+    response = client.get(f"/api/tutor/exchanges/{exchange_row.exchange_id}")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["grounded"] is True
+    assert body["retrieved_passages"] == [
+        {
+            "passage_id": str(passage.passage_id),
+            "topic_id": "photosynthesis",
+            "field": "skill_summary",
+            "text": "Light drives photosynthesis.",
+        }
+    ]
+
+
 def test_derived_status_is_failed_after_failed_at(client, db_session, scenario, biology_subject):
     login_guardian(client, "exchange-inspect-guardian-a@example.com")
     open_response = client.post(

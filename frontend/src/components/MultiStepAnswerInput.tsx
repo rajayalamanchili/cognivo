@@ -117,29 +117,44 @@ export default function MultiStepAnswerInput({
   const allStepsFilled = answers.every((answer) => answer.trim() !== "");
 
   return (
-    <div className="flex flex-col gap-3" data-testid="multi-step-answer-input">
+    <div className="flex flex-col gap-4" data-testid="multi-step-answer-input">
       {steps.map((stepPrompt, index) => (
-        <div key={index} className="flex flex-col gap-1" data-testid={`multi-step-step-${index}`}>
-          <label className="text-sm text-muted">{stepPrompt}</label>
-          <NotationToolbar onInsert={(text) => insertNotation(index, text)} disabled={busy} />
-          <input
-            ref={(el) => {
-              stepRefs.current[index] = el;
-            }}
-            type="text"
-            className="rounded-lg border border-border px-3 py-2"
-            value={answers[index]}
-            onChange={(event) => updateStep(index, event.target.value)}
-            disabled={busy}
-            data-testid={`multi-step-input-${index}`}
-          />
+        <div
+          key={index}
+          className="flex items-start gap-3.5"
+          data-testid={`multi-step-step-${index}`}
+        >
+          <span
+            className="mt-[14px] w-[72px] shrink-0 text-right font-extrabold text-primary"
+            aria-hidden="true"
+          >
+            Step {index + 1}
+          </span>
+          <div className="flex flex-1 flex-col gap-1.5">
+            <label htmlFor={`multi-step-input-${index}`} className="text-sm text-muted">
+              {stepPrompt}
+            </label>
+            <NotationToolbar onInsert={(text) => insertNotation(index, text)} disabled={busy} />
+            <input
+              id={`multi-step-input-${index}`}
+              ref={(el) => {
+                stepRefs.current[index] = el;
+              }}
+              type="text"
+              className="min-h-[52px] rounded-[14px] border-2 border-primary/30 px-[18px] font-mono text-lg text-heading"
+              value={answers[index]}
+              onChange={(event) => updateStep(index, event.target.value)}
+              disabled={busy}
+              data-testid={`multi-step-input-${index}`}
+            />
+          </div>
         </div>
       ))}
       <button
         type="button"
         onClick={handleSubmit}
         disabled={busy || !allStepsFilled}
-        className="self-start rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-40"
+        className="ml-[86px] self-start rounded-full bg-primary px-4 py-2 text-sm font-extrabold text-primary-foreground disabled:opacity-40"
       >
         {state === "grading-in-progress" ? (
           <LoadingIndicator message="Checking each step…" compact />

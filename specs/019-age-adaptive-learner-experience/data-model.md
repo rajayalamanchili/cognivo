@@ -102,7 +102,7 @@ via the existing `pyjwt` dependency:
 
 | Entity | Field(s) used | Purpose |
 |---|---|---|
-| `GradeProgress` | `unlocked_grade` | Input to `determine_mediation_tier()` and to FR-001/FR-003's read-aloud gate (grade 1-2). Read-only -- this feature never advances or otherwise mutates it (Milestone 15 owns that). |
+| `GradeProgress` | `unlocked_grade` | Input to `determine_mediation_tier()`. No longer an input to read-aloud eligibility, which is unconditional as of the 2026-10-03 Clarification. Read-only -- this feature never advances or otherwise mutates it (Milestone 15 owns that). |
 | `QuizSession` | `status`, `quiz_session_id`, `subject_id`, `learner_id` | Hand-off token scope/validity check; pacing checkpoint (client-side, reads `question_count`/answered-so-far already in the existing next-question response shape). |
 | `QuizAssignmentTarget` | `quiz_session_id` (existing), `guardian_viewed_at` (new) | Links a quiz session back to its assignment for the tier/hand-off/indicator logic; the only real-learner quiz-session-creation path today (research.md §4). |
 | `LearnerProfile` | `guardian_id`, `is_demo` | Unchanged use, same as the existing `assert_guardian_owns_assignment_session` check it's renamed from. |

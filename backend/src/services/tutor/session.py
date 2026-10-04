@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from src.agents.recommendation.agent import build_weak_area_report
 from src.api.errors import (
+    ConflictError,
     ModerationRejectedError,
     QuestionTooLongError,
     RateLimitedError,
@@ -173,6 +174,26 @@ def open_session(
     return session, True
 
 
+def end_session(db: Session, *, session: TutoringSession) -> None:
+    """027-learner-ui-redesign gap-closing pass: marks a session `ended`
+    -- `TutoringSessionStatus.ENDED` was already defined but nothing
+    ever set it. Idempotent (an already-ended session is a no-op, not
+    an error) since the route has no reason to distinguish "I ended it"
+    from "it was already ended".
+
+    Deliberately does not touch an in-flight exchange (PR #99 review
+    asked about this): `stream_message_response` already resolves every
+    exchange it opens -- success, `TutorStreamInterruptedError`, or a
+    client disconnect/cancellation -- regardless of this session's
+    status. Reaching in here to mark it `failed_at` too would race that
+    resolution and could leave a row with both `answer_text` and
+    `failed_at` set, which is worse than leaving it alone."""
+    if session.status != TutoringSessionStatus.ENDED:
+        session.status = TutoringSessionStatus.ENDED
+        db.add(session)
+        db.commit()
+
+
 def _in_flight_exchange(db: Session, *, session_id: uuid.UUID) -> TutorExchange | None:
     """FR-015's in-flight marker: `answer_text IS NULL AND failed_at IS
     NULL` on this session's most recent exchange (data-model.md, closes
@@ -201,20 +222,28 @@ async def prepare_message(
     db: Session, *, session: TutoringSession, question: str
 ) -> PreparedTutorMessage:
     """Runs contracts/api.md's server steps, in its documented order
-    (cheapest/most-likely-to-reject first): in-flight (FR-015) -> rate
-    limit (FR-013) -> length/moderation -> retrieval (FR-002/FR-012) ->
-    bundle -> open the A2A stream. Raises `StillAnsweringError`/
-    `RateLimitedError`/`QuestionTooLongError`/`ModerationRejectedError`/
+    (cheapest/most-likely-to-reject first): ended-session check ->
+    in-flight (FR-015) -> rate limit (FR-013) -> length/moderation ->
+    retrieval (FR-002/FR-012) -> bundle -> open the A2A stream. Raises
+    `ConflictError`/`StillAnsweringError`/`RateLimitedError`/
+    `QuestionTooLongError`/`ModerationRejectedError`/
     `TutorUnavailableError` (raised directly if retrieval fails after
     its own internal retries, or -- since opening the A2A stream can
     fail in ways other than `TutorUnavailableError` too, confirmed live,
     PR #36 -- re-raised as whatever other exception opening it actually
-    was); every one of these marks the just-created exchange `failed_at`
-    first (the exchange row itself is created before retrieval runs,
-    specifically so a retrieval failure has a row to mark). The caller
-    (the route) must not construct a `StreamingResponse` until this
-    returns successfully.
+    was); every one of these after the ended-session check marks the
+    just-created exchange `failed_at` first (the exchange row itself is
+    created before retrieval runs, specifically so a retrieval failure
+    has a row to mark). The caller (the route) must not construct a
+    `StreamingResponse` until this returns successfully.
     """
+    if session.status != TutoringSessionStatus.ACTIVE:
+        # "New chat" (`end_session`) can race a stale client's in-flight
+        # send: without this, a message posted after (or concurrently
+        # with) ending the session would silently create a real answered
+        # exchange on a session the UI already treats as closed.
+        raise ConflictError("session_ended")
+
     in_flight = _in_flight_exchange(db, session_id=session.session_id)
     if in_flight is not None:
         raise StillAnsweringError(exchange_id=in_flight.exchange_id)
@@ -310,6 +339,25 @@ async def prepare_message(
     delegation_context: list[dict] = []
     if _question_needs_performance_context(question):
         delegation_context.append(_build_recommendation_delegation(db, session))
+
+    # Re-checked here, under a row lock, immediately before creating the
+    # exchange (PR #99 review: the ACTIVE check at the top of this
+    # function is read-then-act, and moderation/shielding above can take
+    # several seconds -- wide enough for a concurrent `end_session` to
+    # land in between). `with_for_update=True` both locks the row
+    # (blocking `end_session`'s `UPDATE` until this transaction commits,
+    # so a session can't flip to `ended` between this check and the
+    # exchange it gates existing) and forces a re-read of `session`'s
+    # already-identity-mapped attributes -- a plain re-query would
+    # silently return the same stale, already-loaded Python object
+    # instead of the row `end_session` just committed. Deliberately not
+    # held across the slower calls above or the retrieval/streaming
+    # below -- Principle IX (Vercel/serverless): a lock spanning network
+    # I/O is the wrong trade here.
+    db.refresh(session, with_for_update=True)
+    if session.status != TutoringSessionStatus.ACTIVE:
+        db.rollback()
+        raise ConflictError("session_ended")
 
     # Created before retrieval (not after, as originally written) so a
     # retrieval failure below has a row to mark failed -- otherwise it's

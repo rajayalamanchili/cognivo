@@ -19,11 +19,16 @@ export default function RefreshedBanner({
   const tier = getExplanationCopyTier(unlockedGrade);
 
   return (
-    <p
+    <div
+      role="status"
       data-testid="refreshed-banner"
-      className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
+      className="flex items-center gap-3.5 rounded-[18px] bg-success/15 px-5 py-4 text-[15px] font-bold text-success"
     >
-      {tier.refreshedFraming}
-    </p>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="flex-shrink-0">
+        <path d="M21 12a9 9 0 1 1-3-6.7" />
+        <path d="M21 4v5h-5" />
+      </svg>
+      <span>{tier.refreshedFraming}</span>
+    </div>
   );
 }
