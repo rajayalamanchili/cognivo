@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, func, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -39,4 +39,6 @@ class LearnerProfile(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
-    career_connections_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    career_connections_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )

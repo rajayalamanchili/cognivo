@@ -86,7 +86,7 @@ Every topic in the project's existing subjects has a real, accurate STEM-career 
 - **FR-006**: When a learner's preference is off, System MUST NOT render any career-connection content or related UI element anywhere that learner's topics are shown, including a guardian's view of a real learner.
 - **FR-007**: A topic with no authored career connection MUST render without that section rather than an error, empty box, or placeholder text.
 - **FR-008**: System MUST apply a default preference state for a learner who has never explicitly set one (see Assumptions for the chosen default).
-- **FR-009**: This feature MUST NOT alter mastery calculation, sequencing, grading, or any other personalization/grading decision -- it is presentation-only.
+- **FR-009**: This feature MUST NOT alter mastery calculation, sequencing, grading, or any other personalization/grading decision -- it is presentation-only. Consequently, a preference change is not a Constitution Principle V audit-logged event: that principle covers personalization/grading decisions, which this explicitly is not.
 - **FR-010**: System MUST have a real, accurate (non-placeholder) authored career connection for every topic in the project's existing subjects (`algebra-1`, `biology`) at feature completion.
 - **FR-011**: System MUST provide a new settings page for the demo learner, reachable from the demo learner's existing avatar menu, that hosts its on/off control and visually matches the project's existing learner-facing UI design system (Learner-Facing UI Redesign, spec 027). A real learner's control needs no new page -- it is added to the guardian's existing "My Learners" page, one control per learner the guardian manages.
 

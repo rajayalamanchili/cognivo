@@ -77,10 +77,16 @@ def current_guardian(
 def require_learner_ownership_if_real(
     db: Session, *, learner_id: uuid.UUID, claims: SessionClaims | None
 ) -> LearnerProfile | None:
-    """Closes the learner_id-enumeration gap on read-only learner-scoped
-    GET routes (`mastery.py`, `mastery_history.py`, `recommendation.py`,
+    """Closes the learner_id-enumeration gap on learner-scoped routes
+    (`mastery.py`, `mastery_history.py`, `recommendation.py`,
     `sequencing_preview.py`, `questions.py`'s `next-question`): a real,
     non-demo learner's data requires a guardian session that owns it.
+    Originally read-only (GET) call sites only; `mastery.py`'s
+    `career-connections-preference` `PATCH` (spec 039) is the first write
+    reusing this same gate -- the no-op-for-demo behavior below applies
+    to that write exactly as it already does to every read, which is a
+    known, deliberate tradeoff for the demo learner specifically (see
+    that route's own docstring), not an oversight here.
 
     Deliberately a no-op for a nonexistent or demo `learner_id` -- each
     of those routes already has its own tested contract for "this id
