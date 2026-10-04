@@ -23,6 +23,7 @@ from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
 from src.models.shielding_classification_cache import ShieldingClassificationCache
+from src.models.standards_tag import StandardsTag
 from src.models.subject import Subject
 from src.models.topic import Topic
 from src.models.tutor_exchange import TutorExchange
@@ -54,6 +55,7 @@ __all__ = [
     "RealInstructorAccount",
     "RetentionRecord",
     "ShieldingClassificationCache",
+    "StandardsTag",
     "Subject",
     "Topic",
     "TutorExchange",
