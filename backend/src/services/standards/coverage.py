@@ -4,6 +4,13 @@ from already-persisted `MasteryState` rows -- no new mastery
 computation (Constitution Principle I). Shared by both `mastery.py`
 (guardian/demo path) and `services/dashboard/aggregation.py` (instructor
 path) so both surfaces compute identically (FR-004).
+
+Deliberately uses the raw, never-decaying `MasteryState.band`
+(Milestone 1), not Milestone 22's decay-adjusted `effective_p_mastery`
+-- "met" is a durable, once-earned credential (spec.md FR-004/
+Clarifications, raised during PR #101 review): decay is a separate
+practice nudge on the per-topic mastery view, never a revocation of an
+already-achieved standard.
 """
 
 from dataclasses import dataclass
@@ -57,7 +64,13 @@ def compute_standards_coverage(
     for tag, _order_index in tagged:
         key = (tag.framework, tag.code)
         topic_ids_by_code.setdefault(key, []).append(tag.topic_id)
-        title_by_code[key] = tag.title
+        # First-write-wins, not last -- deterministic regardless of query
+        # order. Correctness across topics sharing a code still depends on
+        # the validator rejecting a title mismatch at load time (FR-012,
+        # test_content_artifact_standards_validation.py); this only
+        # removes query-order as a second source of nondeterminism on
+        # top of that guarantee.
+        title_by_code.setdefault(key, tag.title)
 
     all_topic_ids = {tag.topic_id for tag, _ in tagged}
     mastery_by_topic: dict[str, MasteryState] = {

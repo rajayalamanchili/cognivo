@@ -110,10 +110,12 @@ between what's a local ADK sub-agent vs. a remote A2A service.
   shipped as a design-system update outside the milestone sequence
   (merged to `staging` via PR #99, promoted to `main` via PR #100, both
   2026-10-02/2026-10-04) -- see that spec's Assumptions for why it
-  doesn't carry a milestone number. A **Standards Alignment** spec
-  (`specs/038-standards-alignment/spec.md`) is drafted as of 2026-10-04,
-  promoted from the roadmap's own backlog, clarifications resolved,
-  not yet planned or implemented.
+  doesn't carry a milestone number. A **Standards Alignment** feature
+  (`specs/038-standards-alignment/spec.md`), promoted from the
+  roadmap's own backlog, is implemented as of 2026-10-04 (PR #101,
+  pending review/merge to `staging`) -- also outside the milestone
+  sequence, per that spec's own framing as a content/presentation
+  addition rather than a new product capability.
 - Two subjects' content artifacts are required in Milestone 1 itself
   (not deferred to a later milestone) specifically to prove the
   domain-agnostic claim early -- see that spec's Assumptions for the

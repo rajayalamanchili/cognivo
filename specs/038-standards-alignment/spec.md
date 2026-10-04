@@ -72,6 +72,24 @@
   content-artifact validation/loading is entirely unaffected by the
   switch's state.
 
+### Session 2026-10-04 (fourth pass, raised by automated PR #101 review)
+
+- Q: `compute_standards_coverage` derives "met" from the raw,
+  never-decaying `MasteryState.band`, not Milestone 22's decay-adjusted
+  `effective_p_mastery` -- so a standard can show "met" even after the
+  dashboard's own mastery view would flag that topic as decayed/needing
+  review. Is this intended? → A: Yes, intended -- "met" means the
+  learner has *ever* demonstrated mastery (two consecutive high-
+  confidence observations) for every tagged topic, a durable, earned
+  credential, the same way real standards-based grading treats a
+  once-met competency bar as met rather than silently revoking it over
+  time. Milestone 22's decay/"refresh due" framing remains exactly
+  where it already lives -- the per-topic mastery view -- as a separate
+  "needs practice" nudge; it is not a correctness gate on whether a
+  standard was achieved. FR-004 is amended below to state this
+  explicitly rather than leaving it only implicit in "reuse Milestone 1
+  band vocabulary."
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Instructor or guardian sees a learner's standards coverage (Priority: P1)
@@ -248,9 +266,15 @@ afterward.
   is enrolled in, whether that standard is met, in-progress, or
   not-yet-reached, derived only from that learner's existing
   `MasteryState` band for the tagged topic(s) -- no new mastery
-  computation. When a standard's framework+code is tagged on more than
-  one topic, the standard is met only when every one of those topics is
-  at `mastered` for that learner (Clarifications); any one of them below
+  computation. This is the raw, never-decaying band (Milestone 1), not
+  Milestone 22's decay-adjusted `effective_p_mastery` (Clarifications):
+  once a topic has genuinely reached `mastered`, the standard it
+  supports stays met even if that topic later decays and shows as
+  "refresh due" on the per-topic mastery view -- decay is a separate
+  practice nudge, never a revocation of an already-earned standard.
+  When a standard's framework+code is tagged on more than one topic,
+  the standard is met only when every one of those topics is at
+  `mastered` for that learner (Clarifications); any one of them below
   `mastered` holds the standard at in-progress. The guardian-facing
   surface MUST reuse the existing `require_learner_ownership_if_real()`
   gate (Clarifications) -- no second permission model.
