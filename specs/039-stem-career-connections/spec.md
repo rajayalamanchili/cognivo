@@ -54,15 +54,15 @@ For a real, guardian-managed learner -- who has no login or dashboard session of
 
 ### User Story 3 - Real coverage across existing content (Priority: P3)
 
-Every graded topic in the project's existing subjects has a real, accurate STEM-career connection authored for it, not placeholder text -- so a learner who enables the feature gets genuine value on any topic they visit, not gaps.
+Every topic in the project's existing subjects has a real, accurate STEM-career connection authored for it, not placeholder text -- so a learner who enables the feature gets genuine value on any topic they visit, not gaps.
 
 **Why this priority**: Lower priority than the mechanism itself (US1/US2) -- the toggle and display logic deliver value even with partial coverage -- but without real authored content the feature has nothing true to show, which matches the precedent set by Standards Alignment (spec 038) authoring real codes rather than shipping only the mechanism.
 
-**Independent Test**: Can be fully tested by enumerating every graded topic across the existing subjects and confirming each has an authored, accurate career connection -- independent of the display/toggle mechanism already covered by US1/US2.
+**Independent Test**: Can be fully tested by enumerating every topic across the existing subjects and confirming each has an authored, accurate career connection -- independent of the display/toggle mechanism already covered by US1/US2.
 
 **Acceptance Scenarios**:
 
-1. **Given** the full set of graded topics in the project's existing subjects, **When** each topic's authored content is reviewed, **Then** every one has a career connection naming a real STEM career/field and an accurate, non-fabricated explanation of the tie to that topic.
+1. **Given** the full set of topics in the project's existing subjects, **When** each topic's authored content is reviewed, **Then** every one has a career connection naming a real STEM career/field and an accurate, non-fabricated explanation of the tie to that topic.
 
 ---
 
@@ -87,7 +87,7 @@ Every graded topic in the project's existing subjects has a real, accurate STEM-
 - **FR-007**: A topic with no authored career connection MUST render without that section rather than an error, empty box, or placeholder text.
 - **FR-008**: System MUST apply a default preference state for a learner who has never explicitly set one (see Assumptions for the chosen default).
 - **FR-009**: This feature MUST NOT alter mastery calculation, sequencing, grading, or any other personalization/grading decision -- it is presentation-only.
-- **FR-010**: System MUST have a real, accurate (non-placeholder) authored career connection for every graded topic in the project's existing subjects (`algebra-1`, `biology`) at feature completion.
+- **FR-010**: System MUST have a real, accurate (non-placeholder) authored career connection for every topic in the project's existing subjects (`algebra-1`, `biology`) at feature completion.
 - **FR-011**: System MUST provide a new settings page for the demo learner, reachable from the demo learner's existing avatar menu, that hosts its on/off control and visually matches the project's existing learner-facing UI design system (Learner-Facing UI Redesign, spec 027). A real learner's control needs no new page -- it is added to the guardian's existing "My Learners" page, one control per learner the guardian manages.
 
 ### Key Entities
@@ -100,7 +100,7 @@ Every graded topic in the project's existing subjects has a real, accurate STEM-
 ### Measurable Outcomes
 
 - **SC-001**: The demo learner's preference can be reached from the avatar menu and changed in a single action (one click/tap), with the change visible immediately; a guardian can likewise change a real learner's preference in a single action from "My Learners," visible immediately in the guardian's own view of that learner.
-- **SC-002**: 100% of graded topics in the project's existing subjects (`algebra-1`, `biology`) display a real, accurate career connection when the feature is enabled.
+- **SC-002**: 100% of topics in the project's existing subjects (`algebra-1`, `biology`) display a real, accurate career connection when the feature is enabled.
 - **SC-003**: A preference persists correctly across 100% of subsequent sessions/visits for the affected learner until explicitly changed again.
 - **SC-004**: With a learner's preference off, 0% of that learner's topic views (wherever shown) display any career-connection content or control chrome for it.
 
@@ -111,4 +111,4 @@ Every graded topic in the project's existing subjects has a real, accurate STEM-
 - Career connections are surfaced wherever a learner's topic-level information is currently shown (the demo learner's own dashboard topic list, or a guardian's view of a real learner), not injected into the active question-answering or quiz flow -- keeping assessment moments free of added content, consistent with Multimodal (Milestone 10) and Timed Practice (Milestone 20)'s precedent of keeping in-session UI minimal.
 - Career-connection content is authored directly into the existing content-artifact files, the same way Standards Alignment (spec 038) wrote real standards codes as static authored data -- no new external careers API or dataset dependency.
 - No grade-band-based filtering of career-connection content in this feature's scope; age-appropriateness is handled at authoring time (plain language, no jargon), not by a runtime rule -- consistent with there being no existing precedent for grade-filtering presentational content.
-- Coverage (FR-010) is scoped to the project's two existing subjects' graded topics as they exist today; a future subject added later would need its own authoring pass, the same dependency Standards Alignment already established for its own tags.
+- Coverage (FR-010) is scoped to the project's two existing subjects' topics as they exist today (graded and ungraded alike -- unlike Standards Alignment, this feature has no grade dependency); a future subject added later would need its own authoring pass, the same dependency Standards Alignment already established for its own tags.
