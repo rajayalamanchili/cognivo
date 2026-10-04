@@ -104,12 +104,12 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 **Purpose**: Confirm zero regression and zero constitutional drift across the whole feature.
 
-- [ ] T021 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (Constitution Principle III)
-- [ ] T022 [P] Create `backend/scripts/check_no_standards_literals.py` (mirrors `check_no_subject_conditionals.py` exactly, scoped to `standards:` framework/code literals from `backend/content/*/subject.yaml`) and run it, confirm clean -- this is SC-002/FR-002's actual verification (`check_no_subject_conditionals.py` alone only covers subject-id literals, not framework/code) (depends on T020)
-- [ ] T023 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `StandardsTag` has no FK to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII)
-- [ ] T024 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24 and the Learner UI Redesign
-- [ ] T025 Run the full frontend regression suite (`npx vitest run`), confirm no regressions
-- [ ] T026 Execute `quickstart.md`'s 3 scenarios plus its developer-toggle and accessibility checks against a real dev database and record the results
+- [X] T021 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (Constitution Principle III)
+- [X] T022 [P] Create `backend/scripts/check_no_standards_literals.py` (mirrors `check_no_subject_conditionals.py` exactly, scoped to `standards:` framework/code literals from `backend/content/*/subject.yaml`) and run it, confirm clean -- this is SC-002/FR-002's actual verification (`check_no_subject_conditionals.py` alone only covers subject-id literals, not framework/code) (depends on T020). Confirmed clean for all 10 literals (1 framework name + 9 codes)
+- [X] T023 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `StandardsTag` has no FK to `learner_profiles`/`real_guardian_accounts`/`real_instructor_accounts` (Constitution Principle VIII)
+- [X] T024 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24 and the Learner UI Redesign. 826/826 passing, zero regressions
+- [X] T025 Run the full frontend regression suite (`npx vitest run`), confirm no regressions. 215/215 passing, zero regressions
+- [X] T026 Execute `quickstart.md`'s 3 scenarios plus its developer-toggle and accessibility checks against a real dev database and record the results. **Environment note**: no live deployment or browser is available in this sandbox (same constraint noted in Milestone 7's own PR history), so each scenario was verified via its `TestClient`-based automated equivalent rather than live `curl`/browser, matching Milestone 23's own precedent for quickstart verification under this constraint: Scenario 1 → `test_mastery_state_standards.py` + `test_dashboard_standards_coverage.py` (both surfaces, plus the 403 negative check); Scenario 2 → `test_dashboard_standards_summary.py` (aggregate + empty-subject case); Scenario 3 → `test_content_artifact_standards_validation.py` (all three validation failure modes); developer toggle and accessibility (text-label presence) → `standards-coverage.test.tsx`. All pass. The literal "grayscale browser filter" manual accessibility step was not performed (no browser in this session) -- the automated check covers FR-011's actual substance (a text label is always present alongside color), not the visual confirmation itself
 
 ---
 
