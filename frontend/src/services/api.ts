@@ -467,6 +467,31 @@ export function getMasteryState(
   );
 }
 
+// Spec 039 FR-004/FR-005 -- same `require_learner_ownership_if_real()`
+// gate as getMasteryState above: a demo learner_id round-trips with no
+// session, a real one requires the owning guardian's session.
+export interface CareerConnectionsPreference {
+  enabled: boolean;
+}
+
+export function getCareerConnectionsPreference(
+  learnerId: string,
+): Promise<CareerConnectionsPreference> {
+  return request<CareerConnectionsPreference>(
+    `/api/learners/${learnerId}/career-connections-preference`,
+  );
+}
+
+export function setCareerConnectionsPreference(
+  learnerId: string,
+  enabled: boolean,
+): Promise<CareerConnectionsPreference> {
+  return request<CareerConnectionsPreference>(
+    `/api/learners/${learnerId}/career-connections-preference`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
+  );
+}
+
 export function getMasteryHistory(
   learnerId: string,
   subjectId: string,

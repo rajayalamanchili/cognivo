@@ -163,3 +163,44 @@ def get_mastery_state(
         standards=standards_out_from_coverage(standards),
         career_connections=career_connections,
     )
+
+
+class CareerConnectionsPreferenceOut(BaseModel):
+    enabled: bool
+
+
+class CareerConnectionsPreferenceIn(BaseModel):
+    enabled: bool
+
+
+@router.get(
+    "/api/learners/{learner_id}/career-connections-preference",
+    response_model=CareerConnectionsPreferenceOut,
+)
+def get_career_connections_preference(
+    learner_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+) -> CareerConnectionsPreferenceOut:
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    if learner is None:
+        raise NotFoundError(f"unknown learner_id: {learner_id}")
+    return CareerConnectionsPreferenceOut(enabled=learner.career_connections_enabled)
+
+
+@router.patch(
+    "/api/learners/{learner_id}/career-connections-preference",
+    response_model=CareerConnectionsPreferenceOut,
+)
+def set_career_connections_preference(
+    learner_id: uuid.UUID,
+    body: CareerConnectionsPreferenceIn,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+) -> CareerConnectionsPreferenceOut:
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    if learner is None:
+        raise NotFoundError(f"unknown learner_id: {learner_id}")
+    learner.career_connections_enabled = body.enabled
+    db.commit()
+    return CareerConnectionsPreferenceOut(enabled=learner.career_connections_enabled)

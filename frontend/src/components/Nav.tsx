@@ -314,6 +314,14 @@ export default function Nav() {
                   >
                     {PERSONALIZATION_EVIDENCE_LINK.label}
                   </Link>
+                  <Link
+                    role="menuitem"
+                    href="/settings"
+                    onClick={() => setMenuOpen(false)}
+                    className="rounded-[10px] px-3 py-2 text-muted"
+                  >
+                    Settings
+                  </Link>
                   <button
                     role="menuitem"
                     type="button"

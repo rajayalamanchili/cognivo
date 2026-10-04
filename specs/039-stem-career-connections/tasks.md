@@ -71,16 +71,16 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] Contract test: `GET`/`PATCH /api/learners/{learner_id}/career-connections-preference` -- a demo (or nonexistent) `learner_id` round-trips with no session required; a real learner's preference requires the owning guardian's session (`401` with no session, `403` for a non-owning guardian); an unset real learner's `GET` returns `{"enabled": true}` (the column default); two distinct real learners owned by the same guardian have independent preference values (toggling one does not affect the other, Edge Cases) in `backend/tests/contract/test_career_connections_preference.py`
-- [ ] T014 [P] [US2] Component test: `CareerConnectionsToggle` renders the fetched state, calls `PATCH` with the new value on change, and reflects the server's response (not an optimistic local flip that could drift from what was actually saved) in `frontend/tests/unit/career-connections-toggle.test.tsx`
+- [X] T013 [P] [US2] Contract test: `GET`/`PATCH /api/learners/{learner_id}/career-connections-preference` -- a demo (or nonexistent) `learner_id` round-trips with no session required; a real learner's preference requires the owning guardian's session (`403` with no session or a non-owning guardian -- matches `require_learner_ownership_if_real()`'s existing contract, never a `401`); an unset real learner's `GET` returns `{"enabled": true}` (the column default); two distinct real learners owned by the same guardian have independent preference values (toggling one does not affect the other, Edge Cases) in `backend/tests/contract/test_career_connections_preference.py`
+- [X] T014 [P] [US2] Component test: `CareerConnectionsToggle` renders the fetched state, calls `PATCH` with the new value on change, and reflects the server's response (not an optimistic local flip that could drift from what was actually saved) in `frontend/tests/unit/career-connections-toggle.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Add `GET`/`PATCH /api/learners/{learner_id}/career-connections-preference` to `backend/src/api/routes/mastery.py`, reusing `require_learner_ownership_if_real()` verbatim for both (depends on T004, T005, T013)
-- [ ] T016 [P] [US2] Create `CareerConnectionsToggle` (takes a `learnerId`, `GET`s on mount, `PATCH`es on change) in `frontend/src/components/CareerConnectionsToggle.tsx` (depends on T014)
-- [ ] T017 [US2] Add a new demo-learner settings page (resolves the demo learner's id via the existing `getDemoLearner()` call, renders `CareerConnectionsToggle`) at `frontend/src/app/settings/page.tsx` (depends on T016)
-- [ ] T018 [US2] Add a "Settings" link to the demo-learner avatar-menu dropdown, pointing to `/settings`, alongside the existing "Exit Demo"/"Sign In" items in `frontend/src/components/Nav.tsx` (depends on T017)
-- [ ] T019 [US2] Render `CareerConnectionsToggle` inside the existing per-added-learner `<li>` block, alongside `JoinRosterForm`/`GuardianLearnerStandards`/`LearnerAssignments`, in `frontend/src/app/(auth)/guardian/learners/page.tsx` (depends on T016)
+- [X] T015 [US2] Add `GET`/`PATCH /api/learners/{learner_id}/career-connections-preference` to `backend/src/api/routes/mastery.py`, reusing `require_learner_ownership_if_real()` verbatim for both (depends on T004, T005, T013)
+- [X] T016 [P] [US2] Create `CareerConnectionsToggle` (takes a `learnerId`, `GET`s on mount, `PATCH`es on change) in `frontend/src/components/CareerConnectionsToggle.tsx` (depends on T014)
+- [X] T017 [US2] Add a new demo-learner settings page (resolves the demo learner's id via the existing `getDemoLearner()` call, renders `CareerConnectionsToggle`) at `frontend/src/app/settings/page.tsx` (depends on T016)
+- [X] T018 [US2] Add a "Settings" link to the demo-learner avatar-menu dropdown, pointing to `/settings`, alongside the existing "Exit Demo"/"Sign In" items in `frontend/src/components/Nav.tsx` (depends on T017)
+- [X] T019 [US2] Render `CareerConnectionsToggle` inside the existing per-added-learner `<li>` block, alongside `JoinRosterForm`/`GuardianLearnerStandards`/`LearnerAssignments`, in `frontend/src/app/(auth)/guardian/learners/page.tsx` (depends on T016)
 
 **Checkpoint**: User Stories 1 and 2 both work independently, for both actors.
 
@@ -94,9 +94,9 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 **Note**: Schema/validation/loader support already landed in Foundational (T002/T006), since US1 needs it to exist before its own tests are meaningful. This phase is the actual content-authoring deliverable (FR-010) plus its own verification.
 
-- [ ] T020 [US3] Research and add a real, accurate `career_connection: {career, description}` mapping to each of `backend/content/algebra-1/subject.yaml`'s 8 topics (depends on T002)
-- [ ] T021 [US3] Research and add a real, accurate `career_connection` mapping to each of `backend/content/biology/subject.yaml`'s 8 topics -- not grade-gated, unlike Standards Alignment's equivalent (research.md Decision 2), since `biology` has no `grade_bands` at all (depends on T002)
-- [ ] T022 [US3] Reload both content artifacts and verify via `SELECT subject_id, topic_id, career_connection FROM topics WHERE career_connection IS NOT NULL` that all 16 rows persisted and match the files exactly (depends on T020, T021, T006)
+- [X] T020 [US3] Research and add a real, accurate `career_connection: {career, description}` mapping to each of `backend/content/algebra-1/subject.yaml`'s 8 topics (depends on T002)
+- [X] T021 [US3] Research and add a real, accurate `career_connection` mapping to each of `backend/content/biology/subject.yaml`'s 8 topics -- not grade-gated, unlike Standards Alignment's equivalent (research.md Decision 2), since `biology` has no `grade_bands` at all (depends on T002)
+- [X] T022 [US3] Reload both content artifacts and verify via `SELECT subject_id, topic_id, career_connection FROM topics WHERE career_connection IS NOT NULL` that all 16 rows persisted and match the files exactly (depends on T020, T021, T006)
 
 **Checkpoint**: All three user stories are independently functional, and real data exists for US1/US2's demos.
 
