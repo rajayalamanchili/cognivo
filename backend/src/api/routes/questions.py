@@ -729,6 +729,17 @@ async def answer_question(
         # above) rolls back rather than double-recording (PR #18 review).
         db.rollback()
         raise AlreadyAnsweredError(question_id) from exc
+    # Spec 025 FR-011: computed once here and reused below for the answer
+    # response, rather than re-derived -- 027-learner-ui-redesign's
+    # Dashboard "Refreshed!" banner (services/mastery/recently_refreshed.py)
+    # reads this same persisted flag instead of re-approximating it from
+    # p_mastery thresholds (PR #99 review, Principle I: one source of
+    # truth for "refreshed," not two).
+    refreshed = refreshed_from_bands(
+        result.prior_band,
+        result.posterior_band,
+        had_been_mastered_before=result.had_been_mastered_before,
+    )
     record_event(
         db,
         learner_id=question.learner_id,
@@ -741,6 +752,7 @@ async def answer_question(
             "posterior_p_mastery": result.posterior_p_mastery,
             "answer_correct": correct,
             "bkt_params_used": result.bkt_params_used,
+            "refreshed": refreshed,
         },
     )
     if result.grade_unlocked is not None:
@@ -782,13 +794,10 @@ async def answer_question(
         "prior_p_mastery": result.prior_p_mastery,
         "posterior_p_mastery": result.posterior_p_mastery,
         "band": result.posterior_band.value,
-        # Spec 025 FR-011: derived once from this answer's own before/after
-        # bands, never recomputed or re-shown from later persisted state.
-        "refreshed": refreshed_from_bands(
-            result.prior_band,
-            result.posterior_band,
-            had_been_mastered_before=result.had_been_mastered_before,
-        ),
+        # Spec 025 FR-011: the same value already computed above and
+        # persisted on the MASTERY_UPDATED event, never recomputed or
+        # re-shown from later persisted state.
+        "refreshed": refreshed,
     }
     if grading_result is not None:
         answer_body.update(

@@ -36,7 +36,7 @@ describe("DemoBadge", () => {
     expect(screen.queryByTestId("demo-badge")).not.toBeInTheDocument();
   });
 
-  it.each(["/demo", "/placement", "/practice", "/mastery", "/dashboard", "/quiz"])(
+  it.each(["/demo", "/placement", "/practice", "/mastery", "/dashboard", "/quiz", "/tutor"])(
     "is shown on %s regardless of session",
     async (pathname) => {
       mockPathname = pathname;

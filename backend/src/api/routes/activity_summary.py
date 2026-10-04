@@ -11,7 +11,6 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from src.api.errors import NotFoundError
@@ -56,17 +55,22 @@ def get_activity_summary(
         raise NotFoundError(f"unknown subject_id: {subject_id!r}")
 
     since = datetime.datetime.now(datetime.UTC) - TRAILING_WINDOW
-    week_filter = (
-        AssessmentEvent.learner_id == learner_id,
-        AssessmentEvent.subject_id == subject_id,
-        AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
-        AssessmentEvent.created_at >= since,
+    # One query, not two over the same filter (PR #99 review) -- only
+    # the `payload` column, not a full `AssessmentEvent` row, and both
+    # counts derived from the one result set.
+    payloads = (
+        db.query(AssessmentEvent.payload)
+        .filter(
+            AssessmentEvent.learner_id == learner_id,
+            AssessmentEvent.subject_id == subject_id,
+            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
+            AssessmentEvent.created_at >= since,
+        )
+        .all()
     )
-    questions_this_week = db.query(func.count(AssessmentEvent.event_id)).filter(*week_filter).scalar() or 0
-    payloads = db.query(AssessmentEvent.payload).filter(*week_filter).all()
 
     return ActivitySummaryResponse(
-        questions_this_week=questions_this_week,
+        questions_this_week=len(payloads),
         questions_correct_this_week=sum(
             1 for (payload,) in payloads if (payload or {}).get("correct") is True
         ),

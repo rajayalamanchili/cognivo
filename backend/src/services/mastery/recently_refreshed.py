@@ -3,28 +3,23 @@ gap-closing pass -- the mockup's "Order of Operations is back above the
 line after yesterday's answer").
 
 Read-only derivation over the existing `mastery_updated` audit log
-(Constitution Principle V) -- no new table, no write path. Mirrors
-`mastery_tool.py`'s own `refreshed_from_bands` definition of "refreshed"
-(crossed from below the mastered band to above it, having reached
-mastered at some *earlier* point too -- never a topic's first-ever
-mastery) as closely as the audit log allows: `MASTERY_UPDATED` events
-don't persist `consecutive_mastered_observations`, so this can't replay
-`mastery_band_for`'s confirmation-streak gate exactly. It approximates
-with the raw 0.7 `p_mastery` threshold instead, guarded by requiring a
-*prior* event that also reached that threshold -- the same guard
-`refreshed_from_bands` uses to rule out first-time mastery, just
-checked across the audit trail instead of one sticky column.
+(Constitution Principle V) -- no new table, no write path. Reads the
+`refreshed` flag `mastery_tool.py`'s `refreshed_from_bands` already
+computes and `questions.py`/`placement.py` already persist on each
+`MASTERY_UPDATED` event (PR #99 review, Principle I: this used to
+re-approximate "refreshed" from a raw `p_mastery` threshold, a second,
+driftable definition outside the deterministic model -- now it's a
+straight read of the one real one).
 """
 
 import datetime
 import uuid
-from collections import defaultdict
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
 from src.models.assessment_event import AssessmentEvent
-from src.models.enums import MASTERED_BAND_THRESHOLD, AssessmentEventType, MasteryBand
+from src.models.enums import AssessmentEventType, MasteryBand
 from src.models.mastery_state import MasteryState
 
 TRAILING_WINDOW = datetime.timedelta(days=7)
@@ -48,8 +43,7 @@ def find_recently_refreshed_topic(
     is mastered -- a topic that crossed back above the line and then
     decayed or regressed again since isn't still showing as refreshed.
     """
-    now = datetime.datetime.now(datetime.UTC)
-    since = now - window
+    since = datetime.datetime.now(datetime.UTC) - window
 
     mastered_topic_ids = {
         state.topic_id
@@ -61,38 +55,26 @@ def find_recently_refreshed_topic(
     if not mastered_topic_ids:
         return None
 
-    events_by_topic: dict[str, list[AssessmentEvent]] = defaultdict(list)
-    all_events = (
-        db.query(AssessmentEvent)
+    # Only the three columns actually used, not full ORM rows -- this is
+    # a cosmetic dashboard banner, not worth hydrating learner_id/
+    # subject_id/event_id/question_id on every row. Bounded by `since`
+    # directly in SQL (an older event outside the window could never be
+    # "most recent" anyway), and ordered so the first `refreshed` match
+    # is the one to return.
+    rows = (
+        db.query(AssessmentEvent.topic_id, AssessmentEvent.payload, AssessmentEvent.created_at)
         .filter(
             AssessmentEvent.learner_id == learner_id,
             AssessmentEvent.subject_id == subject_id,
             AssessmentEvent.topic_id.in_(mastered_topic_ids),
             AssessmentEvent.event_type == AssessmentEventType.MASTERY_UPDATED,
+            AssessmentEvent.created_at >= since,
         )
-        .order_by(AssessmentEvent.created_at)
+        .order_by(AssessmentEvent.created_at.desc())
         .all()
     )
-    for event in all_events:
-        events_by_topic[event.topic_id].append(event)
+    for topic_id, payload, created_at in rows:
+        if (payload or {}).get("refreshed") is True:
+            return RecentlyRefreshedTopic(topic_id=topic_id, crossed_at=created_at)
 
-    best: RecentlyRefreshedTopic | None = None
-    for topic_id, events in events_by_topic.items():
-        reached_mastered_before = False
-        for event in events:
-            posterior = event.payload.get("posterior_p_mastery")
-            if posterior is None:
-                continue
-            prior = event.payload.get("prior_p_mastery")
-            crossed_now = prior is not None and prior < MASTERED_BAND_THRESHOLD <= posterior
-            if (
-                crossed_now
-                and reached_mastered_before
-                and event.created_at >= since
-                and (best is None or event.created_at > best.crossed_at)
-            ):
-                best = RecentlyRefreshedTopic(topic_id=topic_id, crossed_at=event.created_at)
-            if posterior >= MASTERED_BAND_THRESHOLD:
-                reached_mastered_before = True
-
-    return best
+    return None

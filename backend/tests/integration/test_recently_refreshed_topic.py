@@ -17,7 +17,7 @@ _TOPIC_ID = "integers-and-operations"
 
 
 def _mastery_updated_event(
-    db_session, *, learner_id, subject_id, topic_id, prior, posterior, created_at
+    db_session, *, learner_id, subject_id, topic_id, refreshed, created_at
 ):
     db_session.add(
         AssessmentEvent(
@@ -25,7 +25,7 @@ def _mastery_updated_event(
             event_type=AssessmentEventType.MASTERY_UPDATED,
             subject_id=subject_id,
             topic_id=topic_id,
-            payload={"prior_p_mastery": prior, "posterior_p_mastery": posterior},
+            payload={"refreshed": refreshed},
             created_at=created_at,
         )
     )
@@ -51,14 +51,13 @@ def test_topic_that_recrossed_the_line_within_the_window_is_reported(
 
     now = datetime.datetime.now(datetime.UTC)
     learner_id = demo_learner.learner_id
-    # First reached mastered a while ago...
+    # First reached mastered a while ago (first-time mastery, not a refresh)...
     _mastery_updated_event(
         db_session,
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.6,
-        posterior=0.8,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=60),
     )
     # ...decayed/regressed below the line...
@@ -67,8 +66,7 @@ def test_topic_that_recrossed_the_line_within_the_window_is_reported(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.8,
-        posterior=0.5,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=30),
     )
     # ...and crossed back above it yesterday.
@@ -77,8 +75,7 @@ def test_topic_that_recrossed_the_line_within_the_window_is_reported(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.5,
-        posterior=0.85,
+        refreshed=True,
         created_at=now - datetime.timedelta(days=1),
     )
     _mastered_state(db_session, learner_id=learner_id, subject_id="algebra-1", topic_id=_TOPIC_ID)
@@ -98,7 +95,10 @@ def test_first_time_mastery_is_not_reported_as_refreshed(
 ):
     """FR guard mirrored from `refreshed_from_bands`: crossing the line
     for the very first time is not a "refresh" -- there was nothing to
-    recover."""
+    recover. `refreshed_from_bands` itself (not this module) is what
+    guarantees a first-time-mastery event is never persisted with
+    `refreshed: True`; this just confirms the read side honors the flag
+    as written."""
     from src.api.main import app
 
     now = datetime.datetime.now(datetime.UTC)
@@ -108,8 +108,7 @@ def test_first_time_mastery_is_not_reported_as_refreshed(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.6,
-        posterior=0.85,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=1),
     )
     _mastered_state(db_session, learner_id=learner_id, subject_id="algebra-1", topic_id=_TOPIC_ID)
@@ -136,8 +135,7 @@ def test_crossing_outside_the_trailing_window_is_not_reported(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.6,
-        posterior=0.8,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=90),
     )
     _mastery_updated_event(
@@ -145,8 +143,7 @@ def test_crossing_outside_the_trailing_window_is_not_reported(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.8,
-        posterior=0.5,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=60),
     )
     # Crossed back above the line, but 10 days ago -- outside the
@@ -156,8 +153,7 @@ def test_crossing_outside_the_trailing_window_is_not_reported(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.5,
-        posterior=0.85,
+        refreshed=True,
         created_at=now - datetime.timedelta(days=10),
     )
     _mastered_state(db_session, learner_id=learner_id, subject_id="algebra-1", topic_id=_TOPIC_ID)
@@ -188,8 +184,7 @@ def test_topic_currently_not_mastered_is_not_reported_even_if_it_once_crossed(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.6,
-        posterior=0.8,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=60),
     )
     _mastery_updated_event(
@@ -197,8 +192,7 @@ def test_topic_currently_not_mastered_is_not_reported_even_if_it_once_crossed(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.8,
-        posterior=0.5,
+        refreshed=False,
         created_at=now - datetime.timedelta(days=30),
     )
     _mastery_updated_event(
@@ -206,8 +200,7 @@ def test_topic_currently_not_mastered_is_not_reported_even_if_it_once_crossed(
         learner_id=learner_id,
         subject_id="algebra-1",
         topic_id=_TOPIC_ID,
-        prior=0.5,
-        posterior=0.85,
+        refreshed=True,
         created_at=now - datetime.timedelta(days=1),
     )
     db_session.add(
@@ -237,6 +230,35 @@ def test_no_mastery_updated_events_is_not_reported(db_session, demo_learner, alg
     client = TestClient(app)
     response = client.get(
         f"/api/learners/{demo_learner.learner_id}/mastery-state",
+        params={"subject_id": "algebra-1"},
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["recently_refreshed_topic_id"] is None
+
+
+def test_malformed_payload_is_skipped_not_500(db_session, demo_learner, algebra_subject):
+    """A `MASTERY_UPDATED` row with no `refreshed` key at all (e.g. one
+    written before this field existed) must not crash the lookup."""
+    from src.api.main import app
+
+    now = datetime.datetime.now(datetime.UTC)
+    learner_id = demo_learner.learner_id
+    db_session.add(
+        AssessmentEvent(
+            learner_id=learner_id,
+            event_type=AssessmentEventType.MASTERY_UPDATED,
+            subject_id="algebra-1",
+            topic_id=_TOPIC_ID,
+            payload={"prior_p_mastery": 0.5, "posterior_p_mastery": 0.85},
+            created_at=now - datetime.timedelta(days=1),
+        )
+    )
+    _mastered_state(db_session, learner_id=learner_id, subject_id="algebra-1", topic_id=_TOPIC_ID)
+    db_session.commit()
+
+    client = TestClient(app)
+    response = client.get(
+        f"/api/learners/{learner_id}/mastery-state",
         params={"subject_id": "algebra-1"},
     )
     assert response.status_code == 200, response.text

@@ -179,7 +179,15 @@ def end_session(db: Session, *, session: TutoringSession) -> None:
     -- `TutoringSessionStatus.ENDED` was already defined but nothing
     ever set it. Idempotent (an already-ended session is a no-op, not
     an error) since the route has no reason to distinguish "I ended it"
-    from "it was already ended"."""
+    from "it was already ended".
+
+    Deliberately does not touch an in-flight exchange (PR #99 review
+    asked about this): `stream_message_response` already resolves every
+    exchange it opens -- success, `TutorStreamInterruptedError`, or a
+    client disconnect/cancellation -- regardless of this session's
+    status. Reaching in here to mark it `failed_at` too would race that
+    resolution and could leave a row with both `answer_text` and
+    `failed_at` set, which is worse than leaving it alone."""
     if session.status != TutoringSessionStatus.ENDED:
         session.status = TutoringSessionStatus.ENDED
         db.add(session)
@@ -331,6 +339,25 @@ async def prepare_message(
     delegation_context: list[dict] = []
     if _question_needs_performance_context(question):
         delegation_context.append(_build_recommendation_delegation(db, session))
+
+    # Re-checked here, under a row lock, immediately before creating the
+    # exchange (PR #99 review: the ACTIVE check at the top of this
+    # function is read-then-act, and moderation/shielding above can take
+    # several seconds -- wide enough for a concurrent `end_session` to
+    # land in between). `with_for_update=True` both locks the row
+    # (blocking `end_session`'s `UPDATE` until this transaction commits,
+    # so a session can't flip to `ended` between this check and the
+    # exchange it gates existing) and forces a re-read of `session`'s
+    # already-identity-mapped attributes -- a plain re-query would
+    # silently return the same stale, already-loaded Python object
+    # instead of the row `end_session` just committed. Deliberately not
+    # held across the slower calls above or the retrieval/streaming
+    # below -- Principle IX (Vercel/serverless): a lock spanning network
+    # I/O is the wrong trade here.
+    db.refresh(session, with_for_update=True)
+    if session.status != TutoringSessionStatus.ACTIVE:
+        db.rollback()
+        raise ConflictError("session_ended")
 
     # Created before retrieval (not after, as originally written) so a
     # retrieval failure below has a row to mark failed -- otherwise it's
