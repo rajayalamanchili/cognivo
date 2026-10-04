@@ -106,11 +106,11 @@ Web app split per plan.md: `backend/src/`, `backend/tests/`, `frontend/src/`, `f
 
 **Purpose**: Confirm zero regression and zero constitutional drift across the whole feature.
 
-- [ ] T023 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (Constitution Principle III -- `career`/`description` stay opaque authored strings)
-- [ ] T024 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `career_connections_enabled` is a column on the already-covered `learner_profiles` table, not a new FK target (Constitution Principle VIII)
-- [ ] T025 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24, the Learner UI Redesign, and Standards Alignment
-- [ ] T026 Run the full frontend regression suite (`npx vitest run`), confirm no regressions
-- [ ] T027 Execute `quickstart.md`'s 3 scenarios against a real dev database and record the results
+- [X] T023 [P] Run `backend/scripts/check_no_subject_conditionals.py`, confirm clean (Constitution Principle III -- `career`/`description` stay opaque authored strings). Confirmed clean.
+- [X] T024 [P] Run `backend/scripts/check_deletion_cascade_coverage.py`, confirm it passes with no new allowlist entry needed -- `career_connections_enabled` is a column on the already-covered `learner_profiles` table, not a new FK target (Constitution Principle VIII). Confirmed: "every FK ... is handled by the deletion cascade."
+- [X] T025 Run the full backend regression suite (`pytest`), confirm no regressions against Milestones 1-24, the Learner UI Redesign, and Standards Alignment. 842/842 passing, zero regressions, run in isolation (an earlier concurrent-pytest-process collision against the same live DB produced spurious failures mid-run; re-run alone was clean -- test-infrastructure artifact, not a code regression).
+- [X] T026 Run the full frontend regression suite (`npx vitest run`), confirm no regressions. 221/221 passing, zero regressions.
+- [X] T027 Execute `quickstart.md`'s 3 scenarios against a real dev database and record the results. **Environment note**: this sandbox's dev DB has no persistent schema outside pytest's own schema-creation fixture (same constraint Standards Alignment's T020 hit) -- a standalone script against it hits "relation does not exist" once no pytest session is live. Verified instead via each scenario's automated `TestClient`-based equivalent, matching Standards Alignment's T026 precedent: Scenario 1 (US1, SC-002) -> `test_mastery_state_career_connections.py` (owning guardian sees the field, empty when disabled, 403 for non-owner) plus T022's direct DB verification that all 16 rows persisted; Scenario 2 (US2, SC-001/003/004) -> `test_career_connections_preference.py` (demo self-service round-trip, default-true, two-independent-learners, guardian-only write, 403 negative checks) plus `career-connections-toggle.test.tsx`; Scenario 3 (US3, FR-002/FR-007) -> `test_content_artifact_career_connection_validation.py` (missing-description failure, ungraded-topic success confirming research.md Decision 2). All 16 tests pass.
 
 ---
 
