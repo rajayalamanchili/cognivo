@@ -72,7 +72,7 @@ def main() -> int:
             print(f"  {violation}")
         return 1
 
-    print(f"OK: no standards-literal-keyed conditionals found in backend/src for {len(literals)} literal(s)")
+    print(f"OK: no standards literals found in backend/src ({len(literals)} known literal(s))")
     return 0
 
 

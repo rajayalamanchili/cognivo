@@ -5,7 +5,6 @@ not a pure one.
 """
 
 from src.models.mastery_state import MasteryState
-from src.models.standards_tag import StandardsTag
 from src.services.content_artifact.loader import persist_content_artifact
 from src.services.content_artifact.validator import validate_content_artifact
 from src.services.standards.coverage import compute_standards_coverage
@@ -72,8 +71,14 @@ def test_empty_result_for_subject_with_zero_standards_tags(db_session, demo_lear
 
 def test_met_only_when_every_tagged_topic_is_mastered(db_session, demo_learner):
     _load_two_tagged_topics(db_session)
-    _set_mastery(db_session, learner_id=demo_learner.learner_id, topic_id="topic-a", p_mastery=0.9, mastered_streak=2)
-    _set_mastery(db_session, learner_id=demo_learner.learner_id, topic_id="topic-b", p_mastery=0.9, mastered_streak=2)
+    _set_mastery(
+        db_session, learner_id=demo_learner.learner_id, topic_id="topic-a",
+        p_mastery=0.9, mastered_streak=2,
+    )
+    _set_mastery(
+        db_session, learner_id=demo_learner.learner_id, topic_id="topic-b",
+        p_mastery=0.9, mastered_streak=2,
+    )
 
     [entry] = compute_standards_coverage(
         db_session, learner_id=demo_learner.learner_id, subject_id="coverage-test-subject"
@@ -88,7 +93,10 @@ def test_met_only_when_every_tagged_topic_is_mastered(db_session, demo_learner):
 
 def test_in_progress_when_one_of_two_tagged_topics_not_yet_mastered(db_session, demo_learner):
     _load_two_tagged_topics(db_session)
-    _set_mastery(db_session, learner_id=demo_learner.learner_id, topic_id="topic-a", p_mastery=0.9, mastered_streak=2)
+    _set_mastery(
+        db_session, learner_id=demo_learner.learner_id, topic_id="topic-a",
+        p_mastery=0.9, mastered_streak=2,
+    )
     _set_mastery(db_session, learner_id=demo_learner.learner_id, topic_id="topic-b", p_mastery=0.5)
 
     [entry] = compute_standards_coverage(

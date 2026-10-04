@@ -21,7 +21,7 @@ from src.services.auth.tokens import SessionClaims
 from src.services.mastery.decay import effective_mastery_for_review
 from src.services.mastery.recently_refreshed import find_recently_refreshed_topic
 from src.services.mediation.grade import resolve_unlocked_grade
-from src.services.standards.coverage import compute_standards_coverage
+from src.services.standards.coverage import StandardCoverageEntry, compute_standards_coverage
 
 router = APIRouter()
 
@@ -34,7 +34,9 @@ class StandardCoverageOut(BaseModel):
     status: str
 
 
-def standards_out_from_coverage(entries) -> list["StandardCoverageOut"]:
+def standards_out_from_coverage(
+    entries: "list[StandardCoverageEntry]",
+) -> list["StandardCoverageOut"]:
     """Shared shaping from `compute_standards_coverage`'s domain objects
     to the wire format -- reused by `instructor_dashboard.py` so both
     surfaces serialize identically (FR-004), the same pattern

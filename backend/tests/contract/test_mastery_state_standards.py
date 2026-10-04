@@ -12,7 +12,6 @@ from src.models.mastery_state import MasteryState
 from src.services.content_artifact.loader import persist_content_artifact
 from src.services.content_artifact.validator import validate_content_artifact
 from tests.integration.quiz_assignment_helpers import (
-    login_guardian,
     register_guardian_with_learner,
 )
 

@@ -79,7 +79,9 @@ def _enroll(client, db_session, *, join_code, email, display_name, p_mastery, su
     return learner_id
 
 
-def test_standards_summary_counts_met_learners_out_of_roster_total(client, db_session, tagged_subject):
+def test_standards_summary_counts_met_learners_out_of_roster_total(
+    client, db_session, tagged_subject
+):
     register_instructor(client, "standards-summary-teacher@example.com")
     roster = client.post(
         "/api/rosters",
