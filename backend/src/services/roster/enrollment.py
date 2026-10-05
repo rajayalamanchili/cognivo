@@ -17,11 +17,12 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from src.api.errors import ConflictError, NotFoundError
+from src.api.errors import ConflictError, NotFoundError, UnprocessableError
 from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
 from src.models.enrollment_request import EnrollmentRequest
 from src.models.enums import AuthorizedByType, EnrollmentDecision, EnrollmentMode
+from src.models.grade_band import GradeBand
 
 _JOIN_CODE_ALPHABET = string.ascii_uppercase + string.digits
 _JOIN_CODE_SUFFIX_LENGTH = 4
@@ -45,8 +46,28 @@ def _generate_join_code(db: Session, subject_id: str) -> str:
     raise RuntimeError(f"could not generate a unique join code for subject {subject_id!r}")
 
 
+def _check_grade_matches_subject(db: Session, subject_id: str, grade: int) -> None:
+    """spec 040 FR-009: a roster's declared `grade` must overlap its
+    subject's own `grade_bands` -- an ungraded subject (e.g. `biology`,
+    zero `GradeBand` rows) imposes no restriction at all, the same
+    opt-in-per-subject precedent `grade_bands` itself already follows."""
+    subject_grades = {
+        row.grade for row in db.query(GradeBand).filter(GradeBand.subject_id == subject_id)
+    }
+    if subject_grades and grade not in subject_grades:
+        raise UnprocessableError(
+            f"roster grade {grade} does not overlap subject {subject_id!r}'s "
+            f"declared grade_bands {sorted(subject_grades)}"
+        )
+
+
 def create_roster(
-    db: Session, *, instructor_id: uuid.UUID, subject_id: str, enrollment_mode: EnrollmentMode
+    db: Session,
+    *,
+    instructor_id: uuid.UUID,
+    subject_id: str,
+    enrollment_mode: EnrollmentMode,
+    grade: int | None = None,
 ) -> ClassroomRoster:
     """A `join_code` is generated for every roster regardless of mode --
     `POST /api/rosters/join`'s request body carries only `learner_id`
@@ -55,11 +76,18 @@ def create_roster(
     The API layer (`api/routes/rosters.py`'s `_roster_out`) is what
     keeps a closed roster's code out of the create/PATCH response
     (contracts/api.md: "`join_code` is `null` in the response when
-    `enrollment_mode: closed`") -- the column itself is never null."""
+    `enrollment_mode: closed`") -- the column itself is never null.
+
+    `grade` (spec 040 FR-009) is optional; when given, it's validated
+    against the subject's own `GradeBand` rows before anything is
+    written -- a mismatch never creates a roster."""
+    if grade is not None:
+        _check_grade_matches_subject(db, subject_id, grade)
     roster = ClassroomRoster(
         instructor_id=instructor_id,
         subject_id=subject_id,
         enrollment_mode=enrollment_mode,
+        grade=grade,
         join_code=_generate_join_code(db, subject_id),
     )
     db.add(roster)

@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.errors import ForbiddenError, NotFoundError
@@ -61,12 +61,14 @@ class RosterOut(BaseModel):
     subject_id: str
     enrollment_mode: str
     join_code: str | None
+    grade: int | None
 
 
 class RosterSummaryOut(BaseModel):
     roster_id: uuid.UUID
     subject_id: str
     enrollment_mode: str
+    grade: int | None
 
 
 class ListRostersOut(BaseModel):
@@ -89,12 +91,14 @@ def _roster_out(roster: ClassroomRoster) -> RosterOut:
         subject_id=roster.subject_id,
         enrollment_mode=roster.enrollment_mode.value,
         join_code=roster.join_code,
+        grade=roster.grade,
     )
 
 
 class CreateRosterIn(BaseModel):
     subject_id: str
     enrollment_mode: EnrollmentMode
+    grade: int | None = Field(default=None, ge=1, le=12)
 
 
 @router.post("/api/rosters", response_model=RosterOut, status_code=201)
@@ -109,6 +113,7 @@ def create_roster_route(
         instructor_id=instructor.instructor_id,
         subject_id=body.subject_id,
         enrollment_mode=body.enrollment_mode,
+        grade=body.grade,
     )
     return _roster_out(roster)
 
@@ -146,6 +151,7 @@ def list_rosters_route(
                 roster_id=roster.roster_id,
                 subject_id=roster.subject_id,
                 enrollment_mode=roster.enrollment_mode.value,
+                grade=roster.grade,
             )
             for roster in rosters
         ]
