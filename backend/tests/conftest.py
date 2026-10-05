@@ -85,3 +85,13 @@ def algebra_subject(db_session):
 @pytest.fixture()
 def biology_subject(db_session):
     return load_content_artifact(db_session, "content/biology/subject.yaml")
+
+
+@pytest.fixture()
+def algebra_2_subject(db_session):
+    return load_content_artifact(db_session, "content/algebra-2/subject.yaml")
+
+
+@pytest.fixture()
+def physics_subject(db_session):
+    return load_content_artifact(db_session, "content/physics/subject.yaml")

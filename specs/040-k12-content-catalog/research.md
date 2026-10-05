@@ -134,3 +134,46 @@ pilot specifically to avoid building new tooling before the authoring
 *approach itself* (not its tooling) is proven; a drafting script is exactly
 the kind of "dedicated authoring pipeline/tool" the original `/speckit-
 specify` clarification (Q2, Option C) rejected in favor of Option B).
+
+## Decision 6: FR-009's real grade-gating mechanism (found during `/speckit-implement`)
+
+**Decision**: FR-009 originally claimed a "subject-selection surface"
+already filtered by a learner's/roster's grade band, by analogy to
+Milestone 17. Reading the actual code during implementation found no
+such mechanism exists anywhere. Confirmed with the user before building
+anything (same "confirm before building" precedent Milestone 23 set):
+scope real grade-gating narrowly to **roster creation only**. A new
+nullable `ClassroomRoster.grade` (migration `d8e4b5a1f3c7`) is validated
+against the chosen subject's own `GradeBand` rows in
+`services/roster/enrollment.py`'s `create_roster`, raising
+`UnprocessableError` (422) on a mismatch, before anything is written.
+
+**Rationale**: Three facts, each confirmed by reading the real code
+rather than assumed, together make roster creation the *only* surface
+that needs this and the *only* one safe to add it to:
+1. `ClassroomRoster`/`LearnerProfile` had no grade field at all before
+   this feature — Milestone 17's `grade_bands`/`GradeProgress.
+   unlocked_grade` gate which *topics* are reachable **within** an
+   already-selected subject, never which *subjects* are selectable.
+2. `placement.py`'s `start_placement` is hardcoded to the single shared
+   demo learner (no `learner_id` parameter at all) — gating it would
+   immediately break the demo learner's existing cross-grade-range
+   access (Algebra I 6-8, Biology ungraded), a real regression, not a
+   feature.
+3. `quiz_assignments.py`'s `CreateAssignmentIn` takes no `subject_id` of
+   its own — `create_assignment_route` derives everything from the
+   roster it's created under (`roster.subject_id`), so there is no
+   second surface left to gate once roster creation is covered.
+
+**Alternatives considered**: Adding a `LearnerProfile.grade` and gating
+`next-question`/placement too (rejected — the demo learner must stay
+unrestricted, and real learners have no direct question-generation path
+today outside guardian-mediated quiz assignments, which already route
+through the roster check); leaving FR-009 as a documented-but-untested
+known gap (rejected by the user when asked directly — Clarifications);
+building a full "which subjects can this learner/roster see" list-filtering
+endpoint (rejected — a creation-time reject is simpler, matches how every
+other validation in this codebase works (reject at the boundary, not a
+separate "what's allowed" query), and directly serves the one real
+Edge Case spec.md names: preventing a mismatched roster from being created
+in the first place).

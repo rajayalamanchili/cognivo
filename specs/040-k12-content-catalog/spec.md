@@ -13,6 +13,7 @@
 ### Session 2026-10-04
 
 - Q: What grade bands should Algebra II and Physics declare? → A: Real-world-accurate bands — Algebra II grades 9-10, Physics grades 9-11 — independent of this project's own Algebra I banding (6-8).
+- Q (found during `/speckit-implement`, confirmed with the user before building anything): FR-009 as originally written claimed a "subject-selection surface" that filters by a learner's/roster's grade band already existed (modeled on Milestone 17). Reading the actual code found no such mechanism anywhere — no `LearnerProfile`/`ClassroomRoster` grade field exists; Milestone 17's `grade_bands`/`GradeProgress.unlocked_grade` only gate which *topics* are reachable **within** an already-chosen subject, never which *subjects* are selectable in the first place; placement is hardcoded to the single shared demo learner (`placement.py`), which must stay unrestricted since it already needs cross-grade-range access (algebra-1 6-8, biology ungraded) — gating it would be a regression, not a feature. → A: Scope real grade-gating as new work, narrowed to the one surface where it's both meaningful and safe to add: **roster creation**. A new nullable `ClassroomRoster.grade` is validated against the chosen subject's `GradeBand` rows at creation time only. This is sufficient on its own because quiz-assignment creation (`quiz_assignments.py`) always inherits its roster's `subject_id` directly and takes no `subject_id` of its own — there is no second surface to gate. Learner-facing placement/practice is explicitly NOT touched by this correction (FR-005 stays reusing the existing, already-generic flow).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -124,14 +125,16 @@ error) using the exact same checks Algebra I and Biology are held to.
   targeting grade 8)? Subject selection must remain by subject identity,
   not grade — a learner/instructor picks the subject first, same as
   today's two-subject catalog.
-- How does the system handle a roster or learner whose grade band has no
-  authored subject yet (e.g. a 3rd-grade roster before elementary content
-  exists, or an 8th-grade learner between Algebra I's grade-8 ceiling and
-  Algebra II/Physics's grade-9 floor)? The subject-selection surface
-  simply shows no options for that grade band — this is a known,
-  accepted content-authoring gap (not every grade is covered yet), not a
-  defect, and must not crash or silently fall back to a mismatched
-  subject.
+- What happens when an instructor tries to create a grade-8 roster
+  against Algebra II or Physics (grades 9+), or a grade-9/10/11 roster
+  against Algebra I (grades 6-8)? Roster creation is rejected (FR-009) —
+  this is the real, buildable instance of the "no authored subject for
+  this grade yet" gap, scoped to roster creation only (Clarifications).
+- What happens when an instructor creates a grade-9 or grade-10 roster,
+  where Algebra II and Physics both overlap? Both remain independently
+  selectable — FR-009 validates the chosen subject's own `grade_bands`,
+  never compares subjects against each other, so the overlap is a
+  non-event by construction.
 - What happens when a new subject has no free-text-capable topics at all
   (e.g. every topic is multiple-choice/numeric)? Process-level grading
   (Milestone 16), notation (Milestone 21), and the misconception
@@ -207,11 +210,14 @@ error) using the exact same checks Algebra I and Biology are held to.
   per-subject data (the misconception classifier, per-subject semantic/
   guardrail cache warm-up) — matching Milestone 11's existing graceful-
   degradation guarantee, introducing no new cold-start failure mode.
-- **FR-009**: The subject-selection surface (placement start, practice
-  start, instructor roster/assignment creation) MUST present only
-  subjects whose grade range overlaps the current learner's or roster's
-  grade band, consistent with Milestone 17's existing grade-banding
-  behavior.
+- **FR-009**: An instructor creating a roster MAY declare the roster's
+  grade; when declared, the system MUST reject roster creation if that
+  grade does not overlap the chosen subject's declared `grade_bands`
+  (an ungraded subject, e.g. Biology, imposes no restriction, matching
+  Milestone 17's existing opt-in-per-subject precedent). This is new,
+  narrowly-scoped engine work (Clarifications) -- it does not extend to
+  learner-facing placement/practice, which continues reusing the
+  existing, already-generic flow with no grade-based filtering.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -225,6 +231,10 @@ error) using the exact same checks Algebra I and Biology are held to.
   `display_name`, `grade`, `prerequisites`, `skill_definition`,
   `difficulty_calibration`, `standards`, and `career_connection`. No new
   field is introduced by this feature.
+- **Classroom Roster**: An existing entity (Milestone 7), gaining one
+  new nullable field: `grade` (FR-009, Clarifications) — opt-in, validated
+  against the roster's own subject's `grade_bands` only at creation
+  time, never recomputed or re-checked afterward.
 
 ## Success Criteria *(mandatory)*
 
@@ -288,6 +298,10 @@ error) using the exact same checks Algebra I and Biology are held to.
   grading history yet — this feature does not attempt to newly solve
   either.
 - This feature introduces no new grading logic, no new agent, and no new
-  A2A service: it is a content-artifact volume expansion validated
-  against the existing domain-agnostic engine (Constitution Principle
-  III), not a new engineering capability.
+  A2A service. One narrow exception to the "zero engine change" framing
+  (found during `/speckit-implement`, Clarifications): FR-009's
+  roster-grade validation is new engine work, scoped to roster creation
+  only — everything else (placement, practice, grading, mastery,
+  caching, the misconception classifier) remains a pure content-artifact
+  volume expansion validated against the existing domain-agnostic engine
+  (Constitution Principle III).

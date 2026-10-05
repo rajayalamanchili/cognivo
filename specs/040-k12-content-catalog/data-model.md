@@ -1,9 +1,12 @@
 # Data Model: Full K-12 Content Catalog
 
-No schema change. Every entity below already exists (Milestones 1, 15,
-038, 039) — this feature adds new *rows*, never a new table or column.
-Documented here for traceability between `spec.md`'s Key Entities and the
-actual rows this feature's content artifacts will produce at load time.
+Almost no schema change — every entity below already exists (Milestones
+1, 15, 038, 039), and this feature mostly adds new *rows*, never a new
+table or column. **One exception, found necessary during
+`/speckit-implement`** (FR-009, Clarifications): `ClassroomRoster` gains
+one new nullable `grade` column. Documented here for traceability
+between `spec.md`'s Key Entities and the actual rows/columns this
+feature produces.
 
 ## Subject (existing — `src/models/subject.py`)
 
@@ -50,6 +53,18 @@ bar relative to Algebra I/Biology:
   Milestone 16's existing criteria — a multi-step topic like
   `momentum-and-collisions` is a plausible candidate; not mandated by any
   FR here)
+
+## ClassroomRoster (existing — `src/models/classroom_roster.py`)
+
+One new nullable column: `grade: int | None` (FR-009), with a
+`CheckConstraint` guarding `grade IS NULL OR grade BETWEEN 1 AND 12`
+(`ck_classroom_rosters_grade_range`, mirroring `grade_bands`' own
+`ck_grade_bands_grade_range`). Every existing roster row gets `NULL`
+with no backfill. `services/roster/enrollment.py`'s `create_roster`
+validates a non-null `grade` against the chosen subject's own
+`GradeBand` rows before the roster is ever written — an ungraded
+subject (zero `GradeBand` rows, e.g. `biology`) imposes no restriction
+regardless of what `grade` is declared.
 
 ## Relationships
 
