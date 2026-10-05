@@ -110,12 +110,21 @@ between what's a local ADK sub-agent vs. a remote A2A service.
   shipped as a design-system update outside the milestone sequence
   (merged to `staging` via PR #99, promoted to `main` via PR #100, both
   2026-10-02/2026-10-04) -- see that spec's Assumptions for why it
-  doesn't carry a milestone number. A **Standards Alignment** feature
-  (`specs/038-standards-alignment/spec.md`), promoted from the
-  roadmap's own backlog, is implemented as of 2026-10-04 (PR #101,
-  pending review/merge to `staging`) -- also outside the milestone
-  sequence, per that spec's own framing as a content/presentation
-  addition rather than a new product capability.
+  doesn't carry a milestone number. Three more features shipped outside
+  the milestone sequence since, all 2026-10-04: **Standards Alignment**
+  (`specs/038-standards-alignment/spec.md`, PR #101 to `staging`, #102
+  to `main`), **STEM-Career Connections**
+  (`specs/039-stem-career-connections/spec.md`, PR #103 to `staging`,
+  #104 to `main`), and the **Full K-12 Content Catalog** pilot
+  (`specs/040-k12-content-catalog/spec.md`) -- a deliberate two-subject
+  (Algebra II, Physics) proof of the authoring approach and the
+  "zero engine change" claim before the remaining six subjects are
+  attempted separately; see that spec's Clarifications for FR-009's
+  one real correction (roster-grade validation, found only during
+  `/speckit-implement`), the sole exception to "zero engine change."
+  All three are content/presentation or content-volume additions per
+  their own specs' framing, not new product capabilities, hence no
+  milestone number.
 - Two subjects' content artifacts are required in Milestone 1 itself
   (not deferred to a later milestone) specifically to prove the
   domain-agnostic claim early -- see that spec's Assumptions for the
