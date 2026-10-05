@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-04
 
-**Status**: Draft
+**Status**: Implemented (2026-10-05), PR #105 to `staging`
 
 **Input**: User description: "full K-12 content catalog"
 
@@ -217,7 +217,13 @@ error) using the exact same checks Algebra I and Biology are held to.
   Milestone 17's existing opt-in-per-subject precedent). This is new,
   narrowly-scoped engine work (Clarifications) -- it does not extend to
   learner-facing placement/practice, which continues reusing the
-  existing, already-generic flow with no grade-based filtering.
+  existing, already-generic flow with no grade-based filtering. Once
+  declared, `grade` is immutable for that roster's lifetime -- `PATCH
+  /api/rosters/{roster_id}` only ever updates `enrollment_mode`
+  (Milestone 7's existing contract); correcting a wrong grade means
+  creating a new roster, deliberately, rather than adding a second
+  mutable field to a contract this feature didn't otherwise need to
+  touch.
 
 ### Key Entities *(include if feature involves data)*
 
