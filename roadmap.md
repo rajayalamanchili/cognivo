@@ -2220,8 +2220,21 @@ misconception classifier's per-answer call (separate follow-up).
   migrations) -- surfaced 2026-08-22 when production's DB turned out to
   be several Alembic migrations behind (Milestone 5's `quiz_sessions`
   onward), causing a live `500` on placement start rather than a caught
-  PR-time failure. Chosen direction when this is picked up: a CI job on
-  promotion PRs that connects to the target environment's DB and
+  PR-time failure. **Partially addressed, not fully closed** (corrected
+  2026-10-04 -- this bullet was previously left unstruck with no note,
+  which on its own could misleadingly read as still fully open):
+  Milestone 19 (`specs/021-schema-drift-ci-check/spec.md`, shipped
+  2026-09-22) added an `alembic check` CI step, but that catches a
+  *different* drift -- checked-in SQLAlchemy models vs. the checked-in
+  migration history (a developer forgetting to generate a migration),
+  run against CI's own ephemeral database, never against a real
+  `staging`/`production` `DATABASE_URL`. The specific gap this bullet
+  names -- a real *deployed* environment silently falling behind
+  `alembic heads`, exactly what caused the Milestone 5 incident --
+  remains open; Milestone 19's own entry confirms no
+  `STAGING_DATABASE_URL`/`PRODUCTION_DATABASE_URL` secret was ever
+  added. Chosen direction when this remaining half is picked up: a CI
+  job on promotion PRs that connects to the target environment's DB and
   compares `alembic current` against `alembic heads`, failing the check
   (not applying anything) if they diverge -- lower blast radius than
   auto-migrating in CI or in Vercel's build step (see the discussion in
@@ -2291,14 +2304,19 @@ misconception classifier's per-answer call (separate follow-up).
   naming each multimodal step-up (audio, video, learner-submitted
   images, AI-generated images) as its own explicitly deferred item
   rather than silent scope creep.
-- Standards alignment (Common Core Math, NGSS) as topic-level tags on
-  content artifacts. Raised 2026-09-14. Today's content artifacts are
-  self-authored topic graphs with no link to what schools actually
-  teach; tagging against real standards would let the instructor
-  dashboard (Milestone 7) show "on pace with grade-level standards"
-  instead of an abstract mastery number. Depends on Milestone 15's
-  grade-band entity already existing as the natural place to hang a
-  standards tag.
+- ~~Standards alignment (Common Core Math, NGSS) as topic-level tags on
+  content artifacts~~ -- promoted and shipped
+  (`specs/038-standards-alignment/spec.md`, PR #101 to `staging`, #102
+  to `main`, both 2026-10-04). This bullet is kept, struck through, for
+  the same reason Milestone 14/16's promotions left their bullets in
+  place: an honest record that this started life here, not a
+  retroactively-tidied history. (Original entry: raised 2026-09-14.
+  Today's content artifacts were self-authored topic graphs with no
+  link to what schools actually teach; tagging against real standards
+  lets the instructor dashboard show "on pace with grade-level
+  standards" instead of an abstract mastery number. Depended on
+  Milestone 15's grade-band entity as the natural place to hang a
+  standards tag -- confirmed true by the shipped feature.)
 - Code execution for CS-adjacent STEM questions (run a learner's actual
   code and grade its behavior, not multiple-choice questions about
   code). Raised 2026-09-14. A materially different grading model from
@@ -2314,10 +2332,17 @@ misconception classifier's per-answer call (separate follow-up).
   question variants. Raised 2026-09-14. Lower priority than the items
   above; named explicitly rather than folded silently into a future
   i18n effort.
-- STEM-career connections surfaced alongside a topic (tying a topic to
-  a real-world STEM career/application). Raised 2026-09-14. Lower
-  priority; a small, cheap addition if picked up, not a reason to pull
-  it ahead of the gaps above.
+- ~~STEM-career connections surfaced alongside a topic~~ -- promoted
+  and shipped (`specs/039-stem-career-connections/spec.md`, PR #103 to
+  `staging`, #104 to `main`, both 2026-10-04). This bullet is kept,
+  struck through, for the same reason Milestone 14/16's promotions left
+  their bullets in place: an honest record that this started life here,
+  not a retroactively-tidied history. (Original entry: raised
+  2026-09-14, framed as lower priority -- a small, cheap addition, not
+  a reason to pull it ahead of the gaps above -- which held true; it
+  shipped as a two-actor on/off toggle plus real connections authored
+  on all 16 existing topics, with zero sequencing/grading/mastery-model
+  change, FR-009.)
 - Instructor pacing-guide alignment -- letting an instructor sync
   Sequencing's topic order with their actual classroom calendar so the
   platform supplements rather than conflicts with what's taught that
@@ -2337,30 +2362,70 @@ misconception classifier's per-answer call (separate follow-up).
   bullet is kept, struck through, for the same reason Milestone 17's
   promotion left its bullet in place.
 
-- Full K-12 STEM content catalog (elementary math/science for grades
+- ~~Full K-12 STEM content catalog~~ (elementary math/science for grades
   1-5, then a real course-by-course spread across 6-12 -- pre-algebra,
   algebra-2, geometry, physics, chemistry, earth science -- alongside
-  today's algebra-1 and biology). Raised 2026-09-22. Architecturally
-  this is not a new engineering problem: Constitution Principle III's
-  domain-agnostic engine is already validated by two structurally
-  different subjects (math vs. life science), and Milestone 15's
-  `grade_bands`/per-topic `grade` mechanism already supports a single
-  content artifact spanning any grade range, not just algebra-1's
-  6-8 -- `check_no_subject_conditionals.py` keeps this honest in CI.
-  The real cost is content-authoring volume: dozens of subject
-  artifacts, each needing a real topic/prerequisite graph and a
-  defensible per-topic skill definition and difficulty calibration
-  (Principle II's rubric discipline applies per topic, not per
-  subject), plus a per-`subject_id` misconception-classifier cold-start
-  gap (Milestone 11) for every new subject until it accumulates real
-  grading data. Needs its own scoping pass before it's a milestone:
-  whether content is hand-authored, LLM-assisted-then-human-reviewed,
-  or needs a dedicated authoring pipeline/tool -- that choice determines
-  most of the actual effort here, not the engine.
+  today's algebra-1 and biology) -- **partially promoted**
+  (`specs/040-k12-content-catalog/`, 2026-10-04) to a deliberate
+  two-subject pilot (Algebra II, Physics), proving the authoring
+  approach (LLM-assisted draft + mandatory human PR review, resolved
+  via `/speckit-clarify`) and the "zero engine change" claim at small
+  scale before the remaining six subjects (Pre-Algebra, Geometry,
+  Chemistry, Earth Science, Elementary Math, Elementary Science) are
+  attempted in a follow-up feature -- this bullet is kept, struck
+  through, for the same reason Milestone 2/3's and Milestone 14/16's
+  stale-status corrections were left in place rather than deleted: an
+  honest record that this started life here, not a retroactively-tidied
+  history. One real correction found only during `/speckit-implement`,
+  confirmed with the user before building anything (same precedent
+  Milestone 23 set): FR-009's original claim -- a learner/roster
+  grade-filtered "subject-selection surface" already existed, by
+  analogy to Milestone 17 -- turned out false on reading the actual
+  code (Milestone 17's grade-banding only gates topics *within* an
+  already-chosen subject). FR-009 is now real, narrowly-scoped new
+  engine work on roster creation only (a nullable `ClassroomRoster.
+  grade`, validated against the chosen subject's `GradeBand` rows at
+  creation time) -- the one exception to this pilot's otherwise-true
+  "zero engine change" framing. (Original entry: raised 2026-09-22.
+  Architecturally this was never a new engineering problem --
+  Constitution Principle III's domain-agnostic engine was already
+  validated by two structurally different subjects, and Milestone 15's
+  `grade_bands`/per-topic `grade` mechanism already supported any grade
+  range. The real cost was always content-authoring volume and the
+  authoring-approach choice, not the engine -- confirmed true by this
+  pilot.)
 
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.26.0 -- 2026-10-04, fixed three stale "Out of current
+roadmap" entries, the same class of gap this roadmap has corrected
+before (Milestones 2/3, 14-18, 23): "Standards alignment" and
+"STEM-career connections" were both left unstruck despite shipping
+(`specs/038`/`specs/039`, both merged to `staging` and `main`) -- now
+struck through with their shipped-outcome notes. "Schema-drift
+detection as a required CI check" was left unstruck with no
+qualification even though it reads as resolved by Milestone 19 -- it
+is not: Milestone 19 catches checked-in model/migration drift (CI-only,
+no real environment `DATABASE_URL` involved), a different mechanism
+from this bullet's actual ask (a real deployed `staging`/`production`
+environment silently falling behind `alembic heads`). Added an explicit
+"partially addressed, not fully closed" note rather than striking it
+falsely or leaving the ambiguity unresolved.
+
+**Version**: 3.25.0 -- 2026-10-04, promoted "Full K-12 STEM content
+catalog" (now struck through) to a two-subject pilot
+(`specs/040-k12-content-catalog/`: Algebra II, Physics). Full spec-kit
+lifecycle (`specify`/`clarify`/`plan`/`tasks`/`analyze`/`implement`)
+complete same day. One real correction found during `/speckit-implement`,
+confirmed with the user before building anything: FR-009's roster-grade
+filtering, originally assumed to already exist by analogy to Milestone
+17, did not -- now real, narrowly-scoped new engine work on roster
+creation only (nullable `ClassroomRoster.grade`, migration
+`d8e4b5a1f3c7`). Remaining six subjects (Pre-Algebra, Geometry,
+Chemistry, Earth Science, Elementary Math, Elementary Science) still
+deferred to a follow-up feature.
 
 **Version**: 3.24.0 -- 2026-10-04, corrected two milestone status lines
 that had never caught up to their actual merge state, the same class of

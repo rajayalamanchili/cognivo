@@ -1,0 +1,280 @@
+# Physics content artifact (spec 040, User Story 3 -- pilot proof of
+# the full K-12 catalog claim).
+#
+# Topic order below IS the authored order Topic.order_index is assigned
+# from at load time (services/content_artifact/loader.py), same
+# prerequisites-before-dependents convention as algebra-1/biology.
+subject_id: physics
+display_name: Physics
+content_version: "1.0.0"
+# spec 040 Clarifications (2026-10-04): real-world-accurate secondary
+# bands (9-11), independent of algebra-1's own compressed 6-8 banding --
+# deliberately overlaps algebra-2's grades 9-10 (spec 040 Edge Cases:
+# subject selection is by identity, not grade, so both remain
+# independently selectable at the overlap).
+grade_bands: [9, 10, 11]
+topics:
+  - topic_id: kinematics-motion-in-one-dimension
+    display_name: "Kinematics: Motion in One Dimension"
+    grade: 9
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Describe and calculate position, velocity, and acceleration for
+        an object moving in a straight line, including under constant
+        acceleration.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Compute average velocity given a displacement and elapsed time."
+      medium: "Compute final velocity given initial velocity, constant acceleration, and elapsed time."
+      hard: "Compute displacement given initial velocity, constant acceleration, and elapsed time (no final velocity given)."
+    # NGSS's PS2.A DCI covers forces and motion together, with no
+    # separate kinematics-only performance expectation -- HS-PS2-1 is
+    # the closest/foundational PE, reused on forces-and-newtons-laws
+    # below with the identical title (FR-012).
+    standards:
+      - framework: NGSS
+        code: HS-PS2-1
+        title: >-
+          Analyze data to support the claim that Newton's second law of
+          motion describes the mathematical relationship among the net
+          force on a macroscopic object, its mass, and its acceleration.
+    career_connection:
+      career: Transportation Planner
+      description: >-
+        Stopping distance for a vehicle is a direct kinematics
+        calculation from its speed and braking deceleration --
+        transportation planners use it to set speed limits and
+        intersection sight-line requirements.
+
+  - topic_id: forces-and-newtons-laws
+    display_name: Forces and Newton's Laws
+    grade: 9
+    prerequisites: [kinematics-motion-in-one-dimension]
+    skill_definition:
+      summary: >-
+        Apply Newton's three laws of motion, including computing net
+        force, acceleration, or mass from F = ma.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Compute net force given mass and acceleration using F = ma."
+      medium: "Compute acceleration given multiple forces acting in the same or opposite directions."
+      hard: "Compute the acceleration of two connected objects (e.g. a pulley system) given the net applied force."
+    standards:
+      - framework: NGSS
+        code: HS-PS2-1
+        title: >-
+          Analyze data to support the claim that Newton's second law of
+          motion describes the mathematical relationship among the net
+          force on a macroscopic object, its mass, and its acceleration.
+    career_connection:
+      career: Mechanical Engineer
+      description: >-
+        Every machine a mechanical engineer designs must satisfy F = ma
+        for each moving part -- from a car's suspension to a robotic
+        arm, miscalculating the net force means the part accelerates
+        the wrong way or breaks.
+
+  - topic_id: work-energy-and-power
+    display_name: Work, Energy, and Power
+    # grade 9, same grade as its prerequisite (forces-and-newtons-laws):
+    # `grade_entry_topics()` (agents/diagnostic/agent.py) treats a topic
+    # as placement-eligible whenever every prerequisite is in a
+    # *strictly lower* grade -- a same-grade prerequisite is what keeps
+    # a topic out of placement (algebra-2's rational-expressions-and-
+    # equations relies on the identical same-grade rule). Deliberate
+    # here since preferred_question_types is free_text only.
+    grade: 9
+    prerequisites: [forces-and-newtons-laws]
+    skill_definition:
+      summary: >-
+        Compute work done by a constant force, kinetic/potential energy,
+        and power, and apply conservation of energy to simple systems.
+      preferred_question_types: [free_text]
+    difficulty_calibration:
+      easy: "Compute work done by a constant force over a given displacement."
+      medium: "Compute kinetic or gravitational potential energy given mass, velocity, or height."
+      hard: "Apply conservation of energy to find a final speed or height when both kinetic and potential energy change."
+    misconceptions:
+      - misconception_id: confuses-work-with-force
+        description: >-
+          Reports the applied force itself as the answer to a "how much
+          work was done" question, omitting the displacement factor
+          entirely.
+      - misconception_id: ignores-energy-lost-to-friction
+        description: >-
+          Applies conservation of mechanical energy (KE + PE constant)
+          even when the problem states a friction or other non-
+          conservative force is present.
+    standards:
+      - framework: NGSS
+        code: HS-PS3-1
+        title: >-
+          Create a computational model to calculate the change in the
+          energy of one component in a system when the change in energy
+          of the other component(s) and energy flows in and out of the
+          system are known.
+    career_connection:
+      career: Renewable Energy Engineer
+      description: >-
+        A wind turbine's power output is literally the rate of energy
+        transfer from moving air to the generator -- renewable energy
+        engineers compute work, energy, and power to size turbines for a
+        site's wind conditions.
+
+  - topic_id: momentum-and-collisions
+    display_name: Momentum and Collisions
+    # grade 9, same grade as its prerequisite (forces-and-newtons-laws):
+    # same `grade_entry_topics()` same-grade-prerequisite reasoning as
+    # work-energy-and-power above -- this topic's preferred_question_types
+    # is multi_step first, which placement's fixed-draft mocking
+    # convention (test_placement_new_subjects.py) does not cover, so it
+    # must never become placement-eligible.
+    grade: 9
+    prerequisites: [forces-and-newtons-laws]
+    # Opts into step-by-step grading (spec 018), same rationale as
+    # algebra-2's factoring-polynomials: a collision problem has a
+    # naturally ordered setup-then-solve sequence where the first wrong
+    # step (e.g. an unconserved-momentum setup) is more useful to name
+    # than one undifferentiated "incorrect."
+    process_level_grading: true
+    skill_definition:
+      summary: >-
+        Compute momentum, and apply conservation of momentum to predict
+        outcomes of elastic and perfectly inelastic collisions.
+      preferred_question_types: [multi_step, numeric]
+    difficulty_calibration:
+      easy: "Compute the momentum of a single object given its mass and velocity."
+      medium: "Find the final velocity of two objects after a perfectly inelastic collision (they stick together)."
+      hard: "Find both objects' final velocities after a one-dimensional elastic collision."
+    standards:
+      - framework: NGSS
+        code: HS-PS2-2
+        title: >-
+          Use mathematical representations to support the claim that the
+          total momentum of a system of objects is conserved when there
+          is no net force on the system.
+    career_connection:
+      career: Automotive Crash-Test Engineer
+      description: >-
+        Crash-test engineers use conservation of momentum to predict how
+        two vehicles' velocities change in a collision, which directly
+        determines how much crumple-zone protection a vehicle's design
+        needs.
+
+  - topic_id: circular-motion-and-gravitation
+    display_name: Circular Motion and Gravitation
+    grade: 10
+    prerequisites: [forces-and-newtons-laws]
+    skill_definition:
+      summary: >-
+        Compute centripetal force and acceleration for objects in
+        circular motion, and apply Newton's law of gravitation between
+        two masses.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Compute centripetal acceleration given an object's speed and the radius of its circular path."
+      medium: "Compute the gravitational force between two masses at a given separation using Newton's law of gravitation."
+      hard: "Compute the orbital speed of a satellite at a given altitude by setting gravitational force equal to the required centripetal force."
+    standards:
+      - framework: NGSS
+        code: HS-PS2-4
+        title: >-
+          Use mathematical representations of Newton's Law of
+          Gravitation and Coulomb's Law to describe and predict the
+          gravitational and electrostatic forces between objects.
+    career_connection:
+      career: Roller Coaster Design Engineer
+      description: >-
+        A roller coaster loop must generate enough centripetal force to
+        keep riders safely on track at the top -- designers compute the
+        minimum speed and radius combination directly from circular-
+        motion equations.
+
+  - topic_id: waves-and-sound
+    display_name: Waves and Sound
+    grade: 10
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Relate a wave's frequency, wavelength, and speed, and apply that
+        relationship to sound waves.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Compute wave speed given frequency and wavelength."
+      medium: "Compute wavelength given a sound wave's frequency and the speed of sound in air."
+      hard: "Compute the beat frequency produced by two sound waves of slightly different frequency."
+    standards:
+      - framework: NGSS
+        code: HS-PS4-1
+        title: >-
+          Use mathematical representations to support a claim regarding
+          relationships among the frequency, wavelength, and speed of
+          waves traveling in various media.
+    career_connection:
+      career: Audio Engineer
+      description: >-
+        Audio engineers rely on the frequency-wavelength-speed
+        relationship constantly -- it determines everything from a
+        room's acoustic resonances to how a microphone or speaker must
+        be positioned for a given sound wavelength.
+
+  - topic_id: electricity-and-circuits
+    display_name: Electricity and Circuits
+    grade: 11
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Apply Ohm's law and the rules for series and parallel resistor
+        circuits to compute current, voltage, and resistance.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Compute current, voltage, or resistance given the other two using Ohm's law."
+      medium: "Compute the total resistance of resistors in series."
+      hard: "Compute the total resistance and current for a mixed series-parallel resistor network."
+    standards:
+      - framework: NGSS
+        code: HS-PS3-5
+        title: >-
+          Develop and use a model of two objects interacting through
+          electric or magnetic fields to illustrate the forces between
+          objects and the changes in energy of the objects due to the
+          interaction.
+    career_connection:
+      career: Electrical Engineer
+      description: >-
+        Every circuit an electrical engineer designs, from a phone
+        charger to a building's wiring, is sized using Ohm's law and
+        series/parallel resistance rules to make sure current and
+        voltage stay within safe limits.
+
+  - topic_id: thermodynamics
+    display_name: Thermodynamics
+    grade: 11
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Apply conservation of energy to heat transfer between objects,
+        and predict the direction heat flows until thermal equilibrium is
+        reached.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify the direction heat flows between two objects given their temperatures."
+      medium: "Compute the heat absorbed or released by an object given its mass, specific heat, and temperature change."
+      hard: "Find the final equilibrium temperature when two objects of different mass, specific heat, and starting temperature are combined."
+    standards:
+      - framework: NGSS
+        code: HS-PS3-4
+        title: >-
+          Plan and conduct an investigation to provide evidence that the
+          transfer of thermal energy when two components of different
+          temperature are combined within a closed system results in a
+          more uniform energy distribution among the components in the
+          system (second law of thermodynamics).
+    career_connection:
+      career: HVAC Engineer
+      description: >-
+        HVAC engineers size heating and cooling systems using exactly
+        this heat-transfer math -- how much thermal energy a system must
+        move to bring a building's components to a comfortable, uniform
+        temperature.

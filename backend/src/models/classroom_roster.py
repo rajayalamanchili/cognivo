@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, Enum, ForeignKey, func
+from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Integer, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -25,15 +25,31 @@ class ClassroomRoster(Base):
     created this roster, same reasoning as `RetentionRecord.account_id`/
     `DeletionRequest.target_id`. Enforced at the application layer:
     every write path derives this value from `current_instructor`
-    (`services/auth/dependencies.py`), never from unvalidated input."""
+    (`services/auth/dependencies.py`), never from unvalidated input.
+
+    `grade` (spec 040 FR-009) is nullable and opt-in, mirroring
+    `grade_bands`' own opt-in-per-subject precedent: an existing roster
+    (or one created without declaring a grade) stays unrestricted, same
+    as today. When declared, `services/roster/enrollment.py`'s
+    `create_roster` validates it against the chosen subject's own
+    `GradeBand` rows at creation time -- this is the only enforcement
+    point (spec 040 research.md Decision 6): quiz assignments inherit a
+    roster's `subject_id` directly (`quiz_assignment/assignment.py`),
+    never taking one of their own, so there is nothing further to gate."""
 
     __tablename__ = "classroom_rosters"
+    __table_args__ = (
+        CheckConstraint(
+            "grade IS NULL OR grade BETWEEN 1 AND 12", name="ck_classroom_rosters_grade_range"
+        ),
+    )
 
     roster_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     instructor_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
     subject_id: Mapped[str] = mapped_column(ForeignKey("subjects.subject_id"), nullable=False)
+    grade: Mapped[int | None] = mapped_column(Integer, nullable=True)
     enrollment_mode: Mapped[EnrollmentMode] = mapped_column(
         Enum(EnrollmentMode, name="enrollment_mode", values_callable=enum_values), nullable=False
     )
