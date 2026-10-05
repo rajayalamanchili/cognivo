@@ -71,6 +71,24 @@ def test_overlapping_grade_accepted_for_both_subjects_independently(
     assert physics_response.status_code == 201, physics_response.text
 
 
+def test_out_of_range_grade_rejected_422_even_for_ungraded_subject(biology_subject, monkeypatch):
+    """PR #105 review finding: an ungraded subject (no GradeBand rows)
+    makes `_check_grade_matches_subject` a no-op, so an out-of-range
+    `grade` would otherwise reach the DB and trip
+    `ck_classroom_rosters_grade_range` as an unhandled 500 instead of a
+    clean 422. `CreateRosterIn.grade`'s `ge=1, le=12` constraint catches
+    this at the API boundary, before any subject-specific check runs."""
+    client = _client(monkeypatch)
+    register_instructor(client, _INSTRUCTOR_EMAIL)
+    login_instructor(client, _INSTRUCTOR_EMAIL)
+
+    response = client.post(
+        "/api/rosters",
+        json={"subject_id": "biology", "enrollment_mode": "open", "grade": 99},
+    )
+    assert response.status_code == 422, response.text
+
+
 def test_ungraded_subject_accepts_any_declared_grade(biology_subject, monkeypatch):
     """research.md Decision 6 / FR-009: an ungraded subject (zero
     GradeBand rows) imposes no restriction, mirroring grade_bands'

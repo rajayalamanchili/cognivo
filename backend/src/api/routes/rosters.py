@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from src.api.errors import ForbiddenError, NotFoundError
@@ -98,7 +98,7 @@ def _roster_out(roster: ClassroomRoster) -> RosterOut:
 class CreateRosterIn(BaseModel):
     subject_id: str
     enrollment_mode: EnrollmentMode
-    grade: int | None = None
+    grade: int | None = Field(default=None, ge=1, le=12)
 
 
 @router.post("/api/rosters", response_model=RosterOut, status_code=201)
