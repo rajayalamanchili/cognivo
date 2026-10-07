@@ -436,6 +436,24 @@ export default function Nav() {
           )}
         </div>
       </nav>
+      {bucket === "real-learner" && realLearnerSession && (
+        <div
+          data-testid="real-learner-session-banner"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary-subtle px-8 py-2.5 text-sm"
+        >
+          <span className="font-bold text-heading">
+            You&rsquo;re viewing {realLearnerSession.displayName}&rsquo;s learning on your
+            guardian account.
+          </span>
+          <button
+            type="button"
+            onClick={handleExitLearnerView}
+            className="min-h-9 rounded-full border-2 border-primary/25 bg-surface px-4 font-extrabold text-heading"
+          >
+            End session, back to my learners
+          </button>
+        </div>
+      )}
       {pendingDeletionWarnings.length > 0 && (
         <div
           data-testid="deletion-warning-banner"

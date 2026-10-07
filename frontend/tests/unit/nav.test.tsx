@@ -238,6 +238,25 @@ describe("Nav", () => {
     expect(screen.queryByText("Placement")).not.toBeInTheDocument();
     expect(screen.queryByText("My Learners")).not.toBeInTheDocument();
     expect(screen.getByText("Exit learner view")).toBeInTheDocument();
+    expect(screen.getByTestId("real-learner-session-banner")).toHaveTextContent(
+      "You’re viewing Eli’s learning on your guardian account.",
+    );
+    expect(screen.getByText("End session, back to my learners")).toBeInTheDocument();
+  });
+
+  it("the banner's End session action clears the real-learner session and navigates to Guardian · My learners", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    render(<Nav />);
+
+    fireEvent.click(await screen.findByText("End session, back to my learners"));
+
+    expect(window.localStorage.getItem(REAL_LEARNER_SESSION_KEY)).toBeNull();
+    expect(push).toHaveBeenCalledWith("/guardian/learners");
   });
 
   it("Exit learner view clears the real-learner session and navigates to Guardian · My learners", async () => {

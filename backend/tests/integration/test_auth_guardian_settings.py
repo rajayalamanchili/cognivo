@@ -116,6 +116,27 @@ def test_change_password_success_and_relogin(client):
     assert new_login.status_code == 200, new_login.text
 
 
+def test_change_password_keeps_caller_logged_in(client):
+    """Claude Code Review finding on PR #109: `password_changed_at`
+    invalidates every token issued before it, including the cookie that
+    authenticated *this* change-password request -- without a freshly
+    issued cookie in the response, the caller's own next request would
+    be silently rejected right after a successful password change."""
+    email = "change-pw-stays-in@example.com"
+    old_password = "correct horse battery staple"
+    new_password = "a different battery staple"
+    _register_guardian(client, email=email, password=old_password)
+
+    response = client.post(
+        "/api/auth/guardian/change-password",
+        json={"current_password": old_password, "new_password": new_password},
+    )
+    assert response.status_code == 204, response.text
+
+    still_logged_in = client.patch("/api/auth/guardian/me", json={"name": "Still here"})
+    assert still_logged_in.status_code == 200, still_logged_in.text
+
+
 def test_change_password_wrong_current_password_rejected(client):
     _register_guardian(client, email="wrong-current@example.com", password="correct horse battery staple")
     response = client.post(

@@ -292,6 +292,7 @@ class ChangePasswordIn(BaseModel):
 @router.post("/api/auth/guardian/change-password", status_code=204)
 def change_guardian_password(
     body: ChangePasswordIn,
+    response: Response,
     guardian: RealGuardianAccount = Depends(current_guardian),
     db: Session = Depends(get_db),
 ) -> None:
@@ -300,9 +301,16 @@ def change_guardian_password(
     guardian.password_hash = hash_password(body.new_password)
     # FR-022/research.md §6: invalidates every session token issued
     # before this moment on its next use (dependencies.py's
-    # `current_guardian`).
+    # `current_guardian`) -- including the very cookie that authenticated
+    # *this* request. Reissuing a fresh cookie here (Claude Code Review
+    # finding on PR #109) keeps the caller's own browser tab logged in;
+    # without it, the next request from this same tab/session would be
+    # rejected as stale, silently logging the guardian out right after a
+    # successful change.
     guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
     db.commit()
+    token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
+    set_session_cookie(response, token)
 
 
 class InstructorMeIn(BaseModel):
