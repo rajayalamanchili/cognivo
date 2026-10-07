@@ -8,6 +8,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import PracticeFlow from "@/app/practice/practice-flow";
 import * as api from "@/services/api";
 import { ApiError } from "@/services/api";
+import { enterRealLearnerSession } from "@/lib/visitor-state";
+
+const REAL_LEARNER_SESSION_KEY = "cognivo:real-learner-session";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -56,6 +59,7 @@ beforeEach(() => {
   vi.mocked(api.getPracticeNextQuestion).mockReset();
   vi.mocked(api.endPracticeSession).mockReset();
   vi.mocked(api.getPracticeSessionSummary).mockReset();
+  window.localStorage.removeItem(REAL_LEARNER_SESSION_KEY);
 });
 
 describe("PracticeFlow start screen", () => {
@@ -282,5 +286,18 @@ describe("PracticeFlow start screen", () => {
     expect(screen.getByTestId("session-timing-summary")).toHaveTextContent(/30 min/);
     expect(screen.getByTestId("session-timing-summary")).toHaveTextContent(/time ran out/i);
     expect(screen.getByText(/Score:/).parentElement).toHaveTextContent("Score: 1 / 1");
+  });
+
+  it("resolves the learner from an active real-learner session instead of the demo learner (spec 041 FR-016)", async () => {
+    enterRealLearnerSession("learner-real-1", "Eli");
+    vi.mocked(api.getNextQuestion).mockResolvedValue(question);
+    render(<PracticeFlow />);
+
+    await screen.findByTestId("practice-start-form");
+    await userEvent.click(screen.getByRole("button", { name: /start practicing/i }));
+
+    expect(await screen.findByTestId("question-card")).toBeInTheDocument();
+    expect(api.getNextQuestion).toHaveBeenCalledWith("learner-real-1", "algebra-1");
+    expect(api.getDemoLearner).not.toHaveBeenCalled();
   });
 });

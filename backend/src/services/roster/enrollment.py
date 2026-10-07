@@ -96,10 +96,52 @@ def create_roster(
     return roster
 
 
-def update_roster_enrollment_mode(
-    db: Session, *, roster: ClassroomRoster, enrollment_mode: EnrollmentMode
-) -> ClassroomRoster:
+def _apply_roster_enrollment_mode(roster: ClassroomRoster, enrollment_mode: EnrollmentMode) -> None:
     roster.enrollment_mode = enrollment_mode
+    # spec 041 FR-018: closing a roster implicitly stops listing it,
+    # rather than erroring -- the instructor is closing it anyway, and
+    # "closed AND listed" must never coexist (data-model.md's mutual
+    # exclusion rule).
+    if enrollment_mode == EnrollmentMode.CLOSED:
+        roster.is_listed = False
+
+
+def _apply_roster_is_listed(
+    roster: ClassroomRoster, *, is_listed: bool, instructor_display_name: str | None
+) -> None:
+    """spec 041 FR-017/FR-018: the single enforcement point for both
+    mutual-exclusion rules, applied identically whether the owning
+    instructor account is brand-new or pre-existing -- no special-casing
+    between the two (data-model.md's Validation rules)."""
+    if is_listed:
+        if roster.enrollment_mode == EnrollmentMode.CLOSED:
+            raise UnprocessableError("cannot_list_closed_roster")
+        if not instructor_display_name:
+            raise UnprocessableError("instructor_display_name_required")
+    roster.is_listed = is_listed
+
+
+def update_roster(
+    db: Session,
+    *,
+    roster: ClassroomRoster,
+    enrollment_mode: EnrollmentMode,
+    is_listed: bool | None,
+    instructor_display_name: str | None,
+) -> ClassroomRoster:
+    """`PATCH /api/rosters/{roster_id}`'s single entry point for both
+    fields together (Claude Code Review finding on PR #109): applies
+    both mutations in memory and validates `is_listed` against the
+    *already-applied* `enrollment_mode` change before committing either.
+    Previously two separately-committing functions -- a request ending
+    in a 422 (e.g. closing a roster while also trying to list it) could
+    still persist the enrollment_mode change, since that commit had
+    already happened before the is_listed validation ran."""
+    _apply_roster_enrollment_mode(roster, enrollment_mode)
+    if is_listed is not None:
+        _apply_roster_is_listed(
+            roster, is_listed=is_listed, instructor_display_name=instructor_display_name
+        )
     db.commit()
     db.refresh(roster)
     return roster

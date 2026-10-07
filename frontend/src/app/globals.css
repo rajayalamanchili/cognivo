@@ -96,6 +96,71 @@
   }
 }
 
+/* spec 041 FR-011: guardian Settings' Theme override -- same variable
+   set as the prefers-color-scheme block above, applied via a
+   data-theme attribute (AccountDisplayPreferences.tsx) so a guardian
+   can force dark/light regardless of the device's own OS setting.
+   data-theme="light" must restate the :root defaults explicitly to
+   win over an OS-dark prefers-color-scheme match. */
+:root[data-theme="dark"] {
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --color-primary: #a78bfa;
+  --color-primary-foreground: #2e1065;
+  --color-accent: oklch(0.82 0.13 68);
+  --color-accent-foreground: #451a03;
+  --color-border: #3f3f46;
+  --color-muted: #a1a1aa;
+  --color-error: #f87171;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-link: #60a5fa;
+  --color-primary-subtle: #332750;
+  --color-surface: #1c1830;
+  --color-surface-subtle: #241f3d;
+  --color-heading: #f3effb;
+}
+
+:root[data-theme="light"] {
+  --background: #f6f4fb;
+  --foreground: #1e293b;
+  --color-primary: #7650b8;
+  --color-primary-foreground: #ffffff;
+  --color-accent: oklch(0.76 0.14 65);
+  --color-accent-foreground: #451a03;
+  --color-border: #e4e1ec;
+  --color-muted: #4a4d5c;
+  --color-error: #dc2626;
+  --color-success: #065f46;
+  --color-warning: #b4610b;
+  --color-link: #2563eb;
+  --color-primary-subtle: #eee8f8;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8f6fc;
+  --color-heading: #2a1a4a;
+}
+
+/* spec 041 FR-011: Larger text -- bumps the base size every rem-based
+   Tailwind text utility scales from, same mechanism Settings' own
+   toggle subtitle describes. */
+:root[data-larger-text="true"] {
+  font-size: 112.5%;
+}
+
+/* spec 041 FR-011: Reduce motion -- the standard prefers-reduced-motion
+   "kill all animation/transition duration" pattern, applied globally
+   via a data attribute instead of (or in addition to) the OS-level
+   media query, so a guardian can opt out of motion on a device whose
+   own OS setting doesn't reflect it. */
+:root[data-reduce-motion="true"] *,
+:root[data-reduce-motion="true"] *::before,
+:root[data-reduce-motion="true"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

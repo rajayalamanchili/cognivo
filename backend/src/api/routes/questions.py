@@ -297,10 +297,21 @@ async def get_next_question(
     db: Session = Depends(get_db),
     claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> NextQuestionOut:
-    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
     _get_validated_subject(db, subject_id)
 
-    if not has_placement_data(db, learner_id=learner_id, subject_id=subject_id):
+    # spec 041 FR-016: self-serve Practice/Dashboard now reach a real
+    # learner for the first time -- real placement stays explicitly out
+    # of scope (Clarifications), so a real learner can never satisfy
+    # this gate. Only the demo learner's own placement-first flow still
+    # requires it; `select_next_topic`'s own fallbacks (agent.py's
+    # unknown-band default, grade.py's no-GradeProgress-row default)
+    # already handle a learner with zero MasteryState/GradeProgress
+    # rows safely, which is exactly what this lets a real learner reach
+    # instead of a 404.
+    if (learner is None or learner.is_demo) and not has_placement_data(
+        db, learner_id=learner_id, subject_id=subject_id
+    ):
         raise NotFoundError(
             f"learner {learner_id} has no placement data for subject {subject_id!r} yet -- "
             "complete placement first"

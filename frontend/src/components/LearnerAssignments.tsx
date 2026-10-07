@@ -7,6 +7,7 @@ import {
   flagQuestion,
   getQuizNextQuestion,
   getQuizSummary,
+  getWhoAmI,
   listLearnerAssignments,
   startAssignment,
   type AnswerResult,
@@ -70,6 +71,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
   const [readAloudUsed, setReadAloudUsed] = useState(false);
+  // spec 041 FR-011: this component only ever renders on a guardian
+  // page (GuardianLearnerCard/learners page), so the session fetched
+  // here is always the guardian's own -- unlike practice-flow.tsx,
+  // no real-learner-session check is needed first.
+  const [readAloudDefault, setReadAloudDefault] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
@@ -107,6 +113,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
 
   useEffect(() => {
     let cancelled = false;
+    getWhoAmI()
+      .then((who) => {
+        if (!cancelled) setReadAloudDefault(who.read_aloud_default ?? false);
+      })
+      .catch(() => {});
     listLearnerAssignments(learnerId)
       .then((result) => {
         if (cancelled) return;
@@ -328,6 +339,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
           readAloudEnabled={currentQuestion.read_aloud_eligible}
+          readAloudDefault={readAloudDefault}
           onReadAloudUsed={() => setReadAloudUsed(true)}
           handoffToken={handoffToken}
         />
@@ -362,67 +374,73 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     );
   }
 
+  const hasStartable = assignments.some((a) => a.status === "not_started" && !a.cancelled_at);
+
   return (
-    <div className="flex flex-col gap-2" data-testid="learner-assignments">
+    <div className="flex flex-col gap-4" data-testid="learner-assignments">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Assigned quizzes</h3>
+        <h3 className="font-heading text-lg font-bold text-heading">Assigned quizzes</h3>
         <button type="button" onClick={refreshAssignments} className="text-sm text-muted underline">
           Refresh
         </button>
       </div>
       {assignments.length === 0 && <p className="text-sm">No assignments yet.</p>}
-      {assignments.some((a) => a.status === "not_started" && !a.cancelled_at) && (
-        // spec 025 FR-010a: same disclosure as quiz-flow.tsx's start
-        // screen -- this flow shares the same no-per-question-pause
-        // summary behavior (research.md §4).
-        <p className="text-sm text-muted" data-testid="learner-assignments-disclosure">
-          You&apos;ll see how you did on each question together, at the end of the quiz.
-        </p>
-      )}
-      {assignments.map((assignment) => (
-        <div
-          key={assignment.assignment_id}
-          data-testid={`learner-assignment-${assignment.assignment_id}`}
-          className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm"
-        >
-          <div className="flex flex-col gap-1">
-            <span>
-              {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
-              {assignment.has_unviewed_activity && (
-                <span
-                  data-testid={`learner-assignment-unviewed-${assignment.assignment_id}`}
-                  className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle"
-                  title="New activity"
-                />
-              )}
-            </span>
-            <span className="text-muted">
-              {STATUS_LABEL[assignment.status]}
-              {assignment.due_at && ` · due ${new Date(assignment.due_at).toLocaleString()}`}
-              {assignment.cancelled_at && (
-                <span data-testid={`learner-assignment-cancelled-${assignment.assignment_id}`}>
-                  {" "}
-                  &middot; cancelled
-                </span>
-              )}
-            </span>
-          </div>
-          {assignment.status === "not_started" && !assignment.cancelled_at && (
-            <button
-              type="button"
-              onClick={() => handleStart(assignment.assignment_id)}
-              disabled={startingId === assignment.assignment_id}
-              className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40"
-            >
-              {startingId === assignment.assignment_id ? (
-                <LoadingIndicator message="Building your quiz…" compact />
-              ) : (
-                "Start"
-              )}
-            </button>
-          )}
+      {hasStartable && (
+        // spec 041 FR-006 (Clarifications): same-device/same-tab
+        // hand-off language, not the mockup's literal cross-device
+        // framing -- the real mechanism is the guardian's own browser
+        // tab, handed to the learner after Start is clicked.
+        <div className="flex items-center gap-3 rounded-2xl bg-link/10 px-4.5 py-3 font-bold text-link">
+          Your guardian started this quiz — continue below.
         </div>
-      ))}
+      )}
+      {assignments.map((assignment) => {
+        const startable = assignment.status === "not_started" && !assignment.cancelled_at;
+        return (
+          <div
+            key={assignment.assignment_id}
+            data-testid={`learner-assignment-${assignment.assignment_id}`}
+            className="flex flex-wrap items-center justify-between gap-3.5 rounded-2xl border border-border px-4.5 py-3.5 text-sm"
+          >
+            <div className="flex flex-col gap-0.5">
+              <span className="font-extrabold text-heading">
+                {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
+                {assignment.has_unviewed_activity && (
+                  <span
+                    data-testid={`learner-assignment-unviewed-${assignment.assignment_id}`}
+                    className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle"
+                    title="New activity"
+                  />
+                )}
+              </span>
+              <span className="text-muted">
+                {STATUS_LABEL[assignment.status]}
+                {assignment.due_at && ` · due ${new Date(assignment.due_at).toLocaleString()}`}
+                {assignment.cancelled_at && (
+                  <span data-testid={`learner-assignment-cancelled-${assignment.assignment_id}`}>
+                    {" "}
+                    &middot; cancelled
+                  </span>
+                )}
+              </span>
+            </div>
+            {startable && (
+              <button
+                type="button"
+                onClick={() => handleStart(assignment.assignment_id)}
+                disabled={startingId === assignment.assignment_id}
+                className="min-h-11 rounded-full border-2 border-primary/25 bg-surface px-5 font-extrabold text-heading disabled:opacity-40"
+              >
+                {startingId === assignment.assignment_id ? (
+                  <LoadingIndicator message="Building your quiz…" compact />
+                ) : (
+                  "Start"
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })}
       {startError && (
         <p className="text-sm text-error" data-testid="learner-assignment-start-error">
           {startError}

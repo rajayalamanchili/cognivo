@@ -10,13 +10,15 @@ register as both.
 
 import datetime
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.api.errors import AuthenticationError, ConflictError
+from src.api.errors import AuthenticationError, ConflictError, RateLimitedError, UnprocessableError
 from src.db import get_db
 from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEnrollmentStatus
@@ -24,7 +26,18 @@ from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
-from src.services.auth.dependencies import optional_session_claims
+from src.services.auth.dependencies import (
+    InstructorAccount,
+    current_guardian,
+    current_instructor,
+    optional_session_claims,
+)
+from src.services.auth.lockout import (
+    is_locked_out,
+    record_failed_attempt,
+    record_successful_attempt,
+    seconds_until_unlocked,
+)
 from src.services.auth.passwords import hash_password, verify_password
 from src.services.auth.tokens import (
     SESSION_COOKIE_NAME,
@@ -170,19 +183,213 @@ def login_guardian(
 ) -> GuardianAuthOut:
     email = _normalize_email(body.email)
     guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
+    # Claude Code Review finding on PR #109: a locked-out account is
+    # rejected before the password is even checked. This is unavoidably
+    # a narrower signal than `_DUMMY_PASSWORD_HASH` below's "no account
+    # enumeration" guarantee -- a 429 here does confirm the email exists
+    # and is currently locked -- but silently ignoring a lockout to
+    # preserve that guarantee would defeat the point of having one.
+    if guardian is not None and is_locked_out(guardian):
+        raise RateLimitedError(seconds_until_unlocked(guardian))
     password_hash = guardian.password_hash if guardian is not None else _DUMMY_PASSWORD_HASH
     password_ok = verify_password(body.password, password_hash)
     if guardian is None or not password_ok:
+        if guardian is not None:
+            record_failed_attempt(db, guardian)
+            db.commit()
         raise AuthenticationError("invalid_credentials")
 
+    record_successful_attempt(guardian)
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
     set_session_cookie(response, token)
+    db.commit()
     return GuardianAuthOut(guardian_id=guardian.guardian_id)
 
 
 @router.post("/api/auth/logout", status_code=204)
 def logout(response: Response) -> None:
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+
+
+class GuardianMeIn(BaseModel):
+    """spec 041 FR-009/FR-011. All fields optional -- only ones the
+    client actually sent (`exclude_unset`) are changed, so e.g. omitting
+    `weekly_summary_enabled` never resets it to `False`.
+
+    `current_password` (Code Review follow-up on PR #109) is required
+    only when `email` is also being changed: login `email` is the one
+    field here that's both the account's identity and a detail a
+    stolen-but-unexpired session cookie could otherwise rewrite with no
+    further proof of the password. Every other field stays a plain
+    session-authenticated update, same as before."""
+
+    name: str | None = None
+    email: str | None = None
+    current_password: str | None = None
+    read_aloud_default: bool | None = None
+    larger_text: bool | None = None
+    reduce_motion: bool | None = None
+    theme: Literal["system", "light", "dark"] | None = None
+    quiz_finished_email_enabled: bool | None = None
+    weekly_summary_enabled: bool | None = None
+
+
+class GuardianMeOut(BaseModel):
+    name: str | None
+    email: str
+    read_aloud_default: bool
+    larger_text: bool
+    reduce_motion: bool
+    theme: str
+    quiz_finished_email_enabled: bool
+    weekly_summary_enabled: bool
+
+
+def _guardian_me_out(guardian: RealGuardianAccount) -> GuardianMeOut:
+    return GuardianMeOut(
+        name=guardian.name,
+        email=guardian.email,
+        read_aloud_default=guardian.read_aloud_default,
+        larger_text=guardian.larger_text,
+        reduce_motion=guardian.reduce_motion,
+        theme=guardian.theme,
+        quiz_finished_email_enabled=guardian.quiz_finished_email_enabled,
+        weekly_summary_enabled=guardian.weekly_summary_enabled,
+    )
+
+
+# Every `GuardianMeIn` field but `name` backs a NOT NULL column
+# (real_guardian_account.py). `exclude_unset=True` below only drops
+# fields the client never sent -- an explicit `null` for one of these
+# still reaches `_normalize_email`/`setattr`, raising an unhandled
+# AttributeError (email) or a NOT NULL `IntegrityError` that the
+# `except IntegrityError` handler then misreports as `email_taken`.
+_GUARDIAN_ME_NON_NULLABLE_FIELDS = (
+    "email",
+    "read_aloud_default",
+    "larger_text",
+    "reduce_motion",
+    "theme",
+    "quiz_finished_email_enabled",
+    "weekly_summary_enabled",
+)
+
+
+@router.patch("/api/auth/guardian/me", response_model=GuardianMeOut)
+def update_guardian_me(
+    body: GuardianMeIn,
+    guardian: RealGuardianAccount = Depends(current_guardian),
+    db: Session = Depends(get_db),
+) -> GuardianMeOut:
+    updates = body.model_dump(exclude_unset=True)
+    current_password = updates.pop("current_password", None)
+    for field in _GUARDIAN_ME_NON_NULLABLE_FIELDS:
+        if updates.get(field, False) is None:
+            raise UnprocessableError(f"{field}_required")
+    if "email" in updates:
+        # Code Review follow-up on PR #109: same lockout-and-throttle
+        # treatment as `/change-password`'s `current_password` check --
+        # requiring the password here is pointless if it's a brute-
+        # force oracle on its own.
+        if is_locked_out(guardian):
+            raise RateLimitedError(seconds_until_unlocked(guardian))
+        if current_password is None or not verify_password(
+            current_password, guardian.password_hash
+        ):
+            if current_password is not None:
+                record_failed_attempt(db, guardian)
+                db.commit()
+            raise AuthenticationError("invalid_credentials")
+        record_successful_attempt(guardian)
+
+        email = _normalize_email(updates["email"])
+        existing = (
+            db.query(RealGuardianAccount)
+            .filter(
+                RealGuardianAccount.email == email,
+                RealGuardianAccount.guardian_id != guardian.guardian_id,
+            )
+            .first()
+        )
+        if existing is not None:
+            raise ConflictError("email_taken")
+        updates["email"] = email
+
+    for field, value in updates.items():
+        setattr(guardian, field, value)
+
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ConflictError("email_taken") from exc
+    db.refresh(guardian)
+    return _guardian_me_out(guardian)
+
+
+class ChangePasswordIn(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
+
+
+@router.post("/api/auth/guardian/change-password", status_code=204)
+def change_guardian_password(
+    body: ChangePasswordIn,
+    response: Response,
+    guardian: RealGuardianAccount = Depends(current_guardian),
+    db: Session = Depends(get_db),
+) -> None:
+    # Claude Code Review finding on PR #109: an active (even stolen)
+    # session let `current_password` be brute-forced with no throttle --
+    # the caller is already authenticated, so unlike `login_guardian`
+    # there's no account-enumeration tension in rejecting a lockout
+    # up front.
+    if is_locked_out(guardian):
+        raise RateLimitedError(seconds_until_unlocked(guardian))
+    if not verify_password(body.current_password, guardian.password_hash):
+        record_failed_attempt(db, guardian)
+        db.commit()
+        raise AuthenticationError("invalid_credentials")
+    record_successful_attempt(guardian)
+    guardian.password_hash = hash_password(body.new_password)
+    # FR-022/research.md §6: invalidates every session token issued
+    # before this moment on its next use (dependencies.py's
+    # `current_guardian`) -- including the very cookie that authenticated
+    # *this* request. Reissuing a fresh cookie here (Claude Code Review
+    # finding on PR #109) keeps the caller's own browser tab logged in;
+    # without it, the next request from this same tab/session would be
+    # rejected as stale, silently logging the guardian out right after a
+    # successful change.
+    guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
+    db.commit()
+    token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
+    set_session_cookie(response, token)
+
+
+class InstructorMeIn(BaseModel):
+    """spec 041 FR-017. The only field this endpoint changes --
+    email/password changes for instructors are out of scope for this
+    feature (contracts/api-changes.md)."""
+
+    display_name: str = Field(min_length=1)
+
+
+class InstructorMeOut(BaseModel):
+    display_name: str
+
+
+@router.patch("/api/auth/instructor/me", response_model=InstructorMeOut)
+def update_instructor_me(
+    body: InstructorMeIn,
+    instructor: InstructorAccount = Depends(current_instructor),
+    db: Session = Depends(get_db),
+) -> InstructorMeOut:
+    display_name = body.display_name.strip()
+    if display_name == "":
+        raise UnprocessableError("display_name_required")
+    instructor.display_name = display_name
+    db.commit()
+    return InstructorMeOut(display_name=display_name)
 
 
 class PendingDeletionWarningOut(BaseModel):
@@ -196,6 +403,31 @@ class WhoAmIOut(BaseModel):
     account_type: AccountType | None
     identifier: str | None = None
     pending_deletion_warnings: list[PendingDeletionWarningOut] = Field(default_factory=list)
+    # spec 041 FR-009/FR-011/FR-012: populated only when account_type ==
+    # "guardian" (same pattern pending_deletion_warnings already
+    # follows) -- None for every other account type. `guardian_id` is
+    # Settings' "delete my account" action's own target_id -- nothing
+    # else in a guardian session response exposes it.
+    guardian_id: uuid.UUID | None = None
+    name: str | None = None
+    read_aloud_default: bool | None = None
+    larger_text: bool | None = None
+    reduce_motion: bool | None = None
+    theme: str | None = None
+    quiz_finished_email_enabled: bool | None = None
+    weekly_summary_enabled: bool | None = None
+
+
+_GUARDIAN_ONLY_FIELDS = (
+    "guardian_id",
+    "name",
+    "read_aloud_default",
+    "larger_text",
+    "reduce_motion",
+    "theme",
+    "quiz_finished_email_enabled",
+    "weekly_summary_enabled",
+)
 
 
 def _pending_deletion_warnings(
@@ -261,21 +493,48 @@ def _pending_deletion_warnings(
 def whoami(
     claims: SessionClaims | None = Depends(optional_session_claims),
     db: Session = Depends(get_db),
-) -> WhoAmIOut:
+) -> JSONResponse:
     """Read-only session-identity check for the frontend nav (no
     business logic gated on this -- every real authorization decision
     still happens per-route via `current_guardian`/`current_instructor`,
     same as before this endpoint existed). `identifier` is the login
     email for a real guardian/instructor, or the seeded display name for
     a demo instructor -- `None` for a `None` `claims` or a session whose
-    account row no longer exists."""
+    account row no longer exists.
+
+    A plain dict via `JSONResponse`, not `WhoAmIOut(...)` (same reasoning
+    `questions.py`'s `answer_question` already documents for its own
+    response): the six new guardian-preference fields (FR-009/FR-011)
+    must be *absent*, not merely `null`, for every non-guardian account
+    type, to keep this endpoint's pre-existing response shape -- and the
+    tests asserting it -- byte-for-byte unchanged for every other
+    account type. A single `response_model_exclude_none` can't apply to
+    some fields (these six) but not others (`account_type`/`identifier`,
+    which must stay present as `null`), so this builds the body
+    explicitly instead."""
     if claims is None:
-        return WhoAmIOut(account_type=None)
+        return JSONResponse(
+            WhoAmIOut(account_type=None).model_dump(
+                mode="json", exclude=set(_GUARDIAN_ONLY_FIELDS)
+            )
+        )
 
     identifier: str | None = None
+    guardian_fields: dict[str, object] = {}
     if claims.account_type == "guardian":
         guardian = db.get(RealGuardianAccount, claims.account_id)
         identifier = guardian.email if guardian else None
+        if guardian is not None:
+            guardian_fields = {
+                "guardian_id": guardian.guardian_id,
+                "name": guardian.name,
+                "read_aloud_default": guardian.read_aloud_default,
+                "larger_text": guardian.larger_text,
+                "reduce_motion": guardian.reduce_motion,
+                "theme": guardian.theme,
+                "quiz_finished_email_enabled": guardian.quiz_finished_email_enabled,
+                "weekly_summary_enabled": guardian.weekly_summary_enabled,
+            }
     elif claims.account_type == "instructor":
         instructor = db.get(RealInstructorAccount, claims.account_id)
         identifier = instructor.email if instructor else None
@@ -283,8 +542,11 @@ def whoami(
         demo_instructor = db.get(DemoInstructorProfile, claims.account_id)
         identifier = demo_instructor.display_name if demo_instructor else None
 
-    return WhoAmIOut(
+    result = WhoAmIOut(
         account_type=claims.account_type,
         identifier=identifier,
         pending_deletion_warnings=_pending_deletion_warnings(claims, db),
+        **guardian_fields,
     )
+    exclude = set() if guardian_fields else set(_GUARDIAN_ONLY_FIELDS)
+    return JSONResponse(result.model_dump(mode="json", exclude=exclude))

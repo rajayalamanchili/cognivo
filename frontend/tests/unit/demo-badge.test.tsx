@@ -7,6 +7,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import DemoBadge from "@/components/DemoBadge";
 import * as api from "@/services/api";
+import { enterRealLearnerSession } from "@/lib/visitor-state";
+
+const REAL_LEARNER_SESSION_KEY = "cognivo:real-learner-session";
 
 let mockPathname = "/";
 
@@ -26,6 +29,7 @@ describe("DemoBadge", () => {
   beforeEach(() => {
     mockPathname = "/";
     vi.mocked(api.getWhoAmI).mockReset();
+    window.localStorage.removeItem(REAL_LEARNER_SESSION_KEY);
   });
 
   it("is hidden on the bare landing page with no session", async () => {
@@ -83,5 +87,31 @@ describe("DemoBadge", () => {
 
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
     expect(screen.queryByTestId("demo-badge")).not.toBeInTheDocument();
+  });
+
+  it("is suppressed on a demo-learner pathname while a real-learner session is active (spec 041 FR-022)", async () => {
+    mockPathname = "/dashboard";
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    render(<DemoBadge />);
+
+    await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
+    expect(screen.queryByTestId("demo-badge")).not.toBeInTheDocument();
+  });
+
+  it("is still shown for the actual demo learner, unaffected by the real-learner-session check", async () => {
+    mockPathname = "/dashboard";
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: null,
+      identifier: null,
+      pending_deletion_warnings: [],
+    });
+    render(<DemoBadge />);
+
+    expect(await screen.findByTestId("demo-badge")).toBeInTheDocument();
   });
 });

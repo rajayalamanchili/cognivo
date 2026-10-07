@@ -14,7 +14,7 @@ set, for the same reason.
 import datetime
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 import jwt
@@ -49,6 +49,16 @@ _VALID_ACCOUNT_TYPES = ("guardian", "instructor", "demo_instructor")
 class SessionClaims:
     account_type: AccountType
     account_id: uuid.UUID
+    # spec 041 FR-022/research.md §6: the token's own `iat`, carried
+    # through so `current_guardian` can reject a token issued before a
+    # subsequent password change -- the only session-invalidation
+    # mechanism this stateless-JWT design has. Defaults to "now" so the
+    # many pre-existing call sites constructing a `SessionClaims`
+    # directly (not through `verify_token`) don't need to supply one --
+    # `verify_token` itself always passes the token's real `iat`.
+    issued_at: datetime.datetime = field(
+        default_factory=lambda: datetime.datetime.now(datetime.UTC)
+    )
 
 
 def _secret() -> str:
@@ -77,10 +87,19 @@ def verify_token(token: str) -> SessionClaims | None:
 
     account_type = payload.get("account_type")
     account_id = payload.get("account_id")
-    if account_type not in _VALID_ACCOUNT_TYPES or not isinstance(account_id, str):
+    issued_at = payload.get("iat")
+    if (
+        account_type not in _VALID_ACCOUNT_TYPES
+        or not isinstance(account_id, str)
+        or not isinstance(issued_at, int)
+    ):
         return None
     try:
-        return SessionClaims(account_type=account_type, account_id=uuid.UUID(account_id))
+        return SessionClaims(
+            account_type=account_type,
+            account_id=uuid.UUID(account_id),
+            issued_at=datetime.datetime.fromtimestamp(issued_at, tz=datetime.UTC),
+        )
     except ValueError:
         return None
 

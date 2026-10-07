@@ -5,6 +5,7 @@ import {
   getCareerConnectionsPreference,
   setCareerConnectionsPreference,
 } from "@/services/api";
+import ToggleSwitch from "@/components/ToggleSwitch";
 
 // Spec 039 FR-004. Reused unmodified by the demo-learner settings page
 // and the guardian's per-learner "My Learners" control -- both gate
@@ -12,9 +13,16 @@ import {
 
 export interface CareerConnectionsToggleProps {
   learnerId: string;
+  // Optional -- only the guardian My-learners card (spec 041) has a
+  // display name on hand to personalize the subtext; the demo-learner
+  // settings page's own usage omits it.
+  displayName?: string;
 }
 
-export default function CareerConnectionsToggle({ learnerId }: CareerConnectionsToggleProps) {
+export default function CareerConnectionsToggle({
+  learnerId,
+  displayName,
+}: CareerConnectionsToggleProps) {
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -48,14 +56,17 @@ export default function CareerConnectionsToggle({ learnerId }: CareerConnections
   if (enabled === null) return null;
 
   return (
-    <label className="flex items-center gap-2 text-sm" data-testid="career-connections-toggle">
-      <input
-        type="checkbox"
-        checked={enabled}
-        disabled={saving}
-        onChange={(event) => handleChange(event.target.checked)}
-      />
-      Show STEM-career connections
+    <label
+      className="flex cursor-pointer items-center justify-between gap-4"
+      data-testid="career-connections-toggle"
+    >
+      <span className="flex flex-col">
+        <span className="font-extrabold text-heading">Show STEM-career connections</span>
+        <span className="text-sm text-muted">
+          Real jobs that use each topic{displayName ? `, shown to ${displayName} too` : ""}
+        </span>
+      </span>
+      <ToggleSwitch checked={enabled} onChange={handleChange} disabled={saving} />
     </label>
   );
 }

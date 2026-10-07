@@ -9,7 +9,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/components/Nav";
 import * as api from "@/services/api";
-import { onSessionChanged } from "@/lib/visitor-state";
+import { enterRealLearnerSession, onSessionChanged } from "@/lib/visitor-state";
 
 const push = vi.fn();
 
@@ -29,6 +29,7 @@ vi.mock("@/services/api", async () => {
 });
 
 const DEMO_LEARNER_MODE_KEY = "cognivo:demo-learner-mode";
+const REAL_LEARNER_SESSION_KEY = "cognivo:real-learner-session";
 
 describe("Nav", () => {
   beforeEach(() => {
@@ -41,6 +42,7 @@ describe("Nav", () => {
       display_name: "Demo Learner",
     });
     window.localStorage.removeItem(DEMO_LEARNER_MODE_KEY);
+    window.localStorage.removeItem(REAL_LEARNER_SESSION_KEY);
   });
 
   it.each([
@@ -217,5 +219,75 @@ describe("Nav", () => {
 
     await waitFor(() => expect(sessionChanged).toHaveBeenCalled());
     unsubscribe();
+  });
+
+  it("shows the real-learner bucket (Dashboard/Practice/Mastery/AI Tutor, no Placement) with the real learner's identity and an Exit learner view action, for a guardian with an active real-learner session (spec 041 FR-016/FR-022)", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    render(<Nav />);
+
+    expect(await screen.findByTestId("nav-real-learner-identity")).toHaveTextContent("Eli (learner)");
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Practice")).toBeInTheDocument();
+    expect(screen.getByText("Mastery")).toBeInTheDocument();
+    expect(screen.getByText("AI Tutor")).toBeInTheDocument();
+    expect(screen.queryByText("Placement")).not.toBeInTheDocument();
+    expect(screen.queryByText("My Learners")).not.toBeInTheDocument();
+    expect(screen.getByText("Exit learner view")).toBeInTheDocument();
+    expect(screen.getByTestId("real-learner-session-banner")).toHaveTextContent(
+      "You’re viewing Eli’s learning on your guardian account.",
+    );
+    expect(screen.getByText("End session, back to my learners")).toBeInTheDocument();
+  });
+
+  it("the banner's End session action clears the real-learner session and navigates to Guardian · My learners", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    render(<Nav />);
+
+    fireEvent.click(await screen.findByText("End session, back to my learners"));
+
+    expect(window.localStorage.getItem(REAL_LEARNER_SESSION_KEY)).toBeNull();
+    expect(push).toHaveBeenCalledWith("/guardian/learners");
+  });
+
+  it("Exit learner view clears the real-learner session and navigates to Guardian · My learners", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    render(<Nav />);
+
+    fireEvent.click(await screen.findByText("Exit learner view"));
+
+    expect(window.localStorage.getItem(REAL_LEARNER_SESSION_KEY)).toBeNull();
+    expect(push).toHaveBeenCalledWith("/guardian/learners");
+  });
+
+  it("signing out while a real-learner session is active clears that session too, not just accountType/identifier (FR-022)", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    vi.mocked(api.logout).mockResolvedValue(undefined);
+    enterRealLearnerSession("learner-1", "Eli");
+    render(<Nav />);
+
+    await screen.findByTestId("nav-real-learner-identity");
+    fireEvent.click(screen.getByText("Sign Out"));
+
+    await waitFor(() => expect(api.logout).toHaveBeenCalled());
+    expect(window.localStorage.getItem(REAL_LEARNER_SESSION_KEY)).toBeNull();
   });
 });

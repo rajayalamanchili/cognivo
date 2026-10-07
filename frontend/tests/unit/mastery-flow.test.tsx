@@ -10,6 +10,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MasteryFlow from "@/app/mastery/mastery-flow";
 import * as api from "@/services/api";
+import { enterRealLearnerSession } from "@/lib/visitor-state";
+
+const REAL_LEARNER_SESSION_KEY = "cognivo:real-learner-session";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("subject=algebra-1"),
@@ -60,6 +63,7 @@ function masteryState() {
 }
 
 beforeEach(() => {
+  window.localStorage.removeItem(REAL_LEARNER_SESSION_KEY);
   vi.mocked(api.getDemoLearner).mockResolvedValue({
     learner_id: "learner-1",
     display_name: "Sam",
@@ -146,5 +150,13 @@ describe("MasteryFlow", () => {
 
     const withoutHistory = screen.getByTestId("mastery-topic-solving-multi-step-equations");
     expect(within(withoutHistory).queryByTestId("mastery-trend-line")).not.toBeInTheDocument();
+  });
+
+  it("resolves the learner from an active real-learner session instead of the demo learner (spec 041 FR-016)", async () => {
+    enterRealLearnerSession("learner-real-1", "Eli");
+    render(<MasteryFlow />);
+
+    await screen.findByRole("heading", { name: "Integers And Operations" });
+    expect(api.getMasteryState).toHaveBeenCalledWith("learner-real-1", "algebra-1");
   });
 });

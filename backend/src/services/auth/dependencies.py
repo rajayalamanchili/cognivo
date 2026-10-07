@@ -33,22 +33,33 @@ InstructorAccount = RealInstructorAccount | DemoInstructorProfile
 
 def current_session_claims(
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    db: Session = Depends(get_db),
 ) -> SessionClaims:
     """Public (unlike the account-type-specific dependencies below) for
     routes that accept either a guardian or an instructor session and
     do their own type-specific authorization -- e.g. `DELETE
     /api/rosters/{roster_id}/enrollments/{learner_id}` (contracts/api.md:
-    the owning instructor OR the enrolled learner's own guardian)."""
+    the owning instructor OR the enrolled learner's own guardian).
+
+    Applies `guardian_session_revoked` here rather than per-route: every
+    consumer of a guardian session (not just `current_guardian`) must
+    reject a token issued before the guardian's most recent password
+    change (FR-022), and a check that lives only in `current_guardian`
+    doesn't cover `current_session_claims` call sites like
+    `deletion.py`'s `can_request_deletion`."""
     if session_cookie is None:
         raise AuthenticationError("not_authenticated")
     claims = verify_token(session_cookie)
     if claims is None:
+        raise AuthenticationError("invalid_session")
+    if claims.account_type == "guardian" and guardian_session_revoked(db, claims):
         raise AuthenticationError("invalid_session")
     return claims
 
 
 def optional_session_claims(
     session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
+    db: Session = Depends(get_db),
 ) -> SessionClaims | None:
     """`None` (never raises) when there's no cookie or it doesn't verify --
     for routes that are unauthenticated by default (spec 005's quiz
@@ -56,10 +67,20 @@ def optional_session_claims(
     when the resource in question turns out to require it (spec 011
     research.md §2's assignment-linked-session check). Unlike
     `current_session_claims`, absence of a session is not itself an
-    error here -- the caller decides whether that's a problem."""
+    error here -- the caller decides whether that's a problem.
+
+    A revoked guardian session (see `current_session_claims`) collapses
+    to `None` here rather than raising, matching this function's own
+    "absence is not an error" contract -- callers already treat `None`
+    as "no guardian session", which is exactly what a revoked token is."""
     if session_cookie is None:
         return None
-    return verify_token(session_cookie)
+    claims = verify_token(session_cookie)
+    if claims is None:
+        return None
+    if claims.account_type == "guardian" and guardian_session_revoked(db, claims):
+        return None
+    return claims
 
 
 def current_guardian(
@@ -71,7 +92,25 @@ def current_guardian(
     guardian = db.get(RealGuardianAccount, claims.account_id)
     if guardian is None:
         raise AuthenticationError("guardian_account_not_found")
+    # FR-022/research.md §6 revocation (password changed since this
+    # token was issued) is already enforced by `current_session_claims`
+    # above, for every guardian-session consumer -- not just this one.
     return guardian
+
+
+def guardian_session_revoked(db: Session, claims: SessionClaims) -> bool:
+    """FR-022: true for a guardian session token issued before that
+    guardian's most recent password change. Called from
+    `current_session_claims`/`optional_session_claims` so every
+    consumer of a guardian session is covered without opting in
+    individually -- callers that already receive claims through either
+    of those no longer need to call this themselves."""
+    guardian = db.get(RealGuardianAccount, claims.account_id)
+    return (
+        guardian is not None
+        and guardian.password_changed_at is not None
+        and claims.issued_at < guardian.password_changed_at.replace(microsecond=0)
+    )
 
 
 def require_learner_ownership_if_real(
