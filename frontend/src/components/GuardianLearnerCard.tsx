@@ -195,7 +195,14 @@ export default function GuardianLearnerCard({
 
           <div className="flex flex-col gap-3.5 border-t border-border pt-3.5">
             <CareerConnectionsToggle learnerId={learnerId} displayName={displayName} />
-            <GuardianLearnerCareerConnections learnerId={learnerId} />
+            <details>
+              <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
+                See the career connections
+              </summary>
+              <div className="flex flex-col gap-2 pt-1.5">
+                <GuardianLearnerCareerConnections learnerId={learnerId} />
+              </div>
+            </details>
           </div>
         </>
       ) : (
