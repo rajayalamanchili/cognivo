@@ -7,6 +7,7 @@ import {
   flagQuestion,
   getQuizNextQuestion,
   getQuizSummary,
+  getWhoAmI,
   listLearnerAssignments,
   startAssignment,
   type AnswerResult,
@@ -70,6 +71,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   const [response, setResponse] = useState("");
   const [flagged, setFlagged] = useState(false);
   const [readAloudUsed, setReadAloudUsed] = useState(false);
+  // spec 041 FR-011: this component only ever renders on a guardian
+  // page (GuardianLearnerCard/learners page), so the session fetched
+  // here is always the guardian's own -- unlike practice-flow.tsx,
+  // no real-learner-session check is needed first.
+  const [readAloudDefault, setReadAloudDefault] = useState(false);
   const [summary, setSummary] = useState<QuizSummaryResponse | null>(null);
   const [attemptError, setAttemptError] = useState<string | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
@@ -107,6 +113,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
 
   useEffect(() => {
     let cancelled = false;
+    getWhoAmI()
+      .then((who) => {
+        if (!cancelled) setReadAloudDefault(who.read_aloud_default ?? false);
+      })
+      .catch(() => {});
     listLearnerAssignments(learnerId)
       .then((result) => {
         if (cancelled) return;
@@ -328,6 +339,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           disabled={phase === "submitting"}
           onFreeTextGraded={handleFreeTextGraded}
           readAloudEnabled={currentQuestion.read_aloud_eligible}
+          readAloudDefault={readAloudDefault}
           onReadAloudUsed={() => setReadAloudUsed(true)}
           handoffToken={handoffToken}
         />

@@ -12,8 +12,6 @@ vi.mock("@/services/api", async () => {
     ...actual,
     getWhoAmI: vi.fn(),
     listMyLearners: vi.fn(),
-    getPracticeRemindersPreference: vi.fn(),
-    setPracticeRemindersPreference: vi.fn(),
     updateGuardianMe: vi.fn(),
     changeGuardianPassword: vi.fn(),
     submitDeletionRequest: vi.fn(),
@@ -49,10 +47,6 @@ describe("GuardianSettingsPage", () => {
   beforeEach(() => {
     vi.mocked(api.getWhoAmI).mockReset().mockResolvedValue(BASE_WHOAMI);
     vi.mocked(api.listMyLearners).mockReset().mockResolvedValue(ONE_LEARNER);
-    vi.mocked(api.getPracticeRemindersPreference).mockReset().mockResolvedValue({
-      enabled: false,
-    });
-    vi.mocked(api.setPracticeRemindersPreference).mockReset();
     vi.mocked(api.updateGuardianMe).mockReset();
     vi.mocked(api.changeGuardianPassword).mockReset();
     vi.mocked(api.submitDeletionRequest).mockReset();
@@ -99,9 +93,10 @@ describe("GuardianSettingsPage", () => {
     render(<GuardianSettingsPage />);
 
     await screen.findByDisplayValue("parent@example.com");
+    await user.click(screen.getByRole("button", { name: "Change password" }));
     await user.type(screen.getByLabelText("Current password"), "old password here");
     await user.type(screen.getByLabelText("New password"), "a new password here");
-    await user.click(screen.getByRole("button", { name: "Change password" }));
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(api.changeGuardianPassword).toHaveBeenCalledWith(
       "old password here",
@@ -119,9 +114,10 @@ describe("GuardianSettingsPage", () => {
     render(<GuardianSettingsPage />);
 
     await screen.findByDisplayValue("parent@example.com");
+    await user.click(screen.getByRole("button", { name: "Change password" }));
     await user.type(screen.getByLabelText("Current password"), "wrong password here");
     await user.type(screen.getByLabelText("New password"), "a new password here");
-    await user.click(screen.getByRole("button", { name: "Change password" }));
+    await user.click(screen.getByRole("button", { name: "Update password" }));
 
     expect(await screen.findByText("Current password is incorrect.")).toBeInTheDocument();
   });
@@ -145,19 +141,6 @@ describe("GuardianSettingsPage", () => {
     await user.click(checkbox);
 
     expect(api.updateGuardianMe).toHaveBeenCalledWith({ larger_text: true });
-    await waitFor(() => expect(checkbox).toBeChecked());
-  });
-
-  it("toggles a learner's practice-reminders preference independently of guardian preferences", async () => {
-    vi.mocked(api.setPracticeRemindersPreference).mockResolvedValue({ enabled: true });
-    const user = userEvent.setup();
-    render(<GuardianSettingsPage />);
-
-    const toggle = await screen.findByText("Practice reminders for Eli");
-    const checkbox = toggle.closest("label")!.querySelector("input")!;
-    await user.click(checkbox);
-
-    expect(api.setPracticeRemindersPreference).toHaveBeenCalledWith("learner-1", true);
     await waitFor(() => expect(checkbox).toBeChecked());
   });
 
@@ -192,7 +175,7 @@ describe("GuardianSettingsPage", () => {
     render(<GuardianSettingsPage />);
 
     await screen.findByText("Grade 7 · algebra-1");
-    await user.click(screen.getByRole("button", { name: "Delete account" }));
+    await user.click(screen.getByRole("button", { name: "Request account deletion" }));
 
     expect(api.submitDeletionRequest).toHaveBeenCalledWith("guardian", "guardian-1");
     expect(await screen.findByText(/Status: pending/)).toBeInTheDocument();

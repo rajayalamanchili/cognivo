@@ -9,6 +9,7 @@ import {
   type MyLearnerEnrollment,
 } from "@/services/api";
 import { enterRealLearnerSession } from "@/lib/visitor-state";
+import { avatarClassName } from "@/lib/avatar-color";
 import JoinRosterForm from "@/components/JoinRosterForm";
 import ClassDirectoryBrowse from "@/components/ClassDirectoryBrowse";
 import LearnerAssignments from "@/components/LearnerAssignments";
@@ -49,26 +50,6 @@ function gradeBandTier(grade: number): { label: string; note: string } {
   return { label: "Independent", note: "Start the quiz here; they work on their own from there." };
 }
 
-// v041 mockup: each learner's avatar square gets its own background
-// color (not a per-learner setting -- there's nothing to persist, just
-// a stable visual distinction between cards). Built from existing
-// design tokens (FR-013), not new hex literals. Deterministic by
-// `learnerId` so a given learner's color doesn't change across
-// reloads/re-renders.
-const AVATAR_PALETTE = [
-  "bg-primary-subtle text-heading",
-  "bg-warning/20 text-warning",
-  "bg-success/20 text-success",
-  "bg-link/15 text-link",
-] as const;
-
-function avatarClassName(learnerId: string): string {
-  let hash = 0;
-  for (let i = 0; i < learnerId.length; i++) {
-    hash = (hash * 31 + learnerId.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
-}
 
 export interface GuardianLearnerCardProps {
   learnerId: string;

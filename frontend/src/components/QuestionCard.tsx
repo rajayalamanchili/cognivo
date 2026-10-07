@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AnswerResult, Difficulty, NextQuestion } from "@/services/api";
 import FreeTextAnswerInput from "@/components/FreeTextAnswerInput";
 import MultiStepAnswerInput from "@/components/MultiStepAnswerInput";
@@ -32,6 +32,11 @@ export interface QuestionCardProps {
   // (FR-012).
   readAloudEnabled?: boolean;
   onReadAloudUsed?: () => void;
+  // spec 041 FR-011: a real learner's guardian can default read-aloud
+  // on instead of requiring the manual button each question --
+  // auto-triggers `handleReadAloud` once per question when set, same
+  // eligibility gate (`canReadAloud`) the manual button already uses.
+  readAloudDefault?: boolean;
   // spec 019 FR-005b: forwarded to FreeTextAnswerInput/MultiStepAnswerInput,
   // which submit their own answers independently of the parent flow.
   handoffToken?: string | null;
@@ -99,6 +104,7 @@ export default function QuestionCard({
   onFreeTextGraded,
   readAloudEnabled,
   onReadAloudUsed,
+  readAloudDefault,
   handoffToken,
   onSessionEnded,
   onBusyChange,
@@ -124,6 +130,16 @@ export default function QuestionCard({
   }
 
   const canReadAloud = readAloudEnabled && canUseReadAloud();
+
+  // Fires once per question (this component remounts per `question_id`
+  // via its callers' own `key` prop) -- mirrors a manual click of the
+  // same read-aloud button below, just automatic.
+  useEffect(() => {
+    if (readAloudDefault && canReadAloud) {
+      handleReadAloud();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const isPractice = variant === "practice";
 
   // Practice variant's flag confirmation/reason-form -- the circular flag

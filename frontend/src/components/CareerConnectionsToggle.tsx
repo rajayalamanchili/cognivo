@@ -5,6 +5,7 @@ import {
   getCareerConnectionsPreference,
   setCareerConnectionsPreference,
 } from "@/services/api";
+import ToggleSwitch from "@/components/ToggleSwitch";
 
 // Spec 039 FR-004. Reused unmodified by the demo-learner settings page
 // and the guardian's per-learner "My Learners" control -- both gate
@@ -65,20 +66,7 @@ export default function CareerConnectionsToggle({
           Real jobs that use each topic{displayName ? `, shown to ${displayName} too` : ""}
         </span>
       </span>
-      <input
-        type="checkbox"
-        role="switch"
-        checked={enabled}
-        disabled={saving}
-        onChange={(event) => handleChange(event.target.checked)}
-        className="peer sr-only"
-      />
-      <span
-        aria-hidden="true"
-        className="flex h-[30px] w-[52px] shrink-0 items-center rounded-full bg-border p-[3px] transition-colors peer-checked:bg-primary peer-checked:justify-end"
-      >
-        <span className="h-6 w-6 rounded-full bg-white shadow" />
-      </span>
+      <ToggleSwitch checked={enabled} onChange={handleChange} disabled={saving} />
     </label>
   );
 }

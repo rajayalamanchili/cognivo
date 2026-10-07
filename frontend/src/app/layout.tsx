@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Baloo_2, Nunito } from "next/font/google";
+import AccountDisplayPreferences from "@/components/AccountDisplayPreferences";
 import DemoBadge from "@/components/DemoBadge";
 import Nav from "@/components/Nav";
 import "./globals.css";
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${baloo.variable} ${nunito.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">
+        <AccountDisplayPreferences />
         <DemoBadge />
         <Nav />
         {children}
