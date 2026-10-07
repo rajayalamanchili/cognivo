@@ -138,3 +138,37 @@ def test_no_session_denied_next_question(client, scenario, algebra_subject):
     )
     assert response.status_code == 403, response.text
     assert response.json() == {"detail": "not_your_learner"}
+
+
+def test_real_learner_with_no_placement_data_can_still_get_a_next_question(
+    client, db_session, algebra_subject
+):
+    """spec 041 FR-016 gap: Dashboard/Practice now reach a real learner
+    for the first time, but real placement is explicitly out of scope
+    (Clarifications) -- a real learner can never acquire the
+    `MasteryState` row `has_placement_data` used to require. The
+    placement-first gate must apply only to the demo learner now."""
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="authz-guardian-no-placement@example.com", learner_name="Fresh"
+    )
+    assert (
+        db_session.query(MasteryState).filter(MasteryState.learner_id == learner_id).first()
+        is None
+    )
+
+    with patch_generation():
+        response = client.get(
+            f"/api/learners/{learner_id}/next-question",
+            params={"subject_id": algebra_subject.subject_id},
+        )
+    assert response.status_code == 200, response.text
+
+
+def test_demo_learner_with_no_placement_data_still_gets_404(client, demo_learner, algebra_subject):
+    """Unchanged: the demo learner's own placement-first flow still
+    requires it -- only the new real-learner gap above is bypassed."""
+    response = client.get(
+        f"/api/learners/{demo_learner.learner_id}/next-question",
+        params={"subject_id": algebra_subject.subject_id},
+    )
+    assert response.status_code == 404, response.text
