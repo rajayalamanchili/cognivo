@@ -49,6 +49,27 @@ function gradeBandTier(grade: number): { label: string; note: string } {
   return { label: "Independent", note: "Start the quiz here; they work on their own from there." };
 }
 
+// v041 mockup: each learner's avatar square gets its own background
+// color (not a per-learner setting -- there's nothing to persist, just
+// a stable visual distinction between cards). Built from existing
+// design tokens (FR-013), not new hex literals. Deterministic by
+// `learnerId` so a given learner's color doesn't change across
+// reloads/re-renders.
+const AVATAR_PALETTE = [
+  "bg-primary-subtle text-heading",
+  "bg-warning/20 text-warning",
+  "bg-success/20 text-success",
+  "bg-link/15 text-link",
+] as const;
+
+function avatarClassName(learnerId: string): string {
+  let hash = 0;
+  for (let i = 0; i < learnerId.length; i++) {
+    hash = (hash * 31 + learnerId.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
+
 export interface GuardianLearnerCardProps {
   learnerId: string;
   displayName: string;
@@ -115,7 +136,9 @@ export default function GuardianLearnerCard({
       className="flex flex-col gap-4.5 rounded-card border border-border bg-surface p-7"
     >
       <div className="flex flex-wrap items-center gap-4">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-subtle font-heading text-2xl font-bold text-heading">
+        <span
+          className={`flex h-14 w-14 items-center justify-center rounded-2xl font-heading text-2xl font-bold ${avatarClassName(learnerId)}`}
+        >
           {displayName.charAt(0).toUpperCase()}
         </span>
         <div className="flex-grow">
