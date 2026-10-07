@@ -265,3 +265,91 @@ def test_practice_reminders_preference_requires_ownership(client):
         f"/api/learners/{learner_id}/practice-reminders-preference", json={"enabled": True}
     )
     assert response.status_code == 403, response.text
+
+
+def test_login_locks_out_after_repeated_wrong_passwords(client):
+    """Claude Code Review finding on PR #109: `/login` had no throttle
+    on the password check at all, so it (and `change-password`'s
+    `current_password` check, tested below) was an unlimited brute-
+    force oracle. After `LOCKOUT_THRESHOLD` wrong attempts, even the
+    *correct* password is rejected (429) until the lockout expires."""
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    email = "lockout-login@example.com"
+    password = "correct horse battery staple"
+    _register_guardian(client, email=email, password=password)
+    client.post("/api/auth/logout")
+
+    for _ in range(LOCKOUT_THRESHOLD):
+        attempt = client.post(
+            "/api/auth/guardian/login", json={"email": email, "password": "wrong password"}
+        )
+        assert attempt.status_code == 401, attempt.text
+
+    locked = client.post("/api/auth/guardian/login", json={"email": email, "password": password})
+    assert locked.status_code == 429, locked.text
+    assert locked.json()["error"] == "rate_limited"
+    assert locked.json()["retry_after_seconds"] > 0
+
+
+def test_login_unknown_email_is_never_rate_limited(client):
+    """No account exists to lock -- an unknown email must keep returning
+    401 indefinitely, not 429, or lockout itself becomes a way to
+    distinguish a registered email from an unregistered one beyond the
+    narrow, already-accepted "known email is currently locked" signal."""
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    for _ in range(LOCKOUT_THRESHOLD + 2):
+        attempt = client.post(
+            "/api/auth/guardian/login",
+            json={"email": "never-registered@example.com", "password": "whatever"},
+        )
+        assert attempt.status_code == 401, attempt.text
+
+
+def test_login_success_resets_the_failed_attempt_counter(client):
+    email = "lockout-reset@example.com"
+    password = "correct horse battery staple"
+    _register_guardian(client, email=email, password=password)
+    client.post("/api/auth/logout")
+
+    client.post("/api/auth/guardian/login", json={"email": email, "password": "wrong password"})
+    client.post("/api/auth/guardian/login", json={"email": email, "password": "wrong password"})
+    good_login = client.post(
+        "/api/auth/guardian/login", json={"email": email, "password": password}
+    )
+    assert good_login.status_code == 200, good_login.text
+
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    for _ in range(LOCKOUT_THRESHOLD - 1):
+        attempt = client.post(
+            "/api/auth/guardian/login", json={"email": email, "password": "wrong password"}
+        )
+        assert attempt.status_code == 401, attempt.text
+    still_ok = client.post(
+        "/api/auth/guardian/login", json={"email": email, "password": password}
+    )
+    assert still_ok.status_code == 200, still_ok.text
+
+
+def test_change_password_locks_out_after_repeated_wrong_current_password(client):
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    email = "lockout-change-password@example.com"
+    old_password = "correct horse battery staple"
+    _register_guardian(client, email=email, password=old_password)
+
+    for _ in range(LOCKOUT_THRESHOLD):
+        attempt = client.post(
+            "/api/auth/guardian/change-password",
+            json={"current_password": "wrong password", "new_password": "a new password here"},
+        )
+        assert attempt.status_code == 401, attempt.text
+
+    locked = client.post(
+        "/api/auth/guardian/change-password",
+        json={"current_password": old_password, "new_password": "a new password here"},
+    )
+    assert locked.status_code == 429, locked.text
+    assert locked.json()["error"] == "rate_limited"

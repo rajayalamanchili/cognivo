@@ -33,8 +33,7 @@ from src.services.roster.enrollment import (
     decline_request,
     join_roster,
     unenroll,
-    update_roster_enrollment_mode,
-    update_roster_is_listed,
+    update_roster,
 )
 
 router = APIRouter()
@@ -190,14 +189,13 @@ def update_roster_route(
     db: Session = Depends(get_db),
 ) -> RosterOut:
     roster = _get_owned_roster(db, roster_id, instructor)
-    roster = update_roster_enrollment_mode(db, roster=roster, enrollment_mode=body.enrollment_mode)
-    if body.is_listed is not None:
-        roster = update_roster_is_listed(
-            db,
-            roster=roster,
-            is_listed=body.is_listed,
-            instructor_display_name=getattr(instructor, "display_name", None),
-        )
+    roster = update_roster(
+        db,
+        roster=roster,
+        enrollment_mode=body.enrollment_mode,
+        is_listed=body.is_listed,
+        instructor_display_name=getattr(instructor, "display_name", None),
+    )
     return _roster_out(roster)
 
 

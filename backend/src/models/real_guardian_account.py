@@ -58,3 +58,19 @@ class RealGuardianAccount(Base):
     password_changed_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Claude Code Review finding on PR #109: neither `/login` nor
+    # `/change-password`'s `current_password` check had any throttle, so
+    # a stolen session (or just a public login form) could brute-force a
+    # guardian's password with no limit. Stateless on Vercel (Principle
+    # IX, no in-memory counter survives between invocations), so the
+    # attempt count lives on the account row itself -- same DB-backed
+    # pattern this codebase's other rate limiters already use
+    # (services/tutor/rate_limit.py), just keyed by account rather than
+    # a trailing-window event-row count, since there's no per-attempt
+    # event table for auth (services/auth/lockout.py).
+    failed_login_attempts: Mapped[int] = mapped_column(
+        nullable=False, default=0, server_default="0"
+    )
+    locked_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

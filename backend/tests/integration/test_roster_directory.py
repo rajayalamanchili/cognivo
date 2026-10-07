@@ -166,6 +166,34 @@ def test_setting_is_listed_true_without_a_display_name_is_rejected_for_a_pre_exi
     assert response.json() == {"detail": "instructor_display_name_required"}
 
 
+def test_closing_while_requesting_listed_is_rejected_without_persisting_the_close(
+    client, algebra_subject
+):
+    """Claude Code Review finding on PR #109: a single PATCH that closes
+    an open, listed roster while also asking for is_listed=True must be
+    rejected (422) atomically -- the enrollment_mode change must not be
+    silently persisted just because it was applied (and committed)
+    before the is_listed validation ran."""
+    _register_instructor(client)
+    _set_instructor_display_name(client)
+    roster = _create_roster(client, algebra_subject.subject_id, "open")
+    listed = client.patch(
+        f"/api/rosters/{roster['roster_id']}", json={"enrollment_mode": "open", "is_listed": True}
+    )
+    assert listed.json()["is_listed"] is True
+
+    response = client.patch(
+        f"/api/rosters/{roster['roster_id']}",
+        json={"enrollment_mode": "closed", "is_listed": True},
+    )
+    assert response.status_code == 422
+    assert response.json() == {"detail": "cannot_list_closed_roster"}
+
+    rosters = client.get("/api/rosters").json()["rosters"]
+    roster_after = next(r for r in rosters if r["roster_id"] == roster["roster_id"])
+    assert roster_after["enrollment_mode"] == "open"
+
+
 def test_closing_a_listed_roster_clears_is_listed_as_a_side_effect(client, algebra_subject):
     _register_instructor(client)
     _set_instructor_display_name(client)

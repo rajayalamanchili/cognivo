@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.api.errors import AuthenticationError, ConflictError, UnprocessableError
+from src.api.errors import AuthenticationError, ConflictError, RateLimitedError, UnprocessableError
 from src.db import get_db
 from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEnrollmentStatus
@@ -31,6 +31,12 @@ from src.services.auth.dependencies import (
     current_guardian,
     current_instructor,
     optional_session_claims,
+)
+from src.services.auth.lockout import (
+    is_locked_out,
+    record_failed_attempt,
+    record_successful_attempt,
+    seconds_until_unlocked,
 )
 from src.services.auth.passwords import hash_password, verify_password
 from src.services.auth.tokens import (
@@ -177,13 +183,26 @@ def login_guardian(
 ) -> GuardianAuthOut:
     email = _normalize_email(body.email)
     guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
+    # Claude Code Review finding on PR #109: a locked-out account is
+    # rejected before the password is even checked. This is unavoidably
+    # a narrower signal than `_DUMMY_PASSWORD_HASH` below's "no account
+    # enumeration" guarantee -- a 429 here does confirm the email exists
+    # and is currently locked -- but silently ignoring a lockout to
+    # preserve that guarantee would defeat the point of having one.
+    if guardian is not None and is_locked_out(guardian):
+        raise RateLimitedError(seconds_until_unlocked(guardian))
     password_hash = guardian.password_hash if guardian is not None else _DUMMY_PASSWORD_HASH
     password_ok = verify_password(body.password, password_hash)
     if guardian is None or not password_ok:
+        if guardian is not None:
+            record_failed_attempt(guardian)
+            db.commit()
         raise AuthenticationError("invalid_credentials")
 
+    record_successful_attempt(guardian)
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
     set_session_cookie(response, token)
+    db.commit()
     return GuardianAuthOut(guardian_id=guardian.guardian_id)
 
 
@@ -296,8 +315,18 @@ def change_guardian_password(
     guardian: RealGuardianAccount = Depends(current_guardian),
     db: Session = Depends(get_db),
 ) -> None:
+    # Claude Code Review finding on PR #109: an active (even stolen)
+    # session let `current_password` be brute-forced with no throttle --
+    # the caller is already authenticated, so unlike `login_guardian`
+    # there's no account-enumeration tension in rejecting a lockout
+    # up front.
+    if is_locked_out(guardian):
+        raise RateLimitedError(seconds_until_unlocked(guardian))
     if not verify_password(body.current_password, guardian.password_hash):
+        record_failed_attempt(guardian)
+        db.commit()
         raise AuthenticationError("invalid_credentials")
+    record_successful_attempt(guardian)
     guardian.password_hash = hash_password(body.new_password)
     # FR-022/research.md §6: invalidates every session token issued
     # before this moment on its next use (dependencies.py's
