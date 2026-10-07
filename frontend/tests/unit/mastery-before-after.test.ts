@@ -21,8 +21,8 @@ describe("masteryBeforeAfterByTopic", () => {
       entry({ question_id: "q3", topic_id: "fractions", prior_p_mastery: 0.1, posterior_p_mastery: 0.2 }),
     ]);
     expect(results).toEqual([
-      { topic_id: "linear-equations", before: 0.3, after: 0.6 },
-      { topic_id: "fractions", before: 0.1, after: 0.2 },
+      { topic_id: "linear-equations", before: 0.3, after: 0.6, question_count: 2 },
+      { topic_id: "fractions", before: 0.1, after: 0.2, question_count: 1 },
     ]);
   });
 
