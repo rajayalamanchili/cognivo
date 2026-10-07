@@ -18,6 +18,7 @@ from src.models.enrollment_request import EnrollmentRequest
 from src.models.enums import EnrollmentMode
 from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
+from src.models.real_instructor_account import RealInstructorAccount
 from src.models.subject import Subject
 from src.services.auth.dependencies import (
     InstructorAccount,
@@ -32,10 +33,17 @@ from src.services.roster.enrollment import (
     decline_request,
     join_roster,
     unenroll,
-    update_roster_enrollment_mode,
+    update_roster,
 )
 
 router = APIRouter()
+
+# Code Review follow-up on PR #109: the directory query had neither an
+# ORDER BY nor a cap, so results were non-deterministic page-to-page and
+# unbounded as listed rosters accumulate. A flat cap (rather than real
+# cursor pagination) is proportional to how this is actually used --
+# one screen listing open classes to join, not a paged browse.
+MAX_DIRECTORY_ROSTERS = 100
 
 
 def _get_validated_subject(db: Session, subject_id: str) -> Subject:
@@ -62,6 +70,7 @@ class RosterOut(BaseModel):
     enrollment_mode: str
     join_code: str | None
     grade: int | None
+    is_listed: bool
 
 
 class RosterSummaryOut(BaseModel):
@@ -69,6 +78,7 @@ class RosterSummaryOut(BaseModel):
     subject_id: str
     enrollment_mode: str
     grade: int | None
+    is_listed: bool
 
 
 class ListRostersOut(BaseModel):
@@ -92,6 +102,61 @@ def _roster_out(roster: ClassroomRoster) -> RosterOut:
         enrollment_mode=roster.enrollment_mode.value,
         join_code=roster.join_code,
         grade=roster.grade,
+        is_listed=roster.is_listed,
+    )
+
+
+class RosterDirectoryEntryOut(BaseModel):
+    roster_id: uuid.UUID
+    subject_id: str
+    grade: int | None
+    instructor_display_name: str
+    join_code: str
+
+
+class RosterDirectoryOut(BaseModel):
+    rosters: list[RosterDirectoryEntryOut]
+
+
+@router.get("/api/rosters/directory", response_model=RosterDirectoryOut)
+def roster_directory_route(
+    guardian: RealGuardianAccount = Depends(current_guardian),
+    db: Session = Depends(get_db),
+) -> RosterDirectoryOut:
+    """spec 041 FR-019/FR-021. `join_code` is no longer secret once
+    `is_listed=True` -- the instructor's own explicit choice
+    (research.md §3) -- so it's included directly, letting the
+    frontend's "join from directory" action reuse the existing
+    `POST /api/rosters/join` with no second enrollment path.
+    `instructor_id` is not a FK (see `ClassroomRoster`'s own docstring),
+    so this join is explicit rather than an ORM relationship; it also
+    naturally excludes a roster owned by a demo instructor, since no
+    `RealInstructorAccount` row ever shares a demo instructor's id."""
+    rows = (
+        db.query(ClassroomRoster, RealInstructorAccount)
+        .join(
+            RealInstructorAccount,
+            RealInstructorAccount.instructor_id == ClassroomRoster.instructor_id,
+        )
+        .filter(
+            ClassroomRoster.is_listed.is_(True),
+            ClassroomRoster.enrollment_mode == EnrollmentMode.OPEN,
+        )
+        .order_by(ClassroomRoster.created_at.desc())
+        .limit(MAX_DIRECTORY_ROSTERS)
+        .all()
+    )
+    return RosterDirectoryOut(
+        rosters=[
+            RosterDirectoryEntryOut(
+                roster_id=roster.roster_id,
+                subject_id=roster.subject_id,
+                grade=roster.grade,
+                instructor_display_name=instructor.display_name,
+                join_code=roster.join_code,
+            )
+            for roster, instructor in rows
+        ]
     )
 
 
@@ -120,6 +185,9 @@ def create_roster_route(
 
 class UpdateRosterIn(BaseModel):
     enrollment_mode: EnrollmentMode
+    # spec 041 FR-017/FR-018: optional, alongside the existing
+    # enrollment_mode -- `None` leaves is_listed untouched.
+    is_listed: bool | None = None
 
 
 @router.patch("/api/rosters/{roster_id}", response_model=RosterOut)
@@ -130,7 +198,13 @@ def update_roster_route(
     db: Session = Depends(get_db),
 ) -> RosterOut:
     roster = _get_owned_roster(db, roster_id, instructor)
-    roster = update_roster_enrollment_mode(db, roster=roster, enrollment_mode=body.enrollment_mode)
+    roster = update_roster(
+        db,
+        roster=roster,
+        enrollment_mode=body.enrollment_mode,
+        is_listed=body.is_listed,
+        instructor_display_name=getattr(instructor, "display_name", None),
+    )
     return _roster_out(roster)
 
 
@@ -152,6 +226,7 @@ def list_rosters_route(
                 subject_id=roster.subject_id,
                 enrollment_mode=roster.enrollment_mode.value,
                 grade=roster.grade,
+                is_listed=roster.is_listed,
             )
             for roster in rosters
         ]

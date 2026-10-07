@@ -10,6 +10,7 @@ import {
   type MasteryHistoryPoint,
   type MasteryTopicEntry,
 } from "@/services/api";
+import { getRealLearnerSession } from "@/lib/visitor-state";
 import MasteryView from "@/components/MasteryView";
 import MasteryTrend from "@/components/MasteryTrend";
 import LoadingIndicator from "@/components/LoadingIndicator";
@@ -112,7 +113,10 @@ export default function MasteryFlow() {
       .catch(() => {
         if (!cancelled) setSubjectName(null);
       });
-    getDemoLearner()
+    // spec 041 FR-016: a guardian's real-learner session resolves
+    // `learnerId` here instead of the demo learner.
+    const realSession = getRealLearnerSession();
+    (realSession ? Promise.resolve({ learner_id: realSession.learnerId }) : getDemoLearner())
       .then((learner) => {
         if (cancelled) return null;
         setLearnerId(learner.learner_id);

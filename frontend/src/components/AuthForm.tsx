@@ -72,12 +72,12 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
   const otherModeLabel = mode === "register" ? "Sign in instead" : "Create an account instead";
 
   return (
-    <div className="mx-auto flex max-w-sm flex-col gap-6 p-8">
-      <h1 className="text-2xl font-semibold">
+    <div className="mx-auto flex w-full max-w-[460px] flex-col gap-[22px] rounded-card border border-border bg-surface p-9">
+      <h1 className="font-heading text-[34px] font-bold leading-tight text-heading">
         {mode === "register" ? "Create" : "Sign in to"} your {ACCOUNT_LABEL[accountType]} account
       </h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1.5 text-[15px] font-extrabold">
           Email
           <input
             type="email"
@@ -85,10 +85,10 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
             autoComplete="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
-            className="rounded-lg border border-border px-3 py-2"
+            className="min-h-[52px] rounded-2xl border-2 border-primary/25 px-4 text-[17px] font-normal"
           />
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex flex-col gap-1.5 text-[15px] font-extrabold">
           Password
           <input
             type="password"
@@ -97,7 +97,7 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
             autoComplete={mode === "register" ? "new-password" : "current-password"}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
-            className="rounded-lg border border-border px-3 py-2"
+            className="min-h-[52px] rounded-2xl border-2 border-primary/25 px-4 text-[17px] font-normal"
           />
         </label>
         {errorText && (
@@ -108,12 +108,12 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
         <button
           type="submit"
           disabled={submitting}
-          className="rounded-lg bg-primary px-5 py-3 text-primary-foreground disabled:opacity-40"
+          className="min-h-[52px] rounded-full bg-primary text-[17px] font-extrabold text-primary-foreground disabled:opacity-40"
         >
           {submitting ? "Please wait…" : mode === "register" ? "Create account" : "Sign in"}
         </button>
       </form>
-      <Link href={otherModeHref} className="text-sm text-link underline">
+      <Link href={otherModeHref} className="text-center text-[15px] font-extrabold text-link">
         {otherModeLabel}
       </Link>
     </div>

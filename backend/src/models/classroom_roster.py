@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import CheckConstraint, DateTime, Enum, ForeignKey, Integer, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKey, Integer, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -56,4 +56,11 @@ class ClassroomRoster(Base):
     join_code: Mapped[str | None] = mapped_column(unique=True, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    # spec 041 FR-018: MUST NOT be True when enrollment_mode is CLOSED --
+    # an application-level invariant (services/roster/enrollment.py),
+    # not a DB CHECK constraint, same precedent as this class's own
+    # docstring already documents for grade/subject_id.
+    is_listed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
     )

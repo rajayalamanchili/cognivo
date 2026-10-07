@@ -13,9 +13,12 @@ import {
 } from "@/services/api";
 import {
   exitDemoLearnerMode,
+  exitRealLearnerSession,
+  getRealLearnerSession,
   isDemoLearnerMode,
   notifySessionChanged,
   onSessionChanged,
+  type RealLearnerSession,
 } from "@/lib/visitor-state";
 
 // The nav's menu depends on who's actually visiting -- a server-verified
@@ -26,7 +29,7 @@ import {
 // and "Sign In" show, per the product decision that drove this component
 // -- everything else is gated on one of those two signals.
 
-type Bucket = "anonymous" | "demo-learner" | "guardian" | "instructor";
+type Bucket = "anonymous" | "demo-learner" | "guardian" | "instructor" | "real-learner";
 
 interface NavLink {
   href: string;
@@ -49,7 +52,19 @@ const PERSONALIZATION_EVIDENCE_LINK: NavLink = {
   label: "Personalization Evidence",
 };
 
-const GUARDIAN_LINKS: NavLink[] = [{ href: "/guardian/learners", label: "My Learners" }];
+const GUARDIAN_LINKS: NavLink[] = [
+  { href: "/guardian/learners", label: "My Learners" },
+  { href: "/guardian/settings", label: "Settings" },
+];
+
+// spec 041 FR-016/FR-022: no Placement -- real placement stays out of
+// scope (spec Clarifications).
+const REAL_LEARNER_LINKS: NavLink[] = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/practice", label: "Practice" },
+  { href: "/mastery", label: "Mastery" },
+  { href: "/tutor", label: "AI Tutor" },
+];
 
 const INSTRUCTOR_LINKS: NavLink[] = [
   { href: "/instructor/rosters", label: "Rosters" },
@@ -68,7 +83,12 @@ function logoHref(accountType: SessionAccountType | null | "loading"): string {
   return "/";
 }
 
-function bucketFor(accountType: SessionAccountType | null, demoLearnerMode: boolean): Bucket {
+function bucketFor(
+  accountType: SessionAccountType | null,
+  demoLearnerMode: boolean,
+  realLearnerActive: boolean,
+): Bucket {
+  if (accountType === "guardian" && realLearnerActive) return "real-learner";
   if (accountType === "guardian") return "guardian";
   if (accountType === "instructor" || accountType === "demo_instructor") return "instructor";
   if (demoLearnerMode) return "demo-learner";
@@ -91,12 +111,14 @@ function useVisitorState() {
   // (post-hydration) already saw the real flag while the server-
   // rendered HTML it's diffed against never could.
   const [demoLearnerMode, setDemoLearnerMode] = useState(false);
+  const [realLearnerSession, setRealLearnerSession] = useState<RealLearnerSession | null>(null);
   const [pendingDeletionWarnings, setPendingDeletionWarnings] = useState<PendingDeletionWarning[]>(
     [],
   );
 
   function refresh() {
     setDemoLearnerMode(isDemoLearnerMode());
+    setRealLearnerSession(getRealLearnerSession());
     getWhoAmI()
       .then((result) => {
         setAccountType(result.account_type);
@@ -114,6 +136,7 @@ function useVisitorState() {
     accountType,
     identifier,
     demoLearnerMode,
+    realLearnerSession,
     pendingDeletionWarnings,
     refresh,
     setAccountType,
@@ -121,10 +144,13 @@ function useVisitorState() {
   };
 }
 
-// 027-learner-ui-redesign: pill-shaped nav-link treatment, scoped to the
-// demo-learner bucket only (per spec.md's Edge Cases) -- guardian/instructor
-// links keep their existing plain-text styling.
-function demoLearnerLinkClassName(active: boolean): string {
+// 027-learner-ui-redesign: pill-shaped nav-link treatment, originally
+// scoped to the demo-learner bucket only (per spec.md's Edge Cases).
+// spec 041 FR-001 extends the same pill-tab shape to the guardian
+// bucket's own nav links (GuardianLearners.dc.html's "My learners"/
+// "Settings" tabs) -- instructor links keep their existing plain-text
+// styling (instructor pages are out of this redesign's scope).
+function pillNavLinkClassName(active: boolean): string {
   return `rounded-full px-4 py-2 font-bold ${active ? "bg-primary-subtle text-heading" : "text-muted"}`;
 }
 
@@ -135,6 +161,7 @@ export default function Nav() {
     accountType,
     identifier,
     demoLearnerMode,
+    realLearnerSession,
     pendingDeletionWarnings,
     refresh,
     setAccountType,
@@ -191,6 +218,10 @@ export default function Nav() {
     await logout();
     setAccountType(null);
     setIdentifier(null);
+    // FR-022: a stale real-learner identity must not survive sign-out
+    // and leak into a different guardian's subsequent session on the
+    // same browser -- exiting is idempotent, safe to call unconditionally.
+    exitRealLearnerSession();
     // Every other session-changing action (login/register, entering or
     // exiting demo learner mode) notifies other mounted components --
     // sign-out was the one gap, leaving DemoBadge's own independent
@@ -205,10 +236,22 @@ export default function Nav() {
     router.push("/");
   }
 
+  // FR-022: ends the guardian's "acting for this learner" session and
+  // returns to the learner-picker, without touching the guardian's own
+  // (still-valid) sign-in session.
+  function handleExitLearnerView() {
+    exitRealLearnerSession();
+    router.push("/guardian/learners");
+  }
+
   // Treated as "anonymous" while `accountType` is still resolving --
   // avoids a flash of an empty nav, and the bucket updates the instant
   // the fetch settles (SC-005's link below renders regardless either way).
-  const bucket = bucketFor(accountType === "loading" ? null : accountType, demoLearnerMode);
+  const bucket = bucketFor(
+    accountType === "loading" ? null : accountType,
+    demoLearnerMode,
+    realLearnerSession !== null,
+  );
 
   const links: NavLink[] =
     bucket === "guardian"
@@ -217,7 +260,9 @@ export default function Nav() {
         ? INSTRUCTOR_LINKS
         : bucket === "demo-learner"
           ? DEMO_LEARNER_LINKS
-          : [];
+          : bucket === "real-learner"
+            ? REAL_LEARNER_LINKS
+            : [];
 
   // 027-learner-ui-redesign, gap-closing pass: the mockup's header is a
   // centered 1180px/68px-tall bar -- scoped to the demo-learner bucket
@@ -250,6 +295,11 @@ export default function Nav() {
             <CognivoMark size={28} />
             Cognivo
           </Link>
+          {bucket === "guardian" && (
+            <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-extrabold tracking-[0.04em] text-muted">
+              GUARDIAN
+            </span>
+          )}
           {bucket === "anonymous" && (
             <Link href="/demo" className="text-muted">
               Try Demo
@@ -262,7 +312,7 @@ export default function Nav() {
           )}
           <div className={isDemoLearnerBucket ? "flex flex-grow items-center gap-1" : "contents"}>
             {links.map((link) => {
-              if (bucket !== "demo-learner") {
+              if (bucket !== "demo-learner" && bucket !== "guardian") {
                 return (
                   <Link key={link.href} href={link.href} className="text-muted">
                     {link.label}
@@ -275,7 +325,7 @@ export default function Nav() {
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={demoLearnerLinkClassName(active)}
+                  className={pillNavLinkClassName(active)}
                 >
                   {link.label}
                 </Link>
@@ -345,12 +395,34 @@ export default function Nav() {
               )}
             </div>
           )}
-          {(bucket === "guardian" || bucket === "instructor") && (
+          {(bucket === "guardian" || bucket === "instructor" || bucket === "real-learner") && (
             <span className="ml-auto flex items-center gap-4">
+              {bucket === "guardian" && identifier && (
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-subtle text-sm font-extrabold text-heading"
+                >
+                  {identifier.charAt(0).toUpperCase()}
+                </span>
+              )}
               {(accountType === "guardian" || accountType === "instructor") && identifier && (
                 <span className="text-muted" data-testid="nav-identity">
                   {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
                 </span>
+              )}
+              {bucket === "real-learner" && realLearnerSession && (
+                <>
+                  <span className="text-muted" data-testid="nav-real-learner-identity">
+                    {realLearnerSession.displayName} (learner)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleExitLearnerView}
+                    className="text-muted underline"
+                  >
+                    Exit learner view
+                  </button>
+                </>
               )}
               <button type="button" onClick={handleSignOut} className="text-muted underline">
                 Sign Out
@@ -364,6 +436,24 @@ export default function Nav() {
           )}
         </div>
       </nav>
+      {bucket === "real-learner" && realLearnerSession && (
+        <div
+          data-testid="real-learner-session-banner"
+          className="flex flex-wrap items-center justify-between gap-3 border-b border-primary/20 bg-primary-subtle px-8 py-2.5 text-sm"
+        >
+          <span className="font-bold text-heading">
+            You&rsquo;re viewing {realLearnerSession.displayName}&rsquo;s learning on your
+            guardian account.
+          </span>
+          <button
+            type="button"
+            onClick={handleExitLearnerView}
+            className="min-h-9 rounded-full border-2 border-primary/25 bg-surface px-4 font-extrabold text-heading"
+          >
+            End session, back to my learners
+          </button>
+        </div>
+      )}
       {pendingDeletionWarnings.length > 0 && (
         <div
           data-testid="deletion-warning-banner"

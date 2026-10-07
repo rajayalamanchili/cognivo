@@ -13,6 +13,7 @@ import {
   getPracticeNextQuestion,
   getPracticeSessionSummary,
   getSubjects,
+  getWhoAmI,
   isAlreadyAnsweredError,
   startPracticeSession,
   type AnswerResult,
@@ -20,6 +21,7 @@ import {
   type PracticeSessionSummaryResponse,
   type SubjectSummary,
 } from "@/services/api";
+import { getRealLearnerSession } from "@/lib/visitor-state";
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
 import RefreshedBanner from "@/components/RefreshedBanner";
@@ -63,6 +65,10 @@ export default function PracticeFlow() {
   const [result, setResult] = useState<AnswerResult | null>(null);
   const [flagged, setFlagged] = useState(false);
   const [readAloudUsed, setReadAloudUsed] = useState(false);
+  // spec 041 FR-011: a real learner's guardian can set read-aloud to
+  // default on -- fetched alongside learner resolution below, a no-op
+  // (stays false) for the demo learner, who has no guardian preference.
+  const [readAloudDefault, setReadAloudDefault] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   // PR feedback: free_text/multi_step submit themselves, so `phase` alone
   // doesn't cover their grading call being in flight -- tracked separately
@@ -71,7 +77,17 @@ export default function PracticeFlow() {
 
   useEffect(() => {
     let cancelled = false;
-    getDemoLearner()
+    // spec 041 FR-016: a guardian's real-learner session resolves
+    // `learnerId` here instead of the demo learner.
+    const realSession = getRealLearnerSession();
+    if (realSession) {
+      getWhoAmI()
+        .then((who) => {
+          if (!cancelled) setReadAloudDefault(who.read_aloud_default ?? false);
+        })
+        .catch(() => {});
+    }
+    (realSession ? Promise.resolve({ learner_id: realSession.learnerId }) : getDemoLearner())
       .then((learner) => {
         if (cancelled) return undefined;
         setLearnerId(learner.learner_id);
@@ -418,6 +434,7 @@ export default function PracticeFlow() {
           }
           onBusyChange={setAnswerBusy}
           readAloudEnabled={question.read_aloud_eligible}
+          readAloudDefault={readAloudDefault}
           onReadAloudUsed={() => setReadAloudUsed(true)}
           footer={
             <div className="flex flex-wrap items-center justify-between gap-4">

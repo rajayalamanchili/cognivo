@@ -1,7 +1,7 @@
 import datetime
 import uuid
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, func, true
+from sqlalchemy import Boolean, DateTime, ForeignKey, false, func, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,4 +41,10 @@ class LearnerProfile(Base):
     )
     career_connections_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
+    )
+    # spec 041 FR-011: the one per-learner (not per-guardian) Settings
+    # toggle the mockup shows ("Practice reminders for Eli") -- mirrors
+    # career_connections_enabled's exact shape/precedent on this table.
+    practice_reminders_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
     )
