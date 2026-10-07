@@ -38,6 +38,13 @@ from src.services.roster.enrollment import (
 
 router = APIRouter()
 
+# Code Review follow-up on PR #109: the directory query had neither an
+# ORDER BY nor a cap, so results were non-deterministic page-to-page and
+# unbounded as listed rosters accumulate. A flat cap (rather than real
+# cursor pagination) is proportional to how this is actually used --
+# one screen listing open classes to join, not a paged browse.
+MAX_DIRECTORY_ROSTERS = 100
+
 
 def _get_validated_subject(db: Session, subject_id: str) -> Subject:
     subject = db.get(Subject, subject_id)
@@ -135,6 +142,8 @@ def roster_directory_route(
             ClassroomRoster.is_listed.is_(True),
             ClassroomRoster.enrollment_mode == EnrollmentMode.OPEN,
         )
+        .order_by(ClassroomRoster.created_at.desc())
+        .limit(MAX_DIRECTORY_ROSTERS)
         .all()
     )
     return RosterDirectoryOut(

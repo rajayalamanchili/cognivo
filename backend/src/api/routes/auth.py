@@ -195,7 +195,7 @@ def login_guardian(
     password_ok = verify_password(body.password, password_hash)
     if guardian is None or not password_ok:
         if guardian is not None:
-            record_failed_attempt(guardian)
+            record_failed_attempt(db, guardian)
             db.commit()
         raise AuthenticationError("invalid_credentials")
 
@@ -323,7 +323,7 @@ def change_guardian_password(
     if is_locked_out(guardian):
         raise RateLimitedError(seconds_until_unlocked(guardian))
     if not verify_password(body.current_password, guardian.password_hash):
-        record_failed_attempt(guardian)
+        record_failed_attempt(db, guardian)
         db.commit()
         raise AuthenticationError("invalid_credentials")
     record_successful_attempt(guardian)

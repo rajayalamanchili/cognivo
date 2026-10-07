@@ -443,6 +443,9 @@ export default function RostersFlow() {
               />
               List in directory
             </label>
+            <p className="text-xs text-muted">
+              Visible to every guardian: your display name and this roster&apos;s join code.
+            </p>
             {listingErrors[roster.roster_id] && (
               <p
                 className="text-sm text-error"

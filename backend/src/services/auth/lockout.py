@@ -10,9 +10,22 @@ limiters already use (`services/tutor/rate_limit.py`,
 `services/grading_client/guardrails.py`), just keyed by account instead
 of a trailing-window event-row count, since there's no existing
 per-attempt event table for auth to count rows in.
+
+Known, accepted trade-off (Code Review follow-up on PR #109): keying
+solely on the account, with no IP component, means anyone who knows a
+guardian's email can lock that guardian out of sign-in for
+`LOCKOUT_DURATION_MINUTES` with `LOCKOUT_THRESHOLD` bad requests --
+and since `/change-password` shares the same counter, a stolen session
+can use it to lock out the legitimate owner. Adding an IP-keyed
+component would need its own spec decision (a shared NAT/VPN exit
+legitimately produces many guardians' traffic from one IP, so it's not
+a drop-in change) rather than a reactive patch here.
 """
 
 import datetime
+
+from sqlalchemy import case, update
+from sqlalchemy.orm import Session
 
 from src.models.real_guardian_account import RealGuardianAccount
 
@@ -33,12 +46,42 @@ def seconds_until_unlocked(guardian: RealGuardianAccount) -> int:
     return max(1, int(remaining.total_seconds()))
 
 
-def record_failed_attempt(guardian: RealGuardianAccount) -> None:
-    guardian.failed_login_attempts += 1
-    if guardian.failed_login_attempts >= LOCKOUT_THRESHOLD:
-        guardian.locked_until = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-            minutes=LOCKOUT_DURATION_MINUTES
+def record_failed_attempt(db: Session, guardian: RealGuardianAccount) -> None:
+    """A single `UPDATE ... SET failed_login_attempts = failed_login_attempts
+    + 1` (Code Review finding on PR #109): the previous `guardian.
+    failed_login_attempts += 1` read-modify-wrote the Python object's
+    already-loaded value, so two concurrent guesses (normal on Vercel's
+    per-request invocations) each computed `n + 1` from the same stale
+    `n` and one increment was lost -- parallel guessing undercounted
+    and could get more than `LOCKOUT_THRESHOLD` tries in. Doing the
+    arithmetic in the `UPDATE` itself means Postgres reads the row's
+    current value while it holds that row's lock, so the race is gone
+    regardless of how many requests overlap.
+
+    Also resets the counter here once `locked_until` has passed, in the
+    same statement: without that, the count was still >= threshold from
+    the expired lockout, so the very next failed attempt re-locked
+    immediately instead of getting a fresh five tries.
+
+    Leaves `guardian`'s in-memory attributes stale (the caller doesn't
+    read them again before raising)."""
+    now = datetime.datetime.now(datetime.UTC)
+    lock_expired = (RealGuardianAccount.locked_until.isnot(None)) & (
+        RealGuardianAccount.locked_until <= now
+    )
+    new_count = case((lock_expired, 1), else_=RealGuardianAccount.failed_login_attempts + 1)
+    db.execute(
+        update(RealGuardianAccount)
+        .where(RealGuardianAccount.guardian_id == guardian.guardian_id)
+        .values(
+            failed_login_attempts=new_count,
+            locked_until=case(
+                (new_count >= LOCKOUT_THRESHOLD, now + datetime.timedelta(minutes=LOCKOUT_DURATION_MINUTES)),
+                (lock_expired, None),
+                else_=RealGuardianAccount.locked_until,
+            ),
         )
+    )
 
 
 def record_successful_attempt(guardian: RealGuardianAccount) -> None:
