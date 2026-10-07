@@ -13,9 +13,12 @@ import {
 } from "@/services/api";
 import {
   exitDemoLearnerMode,
+  exitRealLearnerSession,
+  getRealLearnerSession,
   isDemoLearnerMode,
   notifySessionChanged,
   onSessionChanged,
+  type RealLearnerSession,
 } from "@/lib/visitor-state";
 
 // The nav's menu depends on who's actually visiting -- a server-verified
@@ -26,7 +29,7 @@ import {
 // and "Sign In" show, per the product decision that drove this component
 // -- everything else is gated on one of those two signals.
 
-type Bucket = "anonymous" | "demo-learner" | "guardian" | "instructor";
+type Bucket = "anonymous" | "demo-learner" | "guardian" | "instructor" | "real-learner";
 
 interface NavLink {
   href: string;
@@ -54,6 +57,15 @@ const GUARDIAN_LINKS: NavLink[] = [
   { href: "/guardian/settings", label: "Settings" },
 ];
 
+// spec 041 FR-016/FR-022: no Placement -- real placement stays out of
+// scope (spec Clarifications).
+const REAL_LEARNER_LINKS: NavLink[] = [
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/practice", label: "Practice" },
+  { href: "/mastery", label: "Mastery" },
+  { href: "/tutor", label: "AI Tutor" },
+];
+
 const INSTRUCTOR_LINKS: NavLink[] = [
   { href: "/instructor/rosters", label: "Rosters" },
   { href: "/instructor/dashboard", label: "Dashboard" },
@@ -71,7 +83,12 @@ function logoHref(accountType: SessionAccountType | null | "loading"): string {
   return "/";
 }
 
-function bucketFor(accountType: SessionAccountType | null, demoLearnerMode: boolean): Bucket {
+function bucketFor(
+  accountType: SessionAccountType | null,
+  demoLearnerMode: boolean,
+  realLearnerActive: boolean,
+): Bucket {
+  if (accountType === "guardian" && realLearnerActive) return "real-learner";
   if (accountType === "guardian") return "guardian";
   if (accountType === "instructor" || accountType === "demo_instructor") return "instructor";
   if (demoLearnerMode) return "demo-learner";
@@ -94,12 +111,14 @@ function useVisitorState() {
   // (post-hydration) already saw the real flag while the server-
   // rendered HTML it's diffed against never could.
   const [demoLearnerMode, setDemoLearnerMode] = useState(false);
+  const [realLearnerSession, setRealLearnerSession] = useState<RealLearnerSession | null>(null);
   const [pendingDeletionWarnings, setPendingDeletionWarnings] = useState<PendingDeletionWarning[]>(
     [],
   );
 
   function refresh() {
     setDemoLearnerMode(isDemoLearnerMode());
+    setRealLearnerSession(getRealLearnerSession());
     getWhoAmI()
       .then((result) => {
         setAccountType(result.account_type);
@@ -117,6 +136,7 @@ function useVisitorState() {
     accountType,
     identifier,
     demoLearnerMode,
+    realLearnerSession,
     pendingDeletionWarnings,
     refresh,
     setAccountType,
@@ -138,6 +158,7 @@ export default function Nav() {
     accountType,
     identifier,
     demoLearnerMode,
+    realLearnerSession,
     pendingDeletionWarnings,
     refresh,
     setAccountType,
@@ -194,6 +215,10 @@ export default function Nav() {
     await logout();
     setAccountType(null);
     setIdentifier(null);
+    // FR-022: a stale real-learner identity must not survive sign-out
+    // and leak into a different guardian's subsequent session on the
+    // same browser -- exiting is idempotent, safe to call unconditionally.
+    exitRealLearnerSession();
     // Every other session-changing action (login/register, entering or
     // exiting demo learner mode) notifies other mounted components --
     // sign-out was the one gap, leaving DemoBadge's own independent
@@ -208,10 +233,22 @@ export default function Nav() {
     router.push("/");
   }
 
+  // FR-022: ends the guardian's "acting for this learner" session and
+  // returns to the learner-picker, without touching the guardian's own
+  // (still-valid) sign-in session.
+  function handleExitLearnerView() {
+    exitRealLearnerSession();
+    router.push("/guardian/learners");
+  }
+
   // Treated as "anonymous" while `accountType` is still resolving --
   // avoids a flash of an empty nav, and the bucket updates the instant
   // the fetch settles (SC-005's link below renders regardless either way).
-  const bucket = bucketFor(accountType === "loading" ? null : accountType, demoLearnerMode);
+  const bucket = bucketFor(
+    accountType === "loading" ? null : accountType,
+    demoLearnerMode,
+    realLearnerSession !== null,
+  );
 
   const links: NavLink[] =
     bucket === "guardian"
@@ -220,7 +257,9 @@ export default function Nav() {
         ? INSTRUCTOR_LINKS
         : bucket === "demo-learner"
           ? DEMO_LEARNER_LINKS
-          : [];
+          : bucket === "real-learner"
+            ? REAL_LEARNER_LINKS
+            : [];
 
   // 027-learner-ui-redesign, gap-closing pass: the mockup's header is a
   // centered 1180px/68px-tall bar -- scoped to the demo-learner bucket
@@ -348,12 +387,26 @@ export default function Nav() {
               )}
             </div>
           )}
-          {(bucket === "guardian" || bucket === "instructor") && (
+          {(bucket === "guardian" || bucket === "instructor" || bucket === "real-learner") && (
             <span className="ml-auto flex items-center gap-4">
               {(accountType === "guardian" || accountType === "instructor") && identifier && (
                 <span className="text-muted" data-testid="nav-identity">
                   {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
                 </span>
+              )}
+              {bucket === "real-learner" && realLearnerSession && (
+                <>
+                  <span className="text-muted" data-testid="nav-real-learner-identity">
+                    {realLearnerSession.displayName} (learner)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleExitLearnerView}
+                    className="text-muted underline"
+                  >
+                    Exit learner view
+                  </button>
+                </>
               )}
               <button type="button" onClick={handleSignOut} className="text-muted underline">
                 Sign Out

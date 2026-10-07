@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   getActivitySummary,
   getMasteryState,
   getTopicPriorityPreview,
   type MyLearnerEnrollment,
 } from "@/services/api";
+import { enterRealLearnerSession } from "@/lib/visitor-state";
 import JoinRosterForm from "@/components/JoinRosterForm";
 import LearnerAssignments from "@/components/LearnerAssignments";
 import GuardianLearnerStandards from "@/components/GuardianLearnerStandards";
@@ -57,9 +59,18 @@ export default function GuardianLearnerCard({
   displayName,
   enrollment,
 }: GuardianLearnerCardProps) {
+  const router = useRouter();
   const [topicsMastered, setTopicsMastered] = useState<number | null>(null);
   const [questionsThisWeek, setQuestionsThisWeek] = useState<number | null>(null);
   const [workingOn, setWorkingOn] = useState<string | null>(null);
+
+  // spec 041 FR-016/T039: opens this learner's own real session
+  // (Dashboard/Practice/Mastery/Tutor), mirroring the demo learner's
+  // flow -- omitted entirely for a learner not yet in a class.
+  function handleOpenDashboard() {
+    enterRealLearnerSession(learnerId, displayName);
+    router.push("/dashboard");
+  }
 
   useEffect(() => {
     if (!enrollment) return;
@@ -138,6 +149,13 @@ export default function GuardianLearnerCard({
             </div>
           </div>
 
+          <button
+            type="button"
+            onClick={handleOpenDashboard}
+            className="self-start rounded-full bg-primary px-5 py-2.5 text-[15px] font-extrabold text-primary-foreground"
+          >
+            Open dashboard
+          </button>
           <LearnerAssignments learnerId={learnerId} />
           <p className="text-sm text-muted">{tier.note}</p>
           <GuardianLearnerStandards learnerId={learnerId} />

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { getDemoLearner, getSubjects, type SubjectSummary } from "@/services/api";
 import DashboardSubjectSection from "@/components/DashboardSubjectSection";
 import LoadingIndicator from "@/components/LoadingIndicator";
+import { getRealLearnerSession } from "@/lib/visitor-state";
 
 type Phase = "loading" | "loaded" | "error";
 
@@ -24,7 +25,14 @@ export default function DashboardFlow() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getDemoLearner(), getSubjects()])
+    // spec 041 FR-016: a guardian's real-learner session (visitor-
+    // state.ts) resolves `learnerId` here instead of the demo learner,
+    // with zero change to how the rest of the dashboard is fetched.
+    const realSession = getRealLearnerSession();
+    const learnerPromise = realSession
+      ? Promise.resolve({ learner_id: realSession.learnerId, display_name: realSession.displayName })
+      : getDemoLearner();
+    Promise.all([learnerPromise, getSubjects()])
       .then(([learner, subjectsResponse]) => {
         if (cancelled) return;
         setLearnerId(learner.learner_id);

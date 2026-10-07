@@ -3,6 +3,7 @@ import { formatTopicId } from "@/lib/format-topic-id";
 import SessionTimingSummary from "@/components/SessionTimingSummary";
 import AnswerResultView from "@/components/AnswerResultView";
 import { getExplanationCopyTier } from "@/lib/explainabilityCopy";
+import { masteryBeforeAfterByTopic } from "@/lib/mastery-before-after";
 
 // Presentational only -- FR-005's score + per-topic/difficulty summary,
 // rendered identically whether the quiz reached a normal `completed`
@@ -37,6 +38,7 @@ export default function QuizSummary({
   const tier = getExplanationCopyTier(unlockedGrade);
   const heading =
     summary.status === "in_progress" ? "Quiz in progress" : STATUS_LABEL[summary.status];
+  const beforeAfter = masteryBeforeAfterByTopic(summary.per_question_results);
 
   return (
     <div className="flex flex-col gap-5" data-testid="quiz-summary">
@@ -77,6 +79,28 @@ export default function QuizSummary({
           </p>
         )}
       </section>
+      {beforeAfter.length > 0 && (
+        <section
+          className="flex flex-col gap-3 rounded-card border border-border bg-surface p-6"
+          data-testid="quiz-mastery-before-after"
+        >
+          <h3 className="font-heading text-xl font-bold text-heading">Mastery before → after</h3>
+          <ul className="flex flex-col gap-2">
+            {beforeAfter.map((entry) => (
+              <li
+                key={entry.topic_id}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-surface-subtle px-4 py-3"
+              >
+                <span className="font-extrabold">{formatTopicId(entry.topic_id)}</span>
+                <span className="text-sm font-bold text-muted">
+                  {entry.before != null ? `${Math.round(entry.before * 100)}%` : "—"} &rarr;{" "}
+                  {Math.round(entry.after * 100)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {summary.per_question_results != null && summary.per_question_results.length > 0 && (
         <section
           className="flex flex-col gap-3 rounded-card border border-border bg-surface p-6"

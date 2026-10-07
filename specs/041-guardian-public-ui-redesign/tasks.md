@@ -123,7 +123,7 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] Add a pure client-side aggregation in `frontend/src/components/QuizSummary.tsx` (or a small new helper module alongside it, e.g. `frontend/src/lib/mastery-before-after.ts`) that groups `summary.per_question_results` by `topic_id` and derives each topic's first `prior_p_mastery` and last `posterior_p_mastery`, rendering a before→after row per topic (FR-007). No new fetch — `per_question_results` is already present on `QuizSummaryResponse`.
+- [X] T026 [US3] Add a pure client-side aggregation in `frontend/src/components/QuizSummary.tsx` (or a small new helper module alongside it, e.g. `frontend/src/lib/mastery-before-after.ts`) that groups `summary.per_question_results` by `topic_id` and derives each topic's first `prior_p_mastery` and last `posterior_p_mastery`, rendering a before→after row per topic (FR-007). No new fetch — `per_question_results` is already present on `QuizSummaryResponse`.
 
 **Checkpoint**: Manually verify quickstart.md Story 3 (network tab shows no new request beyond the existing summary fetch).
 
@@ -137,22 +137,22 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T027 [P] [US4] Frontend unit test in `frontend/tests/unit/real-learner-session.test.tsx` covering `enterRealLearnerSession`/`exitRealLearnerSession`/`getRealLearnerSession` (localStorage round-trip + `notifySessionChanged` call) in `frontend/src/lib/visitor-state.ts`.
-- [ ] T028 [P] [US4] Extend `frontend/tests/unit/nav.test.tsx` to cover the new `"real-learner"` bucket: real learner's identity shown (not demo badge), `REAL_LEARNER_LINKS` rendered, "Exit learner view" clearing the session and navigating to `/guardian/learners`, AND (FR-022) signing out while a real-learner session is active clears that session too (not just `accountType`/`identifier`).
-- [ ] T029 [P] [US4] Extend `frontend/tests/unit/demo-badge.test.tsx` to assert the badge is suppressed while a real-learner session is active, and still shown for the actual demo learner.
-- [ ] T030 [P] [US4] Extend `frontend/tests/unit/practice-flow.test.tsx` and `frontend/tests/unit/mastery-flow.test.tsx` to cover the real-learner-session code path (learner resolved from session, not `getDemoLearner()`).
+- [X] T027 [P] [US4] Frontend unit test in `frontend/tests/unit/real-learner-session.test.tsx` covering `enterRealLearnerSession`/`exitRealLearnerSession`/`getRealLearnerSession` (localStorage round-trip + `notifySessionChanged` call) in `frontend/src/lib/visitor-state.ts`.
+- [X] T028 [P] [US4] Extend `frontend/tests/unit/nav.test.tsx` to cover the new `"real-learner"` bucket: real learner's identity shown (not demo badge), `REAL_LEARNER_LINKS` rendered, "Exit learner view" clearing the session and navigating to `/guardian/learners`, AND (FR-022) signing out while a real-learner session is active clears that session too (not just `accountType`/`identifier`).
+- [X] T029 [P] [US4] Extend `frontend/tests/unit/demo-badge.test.tsx` to assert the badge is suppressed while a real-learner session is active, and still shown for the actual demo learner.
+- [X] T030 [P] [US4] Extend `frontend/tests/unit/practice-flow.test.tsx` and `frontend/tests/unit/mastery-flow.test.tsx` to cover the real-learner-session code path (learner resolved from session, not `getDemoLearner()`).
 
 ### Implementation for User Story 4
 
-- [ ] T031 [US4] Add `REAL_LEARNER_SESSION_KEY`-backed `getRealLearnerSession`/`enterRealLearnerSession`/`exitRealLearnerSession` to `frontend/src/lib/visitor-state.ts`, mirroring the existing `isDemoLearnerMode`/`enterDemoLearnerMode`/`exitDemoLearnerMode` pattern exactly (research.md §1).
-- [ ] T032 [US4] Add a "real-learner" bucket to `bucketFor`/`useVisitorState` in `frontend/src/components/Nav.tsx`, active when `accountType === "guardian"` AND a real-learner session is active; add `REAL_LEARNER_LINKS` (Dashboard, Practice, Mastery, AI Tutor — no Placement) rendered through the existing plain-link branch (not the demo-learner pill branch); show the real learner's identity and an "Exit learner view" action calling `exitRealLearnerSession()` and navigating to `/guardian/learners` (FR-022).
-- [ ] T033 [US4] Extend `handleSignOut` in `frontend/src/components/Nav.tsx` to also call `exitRealLearnerSession()` whenever a real-learner session is active, alongside its existing `setAccountType(null)`/`setIdentifier(null)`/`notifySessionChanged()` steps (FR-022 — closes the gap found during `/speckit-analyze`: without this, a stale real-learner identity could survive sign-out and leak into a different guardian's subsequent session on the same browser).
-- [ ] T034 [US4] Suppress the badge in `frontend/src/components/DemoBadge.tsx` while a real-learner session is active (check `getRealLearnerSession()` alongside existing `accountType`/`DEMO_LEARNER_PATHNAMES` logic); the demo learner's own badge display is unaffected (FR-022).
-- [ ] T035 [P] [US4] Replace `dashboard-flow.tsx`'s unconditional `getDemoLearner()` with real-learner-session awareness (`frontend/src/app/dashboard/dashboard-flow.tsx`): resolve `learnerId` from `getRealLearnerSession()` when active, else fall back to today's demo-learner path.
-- [ ] T036 [P] [US4] Same change in `frontend/src/app/practice/practice-flow.tsx`.
-- [ ] T037 [P] [US4] Same change in `frontend/src/app/mastery/mastery-flow.tsx`.
-- [ ] T038 [P] [US4] Same change in `frontend/src/app/tutor/tutor-flow.tsx`.
-- [ ] T039 [US4] Add a session-entry action to each enrolled learner's card on `frontend/src/app/(auth)/guardian/learners/page.tsx` (built in T011) that calls `enterRealLearnerSession(learnerId, displayName)` and navigates to `/dashboard`; omitted for a learner not yet in a class (`needsClass` case, Edge Cases).
+- [X] T031 [US4] Add `REAL_LEARNER_SESSION_KEY`-backed `getRealLearnerSession`/`enterRealLearnerSession`/`exitRealLearnerSession` to `frontend/src/lib/visitor-state.ts`, mirroring the existing `isDemoLearnerMode`/`enterDemoLearnerMode`/`exitDemoLearnerMode` pattern exactly (research.md §1).
+- [X] T032 [US4] Add a "real-learner" bucket to `bucketFor`/`useVisitorState` in `frontend/src/components/Nav.tsx`, active when `accountType === "guardian"` AND a real-learner session is active; add `REAL_LEARNER_LINKS` (Dashboard, Practice, Mastery, AI Tutor — no Placement) rendered through the existing plain-link branch (not the demo-learner pill branch); show the real learner's identity and an "Exit learner view" action calling `exitRealLearnerSession()` and navigating to `/guardian/learners` (FR-022).
+- [X] T033 [US4] Extend `handleSignOut` in `frontend/src/components/Nav.tsx` to also call `exitRealLearnerSession()` whenever a real-learner session is active, alongside its existing `setAccountType(null)`/`setIdentifier(null)`/`notifySessionChanged()` steps (FR-022 — closes the gap found during `/speckit-analyze`: without this, a stale real-learner identity could survive sign-out and leak into a different guardian's subsequent session on the same browser).
+- [X] T034 [US4] Suppress the badge in `frontend/src/components/DemoBadge.tsx` while a real-learner session is active (check `getRealLearnerSession()` alongside existing `accountType`/`DEMO_LEARNER_PATHNAMES` logic); the demo learner's own badge display is unaffected (FR-022).
+- [X] T035 [P] [US4] Replace `dashboard-flow.tsx`'s unconditional `getDemoLearner()` with real-learner-session awareness (`frontend/src/app/dashboard/dashboard-flow.tsx`): resolve `learnerId` from `getRealLearnerSession()` when active, else fall back to today's demo-learner path.
+- [X] T036 [P] [US4] Same change in `frontend/src/app/practice/practice-flow.tsx`.
+- [X] T037 [P] [US4] Same change in `frontend/src/app/mastery/mastery-flow.tsx`.
+- [X] T038 [P] [US4] Same change in `frontend/src/app/tutor/tutor-flow.tsx`.
+- [X] T039 [US4] Add a session-entry action to each enrolled learner's card on `frontend/src/app/(auth)/guardian/learners/page.tsx` (built in T011) that calls `enterRealLearnerSession(learnerId, displayName)` and navigates to `/dashboard`; omitted for a learner not yet in a class (`needsClass` case, Edge Cases).
 
 **Checkpoint**: User Stories 1, 2, 3, AND 4 all independently functional. Run quickstart.md Story 4 end-to-end, including the two-learners-in-sequence no-bleed-through check AND signing out mid-session.
 

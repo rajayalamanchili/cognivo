@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getWhoAmI, type SessionAccountType } from "@/services/api";
-import { onSessionChanged } from "@/lib/visitor-state";
+import { getRealLearnerSession, onSessionChanged } from "@/lib/visitor-state";
 
 // Persistent, unmissable demo-account marker (Constitution Principle
 // VIII, tech-stack.md's Demo account strategy) -- shown only while the
@@ -28,10 +28,16 @@ const DEMO_LEARNER_PATHNAMES = new Set([
 export default function DemoBadge() {
   const pathname = usePathname();
   const [accountType, setAccountType] = useState<SessionAccountType | null>(null);
+  // spec 041 FR-022: a guardian acting for a real learner lands on the
+  // same pathnames (`/dashboard`, `/practice`, ...) the actual demo
+  // learner uses -- suppressed here, never for the demo learner itself,
+  // since only a guardian session can ever set this.
+  const [realLearnerActive, setRealLearnerActive] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     function refresh() {
+      setRealLearnerActive(getRealLearnerSession() !== null);
       getWhoAmI()
         .then((result) => {
           if (!cancelled) setAccountType(result.account_type);
@@ -48,7 +54,9 @@ export default function DemoBadge() {
     };
   }, []);
 
-  const visible = accountType === "demo_instructor" || DEMO_LEARNER_PATHNAMES.has(pathname);
+  const visible =
+    !realLearnerActive &&
+    (accountType === "demo_instructor" || DEMO_LEARNER_PATHNAMES.has(pathname));
   if (!visible) return null;
 
   return (

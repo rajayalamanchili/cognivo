@@ -11,6 +11,7 @@ import {
   type TopicPriorityPreview,
   type TutorRetrievedPassage,
 } from "@/services/api";
+import { getRealLearnerSession } from "@/lib/visitor-state";
 import TutorChat, { fieldLabel } from "@/components/TutorChat";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import { formatTopicId } from "@/lib/format-topic-id";
@@ -34,7 +35,10 @@ export default function TutorFlow() {
 
   useEffect(() => {
     let cancelled = false;
-    getDemoLearner()
+    // spec 041 FR-016: a guardian's real-learner session resolves
+    // `learnerId` here instead of the demo learner.
+    const realSession = getRealLearnerSession();
+    (realSession ? Promise.resolve({ learner_id: realSession.learnerId }) : getDemoLearner())
       .then((learner) => {
         if (cancelled) return undefined;
         setLearnerId(learner.learner_id);
