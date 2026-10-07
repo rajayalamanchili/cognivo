@@ -189,9 +189,9 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 **Purpose**: Final validation across all five stories together.
 
-- [ ] T051 Run the full existing backend `pytest` suite and frontend `Vitest` suite — expect 100% pass with no behavioral (non-visual-selector) change required outside the newly-added tests from Phases 4, 6, and 7 (SC-002). In particular, confirm every existing instructor-registration test (there are roughly three dozen call sites across the suite) still passes unmodified — T045 deliberately leaves `register_instructor` untouched specifically so this holds.
-- [ ] T052 Run the existing Playwright E2E suite against the local deployment — confirm sign-in, class-join, add-learner, start-assignment, and demo-entry flows produce identical functional outcomes to before this feature (SC-006, quickstart.md's Regression check).
-- [ ] T053 Side-by-side visual review of all six mockups against their rendered screens (SC-001) — confirm zero unintentional deviations beyond the two clarified departures (no Learner sign-in tab; the reworded hand-off banner).
+- [X] T051 Run the full existing backend `pytest` suite and frontend `Vitest` suite — expect 100% pass with no behavioral (non-visual-selector) change required outside the newly-added tests from Phases 4, 6, and 7 (SC-002). In particular, confirm every existing instructor-registration test (there are roughly three dozen call sites across the suite) still passes unmodified — T045 deliberately leaves `register_instructor` untouched specifically so this holds.
+- [X] T052 Run the existing Playwright E2E suite against the local deployment — confirm sign-in, class-join, add-learner, start-assignment, and demo-entry flows produce identical functional outcomes to before this feature (SC-006, quickstart.md's Regression check).
+- [X] T053 Side-by-side visual review of all six mockups against their rendered screens (SC-001) — confirm zero unintentional deviations beyond the two clarified departures (no Learner sign-in tab; the reworded hand-off banner).
 
 ---
 
