@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
+  ApiError,
   approveRosterRequest,
   cancelAssignment,
   createAssignment,
@@ -14,7 +15,9 @@ import {
   listRosterRequests,
   listRosters,
   unenrollLearner,
+  updateInstructorDisplayName,
   updateRosterEnrollmentMode,
+  updateRosterListing,
   type AssignmentDetail,
   type EnrolledLearner,
   type EnrollmentMode,
@@ -27,6 +30,17 @@ import LoadingIndicator from "@/components/LoadingIndicator";
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+// spec 041 FR-017/FR-018 (T049): distinguishes the one error code the
+// "List in directory" toggle handles specially (an inline prompt) from
+// every other failure (shown as plain error text).
+function apiErrorCode(error: unknown): string | null {
+  if (error instanceof ApiError && typeof error.body === "object" && error.body !== null) {
+    const detail = (error.body as { detail?: unknown }).detail;
+    return typeof detail === "string" ? detail : null;
+  }
+  return null;
 }
 
 export default function RostersFlow() {
@@ -60,6 +74,15 @@ export default function RostersFlow() {
   const [resultsDetail, setResultsDetail] = useState<AssignmentDetail | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
+
+  // spec 041 FR-017/FR-018 (T049): "List in directory" toggle state,
+  // keyed by roster_id -- plus the inline display-name prompt shown
+  // only when a toggle attempt hits instructor_display_name_required.
+  const [listingBusyRosterId, setListingBusyRosterId] = useState<string | null>(null);
+  const [listingErrors, setListingErrors] = useState<Record<string, string>>({});
+  const [displayNamePromptRosterId, setDisplayNamePromptRosterId] = useState<string | null>(null);
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [settingDisplayName, setSettingDisplayName] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +220,7 @@ export default function RostersFlow() {
           roster_id: roster.roster_id,
           subject_id: roster.subject_id,
           enrollment_mode: roster.enrollment_mode,
+          is_listed: roster.is_listed,
         },
       ]);
       setJoinCodes((previous) => ({ ...previous, [roster.roster_id]: roster.join_code }));
@@ -213,12 +237,53 @@ export default function RostersFlow() {
       const roster = await updateRosterEnrollmentMode(rosterId, mode);
       setRosters((previous) =>
         previous.map((r) =>
-          r.roster_id === rosterId ? { ...r, enrollment_mode: roster.enrollment_mode } : r,
+          r.roster_id === rosterId
+            ? { ...r, enrollment_mode: roster.enrollment_mode, is_listed: roster.is_listed }
+            : r,
         ),
       );
       setJoinCodes((previous) => ({ ...previous, [rosterId]: roster.join_code }));
     } catch (error) {
       setDetailError(errorText(error));
+    }
+  }
+
+  async function handleToggleListing(roster: RosterSummary, nextIsListed: boolean) {
+    setListingBusyRosterId(roster.roster_id);
+    setListingErrors((previous) => ({ ...previous, [roster.roster_id]: "" }));
+    try {
+      const updated = await updateRosterListing(
+        roster.roster_id,
+        roster.enrollment_mode,
+        nextIsListed,
+      );
+      setRosters((previous) =>
+        previous.map((r) =>
+          r.roster_id === roster.roster_id ? { ...r, is_listed: updated.is_listed } : r,
+        ),
+      );
+      setDisplayNamePromptRosterId(null);
+    } catch (error) {
+      if (apiErrorCode(error) === "instructor_display_name_required") {
+        setDisplayNamePromptRosterId(roster.roster_id);
+      } else {
+        setListingErrors((previous) => ({ ...previous, [roster.roster_id]: errorText(error) }));
+      }
+    } finally {
+      setListingBusyRosterId(null);
+    }
+  }
+
+  async function handleSetDisplayNameAndRetryListing(roster: RosterSummary) {
+    setSettingDisplayName(true);
+    try {
+      await updateInstructorDisplayName(displayNameInput.trim());
+      setDisplayNameInput("");
+      await handleToggleListing(roster, true);
+    } catch (error) {
+      setListingErrors((previous) => ({ ...previous, [roster.roster_id]: errorText(error) }));
+    } finally {
+      setSettingDisplayName(false);
     }
   }
 
@@ -326,43 +391,88 @@ export default function RostersFlow() {
         {rosters.map((roster) => (
           <div
             key={roster.roster_id}
-            className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
+            className="flex flex-col gap-2 rounded-lg border border-border px-4 py-3"
+            data-testid={`roster-row-${roster.roster_id}`}
           >
-            <div className="flex flex-col gap-1">
-              <span className="font-medium">{roster.subject_id}</span>
-              <span className="text-sm">
-                {roster.enrollment_mode}
-                {joinCodes[roster.roster_id] && ` • code: ${joinCodes[roster.roster_id]}`}
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <span className="font-medium">{roster.subject_id}</span>
+                <span className="text-sm">
+                  {roster.enrollment_mode}
+                  {joinCodes[roster.roster_id] && ` • code: ${joinCodes[roster.roster_id]}`}
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSetMode(roster.roster_id, roster.enrollment_mode)}
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm"
+                >
+                  Show code
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSetMode(
+                      roster.roster_id,
+                      roster.enrollment_mode === "open" ? "closed" : "open",
+                    )
+                  }
+                  className="rounded-lg border border-border px-3 py-1.5 text-sm"
+                >
+                  Switch to {roster.enrollment_mode === "open" ? "closed" : "open"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectRoster(roster.roster_id)}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+                >
+                  Manage
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => handleSetMode(roster.roster_id, roster.enrollment_mode)}
-                className="rounded-lg border border-border px-3 py-1.5 text-sm"
-              >
-                Show code
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  handleSetMode(
-                    roster.roster_id,
-                    roster.enrollment_mode === "open" ? "closed" : "open",
-                  )
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={roster.is_listed}
+                disabled={
+                  roster.enrollment_mode === "closed" || listingBusyRosterId === roster.roster_id
                 }
-                className="rounded-lg border border-border px-3 py-1.5 text-sm"
+                onChange={(event) => handleToggleListing(roster, event.target.checked)}
+              />
+              List in directory
+            </label>
+            {listingErrors[roster.roster_id] && (
+              <p
+                className="text-sm text-error"
+                data-testid={`listing-error-${roster.roster_id}`}
               >
-                Switch to {roster.enrollment_mode === "open" ? "closed" : "open"}
-              </button>
-              <button
-                type="button"
-                onClick={() => selectRoster(roster.roster_id)}
-                className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground"
+                {listingErrors[roster.roster_id]}
+              </p>
+            )}
+            {displayNamePromptRosterId === roster.roster_id && (
+              <div
+                className="flex items-center gap-2"
+                data-testid={`display-name-prompt-${roster.roster_id}`}
               >
-                Manage
-              </button>
-            </div>
+                <input
+                  type="text"
+                  placeholder="Your display name"
+                  value={displayNameInput}
+                  onChange={(event) => setDisplayNameInput(event.target.value)}
+                  className="rounded-lg border border-border px-2 py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  disabled={settingDisplayName || displayNameInput.trim() === ""}
+                  onClick={() => handleSetDisplayNameAndRetryListing(roster)}
+                  className="rounded-lg bg-primary px-3 py-1 text-sm text-primary-foreground disabled:opacity-40"
+                >
+                  {settingDisplayName ? "Saving…" : "Set your display name"}
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>

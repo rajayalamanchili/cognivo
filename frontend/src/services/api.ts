@@ -955,12 +955,14 @@ export interface Roster {
   subject_id: string;
   enrollment_mode: EnrollmentMode;
   join_code: string | null;
+  is_listed: boolean;
 }
 
 export interface RosterSummary {
   roster_id: string;
   subject_id: string;
   enrollment_mode: EnrollmentMode;
+  is_listed: boolean;
 }
 
 export interface ListRostersResponse {
@@ -984,8 +986,54 @@ export function updateRosterEnrollmentMode(
   });
 }
 
+// spec 041 FR-017/FR-018 (T049): the "List in directory" toggle --
+// `enrollmentMode` is resent alongside `isListed` since the backend's
+// `UpdateRosterIn.enrollment_mode` is still a required field.
+export function updateRosterListing(
+  rosterId: string,
+  enrollmentMode: EnrollmentMode,
+  isListed: boolean,
+): Promise<Roster> {
+  return request<Roster>(`/api/rosters/${rosterId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ enrollment_mode: enrollmentMode, is_listed: isListed }),
+  });
+}
+
 export function listRosters(): Promise<ListRostersResponse> {
   return request<ListRostersResponse>("/api/rosters");
+}
+
+// spec 041 FR-017 (T045/T049): the only way an instructor's
+// display_name is ever set -- never collected at registration.
+export interface InstructorMeUpdate {
+  display_name: string;
+}
+
+export function updateInstructorDisplayName(displayName: string): Promise<InstructorMeUpdate> {
+  return request<InstructorMeUpdate>("/api/auth/instructor/me", {
+    method: "PATCH",
+    body: JSON.stringify({ display_name: displayName }),
+  });
+}
+
+// spec 041 FR-019/FR-021 (T048/T050): the guardian-facing class
+// directory -- every listed, open-enrollment roster, `join_code`
+// included (no longer secret once listed).
+export interface RosterDirectoryEntry {
+  roster_id: string;
+  subject_id: string;
+  grade: number | null;
+  instructor_display_name: string;
+  join_code: string;
+}
+
+export interface RosterDirectoryResponse {
+  rosters: RosterDirectoryEntry[];
+}
+
+export function getRosterDirectory(): Promise<RosterDirectoryResponse> {
+  return request<RosterDirectoryResponse>("/api/rosters/directory");
 }
 
 export type JoinRosterResponse =

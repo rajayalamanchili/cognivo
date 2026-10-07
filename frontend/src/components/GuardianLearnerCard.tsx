@@ -10,6 +10,7 @@ import {
 } from "@/services/api";
 import { enterRealLearnerSession } from "@/lib/visitor-state";
 import JoinRosterForm from "@/components/JoinRosterForm";
+import ClassDirectoryBrowse from "@/components/ClassDirectoryBrowse";
 import LearnerAssignments from "@/components/LearnerAssignments";
 import GuardianLearnerStandards from "@/components/GuardianLearnerStandards";
 import GuardianLearnerCareerConnections from "@/components/GuardianLearnerCareerConnections";
@@ -168,6 +169,7 @@ export default function GuardianLearnerCard({
             {displayName}&apos;s class will send quizzes here once they join.
           </p>
           <JoinRosterForm learnerId={learnerId} />
+          <ClassDirectoryBrowse learnerId={learnerId} />
         </div>
       )}
     </article>

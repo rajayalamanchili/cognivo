@@ -92,3 +92,30 @@ def test_protected_route_rejects_invalid_session(client):
     response = client.post("/api/learners", json={"display_name": "Jamie"})
     assert response.status_code == 401
     assert response.json() == {"detail": "invalid_session"}
+
+
+def test_update_instructor_me_sets_display_name(client):
+    """spec 041 FR-017 (T042) -- the only way `display_name` is ever
+    set; `register_instructor`'s own request shape is unchanged (the
+    test above still only posts email/password)."""
+    client.post(
+        "/api/auth/instructor/register",
+        json={"email": "name-setter@example.com", "password": "correct horse"},
+    )
+    response = client.patch("/api/auth/instructor/me", json={"display_name": "Ms. Rivera"})
+    assert response.status_code == 200, response.text
+    assert response.json() == {"display_name": "Ms. Rivera"}
+
+
+def test_update_instructor_me_rejects_empty_display_name(client):
+    client.post(
+        "/api/auth/instructor/register",
+        json={"email": "empty-name@example.com", "password": "correct horse"},
+    )
+    response = client.patch("/api/auth/instructor/me", json={"display_name": ""})
+    assert response.status_code == 422
+
+
+def test_update_instructor_me_requires_an_instructor_session(client):
+    response = client.patch("/api/auth/instructor/me", json={"display_name": "Ms. Rivera"})
+    assert response.status_code == 401

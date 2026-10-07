@@ -100,6 +100,34 @@ def update_roster_enrollment_mode(
     db: Session, *, roster: ClassroomRoster, enrollment_mode: EnrollmentMode
 ) -> ClassroomRoster:
     roster.enrollment_mode = enrollment_mode
+    # spec 041 FR-018: closing a roster implicitly stops listing it,
+    # rather than erroring -- the instructor is closing it anyway, and
+    # "closed AND listed" must never coexist (data-model.md's mutual
+    # exclusion rule).
+    if enrollment_mode == EnrollmentMode.CLOSED:
+        roster.is_listed = False
+    db.commit()
+    db.refresh(roster)
+    return roster
+
+
+def update_roster_is_listed(
+    db: Session,
+    *,
+    roster: ClassroomRoster,
+    is_listed: bool,
+    instructor_display_name: str | None,
+) -> ClassroomRoster:
+    """spec 041 FR-017/FR-018: the single enforcement point for both
+    mutual-exclusion rules, applied identically whether the owning
+    instructor account is brand-new or pre-existing -- no special-casing
+    between the two (data-model.md's Validation rules)."""
+    if is_listed:
+        if roster.enrollment_mode == EnrollmentMode.CLOSED:
+            raise UnprocessableError("cannot_list_closed_roster")
+        if not instructor_display_name:
+            raise UnprocessableError("instructor_display_name_required")
+    roster.is_listed = is_listed
     db.commit()
     db.refresh(roster)
     return roster

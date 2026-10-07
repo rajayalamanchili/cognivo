@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.api.errors import AuthenticationError, ConflictError
+from src.api.errors import AuthenticationError, ConflictError, UnprocessableError
 from src.db import get_db
 from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEnrollmentStatus
@@ -26,7 +26,12 @@ from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
-from src.services.auth.dependencies import current_guardian, optional_session_claims
+from src.services.auth.dependencies import (
+    InstructorAccount,
+    current_guardian,
+    current_instructor,
+    optional_session_claims,
+)
 from src.services.auth.passwords import hash_password, verify_password
 from src.services.auth.tokens import (
     SESSION_COOKIE_NAME,
@@ -278,6 +283,32 @@ def change_guardian_password(
     # `current_guardian`).
     guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
     db.commit()
+
+
+class InstructorMeIn(BaseModel):
+    """spec 041 FR-017. The only field this endpoint changes --
+    email/password changes for instructors are out of scope for this
+    feature (contracts/api-changes.md)."""
+
+    display_name: str = Field(min_length=1)
+
+
+class InstructorMeOut(BaseModel):
+    display_name: str
+
+
+@router.patch("/api/auth/instructor/me", response_model=InstructorMeOut)
+def update_instructor_me(
+    body: InstructorMeIn,
+    instructor: InstructorAccount = Depends(current_instructor),
+    db: Session = Depends(get_db),
+) -> InstructorMeOut:
+    display_name = body.display_name.strip()
+    if display_name == "":
+        raise UnprocessableError("display_name_required")
+    instructor.display_name = display_name
+    db.commit()
+    return InstructorMeOut(display_name=display_name)
 
 
 class PendingDeletionWarningOut(BaseModel):

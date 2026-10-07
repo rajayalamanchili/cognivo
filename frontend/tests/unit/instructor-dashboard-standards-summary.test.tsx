@@ -16,7 +16,12 @@ vi.mock("@/services/api", async () => {
   };
 });
 
-const ROSTER = { roster_id: "r1", subject_id: "algebra-1", enrollment_mode: "open" as const };
+const ROSTER = {
+  roster_id: "r1",
+  subject_id: "algebra-1",
+  enrollment_mode: "open" as const,
+  is_listed: false,
+};
 
 describe("InstructorDashboardFlow standards summary", () => {
   beforeEach(() => {

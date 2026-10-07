@@ -7,6 +7,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RostersFlow from "@/app/instructor/rosters/rosters-flow";
 import * as api from "@/services/api";
+import { ApiError } from "@/services/api";
 
 vi.mock("@/services/api", async () => {
   const actual = await vi.importActual<typeof import("@/services/api")>("@/services/api");
@@ -20,10 +21,17 @@ vi.mock("@/services/api", async () => {
     createAssignment: vi.fn(),
     cancelAssignment: vi.fn(),
     getAssignmentDetail: vi.fn(),
+    updateRosterListing: vi.fn(),
+    updateInstructorDisplayName: vi.fn(),
   };
 });
 
-const ROSTER = { roster_id: "roster-1", subject_id: "algebra-1", enrollment_mode: "open" as const };
+const ROSTER = {
+  roster_id: "roster-1",
+  subject_id: "algebra-1",
+  enrollment_mode: "open" as const,
+  is_listed: false,
+};
 const LEARNER_A = { learner_id: "learner-a", display_name: "Learner A" };
 const LEARNER_B = { learner_id: "learner-b", display_name: "Learner B" };
 
@@ -239,5 +247,101 @@ describe("RostersFlow per-assignment results view", () => {
 
     fireEvent.click(screen.getByText("Close"));
     expect(screen.queryByTestId("assignment-results")).not.toBeInTheDocument();
+  });
+});
+
+// spec 041 FR-017/FR-018 (T044): the "List in directory" toggle --
+// disabled on a closed roster, and the inline display-name prompt
+// that appears when the instructor has none set.
+describe("RostersFlow 'List in directory' toggle", () => {
+  const OPEN_ROSTER = {
+    roster_id: "roster-open",
+    subject_id: "algebra-1",
+    enrollment_mode: "open" as const,
+    is_listed: false,
+  };
+  const CLOSED_ROSTER = {
+    roster_id: "roster-closed",
+    subject_id: "algebra-1",
+    enrollment_mode: "closed" as const,
+    is_listed: false,
+  };
+
+  beforeEach(() => {
+    vi.mocked(api.listRosters).mockReset();
+    vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.updateRosterListing).mockReset();
+    vi.mocked(api.updateInstructorDisplayName).mockReset();
+    vi.mocked(api.getSubjects).mockResolvedValue({
+      subjects: [{ subject_id: "algebra-1", display_name: "Algebra I" }],
+    });
+  });
+
+  it("disables the toggle on a closed roster", async () => {
+    vi.mocked(api.listRosters).mockResolvedValue({ rosters: [CLOSED_ROSTER] });
+    render(<RostersFlow />);
+
+    await waitFor(() => expect(api.listRosters).toHaveBeenCalled());
+    const checkbox = await screen.findByLabelText("List in directory");
+    expect(checkbox).toBeDisabled();
+  });
+
+  it("toggling an open roster's listing calls updateRosterListing and reflects the new state", async () => {
+    vi.mocked(api.listRosters).mockResolvedValue({ rosters: [OPEN_ROSTER] });
+    vi.mocked(api.updateRosterListing).mockResolvedValue({
+      roster_id: OPEN_ROSTER.roster_id,
+      subject_id: "algebra-1",
+      enrollment_mode: "open",
+      join_code: "ALG-1234",
+      is_listed: true,
+    });
+    render(<RostersFlow />);
+
+    await waitFor(() => expect(api.listRosters).toHaveBeenCalled());
+    const checkbox = await screen.findByLabelText("List in directory");
+    fireEvent.click(checkbox);
+
+    await waitFor(() =>
+      expect(api.updateRosterListing).toHaveBeenCalledWith(OPEN_ROSTER.roster_id, "open", true),
+    );
+    await waitFor(() => expect(checkbox).toBeChecked());
+  });
+
+  it("shows an inline display-name prompt when the instructor has none set, and retries the toggle after setting it", async () => {
+    vi.mocked(api.listRosters).mockResolvedValue({ rosters: [OPEN_ROSTER] });
+    vi.mocked(api.updateRosterListing)
+      .mockRejectedValueOnce(
+        new ApiError(422, "failed", { detail: "instructor_display_name_required" }),
+      )
+      .mockResolvedValueOnce({
+        roster_id: OPEN_ROSTER.roster_id,
+        subject_id: "algebra-1",
+        enrollment_mode: "open",
+        join_code: "ALG-1234",
+        is_listed: true,
+      });
+    vi.mocked(api.updateInstructorDisplayName).mockResolvedValue({ display_name: "Ms. Rivera" });
+    render(<RostersFlow />);
+
+    await waitFor(() => expect(api.listRosters).toHaveBeenCalled());
+    const checkbox = await screen.findByLabelText("List in directory");
+    fireEvent.click(checkbox);
+
+    const nameInput = await screen.findByPlaceholderText("Your display name");
+    fireEvent.change(nameInput, { target: { value: "Ms. Rivera" } });
+    fireEvent.click(screen.getByText("Set your display name"));
+
+    await waitFor(() =>
+      expect(api.updateInstructorDisplayName).toHaveBeenCalledWith("Ms. Rivera"),
+    );
+    await waitFor(() =>
+      expect(api.updateRosterListing).toHaveBeenLastCalledWith(
+        OPEN_ROSTER.roster_id,
+        "open",
+        true,
+      ),
+    );
+    await waitFor(() => expect(checkbox).toBeChecked());
+    expect(screen.queryByPlaceholderText("Your display name")).not.toBeInTheDocument();
   });
 });

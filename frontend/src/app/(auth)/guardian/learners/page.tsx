@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, createLearner, listMyLearners, type MyLearner } from "@/services/api";
 import JoinRosterForm from "@/components/JoinRosterForm";
+import ClassDirectoryBrowse from "@/components/ClassDirectoryBrowse";
 import LearnerAssignments from "@/components/LearnerAssignments";
 import GuardianLearnerStandards from "@/components/GuardianLearnerStandards";
 import GuardianLearnerCareerConnections from "@/components/GuardianLearnerCareerConnections";
@@ -131,6 +132,7 @@ export default function GuardianLearnersPage() {
                 >
                   <span>{learner.display_name} added.</span>
                   <JoinRosterForm learnerId={learner.learner_id} />
+                  <ClassDirectoryBrowse learnerId={learner.learner_id} />
                   <GuardianLearnerStandards learnerId={learner.learner_id} />
                   <CareerConnectionsToggle learnerId={learner.learner_id} />
                   <GuardianLearnerCareerConnections learnerId={learner.learner_id} />
