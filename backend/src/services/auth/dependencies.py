@@ -89,6 +89,25 @@ def current_guardian(
     return guardian
 
 
+def guardian_session_revoked(db: Session, claims: SessionClaims) -> bool:
+    """Same `password_changed_at` check `current_guardian` applies above,
+    factored out so every guardian-session consumer rejects a token
+    issued before the most recent password change -- not just routes
+    that depend on `current_guardian` directly. Without this, a learner-
+    scoped route authorizing via `require_learner_ownership_if_real` (or
+    `tutor.py`'s own `_authorize_learner`) kept trusting a stolen
+    guardian session's token for a real learner's data until the token's
+    own expiry, even after the guardian changed their password because
+    that session was compromised -- FR-022's "invalidate every session
+    issued before the change" wasn't actually met on those routes."""
+    guardian = db.get(RealGuardianAccount, claims.account_id)
+    return (
+        guardian is not None
+        and guardian.password_changed_at is not None
+        and claims.issued_at < guardian.password_changed_at.replace(microsecond=0)
+    )
+
+
 def require_learner_ownership_if_real(
     db: Session, *, learner_id: uuid.UUID, claims: SessionClaims | None
 ) -> LearnerProfile | None:
@@ -124,6 +143,7 @@ def require_learner_ownership_if_real(
         claims is None
         or claims.account_type != "guardian"
         or learner.guardian_id != claims.account_id
+        or guardian_session_revoked(db, claims)
     ):
         raise ForbiddenError("not_your_learner")
     return learner

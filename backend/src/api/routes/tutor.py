@@ -24,7 +24,7 @@ from src.models.learner_profile import LearnerProfile
 from src.models.subject import Subject
 from src.models.tutor_exchange import TutorExchange
 from src.models.tutoring_session import TutoringSession
-from src.services.auth.dependencies import optional_session_claims
+from src.services.auth.dependencies import guardian_session_revoked, optional_session_claims
 from src.services.auth.tokens import SessionClaims
 from src.services.tutor.session import (
     end_session,
@@ -61,6 +61,7 @@ def _authorize_learner(
         or claims is None
         or claims.account_type != "guardian"
         or learner.guardian_id != claims.account_id
+        or guardian_session_revoked(db, claims)
     ):
         raise ForbiddenError("not_your_learner")
     return learner

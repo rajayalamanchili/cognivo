@@ -231,6 +231,23 @@ def _guardian_me_out(guardian: RealGuardianAccount) -> GuardianMeOut:
     )
 
 
+# Every `GuardianMeIn` field but `name` backs a NOT NULL column
+# (real_guardian_account.py). `exclude_unset=True` below only drops
+# fields the client never sent -- an explicit `null` for one of these
+# still reaches `_normalize_email`/`setattr`, raising an unhandled
+# AttributeError (email) or a NOT NULL `IntegrityError` that the
+# `except IntegrityError` handler then misreports as `email_taken`.
+_GUARDIAN_ME_NON_NULLABLE_FIELDS = (
+    "email",
+    "read_aloud_default",
+    "larger_text",
+    "reduce_motion",
+    "theme",
+    "quiz_finished_email_enabled",
+    "weekly_summary_enabled",
+)
+
+
 @router.patch("/api/auth/guardian/me", response_model=GuardianMeOut)
 def update_guardian_me(
     body: GuardianMeIn,
@@ -238,6 +255,9 @@ def update_guardian_me(
     db: Session = Depends(get_db),
 ) -> GuardianMeOut:
     updates = body.model_dump(exclude_unset=True)
+    for field in _GUARDIAN_ME_NON_NULLABLE_FIELDS:
+        if updates.get(field, False) is None:
+            raise UnprocessableError(f"{field}_required")
     if "email" in updates:
         email = _normalize_email(updates["email"])
         existing = (

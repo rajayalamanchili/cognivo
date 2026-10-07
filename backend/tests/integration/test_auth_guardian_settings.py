@@ -67,6 +67,26 @@ def test_patch_guardian_me_email_conflict(client):
     assert response.json() == {"detail": "email_taken"}
 
 
+def test_patch_guardian_me_rejects_explicit_null_email(client):
+    """Claude Code Review finding on PR #109: `email` backs a NOT NULL
+    column -- an explicit `null` must be rejected (422), not reach
+    `_normalize_email(None)` and crash with an unhandled AttributeError."""
+    _register_guardian(client, email="null-email@example.com")
+    response = client.patch("/api/auth/guardian/me", json={"email": None})
+    assert response.status_code == 422, response.text
+    assert response.json() == {"detail": "email_required"}
+
+
+def test_patch_guardian_me_rejects_explicit_null_boolean(client):
+    """Same finding: a non-nullable boolean/theme field's explicit `null`
+    must not reach `setattr` and trip the NOT NULL `IntegrityError`,
+    which the handler below would otherwise misreport as `email_taken`."""
+    _register_guardian(client, email="null-bool@example.com")
+    response = client.patch("/api/auth/guardian/me", json={"read_aloud_default": None})
+    assert response.status_code == 422, response.text
+    assert response.json() == {"detail": "read_aloud_default_required"}
+
+
 def test_patch_guardian_me_requires_guardian_session(client):
     client.post(
         "/api/auth/instructor/register",
@@ -170,6 +190,47 @@ def test_practice_reminders_preference_round_trip(client):
         f"/api/learners/{learner_id}/practice-reminders-preference", json={"enabled": False}
     )
     assert off.json() == {"enabled": False}
+
+
+def test_change_password_invalidates_prior_session_on_learner_scoped_route(client):
+    """Claude Code Review finding on PR #109: `password_changed_at`
+    revocation (FR-022) must also hold on learner-scoped routes gated
+    by `require_learner_ownership_if_real` -- a stolen guardian session
+    must stop reading a real learner's data on these routes too, not
+    only on `current_guardian`-gated ones like `/api/auth/guardian/me`
+    (`test_change_password_invalidates_prior_session_token` above)."""
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from src.api.main import app
+    from src.services.auth.tokens import SESSION_COOKIE_NAME
+
+    email = "invalidate-learner-route@example.com"
+    old_password = "correct horse battery staple"
+    _register_guardian(client, email=email, password=old_password)
+    learner = client.post("/api/learners", json={"display_name": "Eli"})
+    learner_id = learner.json()["learner_id"]
+    old_cookie = client.cookies[SESSION_COOKIE_NAME]
+
+    time.sleep(1.1)
+    client.post(
+        "/api/auth/guardian/change-password",
+        json={"current_password": old_password, "new_password": "a new password here"},
+    )
+
+    stale_response = client.get(
+        f"/api/learners/{learner_id}/practice-reminders-preference",
+        cookies={SESSION_COOKIE_NAME: old_cookie},
+    )
+    assert stale_response.status_code == 403, stale_response.text
+
+    second_client = TestClient(app, base_url="https://testserver")
+    second_client.post(
+        "/api/auth/guardian/login", json={"email": email, "password": "a new password here"}
+    )
+    fresh_response = second_client.get(f"/api/learners/{learner_id}/practice-reminders-preference")
+    assert fresh_response.status_code == 200, fresh_response.text
 
 
 def test_practice_reminders_preference_requires_ownership(client):
