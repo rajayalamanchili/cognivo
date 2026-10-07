@@ -41,9 +41,10 @@ describe("ClassDirectoryBrowse", () => {
     vi.mocked(api.getRosterDirectory).mockResolvedValue({ rosters: [ENTRY] });
     render(<ClassDirectoryBrowse learnerId="learner-1" />);
 
-    const item = await screen.findByText(/Ms\. Rivera/);
+    const item = await screen.findByTestId(`class-directory-entry-${ENTRY.roster_id}`);
     expect(item.textContent).toMatch(/Algebra 1/);
     expect(item.textContent).toMatch(/Grade 7/);
+    expect(item.textContent).toMatch(/Ms\. Rivera/);
   });
 
   it("joining calls the existing joinRoster with the entry's own join_code and shows the enrolled outcome", async () => {
@@ -57,6 +58,15 @@ describe("ClassDirectoryBrowse", () => {
       expect(api.joinRoster).toHaveBeenCalledWith("learner-1", ENTRY.join_code),
     );
     expect(await screen.findByText("Joined")).toBeInTheDocument();
+  });
+
+  it("calls onNeedCode when the empty state's 'I have a class code' link is clicked", async () => {
+    vi.mocked(api.getRosterDirectory).mockResolvedValue({ rosters: [] });
+    const onNeedCode = vi.fn();
+    render(<ClassDirectoryBrowse learnerId="learner-1" onNeedCode={onNeedCode} />);
+
+    fireEvent.click(await screen.findByText("I have a class code"));
+    expect(onNeedCode).toHaveBeenCalled();
   });
 
   it("renders the pending outcome when joinRoster reports a pending request", async () => {

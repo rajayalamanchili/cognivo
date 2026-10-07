@@ -77,7 +77,7 @@ export default function GuardianLearnersPage() {
             My learners
           </h1>
           <p className="mt-1 text-[17px] text-muted">
-            Join classes, start assigned quizzes, and see how each learner is doing.
+            Open a learner&apos;s practice, start assigned quizzes, and find a class.
           </p>
         </div>
 
@@ -121,6 +121,9 @@ export default function GuardianLearnersPage() {
               {submitting ? "Adding…" : "Add learner"}
             </button>
           </form>
+          <p className="text-sm text-muted">
+            Learners don&apos;t get their own login. You open their learning from this page.
+          </p>
           {addedLearners.length > 0 && (
             <ul className="flex flex-col gap-4 text-sm" data-testid="added-learners">
               {addedLearners.map((learner) => (
@@ -145,22 +148,25 @@ export default function GuardianLearnersPage() {
 
         <section className="flex flex-col gap-2 rounded-card bg-surface-subtle p-6">
           <h2 className="font-extrabold">How quiz start works</h2>
+          <p className="text-sm text-muted">
+            You always start an assigned quiz from your account, on this device.
+          </p>
           <ul className="flex flex-col gap-1.5 pl-4.5 text-sm text-muted">
             <li>
-              <strong className="font-extrabold">Grades 1–2:</strong> sit together; the quiz
-              stays on your device.
+              <strong className="font-extrabold">Grades 1–2:</strong> sit together. The quiz
+              stays under your sign-in the whole time.
             </li>
             <li>
-              <strong className="font-extrabold">Grades 3–5:</strong> you start it, they continue
-              on theirs, and we&apos;ll prompt you to check in.
+              <strong className="font-extrabold">Grades 3–5:</strong> start it, hand them the
+              device, and we&apos;ll prompt you to check in.
             </li>
             <li>
-              <strong className="font-extrabold">Grades 6–8:</strong> you start it; reminders
-              only if you opt in.
+              <strong className="font-extrabold">Grades 6–8:</strong> start it and hand over.
+              Reminders only if you opt in.
             </li>
             <li>
-              <strong className="font-extrabold">Grades 9–12:</strong> you start it; they work on
-              their own.
+              <strong className="font-extrabold">Grades 9–12:</strong> start it and hand over.
+              They finish on their own.
             </li>
           </ul>
         </section>

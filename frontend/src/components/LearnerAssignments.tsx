@@ -388,14 +388,10 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
           <div
             key={assignment.assignment_id}
             data-testid={`learner-assignment-${assignment.assignment_id}`}
-            className={
-              startable
-                ? "flex flex-col gap-4 rounded-card border border-border bg-surface p-7"
-                : "flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm"
-            }
+            className="flex flex-wrap items-center justify-between gap-3.5 rounded-2xl border border-border px-4.5 py-3.5 text-sm"
           >
-            <div className="flex flex-col gap-1">
-              <span className={startable ? "font-heading text-2xl font-bold text-heading" : ""}>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-extrabold text-heading">
                 {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
                 {assignment.has_unviewed_activity && (
                   <span
@@ -417,36 +413,11 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
               </span>
             </div>
             {startable && (
-              <>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="rounded-2xl bg-surface-subtle p-3.5">
-                    <div className="text-sm font-bold text-muted">Questions</div>
-                    <div className="font-heading text-2xl font-bold">
-                      {assignment.question_count}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl bg-surface-subtle p-3.5">
-                    <div className="text-sm font-bold text-muted">Time</div>
-                    <div className="font-heading text-2xl font-bold">No limit</div>
-                  </div>
-                  <div className="rounded-2xl bg-surface-subtle p-3.5">
-                    <div className="text-sm font-bold text-muted">Difficulty</div>
-                    <div className="font-heading text-2xl font-bold">Adapts</div>
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-warning/15 px-4.5 py-4 text-warning">
-                  <strong className="font-extrabold">Results come at the end.</strong> Each
-                  answer moves you straight to the next question. Once you finish, you&apos;ll
-                  see how every answer was graded, all together.
-                </div>
-              </>
-            )}
-            {startable && (
               <button
                 type="button"
                 onClick={() => handleStart(assignment.assignment_id)}
                 disabled={startingId === assignment.assignment_id}
-                className="self-start min-h-[52px] rounded-full bg-primary px-7 font-extrabold text-primary-foreground disabled:opacity-40"
+                className="min-h-11 rounded-full border-2 border-primary/25 bg-surface px-5 font-extrabold text-heading disabled:opacity-40"
               >
                 {startingId === assignment.assignment_id ? (
                   <LoadingIndicator message="Building your quiz…" compact />

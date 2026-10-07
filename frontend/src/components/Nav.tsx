@@ -144,10 +144,13 @@ function useVisitorState() {
   };
 }
 
-// 027-learner-ui-redesign: pill-shaped nav-link treatment, scoped to the
-// demo-learner bucket only (per spec.md's Edge Cases) -- guardian/instructor
-// links keep their existing plain-text styling.
-function demoLearnerLinkClassName(active: boolean): string {
+// 027-learner-ui-redesign: pill-shaped nav-link treatment, originally
+// scoped to the demo-learner bucket only (per spec.md's Edge Cases).
+// spec 041 FR-001 extends the same pill-tab shape to the guardian
+// bucket's own nav links (GuardianLearners.dc.html's "My learners"/
+// "Settings" tabs) -- instructor links keep their existing plain-text
+// styling (instructor pages are out of this redesign's scope).
+function pillNavLinkClassName(active: boolean): string {
   return `rounded-full px-4 py-2 font-bold ${active ? "bg-primary-subtle text-heading" : "text-muted"}`;
 }
 
@@ -292,6 +295,11 @@ export default function Nav() {
             <CognivoMark size={28} />
             Cognivo
           </Link>
+          {bucket === "guardian" && (
+            <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-extrabold tracking-[0.04em] text-muted">
+              GUARDIAN
+            </span>
+          )}
           {bucket === "anonymous" && (
             <Link href="/demo" className="text-muted">
               Try Demo
@@ -304,7 +312,7 @@ export default function Nav() {
           )}
           <div className={isDemoLearnerBucket ? "flex flex-grow items-center gap-1" : "contents"}>
             {links.map((link) => {
-              if (bucket !== "demo-learner") {
+              if (bucket !== "demo-learner" && bucket !== "guardian") {
                 return (
                   <Link key={link.href} href={link.href} className="text-muted">
                     {link.label}
@@ -317,7 +325,7 @@ export default function Nav() {
                   key={link.href}
                   href={link.href}
                   aria-current={active ? "page" : undefined}
-                  className={demoLearnerLinkClassName(active)}
+                  className={pillNavLinkClassName(active)}
                 >
                   {link.label}
                 </Link>
@@ -389,6 +397,14 @@ export default function Nav() {
           )}
           {(bucket === "guardian" || bucket === "instructor" || bucket === "real-learner") && (
             <span className="ml-auto flex items-center gap-4">
+              {bucket === "guardian" && identifier && (
+                <span
+                  aria-hidden="true"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-subtle text-sm font-extrabold text-heading"
+                >
+                  {identifier.charAt(0).toUpperCase()}
+                </span>
+              )}
               {(accountType === "guardian" || accountType === "instructor") && identifier && (
                 <span className="text-muted" data-testid="nav-identity">
                   {identifier} &middot; {ACCOUNT_TYPE_LABEL[accountType]}
