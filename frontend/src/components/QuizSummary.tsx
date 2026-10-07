@@ -39,47 +39,56 @@ export default function QuizSummary({
     summary.status === "in_progress" ? "Quiz in progress" : STATUS_LABEL[summary.status];
 
   return (
-    <div className="flex flex-col gap-4" data-testid="quiz-summary">
-      <h2 className="text-xl font-semibold">{heading}</h2>
-      <p className="text-lg">
-        Score: <strong>{summary.score.correct}</strong> / {summary.score.total}
-      </p>
-      <SessionTimingSummary
-        timeLimitSeconds={summary.time_limit_seconds}
-        elapsedSeconds={summary.elapsed_seconds}
-        endReason={summary.end_reason}
-      />
-      {summary.summary.length > 0 && (
-        <ul className="flex flex-col gap-2">
-          {summary.summary.map((entry) => (
-            <li
-              key={`${entry.topic_id}-${entry.difficulty}`}
-              className="flex items-center justify-between rounded-lg border border-border px-4 py-3"
-            >
-              <span className="font-medium">{formatTopicId(entry.topic_id)}</span>
-              <span className="text-sm text-muted">{DIFFICULTY_LABEL[entry.difficulty]}</span>
-              <span className="text-sm">
-                {entry.correct} / {entry.total}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {refreshedTopicIds.length > 0 && (
-        <p
-          data-testid="quiz-refreshed-topics"
-          className="rounded-lg bg-success/15 px-4 py-3 text-sm font-medium text-success"
-        >
-          {tier.refreshedFraming} ({refreshedTopicIds.map(formatTopicId).join(", ")})
+    <div className="flex flex-col gap-5" data-testid="quiz-summary">
+      <section className="flex flex-col gap-4 rounded-card border border-border bg-surface p-8">
+        <span className="text-[13px] font-extrabold tracking-[0.08em] text-primary">
+          {heading.toUpperCase()}
+        </span>
+        <p className="font-heading text-[28px] font-bold leading-tight text-heading">
+          Score: {summary.score.correct} / {summary.score.total}
         </p>
-      )}
+        <SessionTimingSummary
+          timeLimitSeconds={summary.time_limit_seconds}
+          elapsedSeconds={summary.elapsed_seconds}
+          endReason={summary.end_reason}
+        />
+        {summary.summary.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {summary.summary.map((entry) => (
+              <li
+                key={`${entry.topic_id}-${entry.difficulty}`}
+                className="flex items-center justify-between gap-3 rounded-2xl bg-surface-subtle px-4 py-3"
+              >
+                <span className="font-extrabold">{formatTopicId(entry.topic_id)}</span>
+                <span className="text-sm text-muted">{DIFFICULTY_LABEL[entry.difficulty]}</span>
+                <span className="rounded-full bg-primary-subtle px-3 py-0.5 text-sm font-extrabold text-heading">
+                  {entry.correct} / {entry.total}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {refreshedTopicIds.length > 0 && (
+          <p
+            data-testid="quiz-refreshed-topics"
+            className="rounded-2xl bg-success/15 px-4 py-3 text-sm font-bold text-success"
+          >
+            {tier.refreshedFraming} ({refreshedTopicIds.map(formatTopicId).join(", ")})
+          </p>
+        )}
+      </section>
       {summary.per_question_results != null && summary.per_question_results.length > 0 && (
-        <div className="flex flex-col gap-4" data-testid="quiz-per-question-results">
-          <p className="text-sm font-medium text-muted">How each question was graded</p>
+        <section
+          className="flex flex-col gap-3 rounded-card border border-border bg-surface p-6"
+          data-testid="quiz-per-question-results"
+        >
+          <h3 className="font-heading text-xl font-bold text-heading">
+            How each answer was graded
+          </h3>
           {summary.per_question_results.map((result) => (
             <AnswerResultView key={result.question_id} result={result} />
           ))}
-        </div>
+        </section>
       )}
     </div>
   );

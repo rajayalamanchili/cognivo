@@ -49,7 +49,10 @@ const PERSONALIZATION_EVIDENCE_LINK: NavLink = {
   label: "Personalization Evidence",
 };
 
-const GUARDIAN_LINKS: NavLink[] = [{ href: "/guardian/learners", label: "My Learners" }];
+const GUARDIAN_LINKS: NavLink[] = [
+  { href: "/guardian/learners", label: "My Learners" },
+  { href: "/guardian/settings", label: "Settings" },
+];
 
 const INSTRUCTOR_LINKS: NavLink[] = [
   { href: "/instructor/rosters", label: "Rosters" },

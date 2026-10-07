@@ -230,3 +230,51 @@ def set_career_connections_preference(
     learner.career_connections_enabled = body.enabled
     db.commit()
     return CareerConnectionsPreferenceOut(enabled=learner.career_connections_enabled)
+
+
+class PracticeRemindersPreferenceOut(BaseModel):
+    enabled: bool
+
+
+class PracticeRemindersPreferenceIn(BaseModel):
+    enabled: bool
+
+
+@router.get(
+    "/api/learners/{learner_id}/practice-reminders-preference",
+    response_model=PracticeRemindersPreferenceOut,
+)
+def get_practice_reminders_preference(
+    learner_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+) -> PracticeRemindersPreferenceOut:
+    """spec 041 FR-011. Settings' per-learner toggle (T024) needs this to
+    render each toggle's initial state -- the `GET` sibling
+    `get_career_connections_preference` already has, same gate."""
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    if learner is None:
+        raise NotFoundError(f"unknown learner_id: {learner_id}")
+    return PracticeRemindersPreferenceOut(enabled=learner.practice_reminders_enabled)
+
+
+@router.patch(
+    "/api/learners/{learner_id}/practice-reminders-preference",
+    response_model=PracticeRemindersPreferenceOut,
+)
+def set_practice_reminders_preference(
+    learner_id: uuid.UUID,
+    body: PracticeRemindersPreferenceIn,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+) -> PracticeRemindersPreferenceOut:
+    """spec 041 FR-011. Mirrors `set_career_connections_preference`
+    exactly, including that route's same demo-learner-unauthenticated
+    tradeoff (see its docstring) -- a real learner's write is still
+    guardian-only via the same `require_learner_ownership_if_real` gate."""
+    learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+    if learner is None:
+        raise NotFoundError(f"unknown learner_id: {learner_id}")
+    learner.practice_reminders_enabled = body.enabled
+    db.commit()
+    return PracticeRemindersPreferenceOut(enabled=learner.practice_reminders_enabled)

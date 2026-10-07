@@ -43,10 +43,25 @@ def test_whoami_reports_guardian_session_with_email(client):
     )
     response = client.get("/api/auth/whoami")
     assert response.status_code == 200, response.text
-    assert response.json() == {
+    # spec 041 FR-009/FR-011/FR-012: a guardian session now also carries
+    # `guardian_id`, `name`, and the six Settings preference fields
+    # (test_whoami_reports_guardian_preference_fields below covers
+    # their values/persistence in full) -- every other account type's
+    # shape is unchanged.
+    body = response.json()
+    guardian_id = body.pop("guardian_id")
+    assert guardian_id
+    assert body == {
         "account_type": "guardian",
         "identifier": "whoami-guardian@example.com",
         "pending_deletion_warnings": [],
+        "name": None,
+        "read_aloud_default": False,
+        "larger_text": False,
+        "reduce_motion": False,
+        "theme": "system",
+        "quiz_finished_email_enabled": True,
+        "weekly_summary_enabled": False,
     }
 
 
@@ -78,6 +93,35 @@ def test_whoami_reports_demo_instructor_session_with_display_name(client):
         "identifier": seeded.display_name,
         "pending_deletion_warnings": [],
     }
+
+
+def test_whoami_reports_guardian_preference_fields(client):
+    """spec 041 FR-009/FR-011: `whoami` is Settings' single hydration
+    read. Defaults match `data-model.md`'s column defaults before any
+    `PATCH /api/auth/guardian/me` call."""
+    client.post(
+        "/api/auth/guardian/register",
+        json={
+            "email": "whoami-guardian-prefs@example.com",
+            "password": "correct horse battery staple",
+        },
+    )
+    response = client.get("/api/auth/whoami")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["account_type"] == "guardian"
+    assert body["name"] is None
+    assert body["read_aloud_default"] is False
+    assert body["larger_text"] is False
+    assert body["reduce_motion"] is False
+    assert body["theme"] == "system"
+    assert body["quiz_finished_email_enabled"] is True
+    assert body["weekly_summary_enabled"] is False
+
+    client.patch("/api/auth/guardian/me", json={"name": "Dana", "larger_text": True})
+    updated = client.get("/api/auth/whoami").json()
+    assert updated["name"] == "Dana"
+    assert updated["larger_text"] is True
 
 
 def test_whoami_null_after_logout(client):

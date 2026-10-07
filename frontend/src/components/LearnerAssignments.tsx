@@ -362,67 +362,102 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     );
   }
 
+  const hasStartable = assignments.some((a) => a.status === "not_started" && !a.cancelled_at);
+
   return (
-    <div className="flex flex-col gap-2" data-testid="learner-assignments">
+    <div className="flex flex-col gap-4" data-testid="learner-assignments">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium">Assigned quizzes</h3>
+        <h3 className="font-heading text-lg font-bold text-heading">Assigned quizzes</h3>
         <button type="button" onClick={refreshAssignments} className="text-sm text-muted underline">
           Refresh
         </button>
       </div>
       {assignments.length === 0 && <p className="text-sm">No assignments yet.</p>}
-      {assignments.some((a) => a.status === "not_started" && !a.cancelled_at) && (
-        // spec 025 FR-010a: same disclosure as quiz-flow.tsx's start
-        // screen -- this flow shares the same no-per-question-pause
-        // summary behavior (research.md §4).
-        <p className="text-sm text-muted" data-testid="learner-assignments-disclosure">
-          You&apos;ll see how you did on each question together, at the end of the quiz.
-        </p>
-      )}
-      {assignments.map((assignment) => (
-        <div
-          key={assignment.assignment_id}
-          data-testid={`learner-assignment-${assignment.assignment_id}`}
-          className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm"
-        >
-          <div className="flex flex-col gap-1">
-            <span>
-              {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
-              {assignment.has_unviewed_activity && (
-                <span
-                  data-testid={`learner-assignment-unviewed-${assignment.assignment_id}`}
-                  className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle"
-                  title="New activity"
-                />
-              )}
-            </span>
-            <span className="text-muted">
-              {STATUS_LABEL[assignment.status]}
-              {assignment.due_at && ` · due ${new Date(assignment.due_at).toLocaleString()}`}
-              {assignment.cancelled_at && (
-                <span data-testid={`learner-assignment-cancelled-${assignment.assignment_id}`}>
-                  {" "}
-                  &middot; cancelled
-                </span>
-              )}
-            </span>
-          </div>
-          {assignment.status === "not_started" && !assignment.cancelled_at && (
-            <button
-              type="button"
-              onClick={() => handleStart(assignment.assignment_id)}
-              disabled={startingId === assignment.assignment_id}
-              className="rounded-lg bg-primary px-4 py-2 text-primary-foreground disabled:opacity-40"
-            >
-              {startingId === assignment.assignment_id ? (
-                <LoadingIndicator message="Building your quiz…" compact />
-              ) : (
-                "Start"
-              )}
-            </button>
-          )}
+      {hasStartable && (
+        // spec 041 FR-006 (Clarifications): same-device/same-tab
+        // hand-off language, not the mockup's literal cross-device
+        // framing -- the real mechanism is the guardian's own browser
+        // tab, handed to the learner after Start is clicked.
+        <div className="flex items-center gap-3 rounded-2xl bg-link/10 px-4.5 py-3 font-bold text-link">
+          Your guardian started this quiz — continue below.
         </div>
-      ))}
+      )}
+      {assignments.map((assignment) => {
+        const startable = assignment.status === "not_started" && !assignment.cancelled_at;
+        return (
+          <div
+            key={assignment.assignment_id}
+            data-testid={`learner-assignment-${assignment.assignment_id}`}
+            className={
+              startable
+                ? "flex flex-col gap-4 rounded-card border border-border bg-surface p-7"
+                : "flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm"
+            }
+          >
+            <div className="flex flex-col gap-1">
+              <span className={startable ? "font-heading text-2xl font-bold text-heading" : ""}>
+                {assignment.topic_ids.join(", ")} &middot; {assignment.question_count} questions
+                {assignment.has_unviewed_activity && (
+                  <span
+                    data-testid={`learner-assignment-unviewed-${assignment.assignment_id}`}
+                    className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle"
+                    title="New activity"
+                  />
+                )}
+              </span>
+              <span className="text-muted">
+                {STATUS_LABEL[assignment.status]}
+                {assignment.due_at && ` · due ${new Date(assignment.due_at).toLocaleString()}`}
+                {assignment.cancelled_at && (
+                  <span data-testid={`learner-assignment-cancelled-${assignment.assignment_id}`}>
+                    {" "}
+                    &middot; cancelled
+                  </span>
+                )}
+              </span>
+            </div>
+            {startable && (
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl bg-surface-subtle p-3.5">
+                    <div className="text-sm font-bold text-muted">Questions</div>
+                    <div className="font-heading text-2xl font-bold">
+                      {assignment.question_count}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-surface-subtle p-3.5">
+                    <div className="text-sm font-bold text-muted">Time</div>
+                    <div className="font-heading text-2xl font-bold">No limit</div>
+                  </div>
+                  <div className="rounded-2xl bg-surface-subtle p-3.5">
+                    <div className="text-sm font-bold text-muted">Difficulty</div>
+                    <div className="font-heading text-2xl font-bold">Adapts</div>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-warning/15 px-4.5 py-4 text-warning">
+                  <strong className="font-extrabold">Results come at the end.</strong> Each
+                  answer moves you straight to the next question. Once you finish, you&apos;ll
+                  see how every answer was graded, all together.
+                </div>
+              </>
+            )}
+            {startable && (
+              <button
+                type="button"
+                onClick={() => handleStart(assignment.assignment_id)}
+                disabled={startingId === assignment.assignment_id}
+                className="self-start min-h-[52px] rounded-full bg-primary px-7 font-extrabold text-primary-foreground disabled:opacity-40"
+              >
+                {startingId === assignment.assignment_id ? (
+                  <LoadingIndicator message="Building your quiz…" compact />
+                ) : (
+                  "Start"
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })}
       {startError && (
         <p className="text-sm text-error" data-testid="learner-assignment-start-error">
           {startError}

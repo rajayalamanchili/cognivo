@@ -71,6 +71,21 @@ def current_guardian(
     guardian = db.get(RealGuardianAccount, claims.account_id)
     if guardian is None:
         raise AuthenticationError("guardian_account_not_found")
+    # spec 041 FR-022/research.md §6: a token issued before the most
+    # recent password change is rejected on its very next use -- the
+    # only invalidation mechanism available for a stateless JWT session.
+    # `password_changed_at` is floored to whole seconds before
+    # comparing: a JWT `iat` has one-second resolution (the JWT spec's
+    # NumericDate), so a login issued in the *same* wall-clock second as
+    # the password change -- entirely possible, a change-password call
+    # immediately followed by a fresh login -- would otherwise compare
+    # as "before" it purely from sub-second truncation, rejecting a
+    # token that was legitimately issued after the change.
+    if (
+        guardian.password_changed_at is not None
+        and claims.issued_at < guardian.password_changed_at.replace(microsecond=0)
+    ):
+        raise AuthenticationError("invalid_session")
     return guardian
 
 

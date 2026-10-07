@@ -780,6 +780,8 @@ export interface PendingDeletionWarning {
   scheduled_deletion_date: string;
 }
 
+export type Theme = "system" | "light" | "dark";
+
 export interface WhoAmIResponse {
   account_type: SessionAccountType | null;
   // Login email for a real guardian/instructor, or the seeded display
@@ -789,6 +791,16 @@ export interface WhoAmIResponse {
   // for a guardian, a linked learner) is within 7 days of inactivity
   // auto-deletion. Always present, always [] in the common case.
   pending_deletion_warnings: PendingDeletionWarning[];
+  // spec 041 FR-009/FR-011/FR-012: present only for a guardian session --
+  // `undefined` (not sent) for every other account type.
+  guardian_id?: string;
+  name?: string | null;
+  read_aloud_default?: boolean;
+  larger_text?: boolean;
+  reduce_motion?: boolean;
+  theme?: Theme;
+  quiz_finished_email_enabled?: boolean;
+  weekly_summary_enabled?: boolean;
 }
 
 // Read-only session-identity check -- drives the nav's per-user-type
@@ -808,6 +820,130 @@ export function createLearner(displayName: string): Promise<CreateLearnerRespons
     method: "POST",
     body: JSON.stringify({ display_name: displayName }),
   });
+}
+
+// spec 041 FR-023: the guardian's full persisted learner set (not just
+// ones added this browser session), each with its current enrollment
+// (if any).
+export interface MyLearnerEnrollment {
+  roster_id: string;
+  subject_id: string;
+  grade: number | null;
+}
+
+export interface MyLearner {
+  learner_id: string;
+  display_name: string;
+  enrollment: MyLearnerEnrollment | null;
+}
+
+export interface ListMyLearnersResponse {
+  learners: MyLearner[];
+}
+
+export function listMyLearners(): Promise<ListMyLearnersResponse> {
+  return request<ListMyLearnersResponse>("/api/learners/mine");
+}
+
+// spec 041 FR-009/FR-011: guardian Settings' Account/preferences
+// section. All fields optional -- only provided ones change
+// (`PATCH /api/auth/guardian/me`, same exclude-unset semantics backend-side).
+export interface GuardianMeUpdate {
+  name?: string;
+  email?: string;
+  read_aloud_default?: boolean;
+  larger_text?: boolean;
+  reduce_motion?: boolean;
+  theme?: Theme;
+  quiz_finished_email_enabled?: boolean;
+  weekly_summary_enabled?: boolean;
+}
+
+export interface GuardianMeResponse {
+  name: string | null;
+  email: string;
+  read_aloud_default: boolean;
+  larger_text: boolean;
+  reduce_motion: boolean;
+  theme: Theme;
+  quiz_finished_email_enabled: boolean;
+  weekly_summary_enabled: boolean;
+}
+
+export function updateGuardianMe(update: GuardianMeUpdate): Promise<GuardianMeResponse> {
+  return request<GuardianMeResponse>("/api/auth/guardian/me", {
+    method: "PATCH",
+    body: JSON.stringify(update),
+  });
+}
+
+export function changeGuardianPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  return requestVoid("/api/auth/guardian/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+export interface PracticeRemindersPreference {
+  enabled: boolean;
+}
+
+export function getPracticeRemindersPreference(
+  learnerId: string,
+): Promise<PracticeRemindersPreference> {
+  return request<PracticeRemindersPreference>(
+    `/api/learners/${learnerId}/practice-reminders-preference`,
+  );
+}
+
+export function setPracticeRemindersPreference(
+  learnerId: string,
+  enabled: boolean,
+): Promise<PracticeRemindersPreference> {
+  return request<PracticeRemindersPreference>(
+    `/api/learners/${learnerId}/practice-reminders-preference`,
+    { method: "PATCH", body: JSON.stringify({ enabled }) },
+  );
+}
+
+// Deletion requests (spec 020 contracts/api.md) -- Settings' Privacy &
+// data section (FR-012) wires its two actions to this existing API,
+// introducing no new deletion logic.
+export type DeletionTargetType = "learner" | "guardian" | "instructor";
+
+export interface SubmitDeletionRequestResponse {
+  deletion_request_id: string;
+  target_type: DeletionTargetType;
+  target_id: string;
+  status: "pending";
+  requested_at: string;
+}
+
+export function submitDeletionRequest(
+  targetType: DeletionTargetType,
+  targetId: string,
+): Promise<SubmitDeletionRequestResponse> {
+  return request<SubmitDeletionRequestResponse>("/api/deletion-requests", {
+    method: "POST",
+    body: JSON.stringify({ target_type: targetType, target_id: targetId }),
+  });
+}
+
+export interface DeletionRequestStatusResponse {
+  deletion_request_id: string;
+  target_type: DeletionTargetType;
+  status: "pending" | "completed";
+  requested_at: string;
+  completed_at: string | null;
+}
+
+export function getDeletionRequestStatus(
+  deletionRequestId: string,
+): Promise<DeletionRequestStatusResponse> {
+  return request<DeletionRequestStatusResponse>(`/api/deletion-requests/${deletionRequestId}`);
 }
 
 // Rosters (spec 010 contracts/api.md "Rosters" section, User Story 2).
