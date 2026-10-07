@@ -113,6 +113,15 @@ export default function GuardianSettingsPage() {
     null,
   );
   const [deletionError, setDeletionError] = useState<string | null>(null);
+  // Deletion requests are picked up by a scheduled job, not executed
+  // synchronously (spec 020) -- re-checking status while it's still
+  // pending is expected to come back unchanged. Without its own
+  // "checking…" feedback, that looked indistinguishable from the
+  // button doing nothing at all.
+  const [checkingLearnerStatus, setCheckingLearnerStatus] = useState(false);
+  const [checkingAccountStatus, setCheckingAccountStatus] = useState(false);
+  const [learnerStatusCheckedAt, setLearnerStatusCheckedAt] = useState<Date | null>(null);
+  const [accountStatusCheckedAt, setAccountStatusCheckedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -241,9 +250,22 @@ export default function GuardianSettingsPage() {
     targetType: DeletionTargetType,
     deletionRequestId: string,
   ) {
-    const current = await getDeletionRequestStatus(deletionRequestId);
-    if (targetType === "learner") setLearnerDeletion(current);
-    else setAccountDeletion(current);
+    const setChecking = targetType === "learner" ? setCheckingLearnerStatus : setCheckingAccountStatus;
+    setChecking(true);
+    try {
+      const current = await getDeletionRequestStatus(deletionRequestId);
+      if (targetType === "learner") {
+        setLearnerDeletion(current);
+        setLearnerStatusCheckedAt(new Date());
+      } else {
+        setAccountDeletion(current);
+        setAccountStatusCheckedAt(new Date());
+      }
+    } catch (error) {
+      setDeletionError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChecking(false);
+    }
   }
 
   if (loadError) {
@@ -463,9 +485,6 @@ export default function GuardianSettingsPage() {
                 For as long as the account is active, then removed. See the full list of what we
                 store and why.
               </p>
-              <a href="#" className="text-sm font-extrabold text-primary">
-                What Cognivo stores
-              </a>
             </div>
             <div className="rounded-2xl bg-surface-subtle p-4">
               <strong className="font-extrabold">Who can see it</strong>
@@ -475,6 +494,39 @@ export default function GuardianSettingsPage() {
               </p>
             </div>
           </div>
+
+          <details className="rounded-2xl bg-surface-subtle p-4">
+            <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
+              What Cognivo stores
+            </summary>
+            <ul className="flex flex-col gap-2.5 pt-2.5 text-sm text-muted">
+              <li>
+                <strong className="font-extrabold text-heading">Learner identity</strong> — name,
+                which guardian manages them, and which classes they&apos;ve joined.
+              </li>
+              <li>
+                <strong className="font-extrabold text-heading">Answers and mastery</strong> —
+                every question answered, how it was graded, and the mastery estimate for each
+                topic.
+              </li>
+              <li>
+                <strong className="font-extrabold text-heading">AI Tutor conversations</strong> —
+                the full back-and-forth of any tutoring chat.
+              </li>
+              <li>
+                <strong className="font-extrabold text-heading">Practice and quiz sessions</strong>{" "}
+                — when each one started and ended, and how it was scored.
+              </li>
+              <li>
+                <strong className="font-extrabold text-heading">Account details</strong> — your
+                name, email, and preferences.
+              </li>
+            </ul>
+            <p className="pt-2.5 text-sm text-muted">
+              Deleting a learner (or your account) permanently removes all of the above — see
+              &quot;Delete a learner&apos;s data&quot; below.
+            </p>
+          </details>
 
           <div className="flex flex-col gap-4 rounded-2xl border-2 border-warning/30 p-5">
             <div className="flex flex-col gap-2">
@@ -508,21 +560,33 @@ export default function GuardianSettingsPage() {
               </button>
             </div>
             {learnerDeletion && (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-warning/15 px-4 py-3 text-warning">
-                <span className="rounded-full bg-surface px-3 py-0.5 text-[13px] font-extrabold">
-                  {learnerDeletion.status === "pending" ? "Pending" : "Completed"}
-                </span>
-                <span className="text-[15px]">Status: {learnerDeletion.status}.</span>
-                {learnerDeletion.status === "pending" && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      refreshDeletionStatus("learner", learnerDeletion.deletion_request_id)
-                    }
-                    className="text-[15px] font-extrabold underline"
-                  >
-                    Check status
-                  </button>
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-warning/15 px-4 py-3 text-warning">
+                  <span className="rounded-full bg-surface px-3 py-0.5 text-[13px] font-extrabold">
+                    {learnerDeletion.status === "pending" ? "Pending" : "Completed"}
+                  </span>
+                  <span className="text-[15px]">
+                    Status: {learnerDeletion.status}.{" "}
+                    {learnerDeletion.status === "pending" &&
+                      "Deletions run on a schedule, not instantly."}
+                  </span>
+                  {learnerDeletion.status === "pending" && (
+                    <button
+                      type="button"
+                      disabled={checkingLearnerStatus}
+                      onClick={() =>
+                        refreshDeletionStatus("learner", learnerDeletion.deletion_request_id)
+                      }
+                      className="text-[15px] font-extrabold underline disabled:opacity-60"
+                    >
+                      {checkingLearnerStatus ? "Checking…" : "Check status"}
+                    </button>
+                  )}
+                </div>
+                {learnerStatusCheckedAt && learnerDeletion.status === "pending" && (
+                  <span className="text-sm text-muted">
+                    Still pending as of {learnerStatusCheckedAt.toLocaleTimeString()}.
+                  </span>
                 )}
               </div>
             )}
@@ -541,21 +605,33 @@ export default function GuardianSettingsPage() {
               </button>
             </div>
             {accountDeletion && (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-warning/15 px-4 py-3 text-warning">
-                <span className="rounded-full bg-surface px-3 py-0.5 text-[13px] font-extrabold">
-                  {accountDeletion.status === "pending" ? "Pending" : "Completed"}
-                </span>
-                <span className="text-[15px]">Status: {accountDeletion.status}.</span>
-                {accountDeletion.status === "pending" && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      refreshDeletionStatus("guardian", accountDeletion.deletion_request_id)
-                    }
-                    className="text-[15px] font-extrabold underline"
-                  >
-                    Check status
-                  </button>
+              <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-warning/15 px-4 py-3 text-warning">
+                  <span className="rounded-full bg-surface px-3 py-0.5 text-[13px] font-extrabold">
+                    {accountDeletion.status === "pending" ? "Pending" : "Completed"}
+                  </span>
+                  <span className="text-[15px]">
+                    Status: {accountDeletion.status}.{" "}
+                    {accountDeletion.status === "pending" &&
+                      "Deletions run on a schedule, not instantly."}
+                  </span>
+                  {accountDeletion.status === "pending" && (
+                    <button
+                      type="button"
+                      disabled={checkingAccountStatus}
+                      onClick={() =>
+                        refreshDeletionStatus("guardian", accountDeletion.deletion_request_id)
+                      }
+                      className="text-[15px] font-extrabold underline disabled:opacity-60"
+                    >
+                      {checkingAccountStatus ? "Checking…" : "Check status"}
+                    </button>
+                  )}
+                </div>
+                {accountStatusCheckedAt && accountDeletion.status === "pending" && (
+                  <span className="text-sm text-muted">
+                    Still pending as of {accountStatusCheckedAt.toLocaleTimeString()}.
+                  </span>
                 )}
               </div>
             )}

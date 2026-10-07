@@ -180,4 +180,35 @@ describe("GuardianSettingsPage", () => {
     expect(api.submitDeletionRequest).toHaveBeenCalledWith("guardian", "guardian-1");
     expect(await screen.findByText(/Status: pending/)).toBeInTheDocument();
   });
+
+  it("'Check status' shows it's actually checking, even when the status comes back unchanged", async () => {
+    vi.mocked(api.submitDeletionRequest).mockResolvedValue({
+      deletion_request_id: "del-1",
+      target_type: "learner",
+      target_id: "learner-1",
+      status: "pending",
+      requested_at: "2026-10-06T00:00:00Z",
+    });
+    // Deletions run on a schedule -- re-checking immediately after
+    // still reports pending, same as the real backend would.
+    vi.mocked(api.getDeletionRequestStatus).mockResolvedValue({
+      deletion_request_id: "del-1",
+      target_type: "learner",
+      status: "pending",
+      requested_at: "2026-10-06T00:00:00Z",
+      completed_at: null,
+    });
+    const user = userEvent.setup();
+    render(<GuardianSettingsPage />);
+
+    await screen.findByText("Grade 7 · algebra-1");
+    await user.selectOptions(screen.getByDisplayValue("Choose a learner"), "learner-1");
+    await user.click(screen.getByRole("button", { name: "Request deletion" }));
+    await screen.findByText(/Status: pending/);
+
+    await user.click(screen.getByRole("button", { name: "Check status" }));
+
+    expect(api.getDeletionRequestStatus).toHaveBeenCalledWith("del-1");
+    expect(await screen.findByText(/Still pending as of/)).toBeInTheDocument();
+  });
 });
