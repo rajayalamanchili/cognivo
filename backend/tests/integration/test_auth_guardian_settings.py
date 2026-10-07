@@ -62,9 +62,64 @@ def test_patch_guardian_me_email_conflict(client):
     client.post("/api/auth/logout")
     _register_guardian(client, email="other@example.com")
 
-    response = client.patch("/api/auth/guardian/me", json={"email": "taken@example.com"})
+    response = client.patch(
+        "/api/auth/guardian/me",
+        json={"email": "taken@example.com", "current_password": "correct horse battery staple"},
+    )
     assert response.status_code == 409, response.text
     assert response.json() == {"detail": "email_taken"}
+
+
+def test_patch_guardian_me_email_change_requires_current_password(client):
+    """Code Review follow-up on PR #109: a session alone must not be
+    able to rewrite the login `email` -- that's the account's identity,
+    and a stolen-but-unexpired cookie shouldn't be able to hijack it
+    with no further proof of the password."""
+    _register_guardian(client, email="email-change-no-pw@example.com")
+
+    missing = client.patch("/api/auth/guardian/me", json={"email": "new-address@example.com"})
+    assert missing.status_code == 401, missing.text
+
+    wrong = client.patch(
+        "/api/auth/guardian/me",
+        json={"email": "new-address@example.com", "current_password": "wrong password"},
+    )
+    assert wrong.status_code == 401, wrong.text
+
+    correct = client.patch(
+        "/api/auth/guardian/me",
+        json={
+            "email": "new-address@example.com",
+            "current_password": "correct horse battery staple",
+        },
+    )
+    assert correct.status_code == 200, correct.text
+    assert correct.json()["email"] == "new-address@example.com"
+
+
+def test_patch_guardian_me_email_change_wrong_password_locks_out(client):
+    """The password check guarding an email change must share the same
+    lockout as `/login`/`/change-password` -- otherwise it's a new,
+    unthrottled password-guessing oracle."""
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    _register_guardian(client, email="email-change-lockout@example.com")
+
+    for _ in range(LOCKOUT_THRESHOLD):
+        attempt = client.patch(
+            "/api/auth/guardian/me",
+            json={"email": "new-address@example.com", "current_password": "wrong password"},
+        )
+        assert attempt.status_code == 401, attempt.text
+
+    locked = client.patch(
+        "/api/auth/guardian/me",
+        json={
+            "email": "new-address@example.com",
+            "current_password": "correct horse battery staple",
+        },
+    )
+    assert locked.status_code == 429, locked.text
 
 
 def test_patch_guardian_me_rejects_explicit_null_email(client):

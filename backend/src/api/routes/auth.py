@@ -214,10 +214,18 @@ def logout(response: Response) -> None:
 class GuardianMeIn(BaseModel):
     """spec 041 FR-009/FR-011. All fields optional -- only ones the
     client actually sent (`exclude_unset`) are changed, so e.g. omitting
-    `weekly_summary_enabled` never resets it to `False`."""
+    `weekly_summary_enabled` never resets it to `False`.
+
+    `current_password` (Code Review follow-up on PR #109) is required
+    only when `email` is also being changed: login `email` is the one
+    field here that's both the account's identity and a detail a
+    stolen-but-unexpired session cookie could otherwise rewrite with no
+    further proof of the password. Every other field stays a plain
+    session-authenticated update, same as before."""
 
     name: str | None = None
     email: str | None = None
+    current_password: str | None = None
     read_aloud_default: bool | None = None
     larger_text: bool | None = None
     reduce_motion: bool | None = None
@@ -274,10 +282,26 @@ def update_guardian_me(
     db: Session = Depends(get_db),
 ) -> GuardianMeOut:
     updates = body.model_dump(exclude_unset=True)
+    current_password = updates.pop("current_password", None)
     for field in _GUARDIAN_ME_NON_NULLABLE_FIELDS:
         if updates.get(field, False) is None:
             raise UnprocessableError(f"{field}_required")
     if "email" in updates:
+        # Code Review follow-up on PR #109: same lockout-and-throttle
+        # treatment as `/change-password`'s `current_password` check --
+        # requiring the password here is pointless if it's a brute-
+        # force oracle on its own.
+        if is_locked_out(guardian):
+            raise RateLimitedError(seconds_until_unlocked(guardian))
+        if current_password is None or not verify_password(
+            current_password, guardian.password_hash
+        ):
+            if current_password is not None:
+                record_failed_attempt(db, guardian)
+                db.commit()
+            raise AuthenticationError("invalid_credentials")
+        record_successful_attempt(guardian)
+
         email = _normalize_email(updates["email"])
         existing = (
             db.query(RealGuardianAccount)

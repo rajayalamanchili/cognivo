@@ -94,6 +94,7 @@ export default function GuardianSettingsPage() {
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [emailChangePassword, setEmailChangePassword] = useState("");
   const [accountSaving, setAccountSaving] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accountSaved, setAccountSaved] = useState(false);
@@ -180,21 +181,28 @@ export default function GuardianSettingsPage() {
     notifySessionChanged();
   }
 
+  const emailChanged = guardian !== null && email !== guardian.email;
+
   async function handleSaveAccount(event: FormEvent) {
     event.preventDefault();
     setAccountSaving(true);
     setAccountError(null);
     setAccountSaved(false);
     try {
-      await savePreference({ name, email });
+      await savePreference(
+        emailChanged ? { name, email, current_password: emailChangePassword } : { name, email },
+      );
+      setEmailChangePassword("");
       setAccountSaved(true);
     } catch (error) {
       setAccountError(
         error instanceof ApiError && error.status === 409
           ? "That email is already in use."
-          : error instanceof Error
-            ? error.message
-            : String(error),
+          : error instanceof ApiError && error.status === 401
+            ? "Current password is incorrect."
+            : error instanceof Error
+              ? error.message
+              : String(error),
       );
     } finally {
       setAccountSaving(false);
@@ -319,6 +327,20 @@ export default function GuardianSettingsPage() {
               />
               <span className="text-sm font-normal text-muted">You&apos;ll use this to sign in</span>
             </label>
+            {emailChanged && (
+              <label className="col-span-2 flex flex-col gap-1.5 text-sm font-extrabold">
+                Current password
+                <input
+                  type="password"
+                  value={emailChangePassword}
+                  onChange={(event) => setEmailChangePassword(event.target.value)}
+                  className="min-h-12 rounded-xl border-2 border-primary/25 px-3.5 font-normal"
+                />
+                <span className="text-sm font-normal text-muted">
+                  Required to change the email you sign in with
+                </span>
+              </label>
+            )}
             <div className="col-span-2 flex flex-wrap items-center gap-3">
               <button
                 type="submit"

@@ -851,6 +851,11 @@ export function listMyLearners(): Promise<ListMyLearnersResponse> {
 export interface GuardianMeUpdate {
   name?: string;
   email?: string;
+  // Required by the backend only when `email` is also set (Code Review
+  // follow-up on PR #109) -- changing the login email needs proof of
+  // the password, same as `/change-password`, so a stolen session
+  // cookie alone can't rewrite it.
+  current_password?: string;
   read_aloud_default?: boolean;
   larger_text?: boolean;
   reduce_motion?: boolean;
