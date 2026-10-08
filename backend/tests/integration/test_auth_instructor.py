@@ -76,6 +76,33 @@ def test_instructor_login_unknown_email_returns_401(client):
     assert response.json() == {"detail": "invalid_credentials"}
 
 
+def test_instructor_login_locks_out_after_threshold_failures(client):
+    """Claude Code Review finding on PR #111: login_instructor never
+    checked the lockout columns it added, leaving login an unthrottled
+    brute-force oracle. Mirrors login_guardian's own lockout behavior."""
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    email = "lockout-teacher@example.com"
+    client.post("/api/auth/instructor/register", json={"email": email, "password": "correct horse"})
+    client.post("/api/auth/logout")
+
+    for _ in range(LOCKOUT_THRESHOLD):
+        response = client.post(
+            "/api/auth/instructor/login", json={"email": email, "password": "wrong-password"}
+        )
+        assert response.status_code == 401
+
+    locked_response = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "wrong-password"}
+    )
+    assert locked_response.status_code == 429
+
+    still_locked_with_right_password = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "correct horse"}
+    )
+    assert still_locked_with_right_password.status_code == 429
+
+
 def test_protected_route_rejects_missing_session(client):
     """`/api/learners` (the only currently-registered session-protected
     route in this phase) with no session cookie at all -- proves the

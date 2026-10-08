@@ -150,17 +150,30 @@ def register_instructor(
 def login_instructor(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
 ) -> InstructorAuthOut:
+    """Mirrors `login_guardian`'s lockout check (Claude Code Review
+    finding on PR #111) -- the lockout columns/`record_failed_attempt_
+    instructor` (research.md §1) were wired into `change_instructor_
+    password` but never into login itself, leaving login an unthrottled
+    brute-force oracle. Now higher-risk than before this PR: the default
+    instructor (spec 043) is a real account with a well-known email."""
     email = _normalize_email(body.email)
     instructor = (
         db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
     )
+    if instructor is not None and is_locked_out(instructor):
+        raise RateLimitedError(seconds_until_unlocked(instructor))
     password_hash = instructor.password_hash if instructor is not None else _DUMMY_PASSWORD_HASH
     password_ok = verify_password(body.password, password_hash)
     if instructor is None or not password_ok:
+        if instructor is not None:
+            record_failed_attempt_instructor(db, instructor)
+            db.commit()
         raise AuthenticationError("invalid_credentials")
 
+    record_successful_attempt(instructor)
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
     set_session_cookie(response, token)
+    db.commit()
     return InstructorAuthOut(instructor_id=instructor.instructor_id)
 
 

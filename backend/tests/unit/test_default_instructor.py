@@ -7,6 +7,7 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py.
 import pytest
 
 from src.models.classroom_roster import ClassroomRoster
+from src.models.enums import EnrollmentMode
 from src.models.real_instructor_account import RealInstructorAccount
 from src.services.auth.passwords import hash_password
 from src.services.roster.default_instructor import (
@@ -83,3 +84,30 @@ def test_ensure_roster_is_idempotent_on_a_second_call(db_session, monkeypatch, a
     ensure_default_instructor_roster_for_subject(db_session, algebra_subject.subject_id)
 
     assert db_session.query(ClassroomRoster).count() == 1
+
+
+def test_ensure_roster_repairs_a_half_created_roster_from_a_prior_crashed_run(
+    db_session, monkeypatch, algebra_subject
+):
+    """Claude Code Review finding on PR #111: `create_roster`/
+    `update_roster` commit separately, so a crash between them could
+    leave a created-but-unlisted roster. A later call must converge it
+    onto open/listed, not return early and leave it unlisted forever."""
+    instructor = _make_default_instructor(db_session)
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", _EMAIL)
+    half_created = ClassroomRoster(
+        instructor_id=instructor.instructor_id,
+        subject_id=algebra_subject.subject_id,
+        enrollment_mode=EnrollmentMode.OPEN,
+        join_code="ALG-CRSH",
+        is_listed=False,
+    )
+    db_session.add(half_created)
+    db_session.commit()
+
+    ensure_default_instructor_roster_for_subject(db_session, algebra_subject.subject_id)
+
+    assert db_session.query(ClassroomRoster).count() == 1
+    db_session.refresh(half_created)
+    assert half_created.is_listed is True
+    assert half_created.enrollment_mode == EnrollmentMode.OPEN

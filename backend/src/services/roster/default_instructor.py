@@ -54,6 +54,20 @@ def ensure_default_instructor_roster_for_subject(db: Session, subject_id: str) -
         .one_or_none()
     )
     if existing is not None:
+        # Claude Code Review finding on PR #111: `create_roster`/
+        # `update_roster` commit separately, so a crash between them
+        # (process kill, lost connection) could leave a created-but-
+        # unlisted roster from a prior run. Converging here instead of
+        # returning early repairs that on the next call, rather than
+        # leaving it unlisted forever (FR-015).
+        if existing.enrollment_mode != EnrollmentMode.OPEN or not existing.is_listed:
+            update_roster(
+                db,
+                roster=existing,
+                enrollment_mode=EnrollmentMode.OPEN,
+                is_listed=True,
+                instructor_display_name=instructor.display_name,
+            )
         return
 
     roster = create_roster(
