@@ -2208,8 +2208,14 @@ credentials get seeded without ever committing a secret -- environment
 variables at seed time, mirroring the existing `DATABASE_URL` pattern,
 with an idempotent seed step so a re-run never reverts a password the
 operator changed later. `requirements.md` checklist passed 16/16 on
-first pass and after each clarification round, no regressions. Not yet
-planned or implemented.
+first pass and after each clarification round, no regressions.
+`/speckit-plan` and `/speckit-tasks` complete; `/speckit-implement`
+in progress -- Phase 1 (Setup) and Phase 2 (Foundational) done
+(2026-10-07): design tokens confirmed sufficient with no new values
+needed, `DEFAULT_INSTRUCTOR_*` env vars documented, eight new
+`RealInstructorAccount` columns added and migrated, `lockout.py`
+widened to cover instructor accounts. User Stories 1-3 (Phases 3-5)
+and Polish (Phase 6) not yet implemented.
 
 **Scope**: Two parts sharing one spec. (1) A design-system restyle of
 the Dashboard, Review, and Rosters screens plus a new instructor
