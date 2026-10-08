@@ -126,10 +126,11 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 **Purpose**: Final verification across all three stories.
 
 - [X] T030 [P] Run the full, unfiltered backend (`pytest`) and frontend (`Vitest`) test suites; confirm zero regressions (SC-002) -- no existing test file required a behavioral change to keep passing.
-- [ ] T031 Run quickstart.md Scenarios 1-5 end to end manually against a local dev environment with the new migration applied and a seeded default instructor.
-- [ ] T032 Run `/code-review` locally (per `CLAUDE.md`'s Polish-phase mandate) before opening the PR; resolve any blocking findings. As part of this pass, explicitly confirm SC-005 by running `grep -rn "notifications_enabled" backend/src` and verifying every match is the PATCH/GET read-write path (T014/T015) and nothing else -- no notification-sending code path exists anywhere in the diff.
+- [X] T031 Run quickstart.md Scenarios 1-5 end to end manually against a local dev environment with the new migration applied and a seeded default instructor.
+- [X] T032 Run `/code-review` locally (per `CLAUDE.md`'s Polish-phase mandate) before opening the PR; resolve any blocking findings. As part of this pass, explicitly confirm SC-005 by running `grep -rn "notifications_enabled" backend/src` and verifying every match is the PATCH/GET read-write path (T014/T015) and nothing else -- no notification-sending code path exists anywhere in the diff.
 - [X] T033 Update `roadmap.md`'s Milestone 25 entry's **Status** line to reflect actual implementation/merge state once this feature ships (per the pattern every other milestone entry already follows) -- do not leave it reading "not yet planned or implemented" after it has been.
 - [X] T034 PR #111 review addendum: add `password_changed_at` to `RealInstructorAccount` (ninth column, FR-013 updated) and a new migration; add `instructor_session_revoked` in `backend/src/services/auth/dependencies.py` mirroring `guardian_session_revoked`, wired into `current_session_claims`/`optional_session_claims`; set the column in `change_instructor_password` on every successful change. Closes the session-revocation gap FR-006 originally deferred as an accepted risk -- see spec.md's Edge Cases and research.md §1/§7 for the updated rationale.
+- [X] T035 PR #111 review addendum: bound `GuardianCreateAssignmentIn`'s `question_count` (1-50, matching `quiz.py`'s self-serve range) and `topic_ids` (1-20 entries), and reject a past `due_at`, in `backend/src/api/routes/rosters.py` -- scoped to the guardian endpoint specifically, since it's a self-service, publicly-registrable caller unlike the pre-existing, unbounded instructor-side endpoint (contracts/api-changes.md §6).
 
 ---
 

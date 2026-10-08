@@ -43,11 +43,11 @@ def client(db_session, monkeypatch, default_instructor_email):
     return TestClient(app, base_url="https://testserver")
 
 
-def _assign(client, *, learner_id, roster_id, question_count=3, due_at=None):
+def _assign(client, *, learner_id, roster_id, question_count=3, due_at=None, topic_ids=None):
     return client.post(
         f"/api/learners/{learner_id}/rosters/{roster_id}/assignments",
         json={
-            "topic_ids": [_ENTRY_TOPIC],
+            "topic_ids": topic_ids if topic_ids is not None else [_ENTRY_TOPIC],
             "question_count": question_count,
             "due_at": due_at,
         },
@@ -87,6 +87,66 @@ def test_success_matches_instructor_side_shape_and_audits_the_default_instructor
         .one()
     )
     assert event.payload["instructor_id"] == default_instructor_id
+
+
+def test_question_count_out_of_range_returns_422(
+    client, algebra_subject, db_session, default_instructor_email
+):
+    """Claude Code Review finding on PR #111: a guardian is a
+    self-service, publicly-registrable caller -- question_count is
+    bounded to limit the LLM-generation cost/DoS surface, unlike the
+    instructor-side endpoint's pre-existing, unbounded field."""
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
+    roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="guardian-assign-oob-count@example.com", learner_name="Learner"
+    )
+    join_roster(client, learner_id=learner_id, join_code=join_code)
+
+    too_many = _assign(client, learner_id=learner_id, roster_id=roster_id, question_count=51)
+    assert too_many.status_code == 422, too_many.text
+
+    zero = _assign(client, learner_id=learner_id, roster_id=roster_id, question_count=0)
+    assert zero.status_code == 422, zero.text
+
+
+def test_too_many_topic_ids_returns_422(
+    client, algebra_subject, db_session, default_instructor_email
+):
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
+    roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="guardian-assign-oob-topics@example.com", learner_name="Learner"
+    )
+    join_roster(client, learner_id=learner_id, join_code=join_code)
+
+    response = _assign(
+        client, learner_id=learner_id, roster_id=roster_id, topic_ids=[_ENTRY_TOPIC] * 21
+    )
+    assert response.status_code == 422, response.text
+
+
+def test_due_at_in_the_past_returns_422(
+    client, algebra_subject, db_session, default_instructor_email
+):
+    import datetime
+
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
+    roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="guardian-assign-past-due@example.com", learner_name="Learner"
+    )
+    join_roster(client, learner_id=learner_id, join_code=join_code)
+
+    past = (datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=1)).isoformat()
+    response = _assign(client, learner_id=learner_id, roster_id=roster_id, due_at=past)
+    assert response.status_code == 422, response.text
 
 
 def test_unknown_roster_id_returns_404(client, db_session, default_instructor_email):

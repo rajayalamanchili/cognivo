@@ -122,9 +122,16 @@ learner, but only on a roster owned by the default instructor.
   "due_at": "2026-10-20T00:00:00Z"
 }
 ```
-`due_at` is optional (`null`/omitted = no due date), same semantics as
-the instructor-side endpoint's field of the same name. No
-`learner_ids` field -- the path's `learner_id` is the sole target.
+`due_at` is optional (`null`/omitted = no due date, otherwise MUST NOT
+be in the past), same semantics as the instructor-side endpoint's
+field of the same name. No `learner_ids` field -- the path's
+`learner_id` is the sole target. Unlike the instructor-side endpoint's
+`CreateAssignmentIn` (pre-existing, unbounded since spec 011),
+`question_count` MUST be between 1 and 50 inclusive and `topic_ids`
+MUST have between 1 and 20 entries (added during PR #111 review -- a
+guardian is a self-service, publicly-registrable caller, so this field
+is bounded here specifically to limit the LLM-generation cost/DoS
+surface it can drive).
 
 **Response** (`201`):
 ```json
@@ -150,6 +157,8 @@ around the same `create_assignment()` service call.
 - `403 not_enrolled` -- the learner isn't enrolled in `roster_id`.
 - `403 not_default_instructor_roster` -- `roster_id` isn't owned by
   the default instructor.
+- `422` -- `question_count`/`topic_ids` out of the bounds above, or
+  `due_at` in the past.
 - `404 unknown_topic_id` / `422 empty_target` -- same as the
   instructor-side endpoint (delegated to the same `create_assignment()`
   validation).

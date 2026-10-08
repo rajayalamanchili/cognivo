@@ -7,7 +7,7 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from src.api.errors import ForbiddenError, NotFoundError
@@ -388,9 +388,25 @@ def list_learner_enrollments_route(
 
 
 class GuardianCreateAssignmentIn(BaseModel):
-    topic_ids: list[str]
-    question_count: int
+    """Claude Code Review finding on PR #111: unlike the instructor-side
+    `CreateAssignmentIn` (pre-existing, unbounded since spec 011 --
+    out of scope to change here), this endpoint's caller is a
+    self-service, publicly-registrable guardian, not a vetted
+    instructor -- bounding `question_count`/`topic_ids` here specifically
+    limits the LLM-generation cost/DoS surface a guardian can drive on
+    the shared default-instructor roster. Same `question_count` range
+    `quiz.py`'s `_validate_quiz_start_request` already uses."""
+
+    topic_ids: list[str] = Field(min_length=1, max_length=20)
+    question_count: int = Field(ge=1, le=50)
     due_at: datetime.datetime | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def _due_at_not_in_the_past(cls, value: datetime.datetime | None) -> datetime.datetime | None:
+        if value is not None and value < datetime.datetime.now(datetime.UTC):
+            raise ValueError("due_at must not be in the past")
+        return value
 
 
 @router.post(
