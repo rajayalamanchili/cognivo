@@ -25,9 +25,14 @@ uv run alembic upgrade head   # applies this feature's new migration
 3. Open the instructor Settings page in a browser -- expect the page
    to render in dark mode immediately (same mechanism
    `AccountDisplayPreferences.tsx` already uses for a guardian).
-4. `POST /api/auth/instructor/change-password` with the current and a
+4. Save the session cookie from before this step, then
+   `POST /api/auth/instructor/change-password` with the current and a
    new password -- expect `204`; sign out and sign back in with the
-   new password only.
+   new password only. Retry any authenticated request (e.g.
+   `GET /api/auth/whoami`) using the saved pre-change cookie -- expect
+   `401 invalid_session` (PR #111 review: a password change now
+   invalidates every session token issued before it, mirroring the
+   guardian endpoint).
 5. Create a new roster from the Rosters screen with no explicit
    enrollment mode chosen -- expect the create form to start
    pre-filled with "closed" (step 2's default), still overridable

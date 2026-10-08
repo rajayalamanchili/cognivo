@@ -20,6 +20,7 @@ Existing table `real_instructor_accounts`
 | `default_due_date_offset_days` | `Integer` | **Yes** | `NULL` | FR-009 |
 | `failed_login_attempts` | `Integer` | No | `0` | FR-006 (mirrors `RealGuardianAccount`'s lockout column, research.md §1) |
 | `locked_until` | `DateTime(timezone=True)` | **Yes** | `NULL` | FR-006 (mirrors `RealGuardianAccount`'s lockout column, research.md §1) |
+| `password_changed_at` | `DateTime(timezone=True)` | **Yes** | `NULL` | FR-006 (added during PR #111 review -- mirrors `RealGuardianAccount`'s session-invalidation-on-password-change column, research.md §1/§7) |
 
 **Validation rules**:
 
@@ -30,23 +31,30 @@ Existing table `real_instructor_accounts`
   integer (`> 0`) -- enforced at the Pydantic level (`Field(gt=0)` on
   the optional field). `NULL` is the only representation of "no due
   date by default" (spec.md's Clarifications, second pass).
-- No new uniqueness or foreign-key constraint; all eight columns are
+- `password_changed_at` MUST stay `NULL` until the account's first
+  real password change (mirrors `RealGuardianAccount.password_changed_at`'s
+  own rule exactly, research.md §7) -- never backfilled to `created_at`
+  or any other value, or every session token issued before this column
+  existed would be retroactively invalidated.
+- No new uniqueness or foreign-key constraint; all nine columns are
   independent, per-row scalars.
 
-**State/lifecycle**: Six of the eight are never referenced by any other
+**State/lifecycle**: Six of the nine are never referenced by any other
 table's logic -- they are read only to pre-fill a frontend form
 (`default_enrollment_mode`/`default_due_date_offset_days`) or applied
 directly to the document root
 (`theme`/`larger_text`/`reduce_motion`, exactly as
 `AccountDisplayPreferences.tsx` already does for a guardian) or never
 read by any code path at all (`notifications_enabled`, FR-008). The
-remaining two (`failed_login_attempts`/`locked_until`) are the one
-exception -- read and written by `backend/src/services/auth/
-lockout.py`'s functions on every password-change attempt (research.md
-§1), the same way `RealGuardianAccount`'s identical columns already
-are. None of the eight require a cascade or cleanup on
-`DeletionRequest` execution beyond what already deletes the whole
-`RealInstructorAccount` row today.
+remaining three are read/written by auth-path code on every
+password-change attempt (research.md §1): `failed_login_attempts`/
+`locked_until` by `backend/src/services/auth/lockout.py`'s functions,
+and `password_changed_at` by `change_instructor_password` itself
+(written) and `instructor_session_revoked` (read, mirroring
+`guardian_session_revoked`) -- the same way `RealGuardianAccount`'s
+identical columns already work. None of the nine require a cascade or
+cleanup on `DeletionRequest` execution beyond what already deletes the
+whole `RealInstructorAccount` row today.
 
 ## The default instructor (no new entity)
 

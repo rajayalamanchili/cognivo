@@ -63,9 +63,10 @@ environment variables, never committed (spec.md FR-020).
 
 **Scale/Scope**: Three existing screens restyled, one new screen, one
 new seed script, one new narrowly-scoped backend endpoint, one small
-additive field on an existing endpoint, eight new columns on
-`RealInstructorAccount`, zero new tables, zero new external
-dependencies.
+additive field on an existing endpoint, nine new columns on
+`RealInstructorAccount` (eight at initial implementation, plus
+`password_changed_at` added during PR #111 review -- see FR-013), zero
+new tables, zero new external dependencies.
 
 ## Constitution Check
 

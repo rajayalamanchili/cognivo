@@ -64,6 +64,48 @@ def test_change_instructor_password_success_and_relogin(client):
     assert new_login.status_code == 200, new_login.text
 
 
+def test_change_instructor_password_invalidates_prior_session_token(client):
+    """Claude Code Review finding on PR #111: mirrors
+    test_auth_guardian_settings.py's test_change_password_invalidates_
+    prior_session_token -- a session cookie obtained *before* the
+    change is rejected on its next use; a cookie obtained *after* keeps
+    working."""
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from src.api.main import app
+    from src.services.auth.tokens import SESSION_COOKIE_NAME
+
+    email = "invalidate-instructor-session@example.com"
+    old_password = "correct horse battery staple"
+    _register_instructor(client, email=email, password=old_password)
+    old_cookie = client.cookies[SESSION_COOKIE_NAME]
+
+    # Ensure the new token's `iat` (whole seconds) is strictly later
+    # than the old one's -- JWT `iat` has one-second resolution.
+    time.sleep(1.1)
+
+    client.post(
+        "/api/auth/instructor/change-password",
+        json={"current_password": old_password, "new_password": "a new password here"},
+    )
+
+    stale_response = client.patch(
+        "/api/auth/instructor/me",
+        json={"display_name": "Stale"},
+        cookies={SESSION_COOKIE_NAME: old_cookie},
+    )
+    assert stale_response.status_code == 401, stale_response.text
+
+    second_client = TestClient(app, base_url="https://testserver")
+    second_client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "a new password here"}
+    )
+    fresh_response = second_client.patch("/api/auth/instructor/me", json={"display_name": "Fresh"})
+    assert fresh_response.status_code == 200, fresh_response.text
+
+
 def test_change_instructor_password_wrong_current_password_rejected(client):
     _register_instructor(
         client,

@@ -70,3 +70,13 @@ class RealInstructorAccount(Base):
     locked_until: Mapped[datetime.datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    # Claude Code Review finding on PR #111: mirrors RealGuardianAccount.
+    # password_changed_at exactly -- `current_session_claims` rejects a
+    # session token issued before this timestamp (instructor_session_
+    # revoked, dependencies.py). MUST stay NULL until the account's
+    # first real password change, never backfilled, or every existing
+    # session token would be retroactively invalidated.
+    password_changed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

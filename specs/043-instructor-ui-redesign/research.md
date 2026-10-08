@@ -15,7 +15,18 @@ change-password` (`backend/src/api/routes/auth.py`): same
 `ChangePasswordIn` shape (`current_password`, `new_password`), same
 lockout check (`is_locked_out`/`record_failed_attempt`/
 `record_successful_attempt`), same re-issue-a-fresh-session-cookie
-behavior after success.
+behavior after success, and (added during PR #111 review, after the
+initial implementation shipped without it) the same
+`password_changed_at`-based prior-session invalidation `RealGuardianAccount`
+already has: a new, nullable `password_changed_at` column, set on every
+successful change, checked by a new `instructor_session_revoked`
+function mirroring `dependencies.py`'s existing `guardian_session_revoked`
+and wired into `current_session_claims` the same way. Initially deferred
+as an accepted gap under FR-013's then-eight-column bound; revisited
+once review flagged that the default instructor is the one account in
+this entire feature where a stolen, still-valid session actually
+matters (it can reach every guardian-enrolled learner's roster data),
+making the schema cost worth paying.
 
 **Rationale**: The guardian endpoint already encodes every real
 decision this needs (lockout-before-password-check ordering, session
@@ -261,3 +272,11 @@ backward-compatible with every existing row) -- no data migration, no
 backfill script needed (defaults apply at the DB level per
 `server_default=`, same pattern every prior migration in this table's
 history already uses, e.g. `RealGuardianAccount`'s own columns).
+
+A second, small follow-up migration (PR #111 review) adds `password_changed_at`
+alone -- nullable, no `server_default`, mirroring `RealGuardianAccount.
+password_changed_at`'s own shape exactly: it must stay `NULL` for every
+row until that row's first real password change, not backfilled to
+`created_at` or any other value, or every session token issued before
+this column existed would be retroactively invalidated the moment the
+migration runs.

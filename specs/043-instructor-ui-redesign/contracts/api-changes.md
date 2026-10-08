@@ -14,7 +14,10 @@ Mirrors `POST /api/auth/guardian/change-password` exactly.
 ```
 
 **Response**: `204 No Content`. A fresh session cookie is set on
-success (same as the guardian endpoint).
+success (same as the guardian endpoint), and every session token
+issued before this moment is invalidated on its next use (same
+`password_changed_at` mechanism as `POST /api/auth/guardian/
+change-password`, added during PR #111 review -- research.md §1).
 
 **Errors**:
 - `403 demo_account` -- session resolves to a `DemoInstructorProfile`

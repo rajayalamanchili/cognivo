@@ -414,16 +414,11 @@ def change_instructor_password(
     instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> None:
-    """Mirrors `change_guardian_password` (research.md §1) -- a demo
-    instructor has no `password_hash` to change, so it's rejected
-    before the lockout/`DemoInstructorProfile` attributes it lacks
-    would otherwise raise an `AttributeError`. Unlike the guardian
-    endpoint, there is no `password_changed_at` column on
-    `RealInstructorAccount` (data-model.md deliberately bounds this
-    feature's schema to eight columns, none of them that one), so a
-    prior session token is not revoked -- only the lockout/rehash
-    behavior is mirrored, not guardian's session-invalidation-on-
-    change-password mechanism."""
+    """Mirrors `change_guardian_password` (research.md §1) exactly,
+    including session invalidation (`password_changed_at`, added
+    during PR #111 review) -- a demo instructor has no `password_hash`
+    to change, so it's rejected before the lockout/`DemoInstructorProfile`
+    attributes it lacks would otherwise raise an `AttributeError`."""
     if isinstance(instructor, DemoInstructorProfile):
         raise ForbiddenError("demo_account")
     if is_locked_out(instructor):
@@ -434,6 +429,11 @@ def change_instructor_password(
         raise AuthenticationError("invalid_credentials")
     record_successful_attempt(instructor)
     instructor.password_hash = hash_password(body.new_password)
+    # Invalidates every session token issued before this moment on its
+    # next use (dependencies.py's `instructor_session_revoked`),
+    # including the cookie that authenticated this very request --
+    # reissuing a fresh one below keeps the caller's own tab logged in.
+    instructor.password_changed_at = datetime.datetime.now(datetime.UTC)
     db.commit()
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
     set_session_cookie(response, token)
