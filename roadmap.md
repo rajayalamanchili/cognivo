@@ -2180,6 +2180,68 @@ misconception classifier's per-answer call (separate follow-up).
 
 ---
 
+## Milestone 25: Instructor-Facing UI Redesign and Default-Instructor Self-Service
+
+**Spec**: `specs/043-instructor-ui-redesign/spec.md`.
+**Status**: `/speckit-specify` complete (2026-10-07, branch
+`043-instructor-ui-redesign`, created from `origin/staging`). Four
+reference mockups (Dashboard, Review, Rosters, Settings) prompted a
+restyle of the three existing instructor screens plus a new Settings
+screen, reusing existing backend systems almost entirely -- the
+guardian's password-change endpoint and display-preference columns
+(spec 041 FR-011) mirrored onto instructor accounts, and spec 020's
+deletion-request pathway reused as-is for both learner- and self-
+targeted instructor deletion requests, with no new authorization rule.
+Three `/speckit-clarify` passes the same day resolved: (1) the
+classroom-default due-date behavior's exact shape -- a nullable day-
+count offset added to the assignment's creation date, not a plain
+boolean; (2) a cross-cutting scope addition, explicitly directed by the
+user mid-clarification rather than guessed at -- a seeded, real
+(non-demo) "default instructor" account that always owns one open,
+listed `ClassroomRoster` per `Subject`, so every subject has a joinable
+class and an assignable-quiz path even with zero real instructors ever
+registering, reusing spec 041's guardian class directory wholesale
+(zero new enrollment code) and adding exactly one new, narrowly-scoped
+endpoint for guardian-triggered quiz assignment, gated to the default
+instructor's own rosters only; (3) how the default instructor's real
+credentials get seeded without ever committing a secret -- environment
+variables at seed time, mirroring the existing `DATABASE_URL` pattern,
+with an idempotent seed step so a re-run never reverts a password the
+operator changed later. `requirements.md` checklist passed 16/16 on
+first pass and after each clarification round, no regressions. Not yet
+planned or implemented.
+
+**Scope**: Two parts sharing one spec. (1) A design-system restyle of
+the Dashboard, Review, and Rosters screens plus a new instructor
+Settings screen (password change, theme/display preferences, a
+notification preference with no delivery mechanism, classroom defaults,
+deletion-request entry points, demo-account indicator) -- the same
+category of work as the unnumbered design-system updates (specs 027,
+041), bundled here because it shares the same four mockups and the same
+instructor-account surface as part (2). (2) A genuinely new product
+capability: a seeded, real "default instructor" account owning one
+always-available roster per subject, so a guardian can enroll their
+learner and self-assign a quiz with zero real-instructor involvement --
+this is the part that earns this feature a milestone number rather than
+shipping entirely as unnumbered design-system work like 027/041.
+
+**Definition of done**: All of spec.md's Success Criteria (SC-001
+through SC-008) verified, once `/speckit-plan`, `/speckit-tasks`, and
+`/speckit-implement` are run.
+
+**Explicitly not included**: real notification delivery (the preference
+is persisted only, per explicit user decision -- a future feature would
+need its own spec and a `tech-stack.md` update given the Vercel
+serverless constraint on background delivery); any new admin/dev
+account type (considered and rejected during clarification in favor of
+the default instructor simply being a real instructor account, signed
+into by the Cognivo operator the same way any instructor would); a
+fallback that disappears once a real instructor registers for a subject
+(the default instructor's roster is always available regardless, by
+explicit user decision).
+
+---
+
 ## Out of current roadmap (not planned, not rejected)
 - A second, cross-language A2A agent purely to demonstrate
   interoperability (e.g. a Go-based Grading service) -- Milestone 6
@@ -2398,6 +2460,19 @@ misconception classifier's per-answer call (separate follow-up).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.27.0 -- 2026-10-07, added Milestone 25 (Instructor-Facing
+UI Redesign and Default-Instructor Self-Service, `specs/043-instructor-
+ui-redesign/spec.md`) after `/speckit-specify` and three same-day
+`/speckit-clarify` passes -- see that entry above for the scope split
+between the design-system restyle and the new default-instructor
+capability that earns the milestone number. Also corrected a stale gap
+found while doing this: the Guardian & Public-Facing UI Redesign
+(`specs/041-guardian-public-ui-redesign/spec.md`), never previously
+noted in this roadmap, merged to `staging` via PR #109 and promoted to
+`main` via PR #110 (both 2026-10-07) -- recorded here for an honest
+record, the same treatment 027's shipped-outside-sequence note got in
+the 3.24.0 entry below, not as a new milestone entry.
 
 **Version**: 3.26.0 -- 2026-10-04, fixed three stale "Out of current
 roadmap" entries, the same class of gap this roadmap has corrected
