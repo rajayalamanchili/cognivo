@@ -18,12 +18,19 @@ never silently reverted by a later re-run.
 import argparse
 import os
 import sys
+import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.db import get_sessionmaker  # noqa: E402
+from src.models.enums import (  # noqa: E402
+    AuthorizedByType,
+    RetentionAccountType,
+    RetentionEnrollmentStatus,
+)
 from src.models.real_instructor_account import RealInstructorAccount  # noqa: E402
+from src.models.retention_record import RetentionRecord  # noqa: E402
 from src.models.subject import Subject  # noqa: E402
 from src.services.auth.passwords import hash_password  # noqa: E402
 from src.services.roster.default_instructor import (  # noqa: E402
@@ -55,13 +62,29 @@ def seed_default_instructor(*, adopt_existing: bool = False) -> RealInstructorAc
             db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
         )
         if instructor is None:
+            # Claude Code Review finding on PR #111: register_instructor
+            # always pairs a new RealInstructorAccount with a
+            # RetentionRecord to drive FR-010's 1-year inactivity clock
+            # -- mirrored here so this account isn't a silent exception
+            # to that policy just because it was seeded, not registered.
+            instructor_id = uuid.uuid4()
             instructor = RealInstructorAccount(
+                instructor_id=instructor_id,
                 email=email,
                 password_hash=hash_password(password),
                 is_demo=False,
                 display_name=display_name,
             )
             db.add(instructor)
+            db.add(
+                RetentionRecord(
+                    account_type=RetentionAccountType.INSTRUCTOR,
+                    account_id=instructor_id,
+                    authorized_by_type=AuthorizedByType.INSTRUCTOR,
+                    authorized_by_id=instructor_id,
+                    enrollment_status=RetentionEnrollmentStatus.ACTIVE,
+                )
+            )
             db.commit()
             db.refresh(instructor)
         elif instructor.is_demo:

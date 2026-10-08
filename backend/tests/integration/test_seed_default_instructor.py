@@ -8,7 +8,9 @@ otherwise.
 import pytest
 
 from scripts.seed_default_instructor import seed_default_instructor
+from src.models.enums import RetentionAccountType
 from src.models.real_instructor_account import RealInstructorAccount
+from src.models.retention_record import RetentionRecord
 from src.services.auth.passwords import hash_password
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -61,6 +63,16 @@ def test_creates_a_real_non_demo_account_when_none_exists(db_session, monkeypatc
 
     assert instructor.email == email
     assert instructor.is_demo is False
+
+    record = (
+        db_session.query(RetentionRecord)
+        .filter(
+            RetentionRecord.account_type == RetentionAccountType.INSTRUCTOR,
+            RetentionRecord.account_id == instructor.instructor_id,
+        )
+        .one()
+    )
+    assert record.authorized_by_id == instructor.instructor_id
 
 
 def test_refuses_to_adopt_an_existing_row_without_the_flag(db_session, monkeypatch):
