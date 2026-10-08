@@ -97,14 +97,25 @@ def test_protected_route_rejects_invalid_session(client):
 def test_update_instructor_me_sets_display_name(client):
     """spec 041 FR-017 (T042) -- the only way `display_name` is ever
     set; `register_instructor`'s own request shape is unchanged (the
-    test above still only posts email/password)."""
+    test above still only posts email/password). spec 043 extended this
+    endpoint's response with six new preference fields (default values
+    asserted here); their own persistence is covered in full by
+    test_auth_instructor_settings.py."""
     client.post(
         "/api/auth/instructor/register",
         json={"email": "name-setter@example.com", "password": "correct horse"},
     )
     response = client.patch("/api/auth/instructor/me", json={"display_name": "Ms. Rivera"})
     assert response.status_code == 200, response.text
-    assert response.json() == {"display_name": "Ms. Rivera"}
+    assert response.json() == {
+        "display_name": "Ms. Rivera",
+        "theme": "system",
+        "larger_text": False,
+        "reduce_motion": False,
+        "notifications_enabled": True,
+        "default_enrollment_mode": "open",
+        "default_due_date_offset_days": None,
+    }
 
 
 def test_update_instructor_me_rejects_empty_display_name(client):

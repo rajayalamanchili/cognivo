@@ -801,6 +801,14 @@ export interface WhoAmIResponse {
   theme?: Theme;
   quiz_finished_email_enabled?: boolean;
   weekly_summary_enabled?: boolean;
+  // spec 043 contracts/api-changes.md §3, plus `instructor_id` (the
+  // self-deletion target_id, same role `guardian_id` plays above) --
+  // present only for a real instructor session, `undefined` for every
+  // other account type.
+  instructor_id?: string;
+  notifications_enabled?: boolean;
+  default_enrollment_mode?: EnrollmentMode;
+  default_due_date_offset_days?: number | null;
 }
 
 // Read-only session-identity check -- drives the nav's per-user-type
@@ -1009,16 +1017,49 @@ export function listRosters(): Promise<ListRostersResponse> {
   return request<ListRostersResponse>("/api/rosters");
 }
 
-// spec 041 FR-017 (T045/T049): the only way an instructor's
-// display_name is ever set -- never collected at registration.
+// spec 041 FR-017/spec 043: `PATCH /api/auth/instructor/me` -- all
+// fields optional (`exclude_unset` semantics backend-side, same as
+// `GuardianMeUpdate`). `display_name` was the only field until spec
+// 043 added the other six (instructor Settings' Classroom
+// defaults/Display/Notifications sections).
 export interface InstructorMeUpdate {
-  display_name: string;
+  display_name?: string;
+  theme?: Theme;
+  larger_text?: boolean;
+  reduce_motion?: boolean;
+  notifications_enabled?: boolean;
+  default_enrollment_mode?: EnrollmentMode;
+  default_due_date_offset_days?: number | null;
 }
 
-export function updateInstructorDisplayName(displayName: string): Promise<InstructorMeUpdate> {
-  return request<InstructorMeUpdate>("/api/auth/instructor/me", {
+export interface InstructorMeResponse {
+  display_name: string | null;
+  theme: Theme | null;
+  larger_text: boolean | null;
+  reduce_motion: boolean | null;
+  notifications_enabled: boolean | null;
+  default_enrollment_mode: EnrollmentMode | null;
+  default_due_date_offset_days: number | null;
+}
+
+export function updateInstructorMe(update: InstructorMeUpdate): Promise<InstructorMeResponse> {
+  return request<InstructorMeResponse>("/api/auth/instructor/me", {
     method: "PATCH",
-    body: JSON.stringify({ display_name: displayName }),
+    body: JSON.stringify(update),
+  });
+}
+
+export function updateInstructorDisplayName(displayName: string): Promise<InstructorMeResponse> {
+  return updateInstructorMe({ display_name: displayName });
+}
+
+export function changeInstructorPassword(
+  currentPassword: string,
+  newPassword: string,
+): Promise<void> {
+  return requestVoid("/api/auth/instructor/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
   });
 }
 
