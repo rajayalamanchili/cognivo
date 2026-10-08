@@ -9,6 +9,7 @@ register as both.
 """
 
 import datetime
+import os
 import uuid
 from typing import Literal
 
@@ -105,6 +106,19 @@ def register_instructor(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
 ) -> InstructorAuthOut:
     email = _normalize_email(body.email)
+    # Claude Code Review finding on PR #111: DEFAULT_INSTRUCTOR_EMAIL is
+    # resolved purely by email (research.md §5), with no dedicated
+    # column marking "this is the real one" (FR-013's schema bound).
+    # Without this guard, anyone could register that email through this
+    # public endpoint before an operator ever runs seed_default_
+    # instructor.py, and that script would then adopt the squatter's row
+    # -- every guardian's enrolled learners now reachable through an
+    # attacker-controlled instructor account. Blocking registration of
+    # the reserved email here closes that window; it does not affect
+    # seed_default_instructor.py's own reuse-by-email logic.
+    reserved_email = os.environ.get("DEFAULT_INSTRUCTOR_EMAIL", "").strip().lower()
+    if reserved_email and email == reserved_email:
+        raise ForbiddenError("reserved_email")
     existing = db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
     if existing is not None:
         raise ConflictError("email_taken")

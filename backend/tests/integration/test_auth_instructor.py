@@ -53,6 +53,21 @@ def test_instructor_register_login_logout_round_trip(client):
     assert SESSION_COOKIE_NAME in client.cookies
 
 
+def test_instructor_register_rejects_the_reserved_default_instructor_email(client, monkeypatch):
+    """Claude Code Review finding on PR #111: without this guard, anyone
+    could register `DEFAULT_INSTRUCTOR_EMAIL` through this public
+    endpoint before an operator ever runs seed_default_instructor.py,
+    and that script would adopt the squatter's row as the real default
+    instructor. Case-insensitive, matching `_normalize_email`."""
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", "default-instructor@cognivo.internal")
+
+    response = client.post(
+        "/api/auth/instructor/register",
+        json={"email": "Default-Instructor@Cognivo.Internal", "password": "correct horse"},
+    )
+    assert response.status_code == 403, response.text
+
+
 def test_instructor_login_wrong_password_returns_401(client):
     email = "teacher2@example.com"
     client.post(

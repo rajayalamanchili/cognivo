@@ -102,8 +102,11 @@ between what's a local ADK sub-agent vs. a remote A2A service.
 - Current milestone: **Milestone 25** -- Instructor-Facing UI Redesign
   and Default-Instructor Self-Service (`specs/043-instructor-ui-
   redesign/spec.md`). `/speckit-specify` plus three same-day
-  `/speckit-clarify` passes complete (2026-10-07); not yet planned or
-  implemented. Restyles the Dashboard/Review/Rosters instructor screens
+  `/speckit-clarify` passes complete (2026-10-07); `/speckit-plan`,
+  `/speckit-tasks`, and `/speckit-implement` are complete (2026-10-08,
+  PR #111 open to `staging`, not yet merged) -- see `roadmap.md`'s
+  Milestone 25 entry for the current per-phase status. Restyles the
+  Dashboard/Review/Rosters instructor screens
   and adds a new Settings screen, plus a genuinely new capability: a
   seeded, real (non-demo) "default instructor" account that always owns
   one open, listed roster per subject, so a guardian can enroll and
