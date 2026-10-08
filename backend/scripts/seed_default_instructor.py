@@ -6,12 +6,16 @@ Reads `DEFAULT_INSTRUCTOR_EMAIL`/`DEFAULT_INSTRUCTOR_PASSWORD` (required)
 and `DEFAULT_INSTRUCTOR_DISPLAY_NAME` (optional, default "Cognivo") from
 the environment -- never committed values (Constitution Principle VIII).
 
-Idempotent: re-running against an already-seeded environment reuses the
-existing row and never re-hashes/overwrites its password, so an
-operator-driven password change via `POST /api/auth/instructor/
-change-password` is never silently reverted by a later re-run.
+Idempotent given `--adopt-existing` (required on every re-run, not just
+when a genuine pre-existing conflict exists -- this script can't tell
+"our own prior row" apart from one that appeared through some other
+path, e.g. public registration, without it): reuses the existing row
+and never re-hashes/overwrites its password, so an operator-driven
+password change via `POST /api/auth/instructor/change-password` is
+never silently reverted by a later re-run.
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -29,7 +33,7 @@ from src.services.roster.default_instructor import (  # noqa: E402
 DEFAULT_DISPLAY_NAME = "Cognivo"
 
 
-def seed_default_instructor() -> RealInstructorAccount:
+def seed_default_instructor(*, adopt_existing: bool = False) -> RealInstructorAccount:
     # .env.example ships both as empty strings, not unset -- `.get(...,
     # "")` plus an explicit non-empty check catches a copied-but-
     # unfilled-in example the same way an unset var would, rather than
@@ -69,11 +73,20 @@ def seed_default_instructor() -> RealInstructorAccount:
                 f"existing account for {email!r} is flagged is_demo=True -- refusing to adopt "
                 "a demo account as the real default instructor."
             )
+        elif not adopt_existing:
+            # Claude Code Review finding on PR #111: `register_instructor`
+            # now rejects this email going forward, but a row that was
+            # squatted (or just independently registered) before that
+            # guard existed would otherwise be silently adopted here.
+            # Resolving by email can't distinguish that from "our own
+            # previously-seeded row" -- require an explicit opt-in before
+            # treating any pre-existing row as the real default instructor.
+            raise SystemExit(
+                f"an account for {email!r} already exists (instructor_id="
+                f"{instructor.instructor_id}) that this script did not create. Re-run with "
+                "--adopt-existing if you've verified this is the intended account."
+            )
         else:
-            # Resolving by email can't distinguish "our own previously-
-            # seeded row" from "someone else's real account that happens
-            # to share this email" -- surfaced here so an operator
-            # reviewing this script's output notices an unexpected reuse.
             print(f"reusing existing instructor_id={instructor.instructor_id} for {email!r}")
 
         for subject_id in db.query(Subject.subject_id).all():
@@ -83,7 +96,17 @@ def seed_default_instructor() -> RealInstructorAccount:
 
 
 def main() -> None:
-    instructor = seed_default_instructor()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--adopt-existing",
+        action="store_true",
+        help="Required to reuse a pre-existing account for DEFAULT_INSTRUCTOR_EMAIL, "
+        "including on every idempotent re-run -- confirms you've verified it's the "
+        "intended account, not one that appeared through some other path.",
+    )
+    args = parser.parse_args()
+
+    instructor = seed_default_instructor(adopt_existing=args.adopt_existing)
     print(
         f"instructor_id={instructor.instructor_id} email={instructor.email!r} "
         f"display_name={instructor.display_name!r} is_demo={instructor.is_demo}"

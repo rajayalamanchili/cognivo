@@ -115,12 +115,13 @@ def register_instructor(
     # -- every guardian's enrolled learners now reachable through an
     # attacker-controlled instructor account. Blocking registration of
     # the reserved email here closes that window; it does not affect
-    # seed_default_instructor.py's own reuse-by-email logic.
+    # seed_default_instructor.py's own reuse-by-email logic. Reuses the
+    # same `email_taken` conflict as an ordinary already-registered
+    # email, rather than a distinct error, so the response doesn't
+    # itself reveal which address is the reserved one.
     reserved_email = os.environ.get("DEFAULT_INSTRUCTOR_EMAIL", "").strip().lower()
-    if reserved_email and email == reserved_email:
-        raise ForbiddenError("reserved_email")
     existing = db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
-    if existing is not None:
+    if existing is not None or (reserved_email and email == reserved_email):
         raise ConflictError("email_taken")
 
     instructor_id = uuid.uuid4()
@@ -521,9 +522,13 @@ def update_instructor_me(
             raise UnprocessableError(f"{field}_required")
     if "display_name" in updates:
         updates["display_name"] = _clean_display_name(updates["display_name"])
-    if updates.get("default_due_date_offset_days") is not None and (
-        updates["default_due_date_offset_days"] <= 0
-    ):
+    offset_days = updates.get("default_due_date_offset_days")
+    # Claude Code Review finding on PR #111: the column is a 32-bit
+    # `Integer` -- an unbounded value overflows it (an unhandled 500),
+    # and a merely large one can overflow the `timedelta` arithmetic
+    # Rosters' pre-fill does with it. 3650 (10 years) is far beyond any
+    # real due date while staying well inside int4's range.
+    if offset_days is not None and not (0 < offset_days <= 3650):
         raise UnprocessableError("default_due_date_offset_days_invalid")
 
     for field, value in updates.items():

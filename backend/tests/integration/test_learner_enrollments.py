@@ -13,6 +13,7 @@ from tests.integration.quiz_assignment_helpers import (
     join_roster,
     register_guardian_with_learner,
     register_instructor,
+    seed_and_login_default_instructor,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -48,13 +49,13 @@ def test_lists_the_learners_enrolled_rosters_subject(client, algebra_subject):
 
 
 def test_is_default_instructor_roster_true_only_for_the_default_instructors_roster(
-    client, algebra_subject, monkeypatch
+    client, algebra_subject, db_session, monkeypatch
 ):
     """spec 043 contracts/api-changes.md §5, T022."""
     default_email = "learner-enrollments-default-teacher@example.com"
     monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", default_email)
 
-    register_instructor(client, default_email)
+    seed_and_login_default_instructor(client, db_session, default_email)
     default_roster_id, default_join_code = create_roster(
         client, subject_id=algebra_subject.subject_id
     )

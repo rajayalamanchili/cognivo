@@ -19,6 +19,7 @@ from tests.integration.quiz_assignment_helpers import (
     join_roster,
     register_guardian_with_learner,
     register_instructor,
+    seed_and_login_default_instructor,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -56,7 +57,9 @@ def _assign(client, *, learner_id, roster_id, question_count=3, due_at=None):
 def test_success_matches_instructor_side_shape_and_audits_the_default_instructor(
     client, algebra_subject, db_session, default_instructor_email
 ):
-    default_instructor_id = register_instructor(client, default_instructor_email)
+    default_instructor_id = seed_and_login_default_instructor(
+        client, db_session, default_instructor_email
+    )
     roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
 
     client.post("/api/auth/logout")
@@ -86,8 +89,8 @@ def test_success_matches_instructor_side_shape_and_audits_the_default_instructor
     assert event.payload["instructor_id"] == default_instructor_id
 
 
-def test_unknown_roster_id_returns_404(client, default_instructor_email):
-    register_instructor(client, default_instructor_email)
+def test_unknown_roster_id_returns_404(client, db_session, default_instructor_email):
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
     client.post("/api/auth/logout")
     _, learner_id = register_guardian_with_learner(
         client, guardian_email="guardian-assign-parent-404@example.com", learner_name="Learner"
@@ -97,8 +100,10 @@ def test_unknown_roster_id_returns_404(client, default_instructor_email):
     assert response.status_code == 404, response.text
 
 
-def test_not_your_learner_returns_403(client, algebra_subject, default_instructor_email):
-    register_instructor(client, default_instructor_email)
+def test_not_your_learner_returns_403(
+    client, algebra_subject, db_session, default_instructor_email
+):
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
     roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
 
     client.post("/api/auth/logout")
@@ -116,8 +121,8 @@ def test_not_your_learner_returns_403(client, algebra_subject, default_instructo
     assert response.status_code == 403, response.text
 
 
-def test_not_enrolled_returns_403(client, algebra_subject, default_instructor_email):
-    register_instructor(client, default_instructor_email)
+def test_not_enrolled_returns_403(client, algebra_subject, db_session, default_instructor_email):
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
     roster_id, _join_code = create_roster(client, subject_id=algebra_subject.subject_id)
 
     client.post("/api/auth/logout")
@@ -130,9 +135,9 @@ def test_not_enrolled_returns_403(client, algebra_subject, default_instructor_em
 
 
 def test_non_default_instructor_roster_returns_403(
-    client, algebra_subject, default_instructor_email
+    client, algebra_subject, db_session, default_instructor_email
 ):
-    register_instructor(client, default_instructor_email)
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
     default_roster_id, default_join_code = create_roster(
         client, subject_id=algebra_subject.subject_id
     )
@@ -158,13 +163,13 @@ def test_non_default_instructor_roster_returns_403(
 
 
 def test_unset_default_instructor_env_var_denies_every_guardian(
-    client, algebra_subject, default_instructor_email, monkeypatch
+    client, algebra_subject, db_session, default_instructor_email, monkeypatch
 ):
     """Claude Code Review finding on PR #111: `get_default_instructor`
     resolves by env var per request, so a misconfigured environment
     (unset after the roster was created) must deny cleanly -- not 500 --
     rather than silently falling back to any looser check."""
-    register_instructor(client, default_instructor_email)
+    seed_and_login_default_instructor(client, db_session, default_instructor_email)
     roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
 
     client.post("/api/auth/logout")

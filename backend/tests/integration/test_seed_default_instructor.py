@@ -63,8 +63,27 @@ def test_creates_a_real_non_demo_account_when_none_exists(db_session, monkeypatc
     assert instructor.is_demo is False
 
 
-def test_reuses_an_existing_non_demo_row_without_rehashing(db_session, monkeypatch):
+def test_refuses_to_adopt_an_existing_row_without_the_flag(db_session, monkeypatch):
+    """Claude Code Review finding on PR #111: a row that was squatted
+    (or just independently registered) before `register_instructor`'s
+    reserved-email guard existed must not be silently adopted -- this
+    script can't tell that apart from its own prior row by email alone."""
     email = "seed-script-existing@example.com"
+    existing = RealInstructorAccount(
+        email=email, password_hash=hash_password("original password"), is_demo=False
+    )
+    db_session.add(existing)
+    db_session.commit()
+
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", email)
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_PASSWORD", "a different password")
+
+    with pytest.raises(SystemExit):
+        seed_default_instructor()
+
+
+def test_reuses_an_existing_non_demo_row_without_rehashing_when_adopted(db_session, monkeypatch):
+    email = "seed-script-existing-adopted@example.com"
     existing = RealInstructorAccount(
         email=email, password_hash=hash_password("original password"), is_demo=False
     )
@@ -75,7 +94,7 @@ def test_reuses_an_existing_non_demo_row_without_rehashing(db_session, monkeypat
     monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", email)
     monkeypatch.setenv("DEFAULT_INSTRUCTOR_PASSWORD", "a different password")
 
-    instructor = seed_default_instructor()
+    instructor = seed_default_instructor(adopt_existing=True)
 
     assert instructor.instructor_id == existing.instructor_id
     assert instructor.password_hash == original_hash

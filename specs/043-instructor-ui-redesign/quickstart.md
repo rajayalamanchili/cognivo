@@ -53,9 +53,13 @@ uv run alembic upgrade head   # applies this feature's new migration
    uv run python scripts/seed_default_instructor.py
    ```
    Expect output confirming the account's `instructor_id` and, for
-   every `Subject` row already in the database, one roster created
-   (or reused, on a second run -- confirm idempotency by running it
-   twice and seeing zero new rosters the second time).
+   every `Subject` row already in the database, one roster created.
+   Confirm idempotency by running it again with `--adopt-existing`
+   (required on every re-run, not just the first -- Claude Code Review
+   finding on PR #111: this script can't tell "our own prior row" apart
+   from one that appeared through some other path, e.g. public
+   registration, without this explicit opt-in) and seeing zero new
+   rosters and the original row's password untouched.
 2. As a guardian with a learner that has no real-instructor roster for
    `algebra-1`, call `GET /api/rosters/directory` -- expect a
    `"Cognivo"`-attributed entry for `algebra-1` in the results.

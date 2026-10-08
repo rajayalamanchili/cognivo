@@ -123,9 +123,7 @@ def test_patch_instructor_me_each_field_persists_independently(client):
     # Untouched fields keep their prior value -- exclude_unset semantics.
     assert body["theme"] == "dark"
 
-    reduce_motion_response = client.patch(
-        "/api/auth/instructor/me", json={"reduce_motion": True}
-    )
+    reduce_motion_response = client.patch("/api/auth/instructor/me", json={"reduce_motion": True})
     assert reduce_motion_response.json()["reduce_motion"] is True
 
     notifications_response = client.patch(
@@ -152,16 +150,15 @@ def test_patch_instructor_me_each_field_persists_independently(client):
 
 def test_patch_instructor_me_default_due_date_offset_days_rejects_non_positive(client):
     _register_instructor(client, email="instructor-due-date-invalid@example.com")
-    response = client.patch(
-        "/api/auth/instructor/me", json={"default_due_date_offset_days": 0}
-    )
+    response = client.patch("/api/auth/instructor/me", json={"default_due_date_offset_days": 0})
     assert response.status_code == 422, response.text
     assert response.json() == {"detail": "default_due_date_offset_days_invalid"}
 
-    negative = client.patch(
-        "/api/auth/instructor/me", json={"default_due_date_offset_days": -3}
-    )
+    negative = client.patch("/api/auth/instructor/me", json={"default_due_date_offset_days": -3})
     assert negative.status_code == 422, negative.text
+
+    too_large = client.patch("/api/auth/instructor/me", json={"default_due_date_offset_days": 3651})
+    assert too_large.status_code == 422, too_large.text
 
 
 def test_patch_instructor_me_rejects_new_fields_for_demo_account(client):

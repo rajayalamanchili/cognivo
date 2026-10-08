@@ -58,14 +58,18 @@ def test_instructor_register_rejects_the_reserved_default_instructor_email(clien
     could register `DEFAULT_INSTRUCTOR_EMAIL` through this public
     endpoint before an operator ever runs seed_default_instructor.py,
     and that script would adopt the squatter's row as the real default
-    instructor. Case-insensitive, matching `_normalize_email`."""
+    instructor. Case-insensitive, matching `_normalize_email`. Returns
+    the same `email_taken` conflict an ordinary already-registered email
+    would, rather than a distinct error that would itself reveal which
+    address is the reserved one."""
     monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", "default-instructor@cognivo.internal")
 
     response = client.post(
         "/api/auth/instructor/register",
         json={"email": "Default-Instructor@Cognivo.Internal", "password": "correct horse"},
     )
-    assert response.status_code == 403, response.text
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": "email_taken"}
 
 
 def test_instructor_login_wrong_password_returns_401(client):
