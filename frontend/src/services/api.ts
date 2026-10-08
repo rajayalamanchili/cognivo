@@ -1093,6 +1093,9 @@ export type JoinRosterResponse =
 export interface LearnerEnrollmentEntry {
   roster_id: string;
   subject_id: string;
+  // spec 043 FR-017/contracts §5: true only for the seeded default
+  // instructor's roster -- gates the guardian's "assign a quiz" action.
+  is_default_instructor_roster: boolean;
 }
 
 export interface ListLearnerEnrollmentsResponse {
@@ -1289,6 +1292,25 @@ export function createAssignment(
       question_count: params.questionCount,
       due_at: params.dueAt,
       learner_ids: params.learnerIds,
+    }),
+  });
+}
+
+// spec 043 FR-017/contracts §6: lets a guardian self-assign a quiz to
+// their own learner, scoped to a default-instructor-owned roster only
+// -- same `QuizAssignment` response shape the instructor-side
+// `createAssignment` already returns.
+export function assignQuizToOwnLearner(
+  learnerId: string,
+  rosterId: string,
+  params: { topicIds: string[]; questionCount: number; dueAt: string | null },
+): Promise<QuizAssignment> {
+  return request<QuizAssignment>(`/api/learners/${learnerId}/rosters/${rosterId}/assignments`, {
+    method: "POST",
+    body: JSON.stringify({
+      topic_ids: params.topicIds,
+      question_count: params.questionCount,
+      due_at: params.dueAt,
     }),
   });
 }

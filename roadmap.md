@@ -2210,12 +2210,23 @@ with an idempotent seed step so a re-run never reverts a password the
 operator changed later. `requirements.md` checklist passed 16/16 on
 first pass and after each clarification round, no regressions.
 `/speckit-plan` and `/speckit-tasks` complete; `/speckit-implement`
-in progress -- Phase 1 (Setup) and Phase 2 (Foundational) done
-(2026-10-07): design tokens confirmed sufficient with no new values
-needed, `DEFAULT_INSTRUCTOR_*` env vars documented, eight new
+complete (2026-10-08) -- all six phases done. Phase 1 (Setup) and
+Phase 2 (Foundational): design tokens confirmed sufficient with no new
+values needed, `DEFAULT_INSTRUCTOR_*` env vars documented, eight new
 `RealInstructorAccount` columns added and migrated, `lockout.py`
-widened to cover instructor accounts. User Stories 1-3 (Phases 3-5)
-and Polish (Phase 6) not yet implemented.
+widened to cover instructor accounts. Phase 3 (User Story 1): Dashboard,
+Review, and Rosters restyled with no behavior change. Phase 4 (User
+Story 2): instructor password-change endpoint, six new `/me` fields,
+the new Settings screen, and the Rosters classroom-defaults pre-fill.
+Phase 5 (User Story 3): `default_instructor.py` service,
+`seed_default_instructor.py` script, the `load_content_artifact.py`
+seeding hook, `is_default_instructor_roster` on
+`GET /api/learners/{learner_id}/enrollments`, the new guardian-facing
+`POST /api/learners/{learner_id}/rosters/{roster_id}/assignments`
+endpoint, and the guardian's "assign a quiz" action. Phase 6 (Polish):
+full backend (917 tests) and frontend (264 tests) suites pass with zero
+regressions; SC-005 grep check confirms `notifications_enabled` has no
+notification-sending code path. Not yet PR'd to `staging`.
 
 **Scope**: Two parts sharing one spec. (1) A design-system restyle of
 the Dashboard, Review, and Rosters screens plus a new instructor

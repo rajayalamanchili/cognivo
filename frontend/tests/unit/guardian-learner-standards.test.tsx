@@ -25,7 +25,9 @@ describe("GuardianLearnerStandards", () => {
 
   it("fetches enrollments then renders each subject's standards coverage", async () => {
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
-      enrollments: [{ roster_id: "r1", subject_id: "algebra-1" }],
+      enrollments: [
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false },
+      ],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
       topics: [],
