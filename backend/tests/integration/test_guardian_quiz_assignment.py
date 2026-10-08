@@ -139,9 +139,7 @@ def test_non_default_instructor_roster_returns_403(
 
     client.post("/api/auth/logout")
     register_instructor(client, "guardian-assign-other-teacher@example.com")
-    other_roster_id, other_join_code = create_roster(
-        client, subject_id=algebra_subject.subject_id
-    )
+    other_roster_id, other_join_code = create_roster(client, subject_id=algebra_subject.subject_id)
 
     client.post("/api/auth/logout")
     _, learner_id = register_guardian_with_learner(
@@ -157,3 +155,25 @@ def test_non_default_instructor_roster_returns_403(
     # default instructor's own roster.
     ok_response = _assign(client, learner_id=learner_id, roster_id=default_roster_id)
     assert ok_response.status_code == 201, ok_response.text
+
+
+def test_unset_default_instructor_env_var_denies_every_guardian(
+    client, algebra_subject, default_instructor_email, monkeypatch
+):
+    """Claude Code Review finding on PR #111: `get_default_instructor`
+    resolves by env var per request, so a misconfigured environment
+    (unset after the roster was created) must deny cleanly -- not 500 --
+    rather than silently falling back to any looser check."""
+    register_instructor(client, default_instructor_email)
+    roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="guardian-assign-env-misconfig@example.com", learner_name="Learner"
+    )
+    join_roster(client, learner_id=learner_id, join_code=join_code)
+
+    monkeypatch.delenv("DEFAULT_INSTRUCTOR_EMAIL", raising=False)
+
+    response = _assign(client, learner_id=learner_id, roster_id=roster_id)
+    assert response.status_code == 403, response.text

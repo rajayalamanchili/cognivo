@@ -45,29 +45,30 @@ def ensure_default_instructor_roster_for_subject(db: Session, subject_id: str) -
         )
         return
 
+    # `.first()`, not `.one_or_none()`: tolerate an unexpected duplicate
+    # row rather than raising, since this is an idempotent best-effort
+    # check, not the enforcement point for uniqueness.
     existing = (
         db.query(ClassroomRoster)
         .filter(
             ClassroomRoster.instructor_id == instructor.instructor_id,
             ClassroomRoster.subject_id == subject_id,
         )
-        .one_or_none()
+        .first()
     )
     if existing is not None:
-        # Claude Code Review finding on PR #111: `create_roster`/
-        # `update_roster` commit separately, so a crash between them
-        # (process kill, lost connection) could leave a created-but-
-        # unlisted roster from a prior run. Converging here instead of
-        # returning early repairs that on the next call, rather than
-        # leaving it unlisted forever (FR-015).
-        if existing.enrollment_mode != EnrollmentMode.OPEN or not existing.is_listed:
-            update_roster(
-                db,
-                roster=existing,
-                enrollment_mode=EnrollmentMode.OPEN,
-                is_listed=True,
-                instructor_display_name=instructor.display_name,
-            )
+        # Deliberately does NOT converge an existing roster onto
+        # open/listed: the default instructor is a real, sign-in-able
+        # account (FR-018) that can close or unlist this roster through
+        # the ordinary Rosters screen like any other instructor, and a
+        # later re-run of this function (e.g. reloading the same
+        # subject's content artifact) must not silently overwrite that
+        # deliberate choice. The accepted trade-off is narrower: a
+        # process crash between `create_roster`'s and `update_roster`'s
+        # separate commits below can leave a created-but-unlisted
+        # roster, recoverable manually via the existing roster-update
+        # endpoint -- not auto-repaired, since nothing here can tell
+        # that case apart from a deliberate unlist.
         return
 
     roster = create_roster(

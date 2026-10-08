@@ -86,28 +86,29 @@ def test_ensure_roster_is_idempotent_on_a_second_call(db_session, monkeypatch, a
     assert db_session.query(ClassroomRoster).count() == 1
 
 
-def test_ensure_roster_repairs_a_half_created_roster_from_a_prior_crashed_run(
+def test_ensure_roster_never_overwrites_a_deliberately_closed_or_unlisted_roster(
     db_session, monkeypatch, algebra_subject
 ):
-    """Claude Code Review finding on PR #111: `create_roster`/
-    `update_roster` commit separately, so a crash between them could
-    leave a created-but-unlisted roster. A later call must converge it
-    onto open/listed, not return early and leave it unlisted forever."""
+    """The default instructor is a real, sign-in-able account (FR-018)
+    that can close or unlist its own roster through the ordinary
+    Rosters screen. A later re-run of this function (e.g. reloading the
+    same subject's content artifact) must never silently revert that
+    deliberate choice back to open/listed."""
     instructor = _make_default_instructor(db_session)
     monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", _EMAIL)
-    half_created = ClassroomRoster(
+    closed_roster = ClassroomRoster(
         instructor_id=instructor.instructor_id,
         subject_id=algebra_subject.subject_id,
-        enrollment_mode=EnrollmentMode.OPEN,
-        join_code="ALG-CRSH",
+        enrollment_mode=EnrollmentMode.CLOSED,
+        join_code="ALG-SHUT",
         is_listed=False,
     )
-    db_session.add(half_created)
+    db_session.add(closed_roster)
     db_session.commit()
 
     ensure_default_instructor_roster_for_subject(db_session, algebra_subject.subject_id)
 
     assert db_session.query(ClassroomRoster).count() == 1
-    db_session.refresh(half_created)
-    assert half_created.is_listed is True
-    assert half_created.enrollment_mode == EnrollmentMode.OPEN
+    db_session.refresh(closed_roster)
+    assert closed_roster.is_listed is False
+    assert closed_roster.enrollment_mode == EnrollmentMode.CLOSED

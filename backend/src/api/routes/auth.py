@@ -150,12 +150,13 @@ def register_instructor(
 def login_instructor(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
 ) -> InstructorAuthOut:
-    """Mirrors `login_guardian`'s lockout check (Claude Code Review
-    finding on PR #111) -- the lockout columns/`record_failed_attempt_
-    instructor` (research.md §1) were wired into `change_instructor_
-    password` but never into login itself, leaving login an unthrottled
-    brute-force oracle. Now higher-risk than before this PR: the default
-    instructor (spec 043) is a real account with a well-known email."""
+    """Mirrors `login_guardian`'s lockout check -- the lockout columns/
+    `record_failed_attempt_instructor` (research.md §1) must guard login
+    itself, not just `change_instructor_password`, or login stays an
+    unthrottled brute-force oracle. Particularly important here: the
+    default instructor (spec 043) is a real account with a well-known
+    email (see spec.md's Edge Cases for the accepted lockout-as-DoS
+    trade-off this implies, same shape as the guardian login's own)."""
     email = _normalize_email(body.email)
     instructor = (
         db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
