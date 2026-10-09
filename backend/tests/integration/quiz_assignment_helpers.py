@@ -5,6 +5,9 @@ these test files needs; this avoids re-implementing it independently in
 each, the same role `quiz_helpers.py` plays for LLM-generation mocking.
 """
 
+from src.models.real_instructor_account import RealInstructorAccount
+from src.services.auth.passwords import hash_password
+
 ENTRY_TOPIC = "integers-and-operations"
 
 
@@ -14,6 +17,26 @@ def register_instructor(client, email):
     )
     assert response.status_code == 201, response.text
     return response.json()["instructor_id"]
+
+
+def seed_and_login_default_instructor(client, db_session, email):
+    """Simulates spec 043's `seed_default_instructor.py` (a direct DB
+    insert, not the public `/register` endpoint, which rejects
+    `DEFAULT_INSTRUCTOR_EMAIL` -- Claude Code Review finding on PR #111)
+    for tests that need a real instructor session under that exact
+    email, then logs in via the unaffected `/login` endpoint."""
+    instructor = RealInstructorAccount(
+        email=email, password_hash=hash_password("correct horse"), is_demo=False
+    )
+    db_session.add(instructor)
+    db_session.commit()
+    db_session.refresh(instructor)
+
+    response = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "correct horse"}
+    )
+    assert response.status_code == 200, response.text
+    return str(instructor.instructor_id)
 
 
 def login_instructor(client, email):

@@ -53,6 +53,25 @@ def test_instructor_register_login_logout_round_trip(client):
     assert SESSION_COOKIE_NAME in client.cookies
 
 
+def test_instructor_register_rejects_the_reserved_default_instructor_email(client, monkeypatch):
+    """Claude Code Review finding on PR #111: without this guard, anyone
+    could register `DEFAULT_INSTRUCTOR_EMAIL` through this public
+    endpoint before an operator ever runs seed_default_instructor.py,
+    and that script would adopt the squatter's row as the real default
+    instructor. Case-insensitive, matching `_normalize_email`. Returns
+    the same `email_taken` conflict an ordinary already-registered email
+    would, rather than a distinct error that would itself reveal which
+    address is the reserved one."""
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", "default-instructor@cognivo.internal")
+
+    response = client.post(
+        "/api/auth/instructor/register",
+        json={"email": "Default-Instructor@Cognivo.Internal", "password": "correct horse"},
+    )
+    assert response.status_code == 409, response.text
+    assert response.json() == {"detail": "email_taken"}
+
+
 def test_instructor_login_wrong_password_returns_401(client):
     email = "teacher2@example.com"
     client.post(
@@ -76,6 +95,33 @@ def test_instructor_login_unknown_email_returns_401(client):
     assert response.json() == {"detail": "invalid_credentials"}
 
 
+def test_instructor_login_locks_out_after_threshold_failures(client):
+    """Claude Code Review finding on PR #111: login_instructor never
+    checked the lockout columns it added, leaving login an unthrottled
+    brute-force oracle. Mirrors login_guardian's own lockout behavior."""
+    from src.services.auth.lockout import LOCKOUT_THRESHOLD
+
+    email = "lockout-teacher@example.com"
+    client.post("/api/auth/instructor/register", json={"email": email, "password": "correct horse"})
+    client.post("/api/auth/logout")
+
+    for _ in range(LOCKOUT_THRESHOLD):
+        response = client.post(
+            "/api/auth/instructor/login", json={"email": email, "password": "wrong-password"}
+        )
+        assert response.status_code == 401
+
+    locked_response = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "wrong-password"}
+    )
+    assert locked_response.status_code == 429
+
+    still_locked_with_right_password = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "correct horse"}
+    )
+    assert still_locked_with_right_password.status_code == 429
+
+
 def test_protected_route_rejects_missing_session(client):
     """`/api/learners` (the only currently-registered session-protected
     route in this phase) with no session cookie at all -- proves the
@@ -97,14 +143,25 @@ def test_protected_route_rejects_invalid_session(client):
 def test_update_instructor_me_sets_display_name(client):
     """spec 041 FR-017 (T042) -- the only way `display_name` is ever
     set; `register_instructor`'s own request shape is unchanged (the
-    test above still only posts email/password)."""
+    test above still only posts email/password). spec 043 extended this
+    endpoint's response with six new preference fields (default values
+    asserted here); their own persistence is covered in full by
+    test_auth_instructor_settings.py."""
     client.post(
         "/api/auth/instructor/register",
         json={"email": "name-setter@example.com", "password": "correct horse"},
     )
     response = client.patch("/api/auth/instructor/me", json={"display_name": "Ms. Rivera"})
     assert response.status_code == 200, response.text
-    assert response.json() == {"display_name": "Ms. Rivera"}
+    assert response.json() == {
+        "display_name": "Ms. Rivera",
+        "theme": "system",
+        "larger_text": False,
+        "reduce_motion": False,
+        "notifications_enabled": True,
+        "default_enrollment_mode": "open",
+        "default_due_date_offset_days": None,
+    }
 
 
 def test_update_instructor_me_rejects_empty_display_name(client):

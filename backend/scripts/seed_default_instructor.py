@@ -1,0 +1,140 @@
+#!/usr/bin/env python3
+"""Seeds the real, non-demo "default instructor" account (spec 043
+FR-019/FR-020, research.md §5) and its per-subject rosters.
+
+Reads `DEFAULT_INSTRUCTOR_EMAIL`/`DEFAULT_INSTRUCTOR_PASSWORD` (required)
+and `DEFAULT_INSTRUCTOR_DISPLAY_NAME` (optional, default "Cognivo") from
+the environment -- never committed values (Constitution Principle VIII).
+
+Idempotent given `--adopt-existing` (required on every re-run, not just
+when a genuine pre-existing conflict exists -- this script can't tell
+"our own prior row" apart from one that appeared through some other
+path, e.g. public registration, without it): reuses the existing row
+and never re-hashes/overwrites its password, so an operator-driven
+password change via `POST /api/auth/instructor/change-password` is
+never silently reverted by a later re-run.
+"""
+
+import argparse
+import os
+import sys
+import uuid
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from src.db import get_sessionmaker  # noqa: E402
+from src.models.enums import (  # noqa: E402
+    AuthorizedByType,
+    RetentionAccountType,
+    RetentionEnrollmentStatus,
+)
+from src.models.real_instructor_account import RealInstructorAccount  # noqa: E402
+from src.models.retention_record import RetentionRecord  # noqa: E402
+from src.models.subject import Subject  # noqa: E402
+from src.services.auth.passwords import hash_password  # noqa: E402
+from src.services.roster.default_instructor import (  # noqa: E402
+    ensure_default_instructor_roster_for_subject,
+)
+
+DEFAULT_DISPLAY_NAME = "Cognivo"
+
+
+def seed_default_instructor(*, adopt_existing: bool = False) -> RealInstructorAccount:
+    # .env.example ships both as empty strings, not unset -- `.get(...,
+    # "")` plus an explicit non-empty check catches a copied-but-
+    # unfilled-in example the same way an unset var would, rather than
+    # silently creating a real account with an empty email/password.
+    email = os.environ.get("DEFAULT_INSTRUCTOR_EMAIL", "").strip().lower()
+    password = os.environ.get("DEFAULT_INSTRUCTOR_PASSWORD", "")
+    if not email or not password:
+        raise SystemExit(
+            "DEFAULT_INSTRUCTOR_EMAIL and DEFAULT_INSTRUCTOR_PASSWORD must both be set to "
+            "non-empty values -- see backend/.env.example."
+        )
+    if len(password) < 8:
+        raise SystemExit("DEFAULT_INSTRUCTOR_PASSWORD must be at least 8 characters.")
+    display_name = os.environ.get("DEFAULT_INSTRUCTOR_DISPLAY_NAME") or DEFAULT_DISPLAY_NAME
+
+    session_local = get_sessionmaker()
+    with session_local() as db:
+        instructor = (
+            db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
+        )
+        if instructor is None:
+            # Claude Code Review finding on PR #111: register_instructor
+            # always pairs a new RealInstructorAccount with a
+            # RetentionRecord to drive FR-010's 1-year inactivity clock
+            # -- mirrored here so this account isn't a silent exception
+            # to that policy just because it was seeded, not registered.
+            instructor_id = uuid.uuid4()
+            instructor = RealInstructorAccount(
+                instructor_id=instructor_id,
+                email=email,
+                password_hash=hash_password(password),
+                is_demo=False,
+                display_name=display_name,
+            )
+            db.add(instructor)
+            db.add(
+                RetentionRecord(
+                    account_type=RetentionAccountType.INSTRUCTOR,
+                    account_id=instructor_id,
+                    authorized_by_type=AuthorizedByType.INSTRUCTOR,
+                    authorized_by_id=instructor_id,
+                    enrollment_status=RetentionEnrollmentStatus.ACTIVE,
+                )
+            )
+            db.commit()
+            db.refresh(instructor)
+        elif instructor.is_demo:
+            # DEFAULT_INSTRUCTOR_EMAIL resolves by email only (research.md
+            # §5's deliberate choice over a new column) -- refuse rather
+            # than silently promoting a flagged-demo row to be the real,
+            # operationally-critical default instructor (Principle VIII).
+            raise SystemExit(
+                f"existing account for {email!r} is flagged is_demo=True -- refusing to adopt "
+                "a demo account as the real default instructor."
+            )
+        elif not adopt_existing:
+            # Claude Code Review finding on PR #111: `register_instructor`
+            # now rejects this email going forward, but a row that was
+            # squatted (or just independently registered) before that
+            # guard existed would otherwise be silently adopted here.
+            # Resolving by email can't distinguish that from "our own
+            # previously-seeded row" -- require an explicit opt-in before
+            # treating any pre-existing row as the real default instructor.
+            raise SystemExit(
+                f"an account for {email!r} already exists (instructor_id="
+                f"{instructor.instructor_id}) that this script did not create. Re-run with "
+                "--adopt-existing if you've verified this is the intended account."
+            )
+        else:
+            print(f"reusing existing instructor_id={instructor.instructor_id} for {email!r}")
+
+        for subject_id in db.query(Subject.subject_id).all():
+            ensure_default_instructor_roster_for_subject(db, subject_id[0])
+
+        return instructor
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--adopt-existing",
+        action="store_true",
+        help="Required to reuse a pre-existing account for DEFAULT_INSTRUCTOR_EMAIL, "
+        "including on every idempotent re-run -- confirms you've verified it's the "
+        "intended account, not one that appeared through some other path.",
+    )
+    args = parser.parse_args()
+
+    instructor = seed_default_instructor(adopt_existing=args.adopt_existing)
+    print(
+        f"instructor_id={instructor.instructor_id} email={instructor.email!r} "
+        f"display_name={instructor.display_name!r} is_demo={instructor.is_demo}"
+    )
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -15,6 +15,7 @@ vi.mock("@/services/api", async () => {
     ...actual,
     listRosters: vi.fn(),
     getSubjects: vi.fn(),
+    getWhoAmI: vi.fn(),
     listRosterRequests: vi.fn(),
     listRosterEnrollments: vi.fn(),
     listRosterAssignments: vi.fn(),
@@ -25,6 +26,16 @@ vi.mock("@/services/api", async () => {
     updateInstructorDisplayName: vi.fn(),
   };
 });
+
+// spec 043 FR-009: every RostersFlow render now also calls `getWhoAmI`
+// once (classroom-defaults pre-fill) -- defaulted here so every
+// existing test in this file keeps rendering the normal roster UI
+// instead of RostersFlow's load-error branch.
+const WHOAMI_NO_DEFAULTS = {
+  account_type: "instructor" as const,
+  identifier: "instructor@example.com",
+  pending_deletion_warnings: [],
+};
 
 const ROSTER = {
   roster_id: "roster-1",
@@ -57,6 +68,7 @@ describe("RostersFlow assign-a-quiz form", () => {
   beforeEach(() => {
     vi.mocked(api.listRosters).mockReset();
     vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.getWhoAmI).mockReset().mockResolvedValue(WHOAMI_NO_DEFAULTS);
     vi.mocked(api.listRosterRequests).mockReset();
     vi.mocked(api.listRosterEnrollments).mockReset();
     vi.mocked(api.listRosterAssignments).mockReset();
@@ -154,6 +166,7 @@ describe("RostersFlow per-assignment results view", () => {
   beforeEach(() => {
     vi.mocked(api.listRosters).mockReset();
     vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.getWhoAmI).mockReset().mockResolvedValue(WHOAMI_NO_DEFAULTS);
     vi.mocked(api.listRosterRequests).mockReset();
     vi.mocked(api.listRosterEnrollments).mockReset();
     vi.mocked(api.listRosterAssignments).mockReset();
@@ -270,6 +283,7 @@ describe("RostersFlow 'List in directory' toggle", () => {
   beforeEach(() => {
     vi.mocked(api.listRosters).mockReset();
     vi.mocked(api.getSubjects).mockReset();
+    vi.mocked(api.getWhoAmI).mockReset().mockResolvedValue(WHOAMI_NO_DEFAULTS);
     vi.mocked(api.updateRosterListing).mockReset();
     vi.mocked(api.updateInstructorDisplayName).mockReset();
     vi.mocked(api.getSubjects).mockResolvedValue({
@@ -320,7 +334,15 @@ describe("RostersFlow 'List in directory' toggle", () => {
         join_code: "ALG-1234",
         is_listed: true,
       });
-    vi.mocked(api.updateInstructorDisplayName).mockResolvedValue({ display_name: "Ms. Rivera" });
+    vi.mocked(api.updateInstructorDisplayName).mockResolvedValue({
+      display_name: "Ms. Rivera",
+      theme: null,
+      larger_text: null,
+      reduce_motion: null,
+      notifications_enabled: null,
+      default_enrollment_mode: null,
+      default_due_date_offset_days: null,
+    });
     render(<RostersFlow />);
 
     await waitFor(() => expect(api.listRosters).toHaveBeenCalled());

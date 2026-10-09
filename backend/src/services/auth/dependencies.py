@@ -54,6 +54,8 @@ def current_session_claims(
         raise AuthenticationError("invalid_session")
     if claims.account_type == "guardian" and guardian_session_revoked(db, claims):
         raise AuthenticationError("invalid_session")
+    if claims.account_type == "instructor" and instructor_session_revoked(db, claims):
+        raise AuthenticationError("invalid_session")
     return claims
 
 
@@ -79,6 +81,8 @@ def optional_session_claims(
     if claims is None:
         return None
     if claims.account_type == "guardian" and guardian_session_revoked(db, claims):
+        return None
+    if claims.account_type == "instructor" and instructor_session_revoked(db, claims):
         return None
     return claims
 
@@ -110,6 +114,22 @@ def guardian_session_revoked(db: Session, claims: SessionClaims) -> bool:
         guardian is not None
         and guardian.password_changed_at is not None
         and claims.issued_at < guardian.password_changed_at.replace(microsecond=0)
+    )
+
+
+def instructor_session_revoked(db: Session, claims: SessionClaims) -> bool:
+    """Spec 043 (Claude Code Review finding on PR #111): identical in
+    shape to `guardian_session_revoked` -- true for an instructor
+    session token issued before that instructor's most recent password
+    change. A `demo_instructor` claim never matches here (`db.get`
+    against `RealInstructorAccount` with a `DemoInstructorProfile`'s id
+    returns `None`), consistent with a demo account having no password
+    to change at all."""
+    instructor = db.get(RealInstructorAccount, claims.account_id)
+    return (
+        instructor is not None
+        and instructor.password_changed_at is not None
+        and claims.issued_at < instructor.password_changed_at.replace(microsecond=0)
     )
 
 
@@ -157,6 +177,9 @@ def current_instructor(
     claims: SessionClaims = Depends(current_session_claims),
     db: Session = Depends(get_db),
 ) -> InstructorAccount:
+    # Spec 043 revocation (password changed since this token was
+    # issued) is already enforced by `current_session_claims` above,
+    # for every instructor-session consumer -- not just this one.
     if claims.account_type == "instructor":
         instructor = db.get(RealInstructorAccount, claims.account_id)
         if instructor is None:

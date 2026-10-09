@@ -29,6 +29,9 @@ from src.services.content_artifact.loader import (  # noqa: E402
 from src.services.content_artifact.validator import (  # noqa: E402
     ContentArtifactValidationError,
 )
+from src.services.roster.default_instructor import (  # noqa: E402
+    ensure_default_instructor_roster_for_subject,
+)
 
 
 def main() -> int:
@@ -46,6 +49,7 @@ def main() -> int:
     with session_local() as db:
         subject = persist_content_artifact(db, artifact)
         generate_passage_embeddings(db, artifact)
+        ensure_default_instructor_roster_for_subject(db, subject.subject_id)
 
     print(
         f"loaded subject_id={subject.subject_id!r} "

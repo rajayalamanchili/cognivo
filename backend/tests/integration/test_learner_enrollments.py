@@ -13,6 +13,7 @@ from tests.integration.quiz_assignment_helpers import (
     join_roster,
     register_guardian_with_learner,
     register_instructor,
+    seed_and_login_default_instructor,
 )
 
 pytestmark = pytest.mark.usefixtures("database_available")
@@ -44,6 +45,40 @@ def test_lists_the_learners_enrolled_rosters_subject(client, algebra_subject):
     [entry] = response.json()["enrollments"]
     assert entry["roster_id"] == roster_id
     assert entry["subject_id"] == algebra_subject.subject_id
+    assert entry["is_default_instructor_roster"] is False
+
+
+def test_is_default_instructor_roster_true_only_for_the_default_instructors_roster(
+    client, algebra_subject, db_session, monkeypatch
+):
+    """spec 043 contracts/api-changes.md §5, T022."""
+    default_email = "learner-enrollments-default-teacher@example.com"
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", default_email)
+
+    seed_and_login_default_instructor(client, db_session, default_email)
+    default_roster_id, default_join_code = create_roster(
+        client, subject_id=algebra_subject.subject_id
+    )
+
+    client.post("/api/auth/logout")
+    register_instructor(client, "learner-enrollments-real-teacher@example.com")
+    real_roster_id, real_join_code = create_roster(client, subject_id=algebra_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client,
+        guardian_email="learner-enrollments-default-parent@example.com",
+        learner_name="Learner",
+    )
+    join_roster(client, learner_id=learner_id, join_code=default_join_code)
+    join_roster(client, learner_id=learner_id, join_code=real_join_code)
+
+    response = client.get(f"/api/learners/{learner_id}/enrollments")
+
+    assert response.status_code == 200, response.text
+    by_roster_id = {entry["roster_id"]: entry for entry in response.json()["enrollments"]}
+    assert by_roster_id[default_roster_id]["is_default_instructor_roster"] is True
+    assert by_roster_id[real_roster_id]["is_default_instructor_roster"] is False
 
 
 def test_non_owning_guardian_gets_403(client, algebra_subject):

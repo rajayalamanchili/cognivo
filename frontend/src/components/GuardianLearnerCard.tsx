@@ -13,6 +13,7 @@ import { avatarClassName } from "@/lib/avatar-color";
 import JoinRosterForm from "@/components/JoinRosterForm";
 import ClassDirectoryBrowse from "@/components/ClassDirectoryBrowse";
 import LearnerAssignments from "@/components/LearnerAssignments";
+import GuardianAssignQuiz from "@/components/GuardianAssignQuiz";
 import GuardianLearnerStandards from "@/components/GuardianLearnerStandards";
 import GuardianLearnerCareerConnections from "@/components/GuardianLearnerCareerConnections";
 import CareerConnectionsToggle from "@/components/CareerConnectionsToggle";
@@ -187,6 +188,7 @@ export default function GuardianLearnerCard({
 
           <LearnerAssignments learnerId={learnerId} />
           <p className="text-sm text-muted">{tier.note}</p>
+          <GuardianAssignQuiz learnerId={learnerId} rosterId={enrollment.roster_id} />
 
           <details className="border-t border-border pt-3.5">
             <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">

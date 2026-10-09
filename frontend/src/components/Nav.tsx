@@ -70,6 +70,7 @@ const INSTRUCTOR_LINKS: NavLink[] = [
   { href: "/instructor/rosters", label: "Rosters" },
   { href: "/instructor/dashboard", label: "Dashboard" },
   { href: "/instructor/review", label: "Review" },
+  { href: "/instructor/settings", label: "Settings" },
 ];
 
 // The logo is a role-aware home link, not a bucket-derived one --

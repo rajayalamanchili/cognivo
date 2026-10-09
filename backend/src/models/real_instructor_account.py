@@ -1,11 +1,12 @@
 import datetime
 import uuid
 
-from sqlalchemy import Boolean, DateTime, String, func
+from sqlalchemy import Boolean, DateTime, Enum, Integer, String, false, func, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
+from src.models.enums import EnrollmentMode, enum_values
 
 
 class RealInstructorAccount(Base):
@@ -33,3 +34,49 @@ class RealInstructorAccount(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # spec 043: Settings-page fields, mirroring RealGuardianAccount's
+    # identical theme/larger_text/reduce_motion columns exactly.
+    theme: Mapped[str] = mapped_column(
+        String, nullable=False, default="system", server_default="system"
+    )
+    larger_text: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    reduce_motion: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    # Persisted only -- no code path ever reads this to send a
+    # notification (spec 043 FR-008).
+    notifications_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    # Pre-fills the Rosters create-roster/assign-quiz forms client-side
+    # only (spec 043 FR-009) -- never applied retroactively.
+    default_enrollment_mode: Mapped[EnrollmentMode] = mapped_column(
+        Enum(EnrollmentMode, name="enrollment_mode", values_callable=enum_values),
+        nullable=False,
+        default=EnrollmentMode.OPEN,
+        server_default=EnrollmentMode.OPEN.value,
+    )
+    default_due_date_offset_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Mirrors RealGuardianAccount's identical lockout columns
+    # (services/auth/lockout.py) -- see that model for the full
+    # PR #109 rationale.
+    failed_login_attempts: Mapped[int] = mapped_column(
+        nullable=False, default=0, server_default="0"
+    )
+    locked_until: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Claude Code Review finding on PR #111: mirrors RealGuardianAccount.
+    # password_changed_at exactly -- `current_session_claims` rejects a
+    # session token issued before this timestamp (instructor_session_
+    # revoked, dependencies.py). MUST stay NULL until the account's
+    # first real password change, never backfilled, or every existing
+    # session token would be retroactively invalidated.
+    password_changed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
