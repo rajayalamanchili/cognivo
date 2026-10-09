@@ -28,21 +28,29 @@ from sqlalchemy import case, update
 from sqlalchemy.orm import Session
 
 from src.models.real_guardian_account import RealGuardianAccount
+from src.models.real_instructor_account import RealInstructorAccount
 
 LOCKOUT_THRESHOLD = 5
 LOCKOUT_DURATION_MINUTES = 15
 
+# spec 043: both account types only ever get `failed_login_attempts`/
+# `locked_until` read generically by the three functions below -- only
+# `record_failed_attempt`'s UPDATE is coupled to a concrete model (its
+# primary-key column name differs), so that one function isn't widened;
+# see `record_failed_attempt_instructor` below instead.
+AnyRealAccount = RealGuardianAccount | RealInstructorAccount
 
-def is_locked_out(guardian: RealGuardianAccount) -> bool:
+
+def is_locked_out(account: AnyRealAccount) -> bool:
     return (
-        guardian.locked_until is not None
-        and guardian.locked_until > datetime.datetime.now(datetime.UTC)
+        account.locked_until is not None
+        and account.locked_until > datetime.datetime.now(datetime.UTC)
     )
 
 
-def seconds_until_unlocked(guardian: RealGuardianAccount) -> int:
-    assert guardian.locked_until is not None
-    remaining = guardian.locked_until - datetime.datetime.now(datetime.UTC)
+def seconds_until_unlocked(account: AnyRealAccount) -> int:
+    assert account.locked_until is not None
+    remaining = account.locked_until - datetime.datetime.now(datetime.UTC)
     return max(1, int(remaining.total_seconds()))
 
 
@@ -84,6 +92,30 @@ def record_failed_attempt(db: Session, guardian: RealGuardianAccount) -> None:
     )
 
 
-def record_successful_attempt(guardian: RealGuardianAccount) -> None:
-    guardian.failed_login_attempts = 0
-    guardian.locked_until = None
+def record_failed_attempt_instructor(db: Session, instructor: RealInstructorAccount) -> None:
+    """Identical in shape to `record_failed_attempt` above, targeting
+    `RealInstructorAccount`/`instructor_id` instead -- kept as its own
+    function rather than generalizing the `UPDATE` across two different
+    primary-key column names (research.md §1)."""
+    now = datetime.datetime.now(datetime.UTC)
+    lock_expired = (RealInstructorAccount.locked_until.isnot(None)) & (
+        RealInstructorAccount.locked_until <= now
+    )
+    new_count = case((lock_expired, 1), else_=RealInstructorAccount.failed_login_attempts + 1)
+    db.execute(
+        update(RealInstructorAccount)
+        .where(RealInstructorAccount.instructor_id == instructor.instructor_id)
+        .values(
+            failed_login_attempts=new_count,
+            locked_until=case(
+                (new_count >= LOCKOUT_THRESHOLD, now + datetime.timedelta(minutes=LOCKOUT_DURATION_MINUTES)),
+                (lock_expired, None),
+                else_=RealInstructorAccount.locked_until,
+            ),
+        )
+    )
+
+
+def record_successful_attempt(account: AnyRealAccount) -> None:
+    account.failed_login_attempts = 0
+    account.locked_until = None

@@ -66,6 +66,11 @@ def test_whoami_reports_guardian_session_with_email(client):
 
 
 def test_whoami_reports_instructor_session_with_email(client):
+    """spec 043 contracts/api-changes.md §3: an instructor session now
+    also carries the shared display fields (`theme`/`larger_text`/
+    `reduce_motion`) plus the instructor-only preference fields --
+    test_whoami_reports_instructor_preference_fields below covers their
+    values/persistence in full."""
     client.post(
         "/api/auth/instructor/register",
         json={
@@ -75,10 +80,20 @@ def test_whoami_reports_instructor_session_with_email(client):
     )
     response = client.get("/api/auth/whoami")
     assert response.status_code == 200, response.text
-    assert response.json() == {
+    body = response.json()
+    instructor_id = body.pop("instructor_id")
+    assert instructor_id
+    assert body == {
         "account_type": "instructor",
         "identifier": "whoami-instructor@example.com",
         "pending_deletion_warnings": [],
+        "name": None,
+        "theme": "system",
+        "larger_text": False,
+        "reduce_motion": False,
+        "notifications_enabled": True,
+        "default_enrollment_mode": "open",
+        "default_due_date_offset_days": None,
     }
 
 
@@ -122,6 +137,71 @@ def test_whoami_reports_guardian_preference_fields(client):
     updated = client.get("/api/auth/whoami").json()
     assert updated["name"] == "Dana"
     assert updated["larger_text"] is True
+
+
+def test_whoami_reports_instructor_preference_fields(client):
+    """spec 043: `whoami` is instructor Settings' single hydration read,
+    same role it already plays for guardian Settings (spec 041).
+    Defaults match data-model.md's column defaults before any
+    `PATCH /api/auth/instructor/me` call; the fields must be absent
+    (not merely null) for a guardian or demo-instructor session."""
+    client.post(
+        "/api/auth/instructor/register",
+        json={
+            "email": "whoami-instructor-prefs@example.com",
+            "password": "correct horse battery staple",
+        },
+    )
+    response = client.get("/api/auth/whoami")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["theme"] == "system"
+    assert body["larger_text"] is False
+    assert body["reduce_motion"] is False
+    assert body["notifications_enabled"] is True
+    assert body["default_enrollment_mode"] == "open"
+    assert body["default_due_date_offset_days"] is None
+
+    client.patch("/api/auth/instructor/me", json={"theme": "dark", "larger_text": True})
+    updated = client.get("/api/auth/whoami").json()
+    assert updated["theme"] == "dark"
+    assert updated["larger_text"] is True
+
+
+def test_whoami_instructor_only_fields_absent_for_guardian(client):
+    client.post(
+        "/api/auth/guardian/register",
+        json={
+            "email": "whoami-guardian-no-instructor-fields@example.com",
+            "password": "correct horse battery staple",
+        },
+    )
+    body = client.get("/api/auth/whoami").json()
+    for field in (
+        "instructor_id",
+        "notifications_enabled",
+        "default_enrollment_mode",
+        "default_due_date_offset_days",
+    ):
+        assert field not in body
+
+
+def test_whoami_instructor_only_fields_absent_for_demo_instructor(client):
+    seeded = seed_demo_instructor()
+    client.get("/api/demo-instructor")
+    body = client.get("/api/auth/whoami").json()
+    assert body["identifier"] == seeded.display_name
+    for field in (
+        "instructor_id",
+        "name",
+        "theme",
+        "larger_text",
+        "reduce_motion",
+        "notifications_enabled",
+        "default_enrollment_mode",
+        "default_due_date_offset_days",
+    ):
+        assert field not in body
 
 
 def test_whoami_null_after_logout(client):

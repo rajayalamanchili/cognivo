@@ -18,10 +18,21 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from src.api.errors import AuthenticationError, ConflictError, RateLimitedError, UnprocessableError
+from src.api.errors import (
+    AuthenticationError,
+    ConflictError,
+    ForbiddenError,
+    RateLimitedError,
+    UnprocessableError,
+)
 from src.db import get_db
 from src.models.demo_instructor_profile import DemoInstructorProfile
-from src.models.enums import AuthorizedByType, RetentionAccountType, RetentionEnrollmentStatus
+from src.models.enums import (
+    AuthorizedByType,
+    EnrollmentMode,
+    RetentionAccountType,
+    RetentionEnrollmentStatus,
+)
 from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
@@ -35,6 +46,7 @@ from src.services.auth.dependencies import (
 from src.services.auth.lockout import (
     is_locked_out,
     record_failed_attempt,
+    record_failed_attempt_instructor,
     record_successful_attempt,
     seconds_until_unlocked,
 )
@@ -47,6 +59,7 @@ from src.services.auth.tokens import (
     set_session_cookie,
 )
 from src.services.deletion.inactivity import INACTIVITY_RETENTION_PERIOD
+from src.services.roster.default_instructor import get_reserved_default_instructor_email
 
 router = APIRouter()
 
@@ -93,8 +106,22 @@ def register_instructor(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
 ) -> InstructorAuthOut:
     email = _normalize_email(body.email)
+    # Claude Code Review finding on PR #111: DEFAULT_INSTRUCTOR_EMAIL is
+    # resolved purely by email (research.md §5), with no dedicated
+    # column marking "this is the real one" (FR-013's schema bound).
+    # Without this guard, anyone could register that email through this
+    # public endpoint before an operator ever runs seed_default_
+    # instructor.py, and that script would then adopt the squatter's row
+    # -- every guardian's enrolled learners now reachable through an
+    # attacker-controlled instructor account. Blocking registration of
+    # the reserved email here closes that window; it does not affect
+    # seed_default_instructor.py's own reuse-by-email logic. Reuses the
+    # same `email_taken` conflict as an ordinary already-registered
+    # email, rather than a distinct error, so the response doesn't
+    # itself reveal which address is the reserved one.
+    reserved_email = get_reserved_default_instructor_email()
     existing = db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
-    if existing is not None:
+    if existing is not None or email == reserved_email:
         raise ConflictError("email_taken")
 
     instructor_id = uuid.uuid4()
@@ -138,17 +165,31 @@ def register_instructor(
 def login_instructor(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
 ) -> InstructorAuthOut:
+    """Mirrors `login_guardian`'s lockout check -- the lockout columns/
+    `record_failed_attempt_instructor` (research.md §1) must guard login
+    itself, not just `change_instructor_password`, or login stays an
+    unthrottled brute-force oracle. Particularly important here: the
+    default instructor (spec 043) is a real account with a well-known
+    email (see spec.md's Edge Cases for the accepted lockout-as-DoS
+    trade-off this implies, same shape as the guardian login's own)."""
     email = _normalize_email(body.email)
     instructor = (
         db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
     )
+    if instructor is not None and is_locked_out(instructor):
+        raise RateLimitedError(seconds_until_unlocked(instructor))
     password_hash = instructor.password_hash if instructor is not None else _DUMMY_PASSWORD_HASH
     password_ok = verify_password(body.password, password_hash)
     if instructor is None or not password_ok:
+        if instructor is not None:
+            record_failed_attempt_instructor(db, instructor)
+            db.commit()
         raise AuthenticationError("invalid_credentials")
 
+    record_successful_attempt(instructor)
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
     set_session_cookie(response, token)
+    db.commit()
     return InstructorAuthOut(instructor_id=instructor.instructor_id)
 
 
@@ -366,16 +407,98 @@ def change_guardian_password(
     set_session_cookie(response, token)
 
 
-class InstructorMeIn(BaseModel):
-    """spec 041 FR-017. The only field this endpoint changes --
-    email/password changes for instructors are out of scope for this
-    feature (contracts/api-changes.md)."""
+@router.post("/api/auth/instructor/change-password", status_code=204)
+def change_instructor_password(
+    body: ChangePasswordIn,
+    response: Response,
+    instructor: InstructorAccount = Depends(current_instructor),
+    db: Session = Depends(get_db),
+) -> None:
+    """Mirrors `change_guardian_password` (research.md §1) exactly,
+    including session invalidation (`password_changed_at`, added
+    during PR #111 review) -- a demo instructor has no `password_hash`
+    to change, so it's rejected before the lockout/`DemoInstructorProfile`
+    attributes it lacks would otherwise raise an `AttributeError`."""
+    if isinstance(instructor, DemoInstructorProfile):
+        raise ForbiddenError("demo_account")
+    if is_locked_out(instructor):
+        raise RateLimitedError(seconds_until_unlocked(instructor))
+    if not verify_password(body.current_password, instructor.password_hash):
+        record_failed_attempt_instructor(db, instructor)
+        db.commit()
+        raise AuthenticationError("invalid_credentials")
+    record_successful_attempt(instructor)
+    instructor.password_hash = hash_password(body.new_password)
+    # Invalidates every session token issued before this moment on its
+    # next use (dependencies.py's `instructor_session_revoked`),
+    # including the cookie that authenticated this very request --
+    # reissuing a fresh one below keeps the caller's own tab logged in.
+    instructor.password_changed_at = datetime.datetime.now(datetime.UTC)
+    db.commit()
+    token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
+    set_session_cookie(response, token)
 
-    display_name: str = Field(min_length=1)
+
+class InstructorMeIn(BaseModel):
+    """spec 041 FR-017, extended by spec 043 FR-007/FR-008/FR-009 with
+    six new optional fields, `exclude_unset` semantics identical to
+    `GuardianMeIn` -- omitting a field never resets it. The five
+    non-`display_name` fields only exist on `RealInstructorAccount`,
+    so a `DemoInstructorProfile` session gets `403 demo_account` for
+    any of them (a `display_name`-only PATCH keeps working for a demo
+    instructor exactly as before)."""
+
+    display_name: str | None = None
+    theme: Literal["system", "light", "dark"] | None = None
+    larger_text: bool | None = None
+    reduce_motion: bool | None = None
+    notifications_enabled: bool | None = None
+    default_enrollment_mode: EnrollmentMode | None = None
+    default_due_date_offset_days: int | None = None
 
 
 class InstructorMeOut(BaseModel):
-    display_name: str
+    display_name: str | None
+    theme: str | None = None
+    larger_text: bool | None = None
+    reduce_motion: bool | None = None
+    notifications_enabled: bool | None = None
+    default_enrollment_mode: str | None = None
+    default_due_date_offset_days: int | None = None
+
+
+# Mirrors `_GUARDIAN_ME_NON_NULLABLE_FIELDS` -- `display_name` and
+# `default_due_date_offset_days` are both nullable at the DB level
+# (the latter's `NULL` is a real, meaningful value: "no due date by
+# default"), so neither belongs in this list.
+_INSTRUCTOR_ME_NON_NULLABLE_FIELDS = (
+    "theme",
+    "larger_text",
+    "reduce_motion",
+    "notifications_enabled",
+    "default_enrollment_mode",
+)
+
+
+def _instructor_me_out(instructor: InstructorAccount) -> InstructorMeOut:
+    if isinstance(instructor, DemoInstructorProfile):
+        return InstructorMeOut(display_name=instructor.display_name)
+    return InstructorMeOut(
+        display_name=instructor.display_name,
+        theme=instructor.theme,
+        larger_text=instructor.larger_text,
+        reduce_motion=instructor.reduce_motion,
+        notifications_enabled=instructor.notifications_enabled,
+        default_enrollment_mode=instructor.default_enrollment_mode.value,
+        default_due_date_offset_days=instructor.default_due_date_offset_days,
+    )
+
+
+def _clean_display_name(raw: str | None) -> str:
+    display_name = (raw or "").strip()
+    if display_name == "":
+        raise UnprocessableError("display_name_required")
+    return display_name
 
 
 @router.patch("/api/auth/instructor/me", response_model=InstructorMeOut)
@@ -384,12 +507,35 @@ def update_instructor_me(
     instructor: InstructorAccount = Depends(current_instructor),
     db: Session = Depends(get_db),
 ) -> InstructorMeOut:
-    display_name = body.display_name.strip()
-    if display_name == "":
-        raise UnprocessableError("display_name_required")
-    instructor.display_name = display_name
+    updates = body.model_dump(exclude_unset=True)
+
+    if isinstance(instructor, DemoInstructorProfile):
+        if any(field != "display_name" for field in updates):
+            raise ForbiddenError("demo_account")
+        if "display_name" in updates:
+            instructor.display_name = _clean_display_name(updates["display_name"])
+            db.commit()
+        return _instructor_me_out(instructor)
+
+    for field in _INSTRUCTOR_ME_NON_NULLABLE_FIELDS:
+        if updates.get(field, False) is None:
+            raise UnprocessableError(f"{field}_required")
+    if "display_name" in updates:
+        updates["display_name"] = _clean_display_name(updates["display_name"])
+    offset_days = updates.get("default_due_date_offset_days")
+    # Claude Code Review finding on PR #111: the column is a 32-bit
+    # `Integer` -- an unbounded value overflows it (an unhandled 500),
+    # and a merely large one can overflow the `timedelta` arithmetic
+    # Rosters' pre-fill does with it. 3650 (10 years) is far beyond any
+    # real due date while staying well inside int4's range.
+    if offset_days is not None and not (0 < offset_days <= 3650):
+        raise UnprocessableError("default_due_date_offset_days_invalid")
+
+    for field, value in updates.items():
+        setattr(instructor, field, value)
     db.commit()
-    return InstructorMeOut(display_name=display_name)
+    db.refresh(instructor)
+    return _instructor_me_out(instructor)
 
 
 class PendingDeletionWarningOut(BaseModel):
@@ -409,6 +555,11 @@ class WhoAmIOut(BaseModel):
     # Settings' "delete my account" action's own target_id -- nothing
     # else in a guardian session response exposes it.
     guardian_id: uuid.UUID | None = None
+    # `name` is shared with an instructor session below (a guardian's
+    # `name` and an instructor's `display_name` are different columns
+    # but the same "human-chosen display name" concept -- reusing one
+    # wire field keeps instructor Settings' hydration read from needing
+    # a second, near-duplicate field).
     name: str | None = None
     read_aloud_default: bool | None = None
     larger_text: bool | None = None
@@ -416,18 +567,55 @@ class WhoAmIOut(BaseModel):
     theme: str | None = None
     quiz_finished_email_enabled: bool | None = None
     weekly_summary_enabled: bool | None = None
+    # spec 043 contracts/api-changes.md §3, plus `instructor_id` (not
+    # listed in that contract, but needed for the same reason
+    # `guardian_id` above is: Settings' "delete my account" action's
+    # own target_id for `POST /api/deletion-requests`, and nothing else
+    # in an instructor session response exposes it) -- populated only
+    # when account_type == "instructor", None for every other type.
+    instructor_id: uuid.UUID | None = None
+    notifications_enabled: bool | None = None
+    default_enrollment_mode: str | None = None
+    default_due_date_offset_days: int | None = None
 
 
 _GUARDIAN_ONLY_FIELDS = (
     "guardian_id",
-    "name",
     "read_aloud_default",
-    "larger_text",
-    "reduce_motion",
-    "theme",
     "quiz_finished_email_enabled",
     "weekly_summary_enabled",
 )
+
+# `name`/`theme`/`larger_text`/`reduce_motion` are populated for either
+# a guardian or an instructor session (research.md §2/§3; `name` reuses
+# the guardian's own field for an instructor's `display_name`, see
+# WhoAmIOut's docstring on that field) -- excluded for every other one,
+# so neither _GUARDIAN_ONLY_FIELDS nor _INSTRUCTOR_ONLY_FIELDS lists
+# any of these four.
+_SHARED_DISPLAY_FIELDS = ("name", "theme", "larger_text", "reduce_motion")
+
+_INSTRUCTOR_ONLY_FIELDS = (
+    "instructor_id",
+    "notifications_enabled",
+    "default_enrollment_mode",
+    "default_due_date_offset_days",
+)
+
+
+def _whoami_exclude_fields(*, has_guardian_fields: bool, has_instructor_fields: bool) -> set[str]:
+    """Fields are excluded (not merely `null`) when the account row
+    they'd come from wasn't actually populated this request -- same
+    reasoning the pre-existing guardian-only exclusion already followed
+    (whoami()'s own docstring), extended to the new instructor-only and
+    shared display fields."""
+    exclude: set[str] = set()
+    if not has_guardian_fields:
+        exclude |= set(_GUARDIAN_ONLY_FIELDS)
+    if not has_instructor_fields:
+        exclude |= set(_INSTRUCTOR_ONLY_FIELDS)
+    if not has_guardian_fields and not has_instructor_fields:
+        exclude |= set(_SHARED_DISPLAY_FIELDS)
+    return exclude
 
 
 def _pending_deletion_warnings(
@@ -515,12 +703,16 @@ def whoami(
     if claims is None:
         return JSONResponse(
             WhoAmIOut(account_type=None).model_dump(
-                mode="json", exclude=set(_GUARDIAN_ONLY_FIELDS)
+                mode="json",
+                exclude=_whoami_exclude_fields(
+                    has_guardian_fields=False, has_instructor_fields=False
+                ),
             )
         )
 
     identifier: str | None = None
     guardian_fields: dict[str, object] = {}
+    instructor_fields: dict[str, object] = {}
     if claims.account_type == "guardian":
         guardian = db.get(RealGuardianAccount, claims.account_id)
         identifier = guardian.email if guardian else None
@@ -538,6 +730,17 @@ def whoami(
     elif claims.account_type == "instructor":
         instructor = db.get(RealInstructorAccount, claims.account_id)
         identifier = instructor.email if instructor else None
+        if instructor is not None:
+            instructor_fields = {
+                "instructor_id": instructor.instructor_id,
+                "name": instructor.display_name,
+                "larger_text": instructor.larger_text,
+                "reduce_motion": instructor.reduce_motion,
+                "theme": instructor.theme,
+                "notifications_enabled": instructor.notifications_enabled,
+                "default_enrollment_mode": instructor.default_enrollment_mode.value,
+                "default_due_date_offset_days": instructor.default_due_date_offset_days,
+            }
     elif claims.account_type == "demo_instructor":
         demo_instructor = db.get(DemoInstructorProfile, claims.account_id)
         identifier = demo_instructor.display_name if demo_instructor else None
@@ -547,6 +750,9 @@ def whoami(
         identifier=identifier,
         pending_deletion_warnings=_pending_deletion_warnings(claims, db),
         **guardian_fields,
+        **instructor_fields,
     )
-    exclude = set() if guardian_fields else set(_GUARDIAN_ONLY_FIELDS)
+    exclude = _whoami_exclude_fields(
+        has_guardian_fields=bool(guardian_fields), has_instructor_fields=bool(instructor_fields)
+    )
     return JSONResponse(result.model_dump(mode="json", exclude=exclude))

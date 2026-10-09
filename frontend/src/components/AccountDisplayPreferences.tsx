@@ -4,13 +4,14 @@ import { useEffect, useState } from "react";
 import { getWhoAmI } from "@/services/api";
 import { onSessionChanged } from "@/lib/visitor-state";
 
-// spec 041 FR-011: applies a guardian's Display & accessibility
-// preferences (theme/larger text/reduce motion) to the document root
-// via data attributes (globals.css), so Settings' toggles actually do
-// something instead of only persisting to the backend. These columns
-// exist on RealGuardianAccount only, so this is a no-op for every
-// other session type -- same `onSessionChanged` refresh pattern
-// Nav/DemoBadge already use.
+// spec 041 FR-011, extended by spec 043: applies a guardian's or real
+// instructor's Display & accessibility preferences (theme/larger
+// text/reduce motion) to the document root via data attributes
+// (globals.css), so Settings' toggles actually do something instead
+// of only persisting to the backend. These columns exist on
+// RealGuardianAccount and RealInstructorAccount only, so this is a
+// no-op for every other session type -- same `onSessionChanged`
+// refresh pattern Nav/DemoBadge already use.
 export default function AccountDisplayPreferences() {
   const [prefs, setPrefs] = useState<{
     theme: string;
@@ -25,7 +26,7 @@ export default function AccountDisplayPreferences() {
         .then((result) => {
           if (cancelled) return;
           setPrefs(
-            result.account_type === "guardian"
+            result.account_type === "guardian" || result.account_type === "instructor"
               ? {
                   theme: result.theme ?? "system",
                   largerText: result.larger_text ?? false,

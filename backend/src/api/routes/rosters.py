@@ -7,10 +7,11 @@ import uuid
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from src.api.errors import ForbiddenError, NotFoundError
+from src.api.routes.quiz_assignments import CreateAssignmentOut
 from src.db import get_db
 from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
@@ -27,6 +28,8 @@ from src.services.auth.dependencies import (
     current_session_claims,
 )
 from src.services.auth.tokens import SessionClaims
+from src.services.quiz_assignment.assignment import create_assignment
+from src.services.roster.default_instructor import get_default_instructor
 from src.services.roster.enrollment import (
     approve_request,
     create_roster,
@@ -337,6 +340,10 @@ def list_enrollments_route(
 class LearnerEnrollmentOut(BaseModel):
     roster_id: uuid.UUID
     subject_id: str
+    # spec 043 FR-017/contracts §5: tells the guardian frontend which
+    # enrollment card should show the "assign a quiz" action, without a
+    # second round-trip.
+    is_default_instructor_roster: bool
 
 
 class ListLearnerEnrollmentsOut(BaseModel):
@@ -364,11 +371,98 @@ def list_learner_enrollments_route(
         .filter(Enrollment.learner_id == learner_id)
         .all()
     )
+    default_instructor = get_default_instructor(db)
     return ListLearnerEnrollmentsOut(
         enrollments=[
-            LearnerEnrollmentOut(roster_id=roster.roster_id, subject_id=roster.subject_id)
+            LearnerEnrollmentOut(
+                roster_id=roster.roster_id,
+                subject_id=roster.subject_id,
+                is_default_instructor_roster=(
+                    default_instructor is not None
+                    and roster.instructor_id == default_instructor.instructor_id
+                ),
+            )
             for roster in rows
         ]
+    )
+
+
+class GuardianCreateAssignmentIn(BaseModel):
+    """Claude Code Review finding on PR #111: unlike the instructor-side
+    `CreateAssignmentIn` (pre-existing, unbounded since spec 011 --
+    out of scope to change here), this endpoint's caller is a
+    self-service, publicly-registrable guardian, not a vetted
+    instructor -- bounding `question_count`/`topic_ids` here specifically
+    limits the LLM-generation cost/DoS surface a guardian can drive on
+    the shared default-instructor roster. Same `question_count` range
+    `quiz.py`'s `_validate_quiz_start_request` already uses."""
+
+    topic_ids: list[str] = Field(min_length=1, max_length=20)
+    question_count: int = Field(ge=1, le=50)
+    due_at: datetime.datetime | None = None
+
+    @field_validator("due_at")
+    @classmethod
+    def _due_at_not_in_the_past(cls, value: datetime.datetime | None) -> datetime.datetime | None:
+        if value is not None and value < datetime.datetime.now(datetime.UTC):
+            raise ValueError("due_at must not be in the past")
+        return value
+
+
+@router.post(
+    "/api/learners/{learner_id}/rosters/{roster_id}/assignments",
+    response_model=CreateAssignmentOut,
+    status_code=201,
+)
+def create_guardian_assignment_route(
+    learner_id: uuid.UUID,
+    roster_id: uuid.UUID,
+    body: GuardianCreateAssignmentIn,
+    guardian: RealGuardianAccount = Depends(current_guardian),
+    db: Session = Depends(get_db),
+) -> CreateAssignmentOut:
+    """spec 043 FR-017/contracts §6: lets a guardian self-assign a quiz
+    to their own learner, but only on a roster owned by the default
+    instructor (research.md §6) -- reuses `create_assignment()`
+    unchanged, so the resulting audit event looks identical to one an
+    instructor created directly."""
+    roster = db.get(ClassroomRoster, roster_id)
+    if roster is None:
+        raise NotFoundError("unknown_roster_id")
+
+    learner = db.get(LearnerProfile, learner_id)
+    if learner is None or learner.guardian_id != guardian.guardian_id:
+        raise ForbiddenError("not_your_learner")
+
+    enrolled = (
+        db.query(Enrollment)
+        .filter(Enrollment.roster_id == roster_id, Enrollment.learner_id == learner_id)
+        .first()
+    )
+    if enrolled is None:
+        raise ForbiddenError("not_enrolled")
+
+    default_instructor = get_default_instructor(db)
+    if default_instructor is None or roster.instructor_id != default_instructor.instructor_id:
+        raise ForbiddenError("not_default_instructor_roster")
+
+    assignment = create_assignment(
+        db,
+        roster=roster,
+        instructor_id=roster.instructor_id,
+        topic_ids=body.topic_ids,
+        question_count=body.question_count,
+        due_at=body.due_at,
+        learner_ids=[learner_id],
+    )
+    return CreateAssignmentOut(
+        assignment_id=assignment.assignment_id,
+        roster_id=assignment.roster_id,
+        subject_id=assignment.subject_id,
+        topic_ids=assignment.topic_ids,
+        question_count=assignment.question_count,
+        due_at=assignment.due_at,
+        target_learner_ids=[learner_id],
     )
 
 

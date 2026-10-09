@@ -99,32 +99,46 @@ between what's a local ADK sub-agent vs. a remote A2A service.
 
 ## Useful context for any session
 
-- Current milestone: **Milestone 24** -- Moderation & Shielding
-  Classification Caching, extending Milestone 13's caching strategy to
-  the two highest-call-volume guardrail checks it didn't cover (merged
-  to `staging` via PR #97, promoted to `main` via PR #98, both
-  2026-09-30). See `specs/026-moderation-shielding-cache/spec.md` for
-  full scope, and `roadmap.md` for the full milestone-by-milestone
-  history -- Milestones 1-24 are all shipped. Since then, the
-  Learner-Facing UI Redesign (`specs/027-learner-ui-redesign/spec.md`)
-  shipped as a design-system update outside the milestone sequence
-  (merged to `staging` via PR #99, promoted to `main` via PR #100, both
-  2026-10-02/2026-10-04) -- see that spec's Assumptions for why it
-  doesn't carry a milestone number. Three more features shipped outside
-  the milestone sequence since, all 2026-10-04: **Standards Alignment**
+- Current milestone: **Milestone 25** -- Instructor-Facing UI Redesign
+  and Default-Instructor Self-Service (`specs/043-instructor-ui-
+  redesign/spec.md`). `/speckit-specify` plus three same-day
+  `/speckit-clarify` passes complete (2026-10-07); `/speckit-plan`,
+  `/speckit-tasks`, and `/speckit-implement` are complete (2026-10-08,
+  PR #111 open to `staging`, not yet merged) -- see `roadmap.md`'s
+  Milestone 25 entry for the current per-phase status. Restyles the
+  Dashboard/Review/Rosters instructor screens
+  and adds a new Settings screen, plus a genuinely new capability: a
+  seeded, real (non-demo) "default instructor" account that always owns
+  one open, listed roster per subject, so a guardian can enroll and
+  self-assign a quiz with zero real instructor ever registering -- see
+  `roadmap.md`'s Milestone 25 entry for the full scope split and why
+  only the default-instructor piece earns the milestone number. The
+  prior milestone, **Milestone 24** (Moderation & Shielding
+  Classification Caching, `specs/026-moderation-shielding-cache/
+  spec.md`), merged to `staging` via PR #97 and promoted to `main` via
+  PR #98, both 2026-09-30 -- Milestones 1-24 are all shipped. See
+  `roadmap.md` for the full milestone-by-milestone history.
+
+  Several features have shipped outside the milestone sequence since
+  Milestone 24, as design-system updates or content-volume additions
+  rather than new product capabilities (see each spec's own Assumptions
+  for why it carries no milestone number): the **Learner-Facing UI
+  Redesign** (`specs/027-learner-ui-redesign/spec.md`, merged to
+  `staging` via PR #99, promoted to `main` via PR #100, both
+  2026-10-02/2026-10-04); **Standards Alignment**
   (`specs/038-standards-alignment/spec.md`, PR #101 to `staging`, #102
-  to `main`), **STEM-Career Connections**
+  to `main`, 2026-10-04); **STEM-Career Connections**
   (`specs/039-stem-career-connections/spec.md`, PR #103 to `staging`,
-  #104 to `main`), and the **Full K-12 Content Catalog** pilot
-  (`specs/040-k12-content-catalog/spec.md`) -- a deliberate two-subject
-  (Algebra II, Physics) proof of the authoring approach and the
-  "zero engine change" claim before the remaining six subjects are
-  attempted separately; see that spec's Clarifications for FR-009's
-  one real correction (roster-grade validation, found only during
-  `/speckit-implement`), the sole exception to "zero engine change."
-  All three are content/presentation or content-volume additions per
-  their own specs' framing, not new product capabilities, hence no
-  milestone number.
+  #104 to `main`, 2026-10-04); the **Full K-12 Content Catalog** pilot
+  (`specs/040-k12-content-catalog/spec.md`, 2026-10-04) -- a deliberate
+  two-subject (Algebra II, Physics) proof of the authoring approach and
+  the "zero engine change" claim before the remaining six subjects are
+  attempted separately; see that spec's Clarifications for FR-009's one
+  real correction (roster-grade validation, found only during
+  `/speckit-implement`), the sole exception to "zero engine change"; and
+  the **Guardian & Public-Facing UI Redesign**
+  (`specs/041-guardian-public-ui-redesign/spec.md`, merged to `staging`
+  via PR #109 and promoted to `main` via PR #110, both 2026-10-07).
 - Two subjects' content artifacts are required in Milestone 1 itself
   (not deferred to a later milestone) specifically to prove the
   domain-agnostic claim early -- see that spec's Assumptions for the
