@@ -9,7 +9,6 @@ register as both.
 """
 
 import datetime
-import os
 import uuid
 from typing import Literal
 
@@ -60,6 +59,7 @@ from src.services.auth.tokens import (
     set_session_cookie,
 )
 from src.services.deletion.inactivity import INACTIVITY_RETENTION_PERIOD
+from src.services.roster.default_instructor import get_reserved_default_instructor_email
 
 router = APIRouter()
 
@@ -119,9 +119,9 @@ def register_instructor(
     # same `email_taken` conflict as an ordinary already-registered
     # email, rather than a distinct error, so the response doesn't
     # itself reveal which address is the reserved one.
-    reserved_email = os.environ.get("DEFAULT_INSTRUCTOR_EMAIL", "").strip().lower()
+    reserved_email = get_reserved_default_instructor_email()
     existing = db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
-    if existing is not None or (reserved_email and email == reserved_email):
+    if existing is not None or email == reserved_email:
         raise ConflictError("email_taken")
 
     instructor_id = uuid.uuid4()

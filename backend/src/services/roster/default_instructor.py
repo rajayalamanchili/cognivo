@@ -19,13 +19,21 @@ from src.services.roster.enrollment import create_roster, update_roster
 logger = logging.getLogger(__name__)
 
 
+def get_reserved_default_instructor_email() -> str | None:
+    """`None` when `DEFAULT_INSTRUCTOR_EMAIL` is unset -- the one place
+    that env var is read and normalized (Claude Code Review finding on
+    PR #111), shared with `register_instructor`'s reserved-email guard
+    so the two can't drift out of sync on how they normalize it."""
+    email = os.environ.get("DEFAULT_INSTRUCTOR_EMAIL")
+    return email.strip().lower() if email else None
+
+
 def get_default_instructor(db: Session) -> RealInstructorAccount | None:
     """`None`-safe: an unset env var or no matching row is a normal,
     expected state (e.g. a developer's local DB, CI), never an error."""
-    email = os.environ.get("DEFAULT_INSTRUCTOR_EMAIL")
-    if not email:
+    normalized = get_reserved_default_instructor_email()
+    if normalized is None:
         return None
-    normalized = email.strip().lower()
     return (
         db.query(RealInstructorAccount)
         .filter(RealInstructorAccount.email == normalized)
