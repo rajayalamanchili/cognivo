@@ -56,20 +56,20 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] Test multi-enrollment tab rendering, switching, "Add a subject" always offered (even with 1+ enrollments), and no tab chrome for exactly one enrollment, in `frontend/tests/unit/guardian-learners.test.tsx`. Include one integration-style assertion that switching tabs updates stat tiles, standards, career connections, and assigned quizzes *together* (not just that each is individually filterable) (FR-002).
-- [ ] T008 [P] [US1] Test `GuardianLearnerStandards.tsx`/`GuardianLearnerCareerConnections.tsx`'s new `subjectId` filter (only that subject's standards/careers shown when provided) in their existing test files.
-- [ ] T009 [P] [US1] Test `list_learner_assignments_route`'s new `roster_id` filter (only that roster's assignments returned when provided, unfiltered when omitted) in `backend/tests/integration/test_quiz_assignment_roster_filter.py` (new file, following this repo's existing `test_quiz_assignment_*.py` naming -- no `backend/tests/api/` directory exists here).
+- [X] T007 [P] [US1] Test multi-enrollment tab rendering, switching, "Add a subject" always offered (even with 1+ enrollments), and no tab chrome for exactly one enrollment, in `frontend/tests/unit/guardian-learners.test.tsx`. Include one integration-style assertion that switching tabs updates stat tiles, standards, career connections, and assigned quizzes *together* (not just that each is individually filterable) (FR-002).
+- [X] T008 [P] [US1] Test `GuardianLearnerStandards.tsx`/`GuardianLearnerCareerConnections.tsx`'s new `subjectId` filter (only that subject's standards/careers shown when provided) in their existing test files.
+- [X] T009 [P] [US1] Test `list_learner_assignments_route`'s new `roster_id` filter (only that roster's assignments returned when provided, unfiltered when omitted) in `backend/tests/integration/test_quiz_assignment_roster_filter.py` (new file, following this repo's existing `test_quiz_assignment_*.py` naming -- no `backend/tests/api/` directory exists here).
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Add optional `roster_id: uuid.UUID | None = None` query param to `list_learner_assignments_route` (`backend/src/api/routes/quiz_assignments.py`), filtering `.filter(QuizAssignment.roster_id == roster_id)` when provided (research.md §3).
-- [ ] T011 [US1] Rewrite `frontend/src/components/GuardianLearnerCard.tsx`: `enrollment` prop becomes `enrollments: MyLearnerEnrollment[]`; add a tab row (one per enrollment) with local `selected` state defaulting to the first; render the selected enrollment's stat tiles scoped to it; "Add a subject" shown regardless of `enrollments.length`; no tab chrome when `enrollments.length === 1`; "Not in a class yet" when `enrollments.length === 0` (FR-002-FR-006). On a successful join via "Add a subject," select the newly-added tab explicitly (set `selected` to its index) while leaving every existing tab's state untouched (FR-004).
-- [ ] T012 [P] [US1] Add optional `subjectId?: string` prop to `GuardianLearnerStandards.tsx` -- filter the already-fetched `listLearnerEnrollments` result to that one subject before computing standards, when provided (research.md §4).
-- [ ] T013 [P] [US1] Same `subjectId?: string` prop addition to `GuardianLearnerCareerConnections.tsx`.
-- [ ] T014 [P] [US1] Update `listLearnerAssignments` in `frontend/src/services/api.ts` to accept an optional `rosterId` param, appended as a query string to match T010.
-- [ ] T015 [US1] Add optional `rosterId?: string` prop to `LearnerAssignments.tsx`, threaded into `listLearnerAssignments(learnerId, rosterId)` (T014).
-- [ ] T016 [US1] Wire `GuardianLearnerCard.tsx`'s selected tab's `subjectId`/`rosterId` into `GuardianLearnerStandards`/`GuardianLearnerCareerConnections`/`LearnerAssignments` (T012, T013, T015), so each switches with the tab.
-- [ ] T017 [US1] Update `frontend/src/app/(auth)/guardian/learners/page.tsx` to pass `learner.enrollments` (plural, from T003/T005) to `GuardianLearnerCard`.
+- [X] T010 [US1] Add optional `roster_id: uuid.UUID | None = None` query param to `list_learner_assignments_route` (`backend/src/api/routes/quiz_assignments.py`), filtering `.filter(QuizAssignment.roster_id == roster_id)` when provided (research.md §3).
+- [X] T011 [US1] Rewrite `frontend/src/components/GuardianLearnerCard.tsx`: `enrollment` prop becomes `enrollments: MyLearnerEnrollment[]`; add a tab row (one per enrollment) with local `selected` state defaulting to the first; render the selected enrollment's stat tiles scoped to it; "Add a subject" shown regardless of `enrollments.length`; no tab chrome when `enrollments.length === 1`; "Not in a class yet" when `enrollments.length === 0` (FR-002-FR-006). On a successful join via "Add a subject," select the newly-added tab explicitly (set `selected` to its index) while leaving every existing tab's state untouched (FR-004).
+- [X] T012 [P] [US1] Add optional `subjectId?: string` prop to `GuardianLearnerStandards.tsx` -- filter the already-fetched `listLearnerEnrollments` result to that one subject before computing standards, when provided (research.md §4).
+- [X] T013 [P] [US1] Same `subjectId?: string` prop addition to `GuardianLearnerCareerConnections.tsx`.
+- [X] T014 [P] [US1] Update `listLearnerAssignments` in `frontend/src/services/api.ts` to accept an optional `rosterId` param, appended as a query string to match T010.
+- [X] T015 [US1] Add optional `rosterId?: string` prop to `LearnerAssignments.tsx`, threaded into `listLearnerAssignments(learnerId, rosterId)` (T014).
+- [X] T016 [US1] Wire `GuardianLearnerCard.tsx`'s selected tab's `subjectId`/`rosterId` into `GuardianLearnerStandards`/`GuardianLearnerCareerConnections`/`LearnerAssignments` (T012, T013, T015), so each switches with the tab.
+- [X] T017 [US1] Update `frontend/src/app/(auth)/guardian/learners/page.tsx` to pass `learner.enrollments` (plural, from T003/T005) to `GuardianLearnerCard`.
 
 **Checkpoint**: quickstart.md Story 1, steps 1-5. User Story 1 is independently functional and demoable.
 

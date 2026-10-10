@@ -76,7 +76,7 @@ describe("LearnerAssignments", () => {
 
     render(<LearnerAssignments learnerId={LEARNER_ID} />);
 
-    await waitFor(() => expect(api.listLearnerAssignments).toHaveBeenCalledWith(LEARNER_ID));
+    await waitFor(() => expect(api.listLearnerAssignments).toHaveBeenCalledWith(LEARNER_ID, undefined));
 
     await waitFor(() => expect(screen.getAllByText("Not started")).toHaveLength(2));
     expect(screen.getByText("In progress")).toBeInTheDocument();

@@ -55,9 +55,13 @@ function errorText(error: unknown): string {
 
 export interface LearnerAssignmentsProps {
   learnerId: string;
+  // spec 044 FR-002 (US1): scope to one enrollment's own assignments
+  // (the selected card tab) -- undefined keeps today's "every
+  // assignment across every roster" list.
+  rosterId?: string;
 }
 
-export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProps) {
+export default function LearnerAssignments({ learnerId, rosterId }: LearnerAssignmentsProps) {
   const [assignments, setAssignments] = useState<LearnerAssignment[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -100,7 +104,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
   function refreshAssignments() {
     setLoading(true);
     setLoadError(null);
-    listLearnerAssignments(learnerId)
+    listLearnerAssignments(learnerId, rosterId)
       .then((result) => {
         setAssignments(result.assignments);
         setLoading(false);
@@ -118,7 +122,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
         if (!cancelled) setReadAloudDefault(who.read_aloud_default ?? false);
       })
       .catch(() => {});
-    listLearnerAssignments(learnerId)
+    listLearnerAssignments(learnerId, rosterId)
       .then((result) => {
         if (cancelled) return;
         setAssignments(result.assignments);
@@ -132,7 +136,7 @@ export default function LearnerAssignments({ learnerId }: LearnerAssignmentsProp
     return () => {
       cancelled = true;
     };
-  }, [learnerId]);
+  }, [learnerId, rosterId]);
 
   // Takes `handoffTokenOverride` for the one call site (`handleStart`'s
   // ended-early-at-start branch) that needs it before the `setHandoffToken`

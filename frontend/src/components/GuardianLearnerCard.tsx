@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getActivitySummary,
@@ -27,6 +27,12 @@ import { formatTopicId } from "@/lib/format-topic-id";
 // yet enrolled anywhere shows "Not in a class yet" (Clarifications --
 // not the mockup's literal "Placement not taken", since real placement
 // doesn't exist) and skips the subject-scoped stat tiles entirely.
+//
+// spec 044 FR-002-FR-006 (US1): a learner can now show *every*
+// enrollment, not just one -- one tab per enrollment, switching which
+// enrollment's stat tiles/assignments/standards/careers are shown,
+// "Add a subject" offered regardless of count, no tab chrome for
+// exactly one enrollment.
 
 // Spec 019 FR-009/research.md Decision 6's same grade bands, looked up
 // independently here (not shared code with `lib/pacing.ts` or the
@@ -51,17 +57,23 @@ function gradeBandTier(grade: number): { label: string; note: string } {
   return { label: "Independent", note: "Start the quiz here; they work on their own from there." };
 }
 
-
 export interface GuardianLearnerCardProps {
   learnerId: string;
   displayName: string;
-  enrollment: MyLearnerEnrollment | null;
+  enrollments: MyLearnerEnrollment[];
+  // spec 044 FR-004: after a successful "Add a subject" join, the card
+  // needs the guardian's fresh enrollment list (with `grade` -- not
+  // returned by `listLearnerEnrollments`) to select the new tab --
+  // cheapest source of that is re-running the same `GET /api/learners/
+  // mine` fetch the parent page already made, not a second endpoint.
+  onEnrollmentsChanged?: () => void;
 }
 
 export default function GuardianLearnerCard({
   learnerId,
   displayName,
-  enrollment,
+  enrollments,
+  onEnrollmentsChanged,
 }: GuardianLearnerCardProps) {
   const router = useRouter();
   const [topicsMastered, setTopicsMastered] = useState<number | null>(null);
@@ -71,6 +83,36 @@ export default function GuardianLearnerCard({
   // Have a code?), not both forms stacked -- defaults to Browse, same
   // as the mockup's own default state.
   const [joinTab, setJoinTab] = useState<"browse" | "code">("browse");
+  // spec 044 FR-003: "Add a subject" is always available once a learner
+  // has at least one enrollment already -- collapsed by default so an
+  // already-settled card doesn't show a join form unprompted. A
+  // zero-enrollment learner keeps today's always-open join section
+  // (FR-006), driven by `enrollments.length === 0` below, not this flag.
+  const [addOpen, setAddOpen] = useState(false);
+  const [selected, setSelected] = useState(0);
+
+  // spec 044 FR-004: when the guardian's fresh enrollment list grows by
+  // one (a successful join), select that new tab; every other existing
+  // tab stays exactly as it was. Diffs by roster_id rather than array
+  // identity/length alone, since `onEnrollmentsChanged` re-fetches the
+  // guardian's whole learner list and always returns a new array.
+  const previousRosterIdsRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const currentIds = enrollments.map((e) => e.roster_id);
+    const previousIds = previousRosterIdsRef.current;
+    if (previousIds) {
+      const newIndex = currentIds.findIndex((id) => !previousIds.has(id));
+      if (newIndex !== -1) {
+        setSelected(newIndex);
+        setAddOpen(false);
+      } else {
+        setSelected((current) => Math.min(current, Math.max(currentIds.length - 1, 0)));
+      }
+    }
+    previousRosterIdsRef.current = new Set(currentIds);
+  }, [enrollments]);
+
+  const selectedEnrollment = enrollments[selected] ?? null;
 
   // spec 041 FR-016/T039: opens this learner's own real session
   // (Dashboard/Practice/Mastery/Tutor), mirroring the demo learner's
@@ -80,10 +122,15 @@ export default function GuardianLearnerCard({
     router.push("/dashboard");
   }
 
+  function handleJoined() {
+    setAddOpen(false);
+    onEnrollmentsChanged?.();
+  }
+
   useEffect(() => {
-    if (!enrollment) return;
+    if (!selectedEnrollment) return;
     let cancelled = false;
-    const { subject_id: subjectId } = enrollment;
+    const { subject_id: subjectId } = selectedEnrollment;
     // Three independent, fail-silent fetches (same "secondary
     // enrichment, not the guardian's primary task" precedent
     // `GuardianLearnerStandards`/`GuardianLearnerCareerConnections`
@@ -108,9 +155,49 @@ export default function GuardianLearnerCard({
     return () => {
       cancelled = true;
     };
-  }, [learnerId, enrollment]);
+  }, [learnerId, selectedEnrollment]);
 
-  const tier = gradeBandTier(enrollment?.grade ?? 9);
+  const tier = gradeBandTier(selectedEnrollment?.grade ?? 9);
+  const hasEnrollments = enrollments.length > 0;
+
+  const joinSection = (
+    <section className="flex flex-col gap-3.5 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="font-heading text-xl font-bold text-heading">
+          {hasEnrollments ? "Add a subject" : "Join a class"}
+        </h3>
+        <div role="tablist" aria-label="How to join" className="flex gap-1 rounded-full bg-surface-subtle p-1">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={joinTab === "browse"}
+            onClick={() => setJoinTab("browse")}
+            className={`min-h-10 rounded-full px-4 text-sm font-extrabold ${joinTab === "browse" ? "bg-surface text-heading shadow-sm" : "text-muted"}`}
+          >
+            Browse classes
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={joinTab === "code"}
+            onClick={() => setJoinTab("code")}
+            className={`min-h-10 rounded-full px-4 text-sm font-extrabold ${joinTab === "code" ? "bg-surface text-heading shadow-sm" : "text-muted"}`}
+          >
+            Have a code?
+          </button>
+        </div>
+      </div>
+      {joinTab === "browse" ? (
+        <ClassDirectoryBrowse
+          learnerId={learnerId}
+          onNeedCode={() => setJoinTab("code")}
+          onJoined={handleJoined}
+        />
+      ) : (
+        <JoinRosterForm learnerId={learnerId} onJoined={handleJoined} />
+      )}
+    </section>
+  );
 
   return (
     <article
@@ -128,17 +215,19 @@ export default function GuardianLearnerCard({
             {displayName}
           </h2>
           <span className="text-[15px] text-muted">
-            {enrollment
-              ? `Grade ${enrollment.grade ?? "—"} · ${formatTopicId(enrollment.subject_id)}`
-              : "Not in a class yet"}
+            {!hasEnrollments
+              ? "Not in a class yet"
+              : enrollments.length === 1
+                ? `Grade ${enrollments[0].grade ?? "—"} · ${formatTopicId(enrollments[0].subject_id)}`
+                : `${enrollments.length} classes · ${enrollments.map((e) => formatTopicId(e.subject_id)).join(", ")}`}
           </span>
         </div>
-        {enrollment && (
+        {hasEnrollments && (
           <span className="rounded-full bg-primary-subtle px-3 py-0.5 text-[13px] font-extrabold text-heading">
             {tier.label}
           </span>
         )}
-        {enrollment && (
+        {hasEnrollments && (
           <button
             type="button"
             onClick={handleOpenDashboard}
@@ -163,85 +252,127 @@ export default function GuardianLearnerCard({
         )}
       </div>
 
-      {enrollment ? (
+      {hasEnrollments ? (
         <>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="rounded-2xl bg-surface-subtle p-3.5">
-              <div className="text-sm font-bold text-muted">Topics mastered</div>
-              <div className="font-heading text-2xl font-bold">{topicsMastered ?? "—"}</div>
+          {enrollments.length > 1 && (
+            <div
+              role="tablist"
+              aria-label={`${displayName}'s subjects`}
+              className="flex flex-wrap gap-2"
+            >
+              {enrollments.map((enrollment, index) => {
+                const active = index === selected;
+                return (
+                  <button
+                    key={enrollment.roster_id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setSelected(index)}
+                    className={`flex min-h-14 flex-col items-start justify-center rounded-2xl px-4 py-1.5 text-left ${
+                      active
+                        ? "bg-primary text-primary-foreground"
+                        : "border-2 border-border bg-surface text-heading"
+                    }`}
+                  >
+                    <span className="text-[15px] font-extrabold">
+                      {formatTopicId(enrollment.subject_id)}
+                    </span>
+                    <span className="text-[13px] font-bold opacity-85">
+                      {enrollment.grade != null ? `Grade ${enrollment.grade}` : "Ungraded"}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setAddOpen((open) => !open)}
+                aria-expanded={addOpen}
+                className="flex min-h-14 items-center gap-2 rounded-2xl border-2 border-dashed border-border px-4.5 font-extrabold text-primary"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M5 12h14" />
+                </svg>
+                Add a subject
+              </button>
             </div>
-            <div className="rounded-2xl bg-surface-subtle p-3.5">
-              <div className="text-sm font-bold text-muted">This week</div>
-              <div className="font-heading text-2xl font-bold">
-                {questionsThisWeek === null ? "—" : `${questionsThisWeek} questions`}
+          )}
+
+          {selectedEnrollment && (
+            <>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-surface-subtle p-3.5">
+                  <div className="text-sm font-bold text-muted">Topics mastered</div>
+                  <div className="font-heading text-2xl font-bold">{topicsMastered ?? "—"}</div>
+                </div>
+                <div className="rounded-2xl bg-surface-subtle p-3.5">
+                  <div className="text-sm font-bold text-muted">This week</div>
+                  <div className="font-heading text-2xl font-bold">
+                    {questionsThisWeek === null ? "—" : `${questionsThisWeek} questions`}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-surface-subtle p-3.5">
+                  <div className="text-sm font-bold text-muted">Working on</div>
+                  <div className="pt-0.5 text-base font-extrabold">{workingOn ?? "—"}</div>
+                </div>
               </div>
-            </div>
-            <div className="rounded-2xl bg-surface-subtle p-3.5">
-              <div className="text-sm font-bold text-muted">Working on</div>
-              <div className="pt-0.5 text-base font-extrabold">{workingOn ?? "—"}</div>
-            </div>
-          </div>
-          <p className="-mt-2 text-sm text-muted">
-            Opens {displayName}&apos;s dashboard, practice, mastery and AI Tutor on this device.
-            Return here to end the session.
-          </p>
+              <p className="-mt-2 text-sm text-muted">
+                Opens {displayName}&apos;s dashboard, practice, mastery and AI Tutor on this device.
+                Return here to end the session.
+              </p>
 
-          <LearnerAssignments learnerId={learnerId} />
-          <p className="text-sm text-muted">{tier.note}</p>
-          <GuardianAssignQuiz learnerId={learnerId} rosterId={enrollment.roster_id} />
+              <LearnerAssignments learnerId={learnerId} rosterId={selectedEnrollment.roster_id} />
+              <p className="text-sm text-muted">{tier.note}</p>
+              <GuardianAssignQuiz learnerId={learnerId} rosterId={selectedEnrollment.roster_id} />
 
-          <details className="border-t border-border pt-3.5">
-            <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
-              Standards covered
-            </summary>
-            <div className="flex flex-col gap-2 pt-1.5">
-              <GuardianLearnerStandards learnerId={learnerId} />
-            </div>
-          </details>
+              <details className="border-t border-border pt-3.5">
+                <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
+                  Standards covered
+                </summary>
+                <div className="flex flex-col gap-2 pt-1.5">
+                  <GuardianLearnerStandards
+                    learnerId={learnerId}
+                    subjectId={selectedEnrollment.subject_id}
+                  />
+                </div>
+              </details>
 
-          <div className="flex flex-col gap-3.5 border-t border-border pt-3.5">
-            <CareerConnectionsToggle learnerId={learnerId} displayName={displayName} />
-            <details>
-              <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
-                See the career connections
-              </summary>
-              <div className="flex flex-col gap-2 pt-1.5">
-                <GuardianLearnerCareerConnections learnerId={learnerId} />
+              <div className="flex flex-col gap-3.5 border-t border-border pt-3.5">
+                <CareerConnectionsToggle learnerId={learnerId} displayName={displayName} />
+                <details>
+                  <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
+                    See the career connections
+                  </summary>
+                  <div className="flex flex-col gap-2 pt-1.5">
+                    <GuardianLearnerCareerConnections
+                      learnerId={learnerId}
+                      subjectId={selectedEnrollment.subject_id}
+                    />
+                  </div>
+                </details>
               </div>
-            </details>
-          </div>
+            </>
+          )}
+
+          {enrollments.length === 1 && !addOpen && (
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="flex min-h-12 w-fit items-center gap-2 rounded-full border-2 border-dashed border-border px-4.5 font-extrabold text-primary"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              Add a subject
+            </button>
+          )}
+
+          {addOpen && joinSection}
         </>
       ) : (
-        <section className="flex flex-col gap-3.5 border-t border-border pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-heading text-xl font-bold text-heading">Join a class</h3>
-            <div role="tablist" aria-label="How to join" className="flex gap-1 rounded-full bg-surface-subtle p-1">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={joinTab === "browse"}
-                onClick={() => setJoinTab("browse")}
-                className={`min-h-10 rounded-full px-4 text-sm font-extrabold ${joinTab === "browse" ? "bg-surface text-heading shadow-sm" : "text-muted"}`}
-              >
-                Browse classes
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={joinTab === "code"}
-                onClick={() => setJoinTab("code")}
-                className={`min-h-10 rounded-full px-4 text-sm font-extrabold ${joinTab === "code" ? "bg-surface text-heading shadow-sm" : "text-muted"}`}
-              >
-                Have a code?
-              </button>
-            </div>
-          </div>
-          {joinTab === "browse" ? (
-            <ClassDirectoryBrowse learnerId={learnerId} onNeedCode={() => setJoinTab("code")} />
-          ) : (
-            <JoinRosterForm learnerId={learnerId} />
-          )}
-        </section>
+        joinSection
       )}
     </article>
   );

@@ -25,20 +25,29 @@ interface SubjectStandards {
 
 export interface GuardianLearnerStandardsProps {
   learnerId: string;
+  // spec 044 FR-002 (US1): scope to one subject (the selected card tab)
+  // instead of every enrolled subject combined, once a learner has more
+  // than one enrollment -- undefined keeps today's "every subject" sum.
+  subjectId?: string;
 }
 
-export default function GuardianLearnerStandards({ learnerId }: GuardianLearnerStandardsProps) {
+export default function GuardianLearnerStandards({
+  learnerId,
+  subjectId,
+}: GuardianLearnerStandardsProps) {
   const [bySubject, setBySubject] = useState<SubjectStandards[]>([]);
 
   useEffect(() => {
     let cancelled = false;
     listLearnerEnrollments(learnerId)
       .then(async (result) => {
-        const subjectIds = [...new Set(result.enrollments.map((e) => e.subject_id))];
+        const subjectIds = [...new Set(result.enrollments.map((e) => e.subject_id))].filter(
+          (id) => subjectId === undefined || id === subjectId,
+        );
         const results = await Promise.all(
-          subjectIds.map(async (subjectId) => {
-            const state = await getMasteryState(learnerId, subjectId);
-            return { subjectId, standards: state.standards ?? [] };
+          subjectIds.map(async (id) => {
+            const state = await getMasteryState(learnerId, id);
+            return { subjectId: id, standards: state.standards ?? [] };
           }),
         );
         if (!cancelled) setBySubject(results);
@@ -49,7 +58,7 @@ export default function GuardianLearnerStandards({ learnerId }: GuardianLearnerS
     return () => {
       cancelled = true;
     };
-  }, [learnerId]);
+  }, [learnerId, subjectId]);
 
   return (
     <>

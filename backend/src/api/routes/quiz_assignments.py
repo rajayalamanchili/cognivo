@@ -281,18 +281,26 @@ class ListLearnerAssignmentsOut(BaseModel):
 @router.get("/api/learners/{learner_id}/assignments", response_model=ListLearnerAssignmentsOut)
 def list_learner_assignments_route(
     learner_id: uuid.UUID,
+    roster_id: uuid.UUID | None = None,
     guardian: RealGuardianAccount = Depends(current_guardian),
     db: Session = Depends(get_db),
 ) -> ListLearnerAssignmentsOut:
+    """spec 044 FR-002/research.md §3: an optional `roster_id` scopes the
+    list to one enrollment's own assignments, so Guardian · My learners'
+    per-subject tabs don't mix every enrollment's assignments together
+    on each tab -- omitted keeps today's "every assignment across every
+    roster" behavior.
+    """
     _get_own_learner(db, learner_id, guardian)
 
-    rows = (
+    query = (
         db.query(QuizAssignmentTarget, QuizAssignment)
         .join(QuizAssignment, QuizAssignment.assignment_id == QuizAssignmentTarget.assignment_id)
         .filter(QuizAssignmentTarget.learner_id == learner_id)
-        .order_by(QuizAssignment.created_at)
-        .all()
     )
+    if roster_id is not None:
+        query = query.filter(QuizAssignment.roster_id == roster_id)
+    rows = query.order_by(QuizAssignment.created_at).all()
 
     quiz_session_ids = [
         target.quiz_session_id for target, _assignment in rows if target.quiz_session_id is not None

@@ -31,6 +31,14 @@ export default function GuardianLearnersPage() {
   const [learners, setLearners] = useState<MyLearner[]>([]);
   const [loadingLearners, setLoadingLearners] = useState(true);
 
+  // spec 044 FR-004: re-fetches the guardian's full learner/enrollment
+  // list (the only source that carries `grade`, unlike
+  // `listLearnerEnrollments`) so a card can select a newly-joined tab
+  // without a second, differently-shaped endpoint.
+  function refreshLearners() {
+    return listMyLearners().then((result) => setLearners(result.learners));
+  }
+
   useEffect(() => {
     let cancelled = false;
     listMyLearners()
@@ -89,7 +97,8 @@ export default function GuardianLearnersPage() {
             key={learner.learner_id}
             learnerId={learner.learner_id}
             displayName={learner.display_name}
-            enrollment={learner.enrollment}
+            enrollments={learner.enrollments}
+            onEnrollmentsChanged={refreshLearners}
           />
         ))}
       </div>

@@ -1343,8 +1343,15 @@ export interface ListLearnerAssignmentsResponse {
   assignments: LearnerAssignment[];
 }
 
-export function listLearnerAssignments(learnerId: string): Promise<ListLearnerAssignmentsResponse> {
-  return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments`);
+// spec 044 FR-002 (US1): an optional `rosterId` scopes the list to one
+// enrollment's own assignments -- omitted keeps today's "every
+// assignment across every roster" behavior (research.md §3).
+export function listLearnerAssignments(
+  learnerId: string,
+  rosterId?: string,
+): Promise<ListLearnerAssignmentsResponse> {
+  const query = rosterId ? `?roster_id=${rosterId}` : "";
+  return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments${query}`);
 }
 
 // Identical response shape to `startQuiz` (spec 005) -- reuses
