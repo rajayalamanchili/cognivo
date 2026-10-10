@@ -304,7 +304,7 @@ export default function DashboardSubjectSection({
                   Start practicing
                 </Link>
                 <Link
-                  href="/tutor"
+                  href={`/tutor?subject=${subjectId}`}
                   className="rounded-full border-2 border-primary/30 px-6 py-3 text-[17px] font-extrabold text-primary"
                 >
                   Ask the AI Tutor first

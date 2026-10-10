@@ -109,14 +109,14 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 3
 
-- [ ] T026 [P] [US3] Test the inline panel opens on both "Ask the AI Tutor" entry points (mid-question and post-answer), auto-sends a hint referencing the current question's topic/stem, and the question stays rendered (no overlay), in `frontend/tests/unit/practice-flow.test.tsx`.
-- [ ] T027 [P] [US3] Test closing the panel preserves the in-progress answer/flag/read-aloud state on the question underneath, same file. Also test the get-or-create/resume case: if the learner already has an open Tutor Session for Practice's current subject, opening the panel sends the hint into that existing session rather than starting a new one (FR-017).
+- [X] T026 [P] [US3] Test the inline panel opens on both "Ask the AI Tutor" entry points (mid-question and post-answer), auto-sends a hint referencing the current question's topic/stem, and the question stays rendered (no overlay), in `frontend/tests/unit/practice-flow.test.tsx`.
+- [X] T027 [P] [US3] Test closing the panel preserves the in-progress answer/flag/read-aloud state on the question underneath, same file. Also test the get-or-create/resume case: if the learner already has an open Tutor Session for Practice's current subject, opening the panel sends the hint into that existing session rather than starting a new one (FR-017).
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Add a collapsible side-panel layout to `practice-flow.tsx`'s "answering" and "result" phases (split view, question always visible -- FR-013), opening/resuming a Tutor Session for Practice's current subject via the existing `openTutorSession` and mounting `TutorChat.tsx` inside it (FR-012).
-- [ ] T029 [US3] On opening, auto-compose and send one message through `TutorChat`'s existing submit path -- referencing the current question's topic and stem, explicitly asking for a hint not the answer -- without the learner typing first (FR-014-FR-016).
-- [ ] T030 [US3] Replace both "Ask the AI Tutor"/"Talk it through with the AI Tutor" plain `<Link href="/tutor">` navigations in `practice-flow.tsx` with the panel toggle from T028.
+- [X] T028 [US3] Add a collapsible side-panel layout to `practice-flow.tsx`'s "answering" and "result" phases (split view, question always visible -- FR-013), opening/resuming a Tutor Session for Practice's current subject via the existing `openTutorSession` and mounting `TutorChat.tsx` inside it (FR-012).
+- [X] T029 [US3] On opening, auto-compose and send one message through `TutorChat`'s existing submit path -- referencing the current question's topic and stem, explicitly asking for a hint not the answer -- without the learner typing first (FR-014-FR-016).
+- [X] T030 [US3] Replace both "Ask the AI Tutor"/"Talk it through with the AI Tutor" plain `<Link href="/tutor">` navigations in `practice-flow.tsx` with the panel toggle from T028.
 
 **Checkpoint**: quickstart.md Story 3. User Stories 1-3 all independently functional.
 
@@ -130,15 +130,15 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 4
 
-- [ ] T031 [P] [US4] Test `TutorChat`'s suggested prompts reflect an optional `currentTopicDisplayName` prop when provided, and fall back to today's generic wording when absent, in `frontend/tests/unit/tutor-chat.test.tsx`.
-- [ ] T032 [P] [US4] Test Dashboard's "Ask the AI Tutor first" link carries `?subject=`, and `tutor-flow.tsx` skips its picking phase when that param is present, in the existing dashboard/tutor test files.
+- [X] T031 [P] [US4] Test `TutorChat`'s suggested prompts reflect an optional `currentTopicDisplayName` prop when provided, and fall back to today's generic wording when absent, in `frontend/tests/unit/tutor-chat.test.tsx`.
+- [X] T032 [P] [US4] Test Dashboard's "Ask the AI Tutor first" link carries `?subject=`, and `tutor-flow.tsx` skips its picking phase when that param is present, in the existing dashboard/tutor test files.
 
 ### Implementation for User Story 4
 
-- [ ] T033 [US4] Add optional `currentTopicDisplayName?: string` prop to `TutorChat.tsx`; `SUGGESTED_PROMPTS` becomes a small function substituting the topic name into each prompt's wording when provided (FR-020/FR-021).
-- [ ] T034 [P] [US4] Update `DashboardSubjectSection.tsx`'s "Ask the AI Tutor first" link to `href={\`/tutor?subject=${subjectId}\`}` (FR-020).
-- [ ] T035 [US4] Update `tutor-flow.tsx` to read `?subject=` via `useSearchParams` (mirroring Practice's existing `urlSubjectId` pattern), skip `phase: "picking"` when present, and pass `topicPreview.next_topic.display_name` into `TutorChat`'s new prop (T033).
-- [ ] T036 [US4] Pass the current question's topic display name (via `formatTopicId`, or the subject's topic-priority preview) into `TutorChat` from Practice's inline panel (T028), so Story 3's panel also gets topic-worded prompts (spec Acceptance Scenario 5).
+- [X] T033 [US4] Add optional `currentTopicDisplayName?: string` prop to `TutorChat.tsx`; `SUGGESTED_PROMPTS` becomes a small function substituting the topic name into each prompt's wording when provided (FR-020/FR-021).
+- [X] T034 [P] [US4] Update `DashboardSubjectSection.tsx`'s "Ask the AI Tutor first" link to `href={\`/tutor?subject=${subjectId}\`}` (FR-020).
+- [X] T035 [US4] Update `tutor-flow.tsx` to read `?subject=` via `useSearchParams` (mirroring Practice's existing `urlSubjectId` pattern), skip `phase: "picking"` when present, and pass `topicPreview.next_topic.display_name` into `TutorChat`'s new prop (T033).
+- [X] T036 [US4] Pass the current question's topic display name (via `formatTopicId`, or the subject's topic-priority preview) into `TutorChat` from Practice's inline panel (T028), so Story 3's panel also gets topic-worded prompts (spec Acceptance Scenario 5).
 
 **Checkpoint**: quickstart.md Story 4. User Stories 1-4 all independently functional.
 

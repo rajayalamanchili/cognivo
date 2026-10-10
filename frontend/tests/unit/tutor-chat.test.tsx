@@ -183,4 +183,43 @@ describe("TutorChat", () => {
       expect(screen.queryByTestId("tutor-error-still-answering")).not.toBeInTheDocument(),
     );
   });
+
+  // spec 044 FR-021/FR-022 (US4)
+  it("words the suggested prompts around the current topic when provided, falling back to generic wording otherwise", async () => {
+    const { rerender } = render(<TutorChat sessionId="session-1" />);
+    expect(screen.getByRole("button", { name: "Give me a hint, not the answer" })).toBeInTheDocument();
+
+    rerender(<TutorChat sessionId="session-1" currentTopicDisplayName="Linear Equations" />);
+    expect(
+      screen.getByRole("button", { name: "Give me a hint about Linear Equations, not the answer" }),
+    ).toBeInTheDocument();
+  });
+
+  // spec 044 FR-015/FR-017 (US3): Practice's inline panel drives this
+  // prop instead of the learner typing first.
+  it("auto-sends an initial message once, and re-sends only when it changes", async () => {
+    vi.mocked(api.streamTutorMessage).mockImplementation(async (_sessionId, _question, onEvent) => {
+      onEvent({ delta: "a hint" });
+      onEvent({ done: true, exchange_id: "ex-1" });
+    });
+
+    const { rerender } = render(
+      <TutorChat sessionId="session-1" initialMessage="Hint about question 1" />,
+    );
+
+    await waitFor(() => expect(api.streamTutorMessage).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("tutor-chat-learner-message")).toHaveTextContent(
+      "Hint about question 1",
+    );
+
+    // Same value again (e.g. re-opening the panel for the same question) --
+    // no duplicate send.
+    rerender(<TutorChat sessionId="session-1" initialMessage="Hint about question 1" />);
+    await waitFor(() => expect(api.streamTutorMessage).toHaveBeenCalledTimes(1));
+
+    // A new value (advancing to the next question) sends a fresh hint
+    // into the same session.
+    rerender(<TutorChat sessionId="session-1" initialMessage="Hint about question 2" />);
+    await waitFor(() => expect(api.streamTutorMessage).toHaveBeenCalledTimes(2));
+  });
 });
