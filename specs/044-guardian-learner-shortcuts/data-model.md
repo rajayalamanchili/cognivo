@@ -71,9 +71,11 @@ idempotency guard -- already present -- is exactly what makes FR-024's
 "Take placement" visibility rule (shown only when no row exists yet) free
 to implement: the frontend's "should I show this tile action" check and
 the backend's own "should I actually assign a grade" check are the same
-underlying fact, queried twice (once via a lightweight existence check
-the frontend can use, once by the backend's existing guard), never two
-different sources of truth.
+underlying fact, queried twice -- once via the same existence check
+exposed as the new `has_starting_grade: bool` field on `GET /api/
+learners/{learner_id}/enrollments`'s `LearnerEnrollmentOut` (contracts/
+api-changes.md's `rosters.py` section), once by the backend's existing
+guard -- never two different sources of truth.
 
 ## QuizAssignment
 

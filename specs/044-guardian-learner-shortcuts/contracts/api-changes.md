@@ -59,6 +59,18 @@ same default-to-demo-learner behavior as above) and the identical
 `learner_id` from the `GeneratedQuestion` row a prior `start_placement`
 call created (research.md §2).
 
+## `backend/src/api/routes/rosters.py`
+
+### `GET /api/learners/{learner_id}/enrollments` (new response field, FR-024)
+
+`LearnerEnrollmentOut` gains `has_starting_grade: bool`, computed via a
+`GradeProgress` existence check for that `(learner_id, subject_id)` --
+the same "no second round-trip" precedent `is_default_instructor_roster`
+already establishes on this exact response. Lets the frontend decide
+whether to offer "Take placement" on a given subject's tile without a
+second request. No other field changes; `is_default_instructor_roster`
+and the rest of the response are unchanged.
+
 ## `backend/src/api/routes/quiz_assignments.py`
 
 ### `GET /api/learners/{learner_id}/assignments` (new query param, research.md §3)
@@ -73,9 +85,12 @@ only behavior). `AssignmentForLearnerOut`'s response shape is unchanged.
 
 - `submit_placement`, `skip_placement_question` (placement.py) -- already
   learner-agnostic by construction (research.md §2).
-- Every other route in `learners.py`, `rosters.py`, `enrollment.py`
-  (roster join/create logic) -- Story 1's multi-enrollment support needed
-  only a response-shape change, not a new join path (`Enrollment`'s
-  existing `(learner_id, roster_id)` uniqueness already allowed it).
+- Every other route in `learners.py`, `rosters.py` (roster join/create
+  logic, `list_learner_enrollments_route`'s own join itself), and
+  `enrollment.py` -- Story 1's multi-enrollment support needed only a
+  response-shape change, not a new join path (`Enrollment`'s existing
+  `(learner_id, roster_id)` uniqueness already allowed it); Story 5's own
+  addition to `rosters.py` (above) is one new field on an existing
+  response, not a new join or route.
 - Mastery/sequencing/grading endpoints -- untouched by every story in
   this feature.

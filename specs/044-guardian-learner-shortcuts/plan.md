@@ -55,7 +55,7 @@ a response-shape, gating, and frontend-layout feature throughout.
 
 **Constraints**: Zero mastery/grading/sequencing-logic change (spec FR-025's `determine_starting_grade` reuse, FR-010's "identical in every other respect" session behavior); placement MUST stay fully optional, never gating Practice/Dashboard/Mastery/quizzes (FR-027); Story 6's warning covers in-app navigation only, no native `beforeunload` handler (FR-031); "assigned quizzes... switch per tab" (spec FR-002) requires a small, previously-unscoped backend addition -- `GET /api/learners/{learner_id}/assignments` has no subject/roster filter today even though `QuizAssignment.roster_id` already exists, so every assignment across every enrollment shows on every tab unless filtered (see research.md)
 
-**Scale/Scope**: 1 backend response-shape change (`GET /api/learners/mine`), 2 backend endpoints gaining real-learner support (`start_practice_session` + 3 siblings, `start_placement`), 1 small backend addition not previously called out at spec time (`roster_id` filter on `GET /api/learners/{learner_id}/assignments`), ~9 frontend files changed (`GuardianLearnerCard.tsx`, the guardian learners page, the guardian settings page, `GuardianLearnerStandards.tsx`, `GuardianLearnerCareerConnections.tsx`, `LearnerAssignments.tsx`, `practice-flow.tsx`, `tutor-flow.tsx`/`TutorChat.tsx`, `DashboardSubjectSection.tsx`, `Nav.tsx`), 1 new shared frontend module (a leave-guard hook for Story 6), zero new/changed migrations
+**Scale/Scope**: 1 backend response-shape change (`GET /api/learners/mine`), 2 backend endpoints gaining real-learner support (`start_practice_session` + 3 siblings, `start_placement`), 2 small backend additions not previously called out at spec time (`roster_id` filter on `GET /api/learners/{learner_id}/assignments`; `has_starting_grade` field on `GET /api/learners/{learner_id}/enrollments`), ~9 frontend files changed (`GuardianLearnerCard.tsx`, the guardian learners page, the guardian settings page, `GuardianLearnerStandards.tsx`, `GuardianLearnerCareerConnections.tsx`, `LearnerAssignments.tsx`, `practice-flow.tsx`, `tutor-flow.tsx`/`TutorChat.tsx`, `DashboardSubjectSection.tsx`, `Nav.tsx`), 1 new shared frontend module (a leave-guard hook for Story 6), zero new/changed migrations
 
 ## Constitution Check
 
@@ -108,17 +108,22 @@ backend/
 │   │   │                                  #   skip_placement_question unchanged (already
 │   │   │                                  #   learner-agnostic -- derive learner_id from the
 │   │   │                                  #   GeneratedQuestion row)
-│   │   └── quiz_assignments.py           # list_learner_assignments_route gains an optional
-│   │                                      #   `roster_id` query param, filtering
-│   │                                      #   QuizAssignment.roster_id (research.md) --
-│   │                                      #   closes a gap FR-002 implies but didn't name
+│   │   ├── quiz_assignments.py           # list_learner_assignments_route gains an optional
+│   │   │                                  #   `roster_id` query param, filtering
+│   │   │                                  #   QuizAssignment.roster_id (research.md) --
+│   │   │                                  #   closes a gap FR-002 implies but didn't name
+│   │   └── rosters.py                    # list_learner_enrollments_route's LearnerEnrollmentOut
+│   │                                      #   gains `has_starting_grade: bool` (FR-024),
+│   │                                      #   same no-second-round-trip precedent
+│   │                                      #   is_default_instructor_roster already set
 │   └── services/demo_learner.py          # unchanged -- demo path stays the default fallback
 │                                          #   everywhere a learner_id param is now optional
 └── tests/
     ├── api/test_learners.py              # + multi-enrollment response shape
     ├── api/test_practice_sessions.py     # + real-learner start/resume/gating cases
     ├── api/test_placement.py             # + real-learner start case, idempotency guard
-    └── api/test_quiz_assignments.py      # + roster_id filter case
+    ├── api/test_quiz_assignments.py      # + roster_id filter case
+    └── api/test_rosters.py               # + has_starting_grade field case
 
 frontend/
 ├── src/

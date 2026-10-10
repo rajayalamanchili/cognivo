@@ -447,7 +447,7 @@ warning appears -- there's nothing to lose.
 - Advancing to the next question while the panel is open leaves the same
   Tutor Session's chat history in place (it's one ongoing conversation for
   the subject); a fresh hint request for the new question is sent into that
-  same session rather than starting a new one, consistent with FR-015's
+  same session rather than starting a new one, consistent with FR-017's
   existing get-or-create behavior.
 - While the topic-priority lookup for suggested prompts is still in flight
   (or if it fails), the prompts shown are today's generic, subject-agnostic
@@ -600,11 +600,16 @@ warning appears -- there's nothing to lose.
   and no `GradeProgress` row yet exists for the learner in it; the action
   MUST NOT appear for an ungraded subject or once a `GradeProgress` row
   exists (whether from a prior placement or from organic unlocking).
-- **FR-025**: Activating "Take placement" MUST open the learner's real
-  session (the same hand-off already used by "Open {name}'s learning" and
-  "Start practice") directly into that subject's existing placement flow,
-  with the placement flow itself behaving identically to how it already
-  does for the demo learner.
+- **FR-025**: `start_placement` MUST accept and act on a real `learner_id`,
+  gated the same way `require_learner_ownership_if_real` already gates
+  other real-learner endpoints -- today it is demo-learner-only
+  (`get_demo_learner(db)`, unconditional), the same gap class FR-008
+  closes for timed practice sessions. Once reachable, activating "Take
+  placement" MUST open the learner's real session (the same hand-off
+  already used by "Open {name}'s learning" and "Start practice") directly
+  into that subject's existing placement flow, with the placement flow
+  itself behaving identically to how it already does for the demo
+  learner.
 - **FR-026**: Completing placement for a real learner MUST assign a
   starting grade the same way it already does for the demo learner, using
   the same existing computation (`determine_starting_grade`) with no new
@@ -666,7 +671,7 @@ of, existing ones:
   the same already-fetched result to word suggested prompts, rather than
   computing or requesting anything new.
 - **GradeProgress** (`backend/src/models/grade_progress.py`): unchanged
-  shape and monotonic-high-water-mark semantics; FR-024/FR-026 let a real
+  shape and monotonic-high-water-mark semantics; FR-025/FR-026 let a real
   `learner_id` reach the exact same row-creation path
   `_assign_starting_grade_if_graded` already uses for the demo learner,
   rather than adding a second way to assign a starting grade.
@@ -716,8 +721,10 @@ of, existing ones:
   `PracticeFlow`'s subject `<select>`).
 - "Learner subject tile" (the user's phrase) refers to the per-enrollment
   tab this feature adds to a learner's card on Guardian · My learners
-  (FR-002), not the Dashboard's own subject-pill switcher (which keeps its
-  existing behavior per FR-011/FR-019).
+  (FR-002), not the Dashboard's own subject-pill switcher -- no FR in
+  this spec touches that switcher at all; it is simply never mentioned
+  by any of Stories 1-6, so it keeps its current behavior by omission,
+  not by any explicit "unchanged" requirement.
 - The practice-shortcut's time limit is fixed at 15 minutes, per the user's
   literal request -- it does not expose a different time-limit choice; a
   guardian who wants a different limit, or untimed practice, still uses
@@ -732,9 +739,13 @@ of, existing ones:
 - This feature does not change how a learner's own enrollment is selected
   or defaulted for Dashboard/Mastery once a guardian opens the learner's
   session (`enterRealLearnerSession`) -- those pages keep showing their
-  own existing subject pickers/pills unchanged (FR-011); the Tutor's own
-  blank picker is still shown when reached via its plain nav link (FR-019,
-  FR-023). Placement is the one exception by design (Story 5): it has no
+  own existing subject pickers/pills unchanged by omission (no FR in this
+  spec touches them, same as the previous Assumption's point about
+  Dashboard's switcher); Practice's picker specifically stays unchanged
+  for every entry path besides Story 2's shortcut (FR-011), and the
+  Tutor's own blank picker is still shown when reached via its plain nav
+  link (FR-019, FR-023). Placement is the one exception by design (Story
+  5): it has no
   subject-picker to begin with (it's always reached already scoped to one
   subject, same as the demo learner today), so "skipping a picker" doesn't
   apply to it the way it does for Practice/Tutor. Four explicit entry

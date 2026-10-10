@@ -77,3 +77,16 @@
   FR-001-FR-033 cross-reference sweep (every reference resolves, no
   numbering gaps) and heading-structure check both passed after the fix;
   all checklist items still pass.
+- `/speckit-analyze` (post-`/speckit-tasks`) found and the user asked to
+  fix: FR-025 understated its own backend-gating mechanism relative to
+  FR-008's level of detail (now explicit); two wrong in-prose FR
+  citations in spec.md (Edge Cases' FR-015 -> FR-017; Key Entities'
+  FR-024 -> FR-025 for GradeProgress); one wrong citation in tasks.md's
+  T028 (FR-011 -> FR-012); two Assumptions bullets over-citing FR-011/
+  FR-019 for Dashboard's own subject-pill switcher (reworded to not
+  imply FR coverage that doesn't exist); and the most significant
+  finding -- `has_starting_grade` (a new field on `GET /api/learners/
+  {learner_id}/enrollments`, needed by tasks.md's T042/T043) had never
+  been reconciled back into `contracts/api-changes.md` (which explicitly
+  listed `rosters.py` as unchanged) or `plan.md`'s Project Structure.
+  All now fixed and cross-checked; all checklist items still pass.
