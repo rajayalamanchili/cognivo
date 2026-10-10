@@ -119,11 +119,14 @@ backend/
 │   └── services/demo_learner.py          # unchanged -- demo path stays the default fallback
 │                                          #   everywhere a learner_id param is now optional
 └── tests/
-    ├── api/test_learners.py              # + multi-enrollment response shape
-    ├── api/test_practice_sessions.py     # + real-learner start/resume/gating cases
-    ├── api/test_placement.py             # + real-learner start case, idempotency guard
-    ├── api/test_quiz_assignments.py      # + roster_id filter case
-    └── api/test_rosters.py               # + has_starting_grade field case
+    ├── integration/test_my_learners.py           # new -- multi-enrollment response shape
+    │                                              #   (no backend/tests/api/ dir in this repo;
+    │                                              #   real convention is integration/+contract/)
+    ├── contract/test_practice_session_*.py       # extend existing files -- real-learner
+    │                                              #   start/resume/gating cases
+    ├── integration/test_placement.py             # extend existing -- real-learner start case
+    ├── integration/test_quiz_assignment_roster_filter.py  # new -- roster_id filter case
+    └── integration/test_learner_enrollments.py   # extend existing -- has_starting_grade field
 
 frontend/
 ├── src/

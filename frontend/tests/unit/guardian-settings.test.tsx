@@ -38,7 +38,7 @@ const ONE_LEARNER = {
     {
       learner_id: "learner-1",
       display_name: "Eli",
-      enrollment: { roster_id: "roster-1", subject_id: "algebra-1", grade: 7 },
+      enrollments: [{ roster_id: "roster-1", subject_id: "algebra-1", grade: 7 }],
     },
   ],
 };
@@ -57,7 +57,7 @@ describe("GuardianSettingsPage", () => {
     render(<GuardianSettingsPage />);
 
     expect(await screen.findByDisplayValue("parent@example.com")).toBeInTheDocument();
-    expect(await screen.findByText("Grade 7 · algebra-1")).toBeInTheDocument();
+    expect(await screen.findByText("Grade 7 · Algebra 1")).toBeInTheDocument();
     expect((await screen.findAllByText("Eli")).length).toBeGreaterThan(0);
   });
 
@@ -155,7 +155,7 @@ describe("GuardianSettingsPage", () => {
     const user = userEvent.setup();
     render(<GuardianSettingsPage />);
 
-    await screen.findByText("Grade 7 · algebra-1");
+    await screen.findByText("Grade 7 · Algebra 1");
     await user.selectOptions(screen.getByDisplayValue("Choose a learner"), "learner-1");
     await user.click(screen.getByRole("button", { name: "Request deletion" }));
 
@@ -174,7 +174,7 @@ describe("GuardianSettingsPage", () => {
     const user = userEvent.setup();
     render(<GuardianSettingsPage />);
 
-    await screen.findByText("Grade 7 · algebra-1");
+    await screen.findByText("Grade 7 · Algebra 1");
     await user.click(screen.getByRole("button", { name: "Request account deletion" }));
 
     expect(api.submitDeletionRequest).toHaveBeenCalledWith("guardian", "guardian-1");
@@ -201,7 +201,7 @@ describe("GuardianSettingsPage", () => {
     const user = userEvent.setup();
     render(<GuardianSettingsPage />);
 
-    await screen.findByText("Grade 7 · algebra-1");
+    await screen.findByText("Grade 7 · Algebra 1");
     await user.selectOptions(screen.getByDisplayValue("Choose a learner"), "learner-1");
     await user.click(screen.getByRole("button", { name: "Request deletion" }));
     await screen.findByText(/Status: pending/);
@@ -210,5 +210,34 @@ describe("GuardianSettingsPage", () => {
 
     expect(api.getDeletionRequestStatus).toHaveBeenCalledWith("del-1");
     expect(await screen.findByText(/Still pending as of/)).toBeInTheDocument();
+  });
+
+  it("summarizes a learner enrolled in multiple classes (spec 044 FR-001)", async () => {
+    vi.mocked(api.listMyLearners).mockReset().mockResolvedValue({
+      learners: [
+        {
+          learner_id: "learner-1",
+          display_name: "Eli",
+          enrollments: [
+            { roster_id: "roster-1", subject_id: "algebra-1", grade: 7 },
+            { roster_id: "roster-2", subject_id: "biology", grade: null },
+          ],
+        },
+      ],
+    });
+    render(<GuardianSettingsPage />);
+
+    expect(await screen.findByText("2 classes · Algebra 1, Biology")).toBeInTheDocument();
+  });
+
+  it("shows 'Not in a class yet' for a learner with zero enrollments", async () => {
+    vi.mocked(api.listMyLearners).mockReset().mockResolvedValue({
+      learners: [
+        { learner_id: "learner-1", display_name: "Eli", enrollments: [] },
+      ],
+    });
+    render(<GuardianSettingsPage />);
+
+    expect(await screen.findByText("Not in a class yet")).toBeInTheDocument();
   });
 });

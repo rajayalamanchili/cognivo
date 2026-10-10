@@ -26,8 +26,8 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 **Purpose**: Confirm the exact existing patterns this feature mirrors, before touching any of them (zero new dependency, zero migration -- nothing else to initialize).
 
-- [ ] T001 [P] Re-read `require_learner_ownership_if_real`/`optional_session_claims` in `backend/src/services/auth/dependencies.py` and `get_next_question`'s exact `has_placement_data` bypass in `backend/src/api/routes/questions.py` (research.md §1) -- confirm the exact call shape to mirror in Phase 4/7 before writing those routes.
-- [ ] T002 [P] Confirm every consumer of `MyLearnerOut.enrollment`/`MyLearnerEnrollment` via `grep -rn "\.enrollment\b" frontend/src backend/src` -- expect exactly two frontend consumers (`GuardianLearnerCard.tsx`, `frontend/src/app/(auth)/guardian/settings/page.tsx`) needing an update once the shape becomes a list (Phase 2).
+- [X] T001 [P] Re-read `require_learner_ownership_if_real`/`optional_session_claims` in `backend/src/services/auth/dependencies.py` and `get_next_question`'s exact `has_placement_data` bypass in `backend/src/api/routes/questions.py` (research.md §1) -- confirm the exact call shape to mirror in Phase 4/7 before writing those routes.
+- [X] T002 [P] Confirm every consumer of `MyLearnerOut.enrollment`/`MyLearnerEnrollment` via `grep -rn "\.enrollment\b" frontend/src backend/src` -- expect exactly two frontend consumers (`GuardianLearnerCard.tsx`, `frontend/src/app/(auth)/guardian/settings/page.tsx`) needing an update once the shape becomes a list (Phase 2).
 
 **Checkpoint**: Integration points confirmed -- Phase 2 can proceed.
 
@@ -39,10 +39,10 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 **⚠️ CRITICAL**: User Story 1 cannot start until T003 lands.
 
-- [ ] T003 Change `MyLearnerOut.enrollment: MyLearnerEnrollmentOut | None` to `enrollments: list[MyLearnerEnrollmentOut]` in `list_my_learners_route` (`backend/src/api/routes/learners.py`), returning every `(learner_id, roster)` row instead of collapsing to the first via the existing `setdefault` -- remove the `ponytail:` comment documenting the old gap (data-model.md §Enrollment, FR-001).
-- [ ] T004 [P] Update/add a backend test asserting a learner enrolled in two rosters gets both back as a list, in `backend/tests/api/test_learners.py`.
-- [ ] T005 [P] Update `MyLearnerEnrollment`/`MyLearner` TypeScript interfaces in `frontend/src/services/api.ts`: `enrollment: MyLearnerEnrollment | null` -> `enrollments: MyLearnerEnrollment[]`.
-- [ ] T006 [P] Update the per-learner summary line in `frontend/src/app/(auth)/guardian/settings/page.tsx` (~line 434) to read `learner.enrollments` (a list) -- e.g. join each enrollment's subject into one line, or show a count -- instead of the old singular `learner.enrollment`. `GuardianLearnerCard.tsx` itself is rewritten in Phase 3 (T011), not here.
+- [X] T003 Change `MyLearnerOut.enrollment: MyLearnerEnrollmentOut | None` to `enrollments: list[MyLearnerEnrollmentOut]` in `list_my_learners_route` (`backend/src/api/routes/learners.py`), returning every `(learner_id, roster)` row instead of collapsing to the first via the existing `setdefault` -- remove the `ponytail:` comment documenting the old gap (data-model.md §Enrollment, FR-001).
+- [X] T004 [P] Update/add a backend test asserting a learner enrolled in two rosters gets both back as a list, in `backend/tests/integration/test_my_learners.py` (new file -- no `backend/tests/api/` directory exists in this repo; real convention is `tests/integration/`, matching `test_learner_enrollments.py`'s sibling pattern).
+- [X] T005 [P] Update `MyLearnerEnrollment`/`MyLearner` TypeScript interfaces in `frontend/src/services/api.ts`: `enrollment: MyLearnerEnrollment | null` -> `enrollments: MyLearnerEnrollment[]`.
+- [X] T006 [P] Update the per-learner summary line in `frontend/src/app/(auth)/guardian/settings/page.tsx` (~line 434) to read `learner.enrollments` (a list) -- e.g. join each enrollment's subject into one line, or show a count -- instead of the old singular `learner.enrollment`. `GuardianLearnerCard.tsx` itself is rewritten in Phase 3 (T011), not here.
 
 **Checkpoint**: `GET /api/learners/mine` returns every enrollment; both non-card consumers of the old shape are fixed. User Story 1 can now proceed.
 
@@ -58,7 +58,7 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 - [ ] T007 [P] [US1] Test multi-enrollment tab rendering, switching, "Add a subject" always offered (even with 1+ enrollments), and no tab chrome for exactly one enrollment, in `frontend/tests/unit/guardian-learners.test.tsx`. Include one integration-style assertion that switching tabs updates stat tiles, standards, career connections, and assigned quizzes *together* (not just that each is individually filterable) (FR-002).
 - [ ] T008 [P] [US1] Test `GuardianLearnerStandards.tsx`/`GuardianLearnerCareerConnections.tsx`'s new `subjectId` filter (only that subject's standards/careers shown when provided) in their existing test files.
-- [ ] T009 [P] [US1] Test `list_learner_assignments_route`'s new `roster_id` filter (only that roster's assignments returned when provided, unfiltered when omitted) in `backend/tests/api/test_quiz_assignments.py`.
+- [ ] T009 [P] [US1] Test `list_learner_assignments_route`'s new `roster_id` filter (only that roster's assignments returned when provided, unfiltered when omitted) in `backend/tests/integration/test_quiz_assignment_roster_filter.py` (new file, following this repo's existing `test_quiz_assignment_*.py` naming -- no `backend/tests/api/` directory exists here).
 
 ### Implementation for User Story 1
 
@@ -85,8 +85,8 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Test `start_practice_session` with a real `learner_id`: success case, the zero-`MasteryState` bypass (research.md §1), and `ForbiddenError` for a learner belonging to a different guardian, in `backend/tests/api/test_practice_sessions.py`.
-- [ ] T019 [P] [US2] Test `get_practice_next_question`/`end_practice_session`/`get_practice_session_summary`'s new ownership check (using the session's own `learner_id`), same file.
+- [ ] T018 [P] [US2] Test `start_practice_session` with a real `learner_id`: success case, the zero-`MasteryState` bypass (research.md §1), and `ForbiddenError` for a learner belonging to a different guardian, in `backend/tests/contract/test_practice_session_start.py` (extend existing file -- no `backend/tests/api/` directory exists here).
+- [ ] T019 [P] [US2] Test `get_practice_next_question`/`end_practice_session`/`get_practice_session_summary`'s new ownership check (using the session's own `learner_id`), in their respective existing files: `backend/tests/contract/test_practice_session_next_question.py`, `test_practice_session_manual_end.py`, `test_practice_session_summary.py`.
 - [ ] T020 [P] [US2] Test Practice's new autostart entry (skips the picker, starts a 15-minute timed session directly given a subject + real-learner session) in `frontend/tests/unit/practice-flow.test.tsx`.
 
 ### Implementation for User Story 2
@@ -154,8 +154,8 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 5
 
-- [ ] T037 [P] [US5] Test `start_placement` with a real `learner_id`: success case and `ForbiddenError` for a different guardian's learner, in `backend/tests/api/test_placement.py`.
-- [ ] T038 [P] [US5] Test the new `has_starting_grade` field on `GET /api/learners/{learner_id}/enrollments` agrees with `_assign_starting_grade_if_graded`'s own `GradeProgress`-existence guard (no drift between the two checks), same file or `backend/tests/api/test_rosters.py`.
+- [ ] T037 [P] [US5] Test `start_placement` with a real `learner_id`: success case and `ForbiddenError` for a different guardian's learner, in `backend/tests/integration/test_placement.py` (extend existing file -- no `backend/tests/api/` directory exists here).
+- [ ] T038 [P] [US5] Test the new `has_starting_grade` field on `GET /api/learners/{learner_id}/enrollments` agrees with `_assign_starting_grade_if_graded`'s own `GradeProgress`-existence guard (no drift between the two checks), in `backend/tests/integration/test_learner_enrollments.py` (extend existing file).
 - [ ] T039 [P] [US5] Test "Take placement" appears only for a graded, not-yet-placed subject tile and opens Placement directly, in `frontend/tests/unit/guardian-learners.test.tsx`. Also test the regression case: a second learner in the same graded subject who never takes placement can still start/answer ordinary practice questions normally, with no gating on `has_starting_grade` anywhere outside the tile-visibility check itself (FR-027).
 
 ### Implementation for User Story 5
@@ -231,7 +231,7 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 # Tests together:
 Task: "Test multi-enrollment tab rendering in frontend/tests/unit/guardian-learners.test.tsx"
 Task: "Test subjectId filter in GuardianLearnerStandards/CareerConnections test files"
-Task: "Test roster_id filter in backend/tests/api/test_quiz_assignments.py"
+Task: "Test roster_id filter in backend/tests/integration/test_quiz_assignment_roster_filter.py"
 
 # Independent-file implementation together (after T011 lands):
 Task: "Add subjectId prop to GuardianLearnerStandards.tsx"

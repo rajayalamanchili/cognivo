@@ -831,8 +831,8 @@ export function createLearner(displayName: string): Promise<CreateLearnerRespons
 }
 
 // spec 041 FR-023: the guardian's full persisted learner set (not just
-// ones added this browser session), each with its current enrollment
-// (if any).
+// ones added this browser session), each with every current enrollment
+// (spec 044 FR-001 -- a learner can be in more than one class at once).
 export interface MyLearnerEnrollment {
   roster_id: string;
   subject_id: string;
@@ -842,7 +842,7 @@ export interface MyLearnerEnrollment {
 export interface MyLearner {
   learner_id: string;
   display_name: string;
-  enrollment: MyLearnerEnrollment | null;
+  enrollments: MyLearnerEnrollment[];
 }
 
 export interface ListMyLearnersResponse {
