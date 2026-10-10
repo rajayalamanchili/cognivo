@@ -122,6 +122,14 @@ export default function GuardianLearnerCard({
     router.push("/dashboard");
   }
 
+  // spec 044 FR-007/FR-009 (US2): same real-session hand-off as "Open
+  // {name}'s learning", but landing directly on a running 15-minute
+  // timed session for this one tile's subject instead of the dashboard.
+  function handleStartPractice(subjectId: string) {
+    enterRealLearnerSession(learnerId, displayName);
+    router.push(`/practice?subject=${subjectId}&autostart=1`);
+  }
+
   function handleJoined() {
     setAddOpen(false);
     onEnrollmentsChanged?.();
@@ -321,6 +329,14 @@ export default function GuardianLearnerCard({
                 Opens {displayName}&apos;s dashboard, practice, mastery and AI Tutor on this device.
                 Return here to end the session.
               </p>
+
+              <button
+                type="button"
+                onClick={() => handleStartPractice(selectedEnrollment.subject_id)}
+                className="flex min-h-11 w-fit items-center gap-2 rounded-full border-2 border-border px-4.5 font-extrabold text-heading"
+              >
+                Start practice
+              </button>
 
               <LearnerAssignments learnerId={learnerId} rosterId={selectedEnrollment.roster_id} />
               <p className="text-sm text-muted">{tier.note}</p>

@@ -85,17 +85,17 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 2
 
-- [ ] T018 [P] [US2] Test `start_practice_session` with a real `learner_id`: success case, the zero-`MasteryState` bypass (research.md §1), and `ForbiddenError` for a learner belonging to a different guardian, in `backend/tests/contract/test_practice_session_start.py` (extend existing file -- no `backend/tests/api/` directory exists here).
-- [ ] T019 [P] [US2] Test `get_practice_next_question`/`end_practice_session`/`get_practice_session_summary`'s new ownership check (using the session's own `learner_id`), in their respective existing files: `backend/tests/contract/test_practice_session_next_question.py`, `test_practice_session_manual_end.py`, `test_practice_session_summary.py`.
-- [ ] T020 [P] [US2] Test Practice's new autostart entry (skips the picker, starts a 15-minute timed session directly given a subject + real-learner session) in `frontend/tests/unit/practice-flow.test.tsx`.
+- [X] T018 [P] [US2] Test `start_practice_session` with a real `learner_id`: success case, the zero-`MasteryState` bypass (research.md §1), and `ForbiddenError` for a learner belonging to a different guardian, in `backend/tests/contract/test_practice_session_start.py` (extend existing file -- no `backend/tests/api/` directory exists here).
+- [X] T019 [P] [US2] Test `get_practice_next_question`/`end_practice_session`/`get_practice_session_summary`'s new ownership check (using the session's own `learner_id`), in their respective existing files: `backend/tests/contract/test_practice_session_next_question.py`, `test_practice_session_manual_end.py`, `test_practice_session_summary.py`.
+- [X] T020 [P] [US2] Test Practice's new autostart entry (skips the picker, starts a 15-minute timed session directly given a subject + real-learner session) in `frontend/tests/unit/practice-flow.test.tsx`.
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Add `learner_id: uuid.UUID | None = None` and `claims: SessionClaims | None = Depends(optional_session_claims)` to `start_practice_session` (`backend/src/api/routes/practice_sessions.py`); call `require_learner_ownership_if_real`; mirror `get_next_question`'s `has_placement_data` bypass for a non-demo real learner (FR-008, research.md §1).
-- [ ] T022 [US2] Add the same ownership check (using the already-resolved `practice_session.learner_id`, no new param needed) to `get_practice_next_question`, `end_practice_session`, `get_practice_session_summary`, same file.
-- [ ] T023 [P] [US2] Update `startPracticeSession` in `frontend/src/services/api.ts` to accept an optional `learnerId` param, included in the POST body when present.
-- [ ] T024 [US2] Add an autostart mode to `frontend/src/app/practice/practice-flow.tsx`: when a real learner session is active and a subject is supplied, skip `phase: "start"` and call `startPracticeSession(subjectId, 900, learnerId)` immediately (FR-008-FR-010).
-- [ ] T025 [US2] Add a "Start practice" action to each subject tile in `GuardianLearnerCard.tsx`, calling `enterRealLearnerSession` then navigating to Practice's autostart entry (T024) for that tile's subject (FR-007).
+- [X] T021 [US2] Add `learner_id: uuid.UUID | None = None` and `claims: SessionClaims | None = Depends(optional_session_claims)` to `start_practice_session` (`backend/src/api/routes/practice_sessions.py`); call `require_learner_ownership_if_real`; mirror `get_next_question`'s `has_placement_data` bypass for a non-demo real learner (FR-008, research.md §1).
+- [X] T022 [US2] Add the same ownership check (using the already-resolved `practice_session.learner_id`, no new param needed) to `get_practice_next_question`, `end_practice_session`, `get_practice_session_summary`, same file.
+- [X] T023 [P] [US2] Update `startPracticeSession` in `frontend/src/services/api.ts` to accept an optional `learnerId` param, included in the POST body when present.
+- [X] T024 [US2] Add an autostart mode to `frontend/src/app/practice/practice-flow.tsx`: when a real learner session is active and a subject is supplied, skip `phase: "start"` and call `startPracticeSession(subjectId, 900, learnerId)` immediately (FR-008-FR-010).
+- [X] T025 [US2] Add a "Start practice" action to each subject tile in `GuardianLearnerCard.tsx`, calling `enterRealLearnerSession` then navigating to Practice's autostart entry (T024) for that tile's subject (FR-007).
 
 **Checkpoint**: quickstart.md Story 2. User Stories 1-2 both independently functional.
 

@@ -61,6 +61,7 @@ vi.mock("@/components/JoinRosterForm", () => ({
 
 describe("GuardianLearnerCard", () => {
   beforeEach(() => {
+    push.mockClear();
     vi.mocked(api.getMasteryState).mockReset().mockResolvedValue({
       topics: [],
       unlocked_grade: null,
@@ -168,5 +169,27 @@ describe("GuardianLearnerCard", () => {
 
     await waitFor(() => expect(screen.getByTestId("stub-standards")).toHaveTextContent("biology"));
     expect(screen.getByRole("tab", { name: /algebra 1/i })).toBeInTheDocument();
+  });
+
+  it("spec 044 FR-007/FR-009 (US2): Start practice opens the real session and navigates to Practice's autostart entry for the selected tab's subject", async () => {
+    render(
+      <GuardianLearnerCard
+        learnerId="learner-1"
+        displayName="Eli"
+        enrollments={[
+          { roster_id: "r1", subject_id: "algebra-1", grade: 7 },
+          { roster_id: "r2", subject_id: "biology", grade: null },
+        ]}
+      />,
+    );
+    await screen.findByTestId("stub-standards");
+
+    fireEvent.click(screen.getByRole("button", { name: /start practice/i }));
+    expect(push).toHaveBeenCalledWith("/practice?subject=algebra-1&autostart=1");
+
+    fireEvent.click(screen.getByText("Biology"));
+    await waitFor(() => expect(screen.getByTestId("stub-standards")).toHaveTextContent("biology"));
+    fireEvent.click(screen.getByRole("button", { name: /start practice/i }));
+    expect(push).toHaveBeenCalledWith("/practice?subject=biology&autostart=1");
   });
 });

@@ -553,15 +553,19 @@ export interface StartPracticeSessionResponse {
   question: NextQuestion;
 }
 
+// spec 044 FR-008 (US2): omitted keeps today's demo-learner-only
+// behavior; a real learnerId requires guardian ownership server-side.
 export function startPracticeSession(
   subjectId: string,
   timeLimitSeconds: number,
+  learnerId?: string,
 ): Promise<StartPracticeSessionResponse> {
   return request<StartPracticeSessionResponse>("/api/practice-sessions", {
     method: "POST",
     body: JSON.stringify({
       subject_id: subjectId,
       time_limit_seconds: timeLimitSeconds,
+      ...(learnerId ? { learner_id: learnerId } : {}),
     }),
   });
 }

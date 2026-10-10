@@ -12,8 +12,9 @@ import { enterRealLearnerSession } from "@/lib/visitor-state";
 
 const REAL_LEARNER_SESSION_KEY = "cognivo:real-learner-session";
 
+let mockSearchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearchParams,
 }));
 
 vi.mock("@/services/api", async () => {
@@ -46,6 +47,7 @@ const question = {
 };
 
 beforeEach(() => {
+  mockSearchParams = new URLSearchParams();
   vi.mocked(api.getDemoLearner).mockReset().mockResolvedValue({
     learner_id: "learner-1",
     display_name: "Demo Learner",
@@ -299,5 +301,62 @@ describe("PracticeFlow start screen", () => {
     expect(await screen.findByTestId("question-card")).toBeInTheDocument();
     expect(api.getNextQuestion).toHaveBeenCalledWith("learner-real-1", "algebra-1");
     expect(api.getDemoLearner).not.toHaveBeenCalled();
+  });
+
+  it("passes the real learner id through to a timed session started via the ordinary picker (spec 044 FR-008 fix)", async () => {
+    enterRealLearnerSession("learner-real-1", "Eli");
+    vi.mocked(api.startPracticeSession).mockResolvedValue({
+      practice_session_id: "practice-1",
+      status: "in_progress",
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      question,
+    });
+    render(<PracticeFlow />);
+
+    await screen.findByTestId("practice-start-form");
+    await userEvent.selectOptions(screen.getByLabelText("Time limit"), "1800");
+    await userEvent.click(screen.getByRole("button", { name: /start timed practice/i }));
+
+    expect(await screen.findByTestId("question-card")).toBeInTheDocument();
+    expect(api.startPracticeSession).toHaveBeenCalledWith("algebra-1", 1800, "learner-real-1");
+  });
+});
+
+describe("PracticeFlow autostart entry (spec 044 FR-009, US2)", () => {
+  it("skips the picker and starts a 15-minute timed session directly for a real learner session + subject + autostart", async () => {
+    enterRealLearnerSession("learner-real-1", "Eli");
+    mockSearchParams = new URLSearchParams("subject=algebra-1&autostart=1");
+    vi.mocked(api.startPracticeSession).mockResolvedValue({
+      practice_session_id: "practice-1",
+      status: "in_progress",
+      expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      question,
+    });
+
+    render(<PracticeFlow />);
+
+    expect(await screen.findByTestId("question-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("practice-start-form")).not.toBeInTheDocument();
+    expect(api.startPracticeSession).toHaveBeenCalledWith("algebra-1", 900, "learner-real-1");
+    expect(screen.getByTestId("session-countdown")).toBeInTheDocument();
+  });
+
+  it("still shows the ordinary picker for a plain ?subject= link with no autostart (FR-011 regression guard)", async () => {
+    enterRealLearnerSession("learner-real-1", "Eli");
+    mockSearchParams = new URLSearchParams("subject=algebra-1");
+
+    render(<PracticeFlow />);
+
+    expect(await screen.findByTestId("practice-start-form")).toBeInTheDocument();
+    expect(api.startPracticeSession).not.toHaveBeenCalled();
+  });
+
+  it("autostart is a no-op for the demo learner (no real-learner session active)", async () => {
+    mockSearchParams = new URLSearchParams("subject=algebra-1&autostart=1");
+
+    render(<PracticeFlow />);
+
+    expect(await screen.findByTestId("practice-start-form")).toBeInTheDocument();
+    expect(api.startPracticeSession).not.toHaveBeenCalled();
   });
 });

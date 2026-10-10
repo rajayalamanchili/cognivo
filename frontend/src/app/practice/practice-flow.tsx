@@ -43,6 +43,10 @@ type Phase =
 export default function PracticeFlow() {
   const searchParams = useSearchParams();
   const urlSubjectId = searchParams.get("subject");
+  // spec 044 FR-009 (US2): distinct from plain `?subject=` (which only
+  // preselects on the ordinary picker, unchanged per FR-011) -- set only
+  // by GuardianLearnerCard's "Start practice" tile action.
+  const autostart = searchParams.get("autostart") === "1";
 
   const [phase, setPhase] = useState<Phase>("loading");
   const [learnerId, setLearnerId] = useState<string | null>(null);
@@ -75,6 +79,33 @@ export default function PracticeFlow() {
   // so the countdown-expiry/end-now guards below see it too.
   const [answerBusy, setAnswerBusy] = useState(false);
 
+  // spec 044 FR-008/FR-009 (US2): shared by handleStart's own timed
+  // path and the autostart entry below -- a real learnerId is passed
+  // through so the server honors it instead of defaulting to the demo
+  // learner (research.md §1).
+  const beginTimedPractice = useCallback(
+    async (subjectId: string, limitSeconds: number, realLearnerId?: string) => {
+      setResponse("");
+      setResult(null);
+      setFlagged(false);
+      setReadAloudUsed(false);
+      setQuestionNumber(0);
+      setPhase("starting");
+      try {
+        const started = await startPracticeSession(subjectId, limitSeconds, realLearnerId);
+        setPracticeSessionId(started.practice_session_id);
+        setExpiresAt(started.expires_at);
+        setQuestion(started.question);
+        setQuestionNumber((n) => n + 1);
+        setPhase("answering");
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : String(error));
+        setPhase("error");
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     let cancelled = false;
     // spec 041 FR-016: a guardian's real-learner session resolves
@@ -96,7 +127,15 @@ export default function PracticeFlow() {
       .then((subjectsResponse) => {
         if (cancelled || !subjectsResponse) return;
         setSubjects(subjectsResponse.subjects);
-        setSelectedSubjectId(urlSubjectId ?? subjectsResponse.subjects[0]?.subject_id ?? null);
+        const subjectId = urlSubjectId ?? subjectsResponse.subjects[0]?.subject_id ?? null;
+        setSelectedSubjectId(subjectId);
+        // spec 044 FR-009 (US2): skip the picker entirely and land
+        // directly on a running 15-minute timed session.
+        if (autostart && realSession && subjectId) {
+          setTimeLimitSeconds(900);
+          void beginTimedPractice(subjectId, 900, realSession.learnerId);
+          return;
+        }
         setPhase("start");
       })
       .catch((error: unknown) => {
@@ -107,7 +146,7 @@ export default function PracticeFlow() {
     return () => {
       cancelled = true;
     };
-  }, [urlSubjectId]);
+  }, [urlSubjectId, autostart, beginTimedPractice]);
 
   const loadUntimedQuestion = useCallback((currentLearnerId: string, subjectId: string) => {
     setPhase("loading");
@@ -129,27 +168,20 @@ export default function PracticeFlow() {
 
   async function handleStart() {
     if (!learnerId || !selectedSubjectId) return;
-    setResponse("");
-    setResult(null);
-    setFlagged(false);
-    setReadAloudUsed(false);
-    setQuestionNumber(0);
     if (timeLimitSeconds === null) {
+      setResponse("");
+      setResult(null);
+      setFlagged(false);
+      setReadAloudUsed(false);
+      setQuestionNumber(0);
       loadUntimedQuestion(learnerId, selectedSubjectId);
       return;
     }
-    setPhase("starting");
-    try {
-      const started = await startPracticeSession(selectedSubjectId, timeLimitSeconds);
-      setPracticeSessionId(started.practice_session_id);
-      setExpiresAt(started.expires_at);
-      setQuestion(started.question);
-      setQuestionNumber((n) => n + 1);
-      setPhase("answering");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-      setPhase("error");
-    }
+    await beginTimedPractice(
+      selectedSubjectId,
+      timeLimitSeconds,
+      getRealLearnerSession()?.learnerId,
+    );
   }
 
   // Spec 022 SC-005: fetches the session summary (time limit, time
