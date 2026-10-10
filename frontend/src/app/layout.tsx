@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Baloo_2, Nunito } from "next/font/google";
 import AccountDisplayPreferences from "@/components/AccountDisplayPreferences";
 import DemoBadge from "@/components/DemoBadge";
+import LeaveGuardDialog from "@/components/LeaveGuardDialog";
 import Nav from "@/components/Nav";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <DemoBadge />
         <Nav />
         {children}
+        <LeaveGuardDialog />
       </body>
     </html>
   );

@@ -154,17 +154,17 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 5
 
-- [ ] T037 [P] [US5] Test `start_placement` with a real `learner_id`: success case and `ForbiddenError` for a different guardian's learner, in `backend/tests/integration/test_placement.py` (extend existing file -- no `backend/tests/api/` directory exists here).
-- [ ] T038 [P] [US5] Test the new `has_starting_grade` field on `GET /api/learners/{learner_id}/enrollments` agrees with `_assign_starting_grade_if_graded`'s own `GradeProgress`-existence guard (no drift between the two checks), in `backend/tests/integration/test_learner_enrollments.py` (extend existing file).
-- [ ] T039 [P] [US5] Test "Take placement" appears only for a graded, not-yet-placed subject tile and opens Placement directly, in `frontend/tests/unit/guardian-learners.test.tsx`. Also test the regression case: a second learner in the same graded subject who never takes placement can still start/answer ordinary practice questions normally, with no gating on `has_starting_grade` anywhere outside the tile-visibility check itself (FR-027).
+- [X] T037 [P] [US5] Test `start_placement` with a real `learner_id`: success case and `ForbiddenError` for a different guardian's learner, in `backend/tests/integration/test_placement.py` (extend existing file -- no `backend/tests/api/` directory exists here).
+- [X] T038 [P] [US5] Test the new `has_starting_grade` field on `GET /api/learners/{learner_id}/enrollments` agrees with `_assign_starting_grade_if_graded`'s own `GradeProgress`-existence guard (no drift between the two checks), in `backend/tests/integration/test_learner_enrollments.py` (extend existing file).
+- [X] T039 [P] [US5] Test "Take placement" appears only for a graded, not-yet-placed subject tile and opens Placement directly, in `frontend/tests/unit/guardian-learners.test.tsx`. Also test the regression case: a second learner in the same graded subject who never takes placement can still start/answer ordinary practice questions normally, with no gating on `has_starting_grade` anywhere outside the tile-visibility check itself (FR-027).
 
 ### Implementation for User Story 5
 
-- [ ] T040 [US5] Add `learner_id: uuid.UUID | None = None` and the same ownership gate to `start_placement` (`backend/src/api/routes/placement.py`), mirroring T021 exactly (FR-025, research.md §2).
-- [ ] T041 [P] [US5] Update `startPlacement` in `frontend/src/services/api.ts` to accept an optional `learnerId` param.
-- [ ] T042 [US5] Add `has_starting_grade: bool` to `LearnerEnrollmentOut` in `list_learner_enrollments_route` (`backend/src/api/routes/rosters.py`), querying `GradeProgress` existence for that `(learner_id, subject_id)` -- same "no second round-trip" precedent `is_default_instructor_roster` already establishes on this exact response.
-- [ ] T043 [US5] Fetch `listLearnerEnrollments` once in `GuardianLearnerCard.tsx` (same call `GuardianAssignQuiz` already makes per-roster) and use T042's `has_starting_grade` to decide whether to show "Take placement" on each graded tile.
-- [ ] T044 [US5] Add the "Take placement" action to each eligible tile in `GuardianLearnerCard.tsx`, calling `enterRealLearnerSession` then navigating to `/placement?subject={subjectId}` (FR-024).
+- [X] T040 [US5] Add `learner_id: uuid.UUID | None = None` and the same ownership gate to `start_placement` (`backend/src/api/routes/placement.py`), mirroring T021 exactly (FR-025, research.md §2).
+- [X] T041 [P] [US5] Update `startPlacement` in `frontend/src/services/api.ts` to accept an optional `learnerId` param.
+- [X] T042 [US5] Add `has_starting_grade: bool` to `LearnerEnrollmentOut` in `list_learner_enrollments_route` (`backend/src/api/routes/rosters.py`), querying `GradeProgress` existence for that `(learner_id, subject_id)` -- same "no second round-trip" precedent `is_default_instructor_roster` already establishes on this exact response.
+- [X] T043 [US5] Fetch `listLearnerEnrollments` once in `GuardianLearnerCard.tsx` (same call `GuardianAssignQuiz` already makes per-roster) and use T042's `has_starting_grade` to decide whether to show "Take placement" on each graded tile.
+- [X] T044 [US5] Add the "Take placement" action to each eligible tile in `GuardianLearnerCard.tsx`, calling `enterRealLearnerSession` then navigating to `/placement?subject={subjectId}` (FR-024).
 
 **Checkpoint**: quickstart.md Story 5. User Stories 1-5 all independently functional.
 
@@ -178,18 +178,18 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ### Tests for User Story 6
 
-- [ ] T045 [P] [US6] Unit test for `leave-guard.ts` itself (set/clear/subscribe notify) in `frontend/tests/unit/leave-guard.test.ts`.
-- [ ] T046 [P] [US6] Test Nav link clicks show the confirmation when a guard is active and proceed/cancel correctly, in `frontend/tests/unit/nav.test.tsx`.
-- [ ] T047 [P] [US6] Test Practice/Placement set the guard while unsubmitted and clear it on submit/picker-phase/skip (never on "Next question"/skip itself), in their respective test files.
+- [X] T045 [P] [US6] Unit test for `leave-guard.ts` itself (set/clear/subscribe notify) in `frontend/tests/unit/leave-guard.test.ts`.
+- [X] T046 [P] [US6] Test Nav link clicks show the confirmation when a guard is active and proceed/cancel correctly, in `frontend/tests/unit/nav.test.tsx`.
+- [X] T047 [P] [US6] Test Practice/Placement set the guard while unsubmitted and clear it on submit/picker-phase/skip (never on "Next question"/skip itself), in their respective test files.
 
 ### Implementation for User Story 6
 
-- [ ] T048 [US6] Create `frontend/src/lib/leave-guard.ts`: in-memory (not `localStorage`) `setGuard(message)`/`clearGuard()`/`onGuardChange(callback)`, mirroring `visitor-state.ts`'s existing subscriber shape (research.md §5).
-- [ ] T049 [US6] Create `frontend/src/components/LeaveGuardDialog.tsx`: a small confirmation modal driven by the guard's active state, mounted once near the app root.
-- [ ] T050 [US6] Wire `practice-flow.tsx` to call `setGuard(...)` on entering "answering" with the current question unsubmitted, `clearGuard()` on submit or while on the picker (FR-028, FR-032, FR-033).
-- [ ] T051 [US6] Wire `placement-flow.tsx` to call `setGuard(...)` while any shown question is unsubmitted, `clearGuard()` once `submit_placement` succeeds (same FRs).
-- [ ] T052 [US6] Update `Nav.tsx`'s link clicks and `router.push` call sites (`handleExitDemo`, `handleExitLearnerView`, the real-learner banner's "End session" action) to check the guard first and show `LeaveGuardDialog` instead of navigating immediately when active (FR-028, FR-031).
-- [ ] T053 [US6] Update Practice's own "End session" link (untimed-practice path) in `practice-flow.tsx` to go through the same guard check.
+- [X] T048 [US6] Create `frontend/src/lib/leave-guard.ts`: in-memory (not `localStorage`) `setGuard(message)`/`clearGuard()`/`onGuardChange(callback)`, mirroring `visitor-state.ts`'s existing subscriber shape (research.md §5).
+- [X] T049 [US6] Create `frontend/src/components/LeaveGuardDialog.tsx`: a small confirmation modal driven by the guard's active state, mounted once near the app root.
+- [X] T050 [US6] Wire `practice-flow.tsx` to call `setGuard(...)` on entering "answering" with the current question unsubmitted, `clearGuard()` on submit or while on the picker (FR-028, FR-032, FR-033).
+- [X] T051 [US6] Wire `placement-flow.tsx` to call `setGuard(...)` while any shown question is unsubmitted, `clearGuard()` once `submit_placement` succeeds (same FRs).
+- [X] T052 [US6] Update `Nav.tsx`'s link clicks and `router.push` call sites (`handleExitDemo`, `handleExitLearnerView`, the real-learner banner's "End session" action) to check the guard first and show `LeaveGuardDialog` instead of navigating immediately when active (FR-028, FR-031).
+- [X] T053 [US6] Update Practice's own "End session" link (untimed-practice path) in `practice-flow.tsx` to go through the same guard check.
 
 **Checkpoint**: quickstart.md Story 6. All six user stories independently functional.
 

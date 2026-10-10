@@ -6,6 +6,7 @@ import {
   getActivitySummary,
   getMasteryState,
   getTopicPriorityPreview,
+  listLearnerEnrollments,
   type MyLearnerEnrollment,
 } from "@/services/api";
 import { enterRealLearnerSession } from "@/lib/visitor-state";
@@ -90,6 +91,30 @@ export default function GuardianLearnerCard({
   // (FR-006), driven by `enrollments.length === 0` below, not this flag.
   const [addOpen, setAddOpen] = useState(false);
   const [selected, setSelected] = useState(0);
+  // spec 044 FR-024 (US5): one round-trip, keyed by roster_id -- the
+  // same `listLearnerEnrollments` call GuardianAssignQuiz already makes
+  // per-roster, reused here to decide "Take placement" per tile.
+  // Defaults to true (hidden) for a roster not yet resolved, matching
+  // the fail-silent-enrichment precedent the rest of this card already
+  // follows for stat tiles.
+  const [hasStartingGradeByRosterId, setHasStartingGradeByRosterId] = useState<
+    Record<string, boolean>
+  >({});
+
+  useEffect(() => {
+    let cancelled = false;
+    listLearnerEnrollments(learnerId)
+      .then((result) => {
+        if (cancelled) return;
+        setHasStartingGradeByRosterId(
+          Object.fromEntries(result.enrollments.map((e) => [e.roster_id, e.has_starting_grade])),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [learnerId]);
 
   // spec 044 FR-004: when the guardian's fresh enrollment list grows by
   // one (a successful join), select that new tab; every other existing
@@ -128,6 +153,13 @@ export default function GuardianLearnerCard({
   function handleStartPractice(subjectId: string) {
     enterRealLearnerSession(learnerId, displayName);
     router.push(`/practice?subject=${subjectId}&autostart=1`);
+  }
+
+  // spec 044 FR-024/FR-025 (US5): same real-session hand-off, landing on
+  // that subject's existing placement flow directly.
+  function handleTakePlacement(subjectId: string) {
+    enterRealLearnerSession(learnerId, displayName);
+    router.push(`/placement?subject=${subjectId}`);
   }
 
   function handleJoined() {
@@ -330,13 +362,24 @@ export default function GuardianLearnerCard({
                 Return here to end the session.
               </p>
 
-              <button
-                type="button"
-                onClick={() => handleStartPractice(selectedEnrollment.subject_id)}
-                className="flex min-h-11 w-fit items-center gap-2 rounded-full border-2 border-border px-4.5 font-extrabold text-heading"
-              >
-                Start practice
-              </button>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleStartPractice(selectedEnrollment.subject_id)}
+                  className="flex min-h-11 w-fit items-center gap-2 rounded-full border-2 border-border px-4.5 font-extrabold text-heading"
+                >
+                  Start practice
+                </button>
+                {hasStartingGradeByRosterId[selectedEnrollment.roster_id] === false && (
+                  <button
+                    type="button"
+                    onClick={() => handleTakePlacement(selectedEnrollment.subject_id)}
+                    className="flex min-h-11 w-fit items-center gap-2 rounded-full border-2 border-border px-4.5 font-extrabold text-heading"
+                  >
+                    Take placement
+                  </button>
+                )}
+              </div>
 
               <LearnerAssignments learnerId={learnerId} rosterId={selectedEnrollment.roster_id} />
               <p className="text-sm text-muted">{tier.note}</p>

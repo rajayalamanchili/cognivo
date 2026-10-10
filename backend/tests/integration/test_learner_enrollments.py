@@ -8,6 +8,7 @@ otherwise.
 
 import pytest
 
+from src.models.grade_progress import GradeProgress
 from tests.integration.quiz_assignment_helpers import (
     create_roster,
     join_roster,
@@ -102,6 +103,62 @@ def test_non_owning_guardian_gets_403(client, algebra_subject):
 
     response = client.get(f"/api/learners/{learner_id}/enrollments")
     assert response.status_code == 403
+
+
+def test_has_starting_grade_false_until_a_grade_progress_row_exists(
+    client, algebra_subject, db_session
+):
+    """spec 044 FR-024, US5: agrees with `_assign_starting_grade_if_graded`'s
+    own `GradeProgress`-existence guard (no drift between the two checks)."""
+    register_instructor(client, "learner-enrollments-placement-teacher@example.com")
+    roster_id, join_code = create_roster(client, subject_id=algebra_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client,
+        guardian_email="learner-enrollments-placement-parent@example.com",
+        learner_name="Learner",
+    )
+    join_roster(client, learner_id=learner_id, join_code=join_code)
+
+    response = client.get(f"/api/learners/{learner_id}/enrollments")
+    assert response.status_code == 200, response.text
+    [entry] = response.json()["enrollments"]
+    assert entry["has_starting_grade"] is False
+
+    db_session.add(
+        GradeProgress(
+            learner_id=learner_id, subject_id=algebra_subject.subject_id, unlocked_grade=6
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/api/learners/{learner_id}/enrollments")
+    assert response.status_code == 200, response.text
+    [entry] = response.json()["enrollments"]
+    assert entry["has_starting_grade"] is True
+
+
+def test_has_starting_grade_true_for_an_ungraded_subject(client, biology_subject):
+    """spec 044 FR-024: an ungraded subject (zero declared `GradeBand`
+    rows) never offers "Take placement" -- `has_starting_grade` is true
+    here even with no `GradeProgress` row, same as
+    `_assign_starting_grade_if_graded`'s own ungraded early return."""
+    register_instructor(client, "learner-enrollments-ungraded-teacher@example.com")
+    roster_id, join_code = create_roster(client, subject_id=biology_subject.subject_id)
+
+    client.post("/api/auth/logout")
+    _, learner_id = register_guardian_with_learner(
+        client,
+        guardian_email="learner-enrollments-ungraded-parent@example.com",
+        learner_name="Learner",
+    )
+    join_roster(client, learner_id=learner_id, join_code=join_code)
+
+    response = client.get(f"/api/learners/{learner_id}/enrollments")
+    assert response.status_code == 200, response.text
+    [entry] = response.json()["enrollments"]
+    assert entry["has_starting_grade"] is True
 
 
 def test_empty_list_for_a_learner_with_no_enrollments(client):

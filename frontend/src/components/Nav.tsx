@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import CognivoMark from "@/components/CognivoMark";
@@ -20,6 +20,7 @@ import {
   onSessionChanged,
   type RealLearnerSession,
 } from "@/lib/visitor-state";
+import { confirmNavigation } from "@/lib/leave-guard";
 
 // The nav's menu depends on who's actually visiting -- a server-verified
 // session type (`getWhoAmI`) for guardian/instructor/demo_instructor, or
@@ -230,17 +231,32 @@ export default function Nav() {
     router.push("/");
   }
 
+  // spec 044 FR-028 (US6): every in-app navigation site checks the
+  // leave-guard first (research.md §5) -- a no-op wrapper when no guard
+  // is active (confirmNavigation runs `proceed` immediately).
   function handleExitDemo() {
-    exitDemoLearnerMode();
-    router.push("/");
+    confirmNavigation(() => {
+      exitDemoLearnerMode();
+      router.push("/");
+    });
   }
 
   // FR-022: ends the guardian's "acting for this learner" session and
   // returns to the learner-picker, without touching the guardian's own
   // (still-valid) sign-in session.
   function handleExitLearnerView() {
-    exitRealLearnerSession();
-    router.push("/guardian/learners");
+    confirmNavigation(() => {
+      exitRealLearnerSession();
+      router.push("/guardian/learners");
+    });
+  }
+
+  // spec 044 FR-028 (US6): shared by every nav-menu `<Link>` below --
+  // `<Link>` navigates on click by default, so a guarded click prevents
+  // that and routes through the same `confirmNavigation` check instead.
+  function handleNavLinkClick(event: ReactMouseEvent, href: string) {
+    event.preventDefault();
+    confirmNavigation(() => router.push(href));
   }
 
   // Treated as "anonymous" while `accountType` is still resolving --
@@ -308,7 +324,12 @@ export default function Nav() {
             {links.map((link) => {
               if (bucket !== "demo-learner" && bucket !== "guardian") {
                 return (
-                  <Link key={link.href} href={link.href} className="text-muted">
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={(event) => handleNavLinkClick(event, link.href)}
+                    className="text-muted"
+                  >
                     {link.label}
                   </Link>
                 );
@@ -318,6 +339,7 @@ export default function Nav() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={(event) => handleNavLinkClick(event, link.href)}
                   aria-current={active ? "page" : undefined}
                   className={pillNavLinkClassName(active)}
                 >

@@ -26,7 +26,7 @@ describe("GuardianAssignQuiz", () => {
   it("renders nothing when the roster is not default-instructor-owned", async () => {
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: false },
+        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
       ],
     });
 
@@ -40,7 +40,7 @@ describe("GuardianAssignQuiz", () => {
     const user = userEvent.setup();
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true },
+        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true, has_starting_grade: false },
       ],
     });
     vi.mocked(api.assignQuizToOwnLearner).mockResolvedValue({
@@ -72,7 +72,7 @@ describe("GuardianAssignQuiz", () => {
     const user = userEvent.setup();
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true },
+        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true, has_starting_grade: false },
       ],
     });
     vi.mocked(api.assignQuizToOwnLearner).mockRejectedValue(new Error("not_enrolled"));

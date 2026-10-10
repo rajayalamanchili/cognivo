@@ -17,6 +17,8 @@ from src.models.classroom_roster import ClassroomRoster
 from src.models.enrollment import Enrollment
 from src.models.enrollment_request import EnrollmentRequest
 from src.models.enums import EnrollmentMode
+from src.models.grade_band import GradeBand
+from src.models.grade_progress import GradeProgress
 from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
@@ -344,6 +346,11 @@ class LearnerEnrollmentOut(BaseModel):
     # enrollment card should show the "assign a quiz" action, without a
     # second round-trip.
     is_default_instructor_roster: bool
+    # spec 044 FR-024 (US5): tells the guardian frontend whether to offer
+    # "Take placement" on this tile, without a second round-trip --
+    # mirrors `_assign_starting_grade_if_graded`'s own `GradeProgress`-
+    # existence guard (placement.py) exactly, so the two never drift.
+    has_starting_grade: bool
 
 
 class ListLearnerEnrollmentsOut(BaseModel):
@@ -372,6 +379,26 @@ def list_learner_enrollments_route(
         .all()
     )
     default_instructor = get_default_instructor(db)
+    subject_ids = {roster.subject_id for roster in rows}
+    # spec 044 FR-024: `has_starting_grade` doubles as "Take placement"
+    # has nothing to offer -- true for a subject with zero declared
+    # `GradeBand` rows (ungraded, `_assign_starting_grade_if_graded`'s
+    # own first early-return guard) as well as one where a
+    # `GradeProgress` row already exists, so the frontend never offers
+    # the action for either case with a single field.
+    graded_subject_ids = {
+        row.subject_id
+        for row in db.query(GradeBand.subject_id)
+        .filter(GradeBand.subject_id.in_(subject_ids))
+        .distinct()
+        .all()
+    }
+    graded_progress_subject_ids = {
+        row.subject_id
+        for row in db.query(GradeProgress.subject_id)
+        .filter(GradeProgress.learner_id == learner_id, GradeProgress.subject_id.in_(subject_ids))
+        .all()
+    }
     return ListLearnerEnrollmentsOut(
         enrollments=[
             LearnerEnrollmentOut(
@@ -380,6 +407,10 @@ def list_learner_enrollments_route(
                 is_default_instructor_roster=(
                     default_instructor is not None
                     and roster.instructor_id == default_instructor.instructor_id
+                ),
+                has_starting_grade=(
+                    roster.subject_id not in graded_subject_ids
+                    or roster.subject_id in graded_progress_subject_ids
                 ),
             )
             for roster in rows

@@ -24,6 +24,7 @@ vi.mock("@/services/api", async () => {
     getMasteryState: vi.fn(),
     getActivitySummary: vi.fn(),
     getTopicPriorityPreview: vi.fn(),
+    listLearnerEnrollments: vi.fn(),
   };
 });
 
@@ -78,6 +79,7 @@ describe("GuardianLearnerCard", () => {
       is_fallback: false,
       next_topic_prerequisite_display_name: null,
     });
+    vi.mocked(api.listLearnerEnrollments).mockReset().mockResolvedValue({ enrollments: [] });
   });
 
   it("shows the join-a-class state and no tab chrome for zero enrollments", () => {
@@ -191,5 +193,56 @@ describe("GuardianLearnerCard", () => {
     await waitFor(() => expect(screen.getByTestId("stub-standards")).toHaveTextContent("biology"));
     fireEvent.click(screen.getByRole("button", { name: /start practice/i }));
     expect(push).toHaveBeenCalledWith("/practice?subject=biology&autostart=1");
+  });
+
+  it("spec 044 FR-024/FR-025 (US5): Take placement appears only for a graded, not-yet-placed tile and opens Placement directly", async () => {
+    vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
+      enrollments: [
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
+        { roster_id: "r2", subject_id: "biology", is_default_instructor_roster: false, has_starting_grade: true },
+      ],
+    });
+
+    render(
+      <GuardianLearnerCard
+        learnerId="learner-1"
+        displayName="Eli"
+        enrollments={[
+          { roster_id: "r1", subject_id: "algebra-1", grade: 7 },
+          { roster_id: "r2", subject_id: "biology", grade: null },
+        ]}
+      />,
+    );
+    await screen.findByTestId("stub-standards");
+
+    expect(await screen.findByRole("button", { name: /take placement/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /take placement/i }));
+    expect(push).toHaveBeenCalledWith("/placement?subject=algebra-1");
+
+    fireEvent.click(screen.getByText("Biology"));
+    await waitFor(() => expect(screen.getByTestId("stub-standards")).toHaveTextContent("biology"));
+    expect(screen.queryByRole("button", { name: /take placement/i })).not.toBeInTheDocument();
+  });
+
+  it("spec 044 FR-027 regression: a second learner in the same graded subject with no starting grade can still practice normally (no gating outside tile visibility)", async () => {
+    vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
+      enrollments: [
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
+      ],
+    });
+
+    render(
+      <GuardianLearnerCard
+        learnerId="learner-2"
+        displayName="Sam"
+        enrollments={[{ roster_id: "r1", subject_id: "algebra-1", grade: 7 }]}
+      />,
+    );
+    await screen.findByTestId("stub-standards");
+
+    // "Start practice" is unaffected by has_starting_grade either way.
+    expect(screen.getByRole("button", { name: /start practice/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /start practice/i }));
+    expect(push).toHaveBeenCalledWith("/practice?subject=algebra-1&autostart=1");
   });
 });

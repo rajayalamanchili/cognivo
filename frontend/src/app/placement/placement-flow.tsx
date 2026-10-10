@@ -12,6 +12,8 @@ import {
   type PlacementQuestion,
   type PlacementQuestionResultEntry,
 } from "@/services/api";
+import { getRealLearnerSession } from "@/lib/visitor-state";
+import { LEAVE_GUARD_MESSAGE, clearGuard, setGuard } from "@/lib/leave-guard";
 import MasteryView from "@/components/MasteryView";
 import AnswerResultView from "@/components/AnswerResultView";
 import { DifficultyPill } from "@/components/QuestionCard";
@@ -57,7 +59,11 @@ export default function PlacementFlow() {
 
   useEffect(() => {
     let cancelled = false;
-    startPlacement(subjectId)
+    // spec 044 FR-025 (US5): a guardian's real-learner session resolves
+    // this subject's placement for that learner instead of the demo
+    // learner (research.md §2) -- same `getRealLearnerSession` read
+    // practice-flow.tsx already uses.
+    startPlacement(subjectId, getRealLearnerSession()?.learnerId)
       .then((result) => {
         if (cancelled) return;
         setPlacementSessionId(result.placement_session_id);
@@ -78,6 +84,17 @@ export default function PlacementFlow() {
       cancelled = true;
     };
   }, [subjectId]);
+
+  // spec 044 FR-028/FR-032/FR-033 (US6): any shown question is
+  // unsubmitted exactly while `phase === "answering"` -- cleared once
+  // `submit_placement` succeeds (phase becomes "results") or on error.
+  useEffect(() => {
+    if (phase === "answering") {
+      setGuard(LEAVE_GUARD_MESSAGE);
+    } else {
+      clearGuard();
+    }
+  }, [phase]);
 
   const allAnswered =
     questions.length > 0 &&

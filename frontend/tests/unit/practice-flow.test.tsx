@@ -9,12 +9,15 @@ import PracticeFlow from "@/app/practice/practice-flow";
 import * as api from "@/services/api";
 import { ApiError } from "@/services/api";
 import { enterRealLearnerSession } from "@/lib/visitor-state";
+import { clearGuard, isGuardActive } from "@/lib/leave-guard";
 
 const REAL_LEARNER_SESSION_KEY = "cognivo:real-learner-session";
 
 let mockSearchParams = new URLSearchParams();
+const push = vi.fn();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
+  useRouter: () => ({ push }),
 }));
 
 vi.mock("@/services/api", async () => {
@@ -86,6 +89,8 @@ beforeEach(() => {
     retrieved_passages: [],
   });
   window.localStorage.removeItem(REAL_LEARNER_SESSION_KEY);
+  push.mockReset();
+  clearGuard();
 });
 
 describe("PracticeFlow start screen", () => {
@@ -486,5 +491,57 @@ describe("PracticeFlow inline Tutor panel (spec 044 FR-012-FR-019, US3)", () => 
     // The same Tutor Session is reused -- no second `openTutorSession`
     // call -- even though re-opening sends a fresh hint into it.
     expect(api.openTutorSession).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PracticeFlow leave-guard (spec 044 FR-028/FR-032/FR-033, US6)", () => {
+  it("sets the leave guard while a question is unsubmitted, and it is inactive beforehand", async () => {
+    vi.mocked(api.getNextQuestion).mockResolvedValue(question);
+    render(<PracticeFlow />);
+
+    await screen.findByTestId("practice-start-form");
+    expect(isGuardActive()).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: /start practicing/i }));
+    await screen.findByTestId("question-card");
+
+    expect(isGuardActive()).toBe(true);
+  });
+
+  it("clears the leave guard once the answer is submitted", async () => {
+    vi.mocked(api.getNextQuestion).mockResolvedValue(question);
+    vi.mocked(api.answerQuestion).mockResolvedValue({
+      correct: true,
+      topic_id: "linear-equations",
+      prior_p_mastery: 0.5,
+      posterior_p_mastery: 0.6,
+      refreshed: false,
+      graduated_score: null,
+      grading_logic_version: null,
+      first_diverging_step_index: null,
+    });
+    render(<PracticeFlow />);
+
+    await screen.findByTestId("practice-start-form");
+    await userEvent.click(screen.getByRole("button", { name: /start practicing/i }));
+    await screen.findByTestId("question-card");
+    expect(isGuardActive()).toBe(true);
+
+    await userEvent.click(screen.getByLabelText("4"));
+    await userEvent.click(screen.getByRole("button", { name: /submit answer/i }));
+    await waitFor(() => expect(isGuardActive()).toBe(false));
+  });
+
+  it("the untimed-practice End session link defers to the leave-guard confirmation instead of navigating immediately when a guard is active", async () => {
+    vi.mocked(api.getNextQuestion).mockResolvedValue(question);
+    render(<PracticeFlow />);
+
+    await screen.findByTestId("practice-start-form");
+    await userEvent.click(screen.getByRole("button", { name: /start practicing/i }));
+    await screen.findByTestId("question-card");
+    expect(isGuardActive()).toBe(true);
+
+    await userEvent.click(screen.getByRole("link", { name: /end session/i }));
+    expect(push).not.toHaveBeenCalled();
   });
 });

@@ -27,8 +27,8 @@ describe("GuardianLearnerCareerConnections", () => {
   it("fetches enrollments then renders every subject's career connections combined", async () => {
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false },
-        { roster_id: "r2", subject_id: "biology", is_default_instructor_roster: false },
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
+        { roster_id: "r2", subject_id: "biology", is_default_instructor_roster: false, has_starting_grade: false },
       ],
     });
     vi.mocked(api.getMasteryState).mockImplementation((_learnerId, subjectId) =>
@@ -51,8 +51,8 @@ describe("GuardianLearnerCareerConnections", () => {
   it("spec 044 FR-002: scopes to one subject when subjectId is provided", async () => {
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false },
-        { roster_id: "r2", subject_id: "biology", is_default_instructor_roster: false },
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
+        { roster_id: "r2", subject_id: "biology", is_default_instructor_roster: false, has_starting_grade: false },
       ],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({

@@ -36,6 +36,11 @@ from src.models.topic import Topic
 from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
 from src.services.demo_learner import get_demo_learner
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.mediation.read_aloud import is_read_aloud_eligible
@@ -68,9 +73,21 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
 
 
 @router.post("/api/subjects/{subject_id}/placement/start", response_model=PlacementStartResponse)
-async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> PlacementStartResponse:
+async def start_placement(
+    subject_id: str,
+    learner_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+) -> PlacementStartResponse:
     _get_validated_subject(db, subject_id)
-    learner = get_demo_learner(db)
+    # spec 044 FR-025 (US5): omitted keeps today's demo-learner-only
+    # behavior; a real learner_id requires guardian ownership, identical
+    # gating to start_practice_session (research.md §2).
+    if learner_id is None:
+        resolved_learner_id = get_demo_learner(db).learner_id
+    else:
+        require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+        resolved_learner_id = learner_id
 
     topics = (
         db.query(Topic).filter(Topic.subject_id == subject_id).order_by(Topic.order_index).all()
@@ -84,7 +101,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
 
     placement_session_id = uuid.uuid4()
 
-    with traced_request(learner_id=learner.learner_id, session_id=placement_session_id):
+    with traced_request(learner_id=resolved_learner_id, session_id=placement_session_id):
         placement_questions = await generate_placement_questions(
             placement_topics, session_service=get_database_session_service()
         )
@@ -94,7 +111,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
     for placement_question in placement_questions:
         grade = grade_by_topic_id[placement_question.topic_id]
         question = GeneratedQuestion(
-            learner_id=learner.learner_id,
+            learner_id=resolved_learner_id,
             subject_id=subject_id,
             topic_id=placement_question.topic_id,
             grade=grade,
@@ -113,7 +130,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
 
         record_event(
             db,
-            learner_id=learner.learner_id,
+            learner_id=resolved_learner_id,
             event_type=AssessmentEventType.PLACEMENT_QUESTION_SHOWN,
             subject_id=subject_id,
             topic_id=placement_question.topic_id,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ApiError,
@@ -23,6 +23,7 @@ import {
   type SubjectSummary,
 } from "@/services/api";
 import { getRealLearnerSession } from "@/lib/visitor-state";
+import { LEAVE_GUARD_MESSAGE, clearGuard, confirmNavigation, setGuard } from "@/lib/leave-guard";
 import QuestionCard from "@/components/QuestionCard";
 import AnswerResultView from "@/components/AnswerResultView";
 import RefreshedBanner from "@/components/RefreshedBanner";
@@ -37,6 +38,7 @@ type Phase =
   "loading" | "start" | "starting" | "answering" | "submitting" | "result" | "ended" | "error";
 
 export default function PracticeFlow() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlSubjectId = searchParams.get("subject");
   // spec 044 FR-009 (US2): distinct from plain `?subject=` (which only
@@ -261,6 +263,18 @@ export default function PracticeFlow() {
       setPhase("error");
     }
   }
+
+  // spec 044 FR-028/FR-032/FR-033 (US6): a question is unsubmitted
+  // exactly while `phase === "answering"` -- set on entering it, cleared
+  // the instant it's left (submit, picker, ended, error), matching
+  // research.md §5's trigger conditions exactly.
+  useEffect(() => {
+    if (phase === "answering") {
+      setGuard(LEAVE_GUARD_MESSAGE);
+    } else {
+      clearGuard();
+    }
+  }, [phase]);
 
   function handleStartOver() {
     setPracticeSessionId(null);
@@ -549,7 +563,14 @@ export default function PracticeFlow() {
                 End practice now
               </button>
             ) : (
-              <Link href="/dashboard" className="text-[15px] font-extrabold text-link">
+              <Link
+                href="/dashboard"
+                onClick={(event) => {
+                  event.preventDefault();
+                  confirmNavigation(() => router.push("/dashboard"));
+                }}
+                className="text-[15px] font-extrabold text-link"
+              >
                 End session
               </Link>
             )}

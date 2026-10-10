@@ -428,10 +428,17 @@ export function getDemoLearner(): Promise<DemoLearner> {
   return request<DemoLearner>("/api/demo-learner");
 }
 
-export function startPlacement(subjectId: string): Promise<PlacementStartResponse> {
-  return request<PlacementStartResponse>(`/api/subjects/${subjectId}/placement/start`, {
-    method: "POST",
-  });
+// spec 044 FR-025 (US5): omitted keeps today's demo-learner-only
+// behavior; a real learnerId requires guardian ownership server-side.
+export function startPlacement(
+  subjectId: string,
+  learnerId?: string,
+): Promise<PlacementStartResponse> {
+  const query = learnerId ? `?learner_id=${learnerId}` : "";
+  return request<PlacementStartResponse>(
+    `/api/subjects/${subjectId}/placement/start${query}`,
+    { method: "POST" },
+  );
 }
 
 export function submitPlacement(
@@ -1100,6 +1107,10 @@ export interface LearnerEnrollmentEntry {
   // spec 043 FR-017/contracts §5: true only for the seeded default
   // instructor's roster -- gates the guardian's "assign a quiz" action.
   is_default_instructor_roster: boolean;
+  // spec 044 FR-024 (US5): gates the guardian's "Take placement" tile
+  // action -- true once a `GradeProgress` row exists for this learner/
+  // subject (from a prior placement or organic unlocking).
+  has_starting_grade: boolean;
 }
 
 export interface ListLearnerEnrollmentsResponse {
