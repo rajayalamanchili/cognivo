@@ -197,8 +197,8 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ## Final Phase: Polish & Cross-Cutting Concerns
 
-- [ ] T054 [P] Run the full existing `pytest` + `Vitest` suites; fix any regression surfaced by the `enrollments` shape change (T003/T005) or the two real-learner-gating additions (T021, T040).
-- [ ] T055 Walk through quickstart.md's "Regression check" section manually: a single-enrollment learner's card, the demo learner's own Practice/Placement/Tutor flows, and assigned-quiz questions all behave exactly as before this feature.
+- [X] T054 [P] Run the full existing `pytest` + `Vitest` suites; fix any regression surfaced by the `enrollments` shape change (T003/T005) or the two real-learner-gating additions (T021, T040).
+- [X] T055 Walk through quickstart.md's "Regression check" section manually: a single-enrollment learner's card, the demo learner's own Practice/Placement/Tutor flows, and assigned-quiz questions all behave exactly as before this feature.
 
 ---
 
