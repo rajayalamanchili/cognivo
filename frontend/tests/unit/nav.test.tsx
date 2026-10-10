@@ -1,9 +1,8 @@
 // Unit test: Nav's per-visitor-type menu (anonymous/demo-learner/
-// guardian/instructor buckets), the Personalization Evidence link
-// (SC-005, no login required -- inline for every bucket except
-// demo-learner, where it's tucked behind the avatar/name menu along
-// with Exit Demo/Sign In), and the "signed in as" identity readout for
-// real guardian/instructor sessions.
+// guardian/instructor buckets) and the "signed in as" identity readout
+// for real guardian/instructor sessions. The Personalization Evidence
+// link (spec 006 SC-005) is temporarily hidden from nav everywhere, at
+// the user's request -- see Nav.tsx's comment for how to re-add it.
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -58,7 +57,7 @@ describe("Nav", () => {
     await waitFor(() => expect(logo).toHaveAttribute("href", expectedHref));
   });
 
-  it("shows only Try Demo, Sign In, and Personalization Evidence when logged out", async () => {
+  it("shows only Try Demo and Sign In when logged out", async () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: null,
       identifier: null,
@@ -69,7 +68,7 @@ describe("Nav", () => {
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
     expect(await screen.findByText("Try Demo")).toBeInTheDocument();
     expect(screen.getByText("Sign In")).toBeInTheDocument();
-    expect(screen.getByText("Personalization Evidence")).toBeInTheDocument();
+    expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
 
     expect(screen.queryByText("My Learners")).not.toBeInTheDocument();
     expect(screen.queryByText("Rosters")).not.toBeInTheDocument();
@@ -92,14 +91,15 @@ describe("Nav", () => {
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.queryByText("Try Demo")).not.toBeInTheDocument();
 
-    // Exit Demo/Personalization Evidence/Sign In are tucked behind the
-    // avatar/name menu now, not shown inline (user feedback).
+    // Exit Demo/Sign In are tucked behind the avatar/name menu now, not
+    // shown inline (user feedback). Personalization Evidence is hidden
+    // from nav entirely for now (not just tucked away) -- see Nav.tsx.
     expect(screen.queryByText("Exit Demo")).not.toBeInTheDocument();
     expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Demo Learner (demo)"));
     expect(screen.getByText("Exit Demo")).toBeInTheDocument();
-    expect(screen.getByText("Personalization Evidence")).toBeInTheDocument();
+    expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
   });
 
   it("shows an avatar and the demo learner's real name in the demo-learner bucket, with Sign In behind that same menu (027-learner-ui-redesign gap-closing pass)", async () => {

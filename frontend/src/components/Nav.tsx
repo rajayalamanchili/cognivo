@@ -44,13 +44,11 @@ const DEMO_LEARNER_LINKS: NavLink[] = [
   { href: "/tutor", label: "Tutor" },
 ];
 
-// SC-005 (spec 003/007): always reachable, no login/demo mode required
-// -- a public evidence/trust page, not a role-gated menu item, so it
-// stays outside the bucket logic below entirely.
-const PERSONALIZATION_EVIDENCE_LINK: NavLink = {
-  href: "/personalization-eval",
-  label: "Personalization Evidence",
-};
+// Personalization Evidence (spec 006, SC-005) is deliberately hidden
+// from nav for now, at the user's request -- the page itself still
+// exists and is reachable by direct URL, just not linked. Re-add a
+// `PERSONALIZATION_EVIDENCE_LINK` NavLink and its two render sites
+// (see git history) once it's enabled again.
 
 const GUARDIAN_LINKS: NavLink[] = [
   { href: "/guardian/learners", label: "My Learners" },
@@ -306,11 +304,6 @@ export default function Nav() {
               Try Demo
             </Link>
           )}
-          {!isDemoLearnerBucket && (
-            <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-muted">
-              {PERSONALIZATION_EVIDENCE_LINK.label}
-            </Link>
-          )}
           <div className={isDemoLearnerBucket ? "flex flex-grow items-center gap-1" : "contents"}>
             {links.map((link) => {
               if (bucket !== "demo-learner" && bucket !== "guardian") {
@@ -357,14 +350,6 @@ export default function Nav() {
                   role="menu"
                   className="absolute right-0 top-full z-10 mt-2 flex w-56 flex-col gap-1 rounded-[16px] border border-border bg-surface p-2 text-sm shadow-lg"
                 >
-                  <Link
-                    role="menuitem"
-                    href={PERSONALIZATION_EVIDENCE_LINK.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="rounded-[10px] px-3 py-2 text-muted"
-                  >
-                    {PERSONALIZATION_EVIDENCE_LINK.label}
-                  </Link>
                   <Link
                     role="menuitem"
                     href="/settings"
