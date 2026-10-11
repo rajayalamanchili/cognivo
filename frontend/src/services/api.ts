@@ -1352,6 +1352,7 @@ export interface LearnerAssignment {
   cancelled_at: string | null;
   status: AssignmentStatus;
   has_unviewed_activity: boolean;
+  quiz_session_id: string | null;
 }
 
 export interface ListLearnerAssignmentsResponse {

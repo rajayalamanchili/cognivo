@@ -84,13 +84,18 @@ export default function GuardianLearnerCard({
   // Have a code?), not both forms stacked -- defaults to Browse, same
   // as the mockup's own default state.
   const [joinTab, setJoinTab] = useState<"browse" | "code">("browse");
-  // spec 044 FR-003: "Add a subject" is always available once a learner
-  // has at least one enrollment already -- collapsed by default so an
-  // already-settled card doesn't show a join form unprompted. A
-  // zero-enrollment learner keeps today's always-open join section
-  // (FR-006), driven by `enrollments.length === 0` below, not this flag.
-  const [addOpen, setAddOpen] = useState(false);
+  // spec 044 FR-003/FR-006: "Add a subject" button is always visible
+  // directly under the name/enrollment-summary line for a 0- or
+  // 1-enrollment learner (never hidden behind its own open form, unlike
+  // the >1 tablist's trigger which already behaved this way). Starts
+  // open for a brand-new, zero-enrollment learner so the join form is
+  // the first thing they see, same nudge as before this fix.
+  const [addOpen, setAddOpen] = useState(enrollments.length === 0);
   const [selected, setSelected] = useState(0);
+  // Bumped after a successful GuardianAssignQuiz submission to force
+  // LearnerAssignments to remount and refetch, since the two components
+  // are siblings with no shared data/refresh callback otherwise.
+  const [assignmentsRefreshKey, setAssignmentsRefreshKey] = useState(0);
   // spec 044 FR-024 (US5): one round-trip, keyed by roster_id -- the
   // same `listLearnerEnrollments` call GuardianAssignQuiz already makes
   // per-roster, reused here to decide "Take placement" per tile.
@@ -160,6 +165,15 @@ export default function GuardianLearnerCard({
   function handleTakePlacement(subjectId: string) {
     enterRealLearnerSession(learnerId, displayName);
     router.push(`/placement?subject=${subjectId}`);
+  }
+
+  // Same real-session hand-off, landing on the dedicated assigned-quiz
+  // page -- used for both a fresh "Start" and a "Resume" of a stuck
+  // in_progress attempt; the page's own mount effect decides which
+  // based on the assignment's current status.
+  function handleOpenAssignment(assignmentId: string) {
+    enterRealLearnerSession(learnerId, displayName);
+    router.push(`/assignment?assignmentId=${assignmentId}`);
   }
 
   function handleJoined() {
@@ -292,7 +306,24 @@ export default function GuardianLearnerCard({
         )}
       </div>
 
-      {hasEnrollments ? (
+      {(!hasEnrollments || enrollments.length === 1) && (
+        <button
+          type="button"
+          onClick={() => setAddOpen((open) => !open)}
+          aria-expanded={addOpen}
+          className="flex min-h-12 w-fit items-center gap-2 rounded-full border-2 border-dashed border-border px-4.5 font-extrabold text-primary"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+          Add a subject
+        </button>
+      )}
+
+      {(!hasEnrollments || enrollments.length === 1) && addOpen && joinSection}
+
+      {hasEnrollments && (
         <>
           {enrollments.length > 1 && (
             <div
@@ -339,6 +370,8 @@ export default function GuardianLearnerCard({
             </div>
           )}
 
+          {enrollments.length > 1 && addOpen && joinSection}
+
           {selectedEnrollment && (
             <>
               <div className="grid grid-cols-3 gap-3">
@@ -381,9 +414,18 @@ export default function GuardianLearnerCard({
                 )}
               </div>
 
-              <LearnerAssignments learnerId={learnerId} rosterId={selectedEnrollment.roster_id} />
+              <LearnerAssignments
+                key={assignmentsRefreshKey}
+                learnerId={learnerId}
+                rosterId={selectedEnrollment.roster_id}
+                onOpenAssignment={handleOpenAssignment}
+              />
               <p className="text-sm text-muted">{tier.note}</p>
-              <GuardianAssignQuiz learnerId={learnerId} rosterId={selectedEnrollment.roster_id} />
+              <GuardianAssignQuiz
+                learnerId={learnerId}
+                rosterId={selectedEnrollment.roster_id}
+                onAssigned={() => setAssignmentsRefreshKey((key) => key + 1)}
+              />
 
               <details className="border-t border-border pt-3.5">
                 <summary className="flex min-h-11 cursor-pointer items-center font-extrabold text-primary">
@@ -413,25 +455,7 @@ export default function GuardianLearnerCard({
               </div>
             </>
           )}
-
-          {enrollments.length === 1 && !addOpen && (
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="flex min-h-12 w-fit items-center gap-2 rounded-full border-2 border-dashed border-border px-4.5 font-extrabold text-primary"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
-              </svg>
-              Add a subject
-            </button>
-          )}
-
-          {addOpen && joinSection}
         </>
-      ) : (
-        joinSection
       )}
     </article>
   );

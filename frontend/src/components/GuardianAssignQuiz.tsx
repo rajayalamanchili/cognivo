@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { assignQuizToOwnLearner, listLearnerEnrollments } from "@/services/api";
+import {
+  assignQuizToOwnLearner,
+  getMasteryState,
+  listLearnerEnrollments,
+  type MasteryTopicEntry,
+} from "@/services/api";
+import { formatTopicId } from "@/lib/format-topic-id";
 
 // spec 043 FR-017: shown only on a default-instructor-owned enrollment
 // card -- resolved the same fail-silent way `GuardianLearnerStandards`
@@ -12,15 +18,21 @@ import { assignQuizToOwnLearner, listLearnerEnrollments } from "@/services/api";
 export interface GuardianAssignQuizProps {
   learnerId: string;
   rosterId: string;
+  onAssigned?: () => void;
 }
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export default function GuardianAssignQuiz({ learnerId, rosterId }: GuardianAssignQuizProps) {
+export default function GuardianAssignQuiz({
+  learnerId,
+  rosterId,
+  onAssigned,
+}: GuardianAssignQuizProps) {
   const [eligible, setEligible] = useState(false);
-  const [topicIds, setTopicIds] = useState("");
+  const [topics, setTopics] = useState<MasteryTopicEntry[]>([]);
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
   const [questionCount, setQuestionCount] = useState(5);
   const [dueAt, setDueAt] = useState("");
   const [assigning, setAssigning] = useState(false);
@@ -34,6 +46,10 @@ export default function GuardianAssignQuiz({ learnerId, rosterId }: GuardianAssi
         if (cancelled) return;
         const entry = result.enrollments.find((e) => e.roster_id === rosterId);
         setEligible(entry?.is_default_instructor_roster ?? false);
+        if (!entry) return;
+        return getMasteryState(learnerId, entry.subject_id).then((masteryResult) => {
+          if (!cancelled) setTopics(masteryResult.topics);
+        });
       })
       .catch(() => {
         // Secondary enrichment -- same precedent as GuardianLearnerStandards.
@@ -43,6 +59,12 @@ export default function GuardianAssignQuiz({ learnerId, rosterId }: GuardianAssi
     };
   }, [learnerId, rosterId]);
 
+  function toggleTopic(topicId: string) {
+    setSelectedTopicIds((current) =>
+      current.includes(topicId) ? current.filter((id) => id !== topicId) : [...current, topicId],
+    );
+  }
+
   if (!eligible) return null;
 
   async function handleSubmit(event: FormEvent) {
@@ -51,17 +73,15 @@ export default function GuardianAssignQuiz({ learnerId, rosterId }: GuardianAssi
     setError(null);
     try {
       await assignQuizToOwnLearner(learnerId, rosterId, {
-        topicIds: topicIds
-          .split(",")
-          .map((id) => id.trim())
-          .filter((id) => id.length > 0),
+        topicIds: selectedTopicIds,
         questionCount,
         dueAt: dueAt ? new Date(dueAt).toISOString() : null,
       });
-      setTopicIds("");
+      setSelectedTopicIds([]);
       setQuestionCount(5);
       setDueAt("");
       setAssignedAt(Date.now());
+      onAssigned?.();
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -79,16 +99,29 @@ export default function GuardianAssignQuiz({ learnerId, rosterId }: GuardianAssi
         className="flex flex-col gap-3 pt-2"
         data-testid="guardian-assign-quiz-form"
       >
-        <label className="flex flex-col gap-1 text-sm font-extrabold">
-          Topic ids (comma-separated)
-          <input
-            type="text"
-            value={topicIds}
-            onChange={(event) => setTopicIds(event.target.value)}
-            data-testid="guardian-assign-topic-ids"
-            className="min-h-11 rounded-xl border-2 border-primary/25 px-3.5 font-normal"
-          />
-        </label>
+        <fieldset className="flex flex-col gap-1.5" data-testid="guardian-assign-topic-ids">
+          <legend className="text-sm font-extrabold">Topics</legend>
+          <div className="flex flex-wrap gap-2">
+            {topics.map((topic) => {
+              const selected = selectedTopicIds.includes(topic.topic_id);
+              return (
+                <button
+                  key={topic.topic_id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => toggleTopic(topic.topic_id)}
+                  className={`min-h-9 rounded-full px-3.5 text-sm font-bold ${
+                    selected
+                      ? "bg-primary text-primary-foreground"
+                      : "border-2 border-border bg-surface text-heading"
+                  }`}
+                >
+                  {formatTopicId(topic.topic_id)}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1 text-sm font-extrabold">
             Question count
@@ -125,7 +158,7 @@ export default function GuardianAssignQuiz({ learnerId, rosterId }: GuardianAssi
         )}
         <button
           type="submit"
-          disabled={assigning || topicIds.trim().length === 0}
+          disabled={assigning || selectedTopicIds.length === 0}
           className="self-start min-h-11 rounded-full bg-primary px-5 font-extrabold text-primary-foreground disabled:opacity-40"
         >
           {assigning ? "Assigning…" : "Assign quiz"}

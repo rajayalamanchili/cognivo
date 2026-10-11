@@ -90,6 +90,26 @@ def test_second_start_rejected_with_already_attempted(client, db_session, scenar
     assert {str(s.quiz_session_id) for s in sessions} == {first_quiz_session_id}
 
 
+def test_list_assignments_exposes_quiz_session_id_once_started(client, db_session, scenario):
+    """The frontend's Resume action (an in_progress attempt abandoned
+    mid-session) needs `quiz_session_id` from the list endpoint to call
+    `GET /api/quizzes/{quiz_session_id}/next-question` directly -- this
+    field must be `None` before start and the real session id after."""
+    before = client.get(f"/api/learners/{scenario['learner_id']}/assignments")
+    assert before.status_code == 200, before.text
+    assert before.json()["assignments"][0]["quiz_session_id"] is None
+
+    with patch_generation():
+        start = client.post(
+            f"/api/assignments/{scenario['assignment_id']}/learners/{scenario['learner_id']}/start"
+        )
+    assert start.status_code == 201, start.text
+
+    after = client.get(f"/api/learners/{scenario['learner_id']}/assignments")
+    assert after.status_code == 200, after.text
+    assert after.json()["assignments"][0]["quiz_session_id"] == start.json()["quiz_session_id"]
+
+
 def test_double_click_race_never_creates_two_sessions(client, db_session, scenario):
     """Mirrors `test_roster_duplicate_join.py`'s double-click pattern:
     two back-to-back requests for the same (assignment, learner) pair --

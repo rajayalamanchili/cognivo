@@ -272,6 +272,11 @@ class AssignmentForLearnerOut(BaseModel):
     cancelled_at: datetime.datetime | None
     status: str
     has_unviewed_activity: bool
+    # Lets the frontend resume an `in_progress` attempt via
+    # `GET /api/quizzes/{quiz_session_id}/next-question` -- the guardian's
+    # own session already passes that route's access check unconditionally
+    # (assert_quiz_session_access), so no handoff_token needs to round-trip.
+    quiz_session_id: uuid.UUID | None
 
 
 class ListLearnerAssignmentsOut(BaseModel):
@@ -351,6 +356,7 @@ def list_learner_assignments_route(
                 cancelled_at=assignment.cancelled_at,
                 status=status,
                 has_unviewed_activity=has_unviewed_activity,
+                quiz_session_id=target.quiz_session_id,
             )
         )
     return ListLearnerAssignmentsOut(assignments=result)

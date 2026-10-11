@@ -44,6 +44,20 @@ describe("QuizSummary", () => {
     expect(screen.getByTestId("quiz-summary")).toHaveTextContent(/ended early/i);
   });
 
+  it("explains a zero-question ended_early result (dedup exhaustion at start)", () => {
+    render(
+      <QuizSummary
+        summary={{ ...summary, status: "ended_early", score: { correct: 0, total: 0 }, summary: [] }}
+      />,
+    );
+    expect(screen.getByTestId("quiz-ended-no-questions")).toBeInTheDocument();
+  });
+
+  it("does not show the no-questions explanation for an ordinary ended_early result", () => {
+    render(<QuizSummary summary={{ ...summary, status: "ended_early" }} />);
+    expect(screen.queryByTestId("quiz-ended-no-questions")).not.toBeInTheDocument();
+  });
+
   it("renders per-question grading detail via AnswerResultView, for both a correct and an incorrect answer (spec 025 US3)", () => {
     render(
       <QuizSummary
