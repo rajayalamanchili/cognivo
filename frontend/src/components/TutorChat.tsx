@@ -153,6 +153,14 @@ export default function TutorChat({
   const [streaming, setStreaming] = useState(false);
   const [errorState, setErrorState] = useState<ErrorState>("none");
   const [sessionSources, setSessionSources] = useState<TutorRetrievedPassage[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Keeps the latest bubble (including the "Thinking…" placeholder while
+  // streaming) in view as the panel grows, instead of leaving it below
+  // the fold where it reads as stuck rather than working.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView?.({ block: "end" });
+  }, [messages]);
 
   const onSourcesChangeRef = useRef(onSourcesChange);
   useEffect(() => {
@@ -272,8 +280,12 @@ export default function TutorChat({
               >
                 {message.role === "tutor" && message.text ? (
                   <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
+                ) : message.role === "tutor" &&
+                  streaming &&
+                  index === messages.length - 1 ? (
+                  <LoadingIndicator message="Thinking…" compact />
                 ) : (
-                  message.text || (streaming && index === messages.length - 1 ? "…" : "")
+                  message.text
                 )}
               </div>
               {message.role === "tutor" && message.sources && message.sources.length > 0 && (
@@ -295,6 +307,7 @@ export default function TutorChat({
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
 
       {errorState === "still-answering" && (
@@ -359,13 +372,16 @@ export default function TutorChat({
         />
         <button
           type="button"
-          aria-label={streaming ? undefined : "Send"}
+          aria-label={streaming ? "Sending" : "Send"}
           onClick={() => void handleSubmit()}
           disabled={streaming || question.trim() === ""}
           className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
         >
           {streaming ? (
-            <LoadingIndicator message="Thinking…" compact />
+            <span
+              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground"
+              aria-hidden="true"
+            />
           ) : (
             <svg
               width="22"

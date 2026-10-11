@@ -137,7 +137,7 @@ describe("TutorChat", () => {
 
     expect(input).toBeDisabled();
     expect(screen.getByTestId("loading-indicator")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /thinking/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /sending/i })).toBeDisabled();
 
     resolveStream();
     await waitFor(() => expect(input).not.toBeDisabled());
