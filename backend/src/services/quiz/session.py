@@ -493,6 +493,65 @@ def persist_quiz_question(
     return question
 
 
+def _quiz_answered_count(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    exclude_question_id: uuid.UUID | None = None,
+) -> int:
+    query = (
+        db.query(AssessmentEvent)
+        .join(GeneratedQuestion, GeneratedQuestion.question_id == AssessmentEvent.question_id)
+        .filter(
+            GeneratedQuestion.quiz_session_id == quiz_session_id,
+            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
+        )
+    )
+    if exclude_question_id is not None:
+        query = query.filter(GeneratedQuestion.question_id != exclude_question_id)
+    return query.count()
+
+
+def complete_quiz_if_answered_enough(db: Session, *, quiz: QuizSession) -> bool:
+    """Self-heals a quiz left `in_progress` despite already having
+    `question_count` answered questions -- guards `get_quiz_next_
+    question` (quiz.py) against generating a doomed extra question past
+    the quiz's intended length. `generate_quiz_question` has no
+    `question_count` awareness of its own (it round-robins topics
+    unconditionally); normally that's harmless because `record_quiz_
+    answer`'s own completion check below flips `status` to `completed`
+    in the same request as the final answer, so the very next `next-
+    question` call sees `status != in_progress` and never reaches
+    generation at all (quiz.py's existing check). But if `next-question`
+    is ever called again while that flip hasn't landed (a duplicate/
+    retried request), generation proceeds against a topic whose dedup
+    pool is now this entire quiz's history for it -- far more likely to
+    exhaust `DEFAULT_MAX_DEDUP_ATTEMPTS` and get mislabeled
+    `ended_early` for what was actually a normal completion. Returns
+    `True` (and flips `status`) only when it found the quiz already
+    answered-complete and still `in_progress`; a no-op otherwise."""
+    if quiz.status != QuizSessionStatus.IN_PROGRESS:
+        return False
+    answered_count = _quiz_answered_count(db, quiz_session_id=quiz.quiz_session_id)
+    if answered_count < quiz.question_count:
+        return False
+    if quiz.time_limit_seconds is not None:
+        db.refresh(quiz, with_for_update=True)
+        if quiz.status == QuizSessionStatus.IN_PROGRESS:
+            _end_timed_session(
+                db,
+                session=quiz,
+                session_type="quiz",
+                status=QuizSessionStatus.COMPLETED,
+                end_reason="completed",
+            )
+    else:
+        quiz.status = QuizSessionStatus.COMPLETED
+        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        db.flush()
+    return True
+
+
 def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: bool) -> None:
     """Called from the quiz-aware branch of `answer_question` (research.md
     §4), *after* the shared `ANSWER_SUBMITTED` event for this same
@@ -531,15 +590,8 @@ def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: boo
         },
     )
 
-    answered_count_before = (
-        db.query(AssessmentEvent)
-        .join(GeneratedQuestion, GeneratedQuestion.question_id == AssessmentEvent.question_id)
-        .filter(
-            GeneratedQuestion.quiz_session_id == quiz.quiz_session_id,
-            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
-            GeneratedQuestion.question_id != question.question_id,
-        )
-        .count()
+    answered_count_before = _quiz_answered_count(
+        db, quiz_session_id=quiz.quiz_session_id, exclude_question_id=question.question_id
     )
     if answered_count_before + 1 >= quiz.question_count:
         if quiz.time_limit_seconds is not None:

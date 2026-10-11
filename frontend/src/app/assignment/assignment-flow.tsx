@@ -16,7 +16,7 @@ import {
   type NextQuestion,
   type QuizSummaryResponse,
 } from "@/services/api";
-import { getRealLearnerSession } from "@/lib/visitor-state";
+import { exitRealLearnerSession, getRealLearnerSession } from "@/lib/visitor-state";
 import QuestionCard from "@/components/QuestionCard";
 import QuizSummary from "@/components/QuizSummary";
 import LoadingIndicator from "@/components/LoadingIndicator";
@@ -239,6 +239,16 @@ export default function AssignmentFlow() {
     }
   }
 
+  // Ends the guardian's "acting for this learner" session and returns
+  // to the learner tile this quiz was opened from -- same pattern
+  // Nav.tsx's own "End session, back to my learners" uses, not
+  // practice/placement's `/dashboard` (this page is always opened from
+  // GuardianLearnerCard, never the learner's own device).
+  function handleReturnToLearners() {
+    exitRealLearnerSession();
+    router.push("/guardian/learners");
+  }
+
   if (phase === "loading") {
     return <LoadingIndicator message="Finding your quiz…" />;
   }
@@ -271,7 +281,7 @@ export default function AssignmentFlow() {
           </button>
           <button
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={handleReturnToLearners}
             className="rounded-full border border-border px-5 py-3"
           >
             I&apos;m done for now
@@ -294,7 +304,7 @@ export default function AssignmentFlow() {
         />
         <button
           type="button"
-          onClick={() => router.push("/dashboard")}
+          onClick={handleReturnToLearners}
           className="self-start rounded-full bg-primary px-5 py-3 font-extrabold text-primary-foreground"
         >
           Done
@@ -317,7 +327,7 @@ export default function AssignmentFlow() {
           </span>
           <button
             type="button"
-            onClick={() => router.push("/dashboard")}
+            onClick={handleReturnToLearners}
             className="text-[15px] font-extrabold text-link"
           >
             End session
