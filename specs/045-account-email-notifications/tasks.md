@@ -35,8 +35,8 @@ Web app (existing split, per plan.md's Structure Decision):
 
 **Purpose**: New env vars and dependency reclassification, no code yet.
 
-- [ ] T001 [P] Add `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `FRONTEND_BASE_URL` (with research.md §1/§6 doc comments matching this file's existing style) to `backend/.env.example`
-- [ ] T002 [P] Move `httpx` from the `dev` dependency group to main `dependencies` in `backend/pyproject.toml` (research.md §1 -- no new package, just reclassified)
+- [X] T001 [P] Add `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `FRONTEND_BASE_URL` (with research.md §1/§6 doc comments matching this file's existing style) to `backend/.env.example`
+- [X] T002 [P] Move `httpx` from the `dev` dependency group to main `dependencies` in `backend/pyproject.toml` (research.md §1 -- no new package, just reclassified)
 
 ---
 
@@ -48,12 +48,12 @@ until this phase is done.
 
 **⚠️ CRITICAL**: Blocks all of Phase 3+.
 
-- [ ] T003 [P] Add `NotificationType` (`registration`/`password_reset`/`deletion_request_confirmation`) and `NotificationStatus` (`sent`/`failed`) enums to `backend/src/models/enums.py` (data-model.md)
-- [ ] T004 [P] Create `PasswordResetToken` model in `backend/src/models/password_reset_token.py` (data-model.md -- `AuthorizedByType` account_type, non-FK account_id, token_hash, created_at, expires_at, used_at)
-- [ ] T005 [P] Create `NotificationLogEntry` model in `backend/src/models/notification_log_entry.py` (data-model.md -- notification_type, account_type, non-FK account_id, attempted_at, status, error_detail)
-- [ ] T006 Create Alembic migration for both new tables, including the `uq_password_reset_tokens_pending_account` partial unique index on `(account_type, account_id) WHERE used_at IS NULL` (depends on T003, T004, T005) in `backend/alembic/versions/`
-- [ ] T007 Create `backend/src/services/notifications/mailer.py`: `send_email(to_email, subject, body) -> bool`, a single `httpx.post()` to Resend's `/emails` endpoint with a 10s timeout, catching every exception/non-2xx response as a failure, never raising (research.md §1/§5/§7; depends on T002)
-- [ ] T008 Create `backend/src/services/notifications/notify.py`: `notify_registration`, `notify_password_reset`, `notify_deletion_request` -- each takes a required `is_demo: bool` that short-circuits before any send/log (FR-011), calls `mailer.send_email`, and writes one `NotificationLogEntry` row (sent/failed) on the caller's `db` session (research.md §5; depends on T005, T006, T007)
+- [X] T003 [P] Add `NotificationType` (`registration`/`password_reset`/`deletion_request_confirmation`) and `NotificationStatus` (`sent`/`failed`) enums to `backend/src/models/enums.py` (data-model.md)
+- [X] T004 [P] Create `PasswordResetToken` model in `backend/src/models/password_reset_token.py` (data-model.md -- `AuthorizedByType` account_type, non-FK account_id, token_hash, created_at, expires_at, used_at)
+- [X] T005 [P] Create `NotificationLogEntry` model in `backend/src/models/notification_log_entry.py` (data-model.md -- notification_type, account_type, non-FK account_id, attempted_at, status, error_detail)
+- [X] T006 Create Alembic migration for both new tables, including the `uq_password_reset_tokens_pending_account` partial unique index on `(account_type, account_id) WHERE used_at IS NULL` (depends on T003, T004, T005) in `backend/alembic/versions/`
+- [X] T007 Create `backend/src/services/notifications/mailer.py`: `send_email(to_email, subject, body) -> bool`, a single `httpx.post()` to Resend's `/emails` endpoint with a 10s timeout, catching every exception/non-2xx response as a failure, never raising (research.md §1/§5/§7; depends on T002)
+- [X] T008 Create `backend/src/services/notifications/notify.py`: `notify_registration`, `notify_password_reset`, `notify_deletion_request` -- each takes a required `is_demo: bool` that short-circuits before any send/log (FR-011), calls `mailer.send_email`, and writes one `NotificationLogEntry` row (sent/failed) on the caller's `db` session (research.md §5; depends on T005, T006, T007)
 
 **Checkpoint**: Foundation ready -- user stories can now proceed.
 
@@ -73,18 +73,18 @@ one.
 
 ### Implementation for User Story 1
 
-- [ ] T009 [P] [US1] Create `backend/src/services/auth/reset_tokens.py`: issue (invalidate-prior + insert, with one retry on the partial-unique-index `IntegrityError`), hash (`secrets.token_urlsafe(32)` + SHA-256), verify (`used_at IS NULL AND expires_at > now()`), and the 60-second reset-request rate-limit check (research.md §2/§3; depends on T004, T006)
-- [ ] T010 [US1] Add `POST /api/auth/guardian/forgot-password` and `POST /api/auth/guardian/reset-password` to `backend/src/api/routes/auth.py` (contracts/api.md; depends on T008, T009)
-- [ ] T011 [US1] Add `POST /api/auth/instructor/forgot-password` and `POST /api/auth/instructor/reset-password` to `backend/src/api/routes/auth.py` (contracts/api.md; depends on T008, T009; same file as T010, sequential)
-- [ ] T012 [P] [US1] Unit tests for `reset_tokens.py` (hash/expiry/invalidation/rate-limit, concurrent-issue retry) in `backend/tests/unit/test_reset_tokens.py`
-- [ ] T013 [P] [US1] Integration tests for the guardian forgot/reset-password flow (happy path, reuse-rejected, expiry-rejected, no-enumeration on unknown/demo email) in `backend/tests/integration/test_auth_guardian_password_reset.py`
-- [ ] T014 [P] [US1] Integration tests for the instructor forgot/reset-password flow (same coverage as T013) in `backend/tests/integration/test_auth_instructor_password_reset.py`
-- [ ] T015 [P] [US1] Create guardian forgot-password page in `frontend/src/app/(auth)/guardian/forgot-password/page.tsx`
-- [ ] T016 [P] [US1] Create guardian reset-password page in `frontend/src/app/(auth)/guardian/reset-password/page.tsx`
-- [ ] T017 [P] [US1] Create instructor forgot-password page in `frontend/src/app/(auth)/instructor/forgot-password/page.tsx`
-- [ ] T018 [P] [US1] Create instructor reset-password page in `frontend/src/app/(auth)/instructor/reset-password/page.tsx`
-- [ ] T019 [P] [US1] Add a "Forgot password?" link to `frontend/src/app/(auth)/guardian/sign-in/page.tsx`
-- [ ] T020 [P] [US1] Add a "Forgot password?" link to `frontend/src/app/(auth)/instructor/sign-in/page.tsx`
+- [X] T009 [P] [US1] Create `backend/src/services/auth/reset_tokens.py`: issue (invalidate-prior + insert, with one retry on the partial-unique-index `IntegrityError`), hash (`secrets.token_urlsafe(32)` + SHA-256), verify (`used_at IS NULL AND expires_at > now()`), and the 60-second reset-request rate-limit check (research.md §2/§3; depends on T004, T006)
+- [X] T010 [US1] Add `POST /api/auth/guardian/forgot-password` and `POST /api/auth/guardian/reset-password` to `backend/src/api/routes/auth.py` (contracts/api.md; depends on T008, T009)
+- [X] T011 [US1] Add `POST /api/auth/instructor/forgot-password` and `POST /api/auth/instructor/reset-password` to `backend/src/api/routes/auth.py` (contracts/api.md; depends on T008, T009; same file as T010, sequential)
+- [X] T012 [P] [US1] Unit tests for `reset_tokens.py` (hash/expiry/invalidation/rate-limit, concurrent-issue retry) in `backend/tests/unit/test_reset_tokens.py`
+- [X] T013 [P] [US1] Integration tests for the guardian forgot/reset-password flow (happy path, reuse-rejected, expiry-rejected, no-enumeration on unknown/demo email) in `backend/tests/integration/test_auth_guardian_password_reset.py`
+- [X] T014 [P] [US1] Integration tests for the instructor forgot/reset-password flow (same coverage as T013) in `backend/tests/integration/test_auth_instructor_password_reset.py`
+- [X] T015 [P] [US1] Create guardian forgot-password page in `frontend/src/app/(auth)/guardian/forgot-password/page.tsx`
+- [X] T016 [P] [US1] Create guardian reset-password page in `frontend/src/app/(auth)/guardian/reset-password/page.tsx`
+- [X] T017 [P] [US1] Create instructor forgot-password page in `frontend/src/app/(auth)/instructor/forgot-password/page.tsx`
+- [X] T018 [P] [US1] Create instructor reset-password page in `frontend/src/app/(auth)/instructor/reset-password/page.tsx`
+- [X] T019 [P] [US1] Add a "Forgot password?" link for the guardian sign-in form (spec 041 since restructured `(auth)/guardian/sign-in/page.tsx` into a thin redirect to the unified `/sign-in?tab=guardian` page -- the actual form lives in the shared `frontend/src/components/AuthForm.tsx`, edited there instead so both roles get the link from one change)
+- [X] T020 [P] [US1] Add a "Forgot password?" link for the instructor sign-in form (same `AuthForm.tsx` edit as T019 -- covers both tabs)
 
 **Checkpoint**: User Story 1 is fully functional and independently
 testable (quickstart.md Scenarios 1-2).
@@ -102,9 +102,9 @@ confirmation email is sent; confirm a failed registration sends none.
 
 ### Implementation for User Story 2
 
-- [ ] T021 [US2] Call `notify_registration` from `register_guardian` in `backend/src/api/routes/auth.py`, after its existing commit (depends on T008; same file as T010/T011, sequential)
-- [ ] T022 [US2] Call `notify_registration` from `register_instructor` in `backend/src/api/routes/auth.py`, after its existing commit (depends on T008; same file, sequential)
-- [ ] T023 [P] [US2] Integration tests for registration-confirmation emails (guardian + instructor sent, failed/duplicate registration sends none, `notification_log_entries` row shape) in `backend/tests/integration/test_notifications_registration.py`
+- [X] T021 [US2] Call `notify_registration` from `register_guardian` in `backend/src/api/routes/auth.py`, after its existing commit (depends on T008; same file as T010/T011, sequential)
+- [X] T022 [US2] Call `notify_registration` from `register_instructor` in `backend/src/api/routes/auth.py`, after its existing commit (depends on T008; same file, sequential)
+- [X] T023 [P] [US2] Integration tests for registration-confirmation emails (guardian + instructor sent, failed/duplicate registration sends none, `notification_log_entries` row shape) in `backend/tests/integration/test_notifications_registration.py`
 
 **Checkpoint**: User Stories 1 and 2 both independently functional
 (quickstart.md Scenario 3).
@@ -126,10 +126,10 @@ request also notifies.
 
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] Call `notify_deletion_request` from `submit_deletion_request` in `backend/src/api/routes/deletion.py`, after its existing commit -- resolving the recipient to the managing guardian when `target_type == LEARNER` (research.md §5; depends on T008)
-- [ ] T025 [US3] Restructure `sweep_inactive_accounts` in `backend/src/services/deletion/inactivity.py` to commit each `DeletionRequest` individually and call `notify_deletion_request` right after, resolving the recipient from `RetentionRecord.account_type` (`LEARNER` -> managing guardian, `INSTRUCTOR` -> the instructor itself) (research.md §5; depends on T008). This changes the function's commit granularity from one batched `db.commit()` at the loop's end to one per record -- re-run the existing spec-020 suite (`test_deletion_inactivity_sweep.py`, `test_deletion_inactivity_no_duplicate.py`, `test_deletion_inactivity_threshold.py`) afterward and fix any assumption that depended on the old single-commit-at-end shape (/speckit-analyze finding I1)
-- [ ] T026 [P] [US3] Integration tests for deletion-request confirmation (self guardian/instructor, learner-target notifies the guardian not the learner, duplicate-pending sends none, system/inactivity-generated request also notifies) in `backend/tests/integration/test_notifications_deletion_request.py`
-- [ ] T027 [P] [US3] Integration test confirming zero `notification_log_entries` rows are ever written for a demo guardian/instructor/demo-learner's-guardian across all three trigger points in `backend/tests/integration/test_notifications_demo_guard.py`
+- [X] T024 [US3] Call `notify_deletion_request` from `submit_deletion_request` in `backend/src/api/routes/deletion.py`, after its existing commit -- resolving the recipient to the managing guardian when `target_type == LEARNER` (research.md §5; depends on T008)
+- [X] T025 [US3] Restructure `sweep_inactive_accounts` in `backend/src/services/deletion/inactivity.py` to commit each `DeletionRequest` individually and call `notify_deletion_request` right after, resolving the recipient from `RetentionRecord.account_type` (`LEARNER` -> managing guardian, `INSTRUCTOR` -> the instructor itself) (research.md §5; depends on T008). This changes the function's commit granularity from one batched `db.commit()` at the loop's end to one per record -- re-run the existing spec-020 suite (`test_deletion_inactivity_sweep.py`, `test_deletion_inactivity_no_duplicate.py`, `test_deletion_inactivity_threshold.py`) afterward and fix any assumption that depended on the old single-commit-at-end shape (/speckit-analyze finding I1)
+- [X] T026 [P] [US3] Integration tests for deletion-request confirmation (self guardian/instructor, learner-target notifies the guardian not the learner, duplicate-pending sends none, system/inactivity-generated request also notifies) in `backend/tests/integration/test_notifications_deletion_request.py`
+- [X] T027 [P] [US3] Integration test confirming zero `notification_log_entries` rows are ever written for a demo guardian/instructor/demo-learner's-guardian across all three trigger points in `backend/tests/integration/test_notifications_demo_guard.py`
 
 **Checkpoint**: All three user stories independently functional
 (quickstart.md Scenarios 4-5).
@@ -138,10 +138,10 @@ request also notifies.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T028 [P] Run every `quickstart.md` scenario end to end against a local dev server with a real (or deliberately invalid) `RESEND_API_KEY`
-- [ ] T029 [P] Lint/format pass (`ruff`, `black`) across every new/edited backend file from this feature
-- [ ] T030 [P] Unit test: mock `mailer.send_email` to return `False`/raise for each of `notify_registration`, `notify_password_reset`, `notify_deletion_request`, and assert each still writes exactly one `NotificationLogEntry` row with `status=failed` and never raises (FR-012/FR-013) in `backend/tests/unit/test_notify_failure_handling.py`
-- [ ] T031 [P] Integration test: with `mailer.send_email` mocked to fail, confirm all three trigger-point HTTP actions -- `register_guardian`/`register_instructor`, `forgot-password` (guardian + instructor), and `submit_deletion_request` -- still return their normal success response (SC-006) in `backend/tests/integration/test_notifications_failure_resilience.py` (/speckit-analyze finding E1)
+- [X] T028 [P] Run every `quickstart.md` scenario end to end against a local dev server with a real (or deliberately invalid) `RESEND_API_KEY`
+- [X] T029 [P] Lint/format pass (`ruff`, `black`) across every new/edited backend file from this feature
+- [X] T030 [P] Unit test: mock `mailer.send_email` to return `False`/raise for each of `notify_registration`, `notify_password_reset`, `notify_deletion_request`, and assert each still writes exactly one `NotificationLogEntry` row with `status=failed` and never raises (FR-012/FR-013) in `backend/tests/unit/test_notify_failure_handling.py`
+- [X] T031 [P] Integration test: with `mailer.send_email` mocked to fail, confirm all three trigger-point HTTP actions -- `register_guardian`/`register_instructor`, `forgot-password` (guardian + instructor), and `submit_deletion_request` -- still return their normal success response (SC-006) in `backend/tests/integration/test_notifications_failure_resilience.py` (/speckit-analyze finding E1)
 
 ---
 

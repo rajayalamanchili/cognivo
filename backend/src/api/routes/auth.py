@@ -9,6 +9,7 @@ register as both.
 """
 
 import datetime
+import os
 import uuid
 from typing import Literal
 
@@ -37,6 +38,7 @@ from src.models.learner_profile import LearnerProfile
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
+from src.services.auth import reset_tokens
 from src.services.auth.dependencies import (
     InstructorAccount,
     current_guardian,
@@ -59,6 +61,7 @@ from src.services.auth.tokens import (
     set_session_cookie,
 )
 from src.services.deletion.inactivity import INACTIVITY_RETENTION_PERIOD
+from src.services.notifications.notify import notify_password_reset, notify_registration
 from src.services.roster.default_instructor import get_reserved_default_instructor_email
 
 router = APIRouter()
@@ -155,6 +158,13 @@ def register_instructor(
         db.rollback()
         raise ConflictError("email_taken") from exc
     db.refresh(instructor)
+    notify_registration(
+        db,
+        is_demo=False,
+        account_type=AuthorizedByType.INSTRUCTOR,
+        account_id=instructor.instructor_id,
+        email=instructor.email,
+    )
 
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
     set_session_cookie(response, token)
@@ -193,6 +203,75 @@ def login_instructor(
     return InstructorAuthOut(instructor_id=instructor.instructor_id)
 
 
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
+    base_url = os.environ.get("FRONTEND_BASE_URL", "")
+    return f"{base_url}/{role}/reset-password?token={raw_token}"
+
+
+@router.post("/api/auth/instructor/forgot-password", status_code=204)
+def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
+    """Always `204` regardless of outcome (FR-002/SC-003: no account-
+    enumeration signal) -- see contracts/api.md."""
+    email = _normalize_email(body.email)
+    instructor = (
+        db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
+    )
+    if (
+        instructor is not None
+        and not instructor.is_demo
+        and not reset_tokens.recently_requested(
+            db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id
+        )
+    ):
+        raw_token = reset_tokens.issue(db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id)
+        notify_password_reset(
+            db,
+            is_demo=False,
+            account_type=AuthorizedByType.INSTRUCTOR,
+            account_id=instructor.instructor_id,
+            email=instructor.email,
+            reset_link=_reset_link("instructor", raw_token),
+        )
+
+
+@router.post("/api/auth/instructor/reset-password", response_model=InstructorAuthOut)
+def reset_password_instructor(
+    body: ResetPasswordIn, response: Response, db: Session = Depends(get_db)
+) -> InstructorAuthOut:
+    reset_token = reset_tokens.find_by_raw_token(db, body.token)
+    if (
+        reset_token is None
+        or reset_token.account_type != AuthorizedByType.INSTRUCTOR
+        or reset_token.used_at is not None
+    ):
+        raise UnprocessableError("reset_token_invalid")
+    if reset_token.expires_at <= datetime.datetime.now(datetime.UTC):
+        raise UnprocessableError("reset_token_expired")
+    instructor = db.get(RealInstructorAccount, reset_token.account_id)
+    if instructor is None:
+        raise UnprocessableError("reset_token_invalid")
+
+    instructor.password_hash = hash_password(body.new_password)
+    # FR-006: invalidates every other existing session token, same as
+    # change_instructor_password.
+    instructor.password_changed_at = datetime.datetime.now(datetime.UTC)
+    reset_token.used_at = datetime.datetime.now(datetime.UTC)
+    db.commit()
+
+    session_token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
+    set_session_cookie(response, session_token)
+    return InstructorAuthOut(instructor_id=instructor.instructor_id)
+
+
 @router.post("/api/auth/guardian/register", response_model=GuardianAuthOut, status_code=201)
 def register_guardian(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
@@ -212,6 +291,13 @@ def register_guardian(
         db.rollback()
         raise ConflictError("email_taken") from exc
     db.refresh(guardian)
+    notify_registration(
+        db,
+        is_demo=False,
+        account_type=AuthorizedByType.GUARDIAN,
+        account_id=guardian.guardian_id,
+        email=guardian.email,
+    )
 
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
     set_session_cookie(response, token)
@@ -244,6 +330,57 @@ def login_guardian(
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
     set_session_cookie(response, token)
     db.commit()
+    return GuardianAuthOut(guardian_id=guardian.guardian_id)
+
+
+@router.post("/api/auth/guardian/forgot-password", status_code=204)
+def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
+    """Always `204` regardless of outcome (FR-002/SC-003: no account-
+    enumeration signal) -- mirrors `forgot_password_instructor`."""
+    email = _normalize_email(body.email)
+    guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
+    if (
+        guardian is not None
+        and not guardian.is_demo
+        and not reset_tokens.recently_requested(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+    ):
+        raw_token = reset_tokens.issue(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+        notify_password_reset(
+            db,
+            is_demo=False,
+            account_type=AuthorizedByType.GUARDIAN,
+            account_id=guardian.guardian_id,
+            email=guardian.email,
+            reset_link=_reset_link("guardian", raw_token),
+        )
+
+
+@router.post("/api/auth/guardian/reset-password", response_model=GuardianAuthOut)
+def reset_password_guardian(
+    body: ResetPasswordIn, response: Response, db: Session = Depends(get_db)
+) -> GuardianAuthOut:
+    reset_token = reset_tokens.find_by_raw_token(db, body.token)
+    if (
+        reset_token is None
+        or reset_token.account_type != AuthorizedByType.GUARDIAN
+        or reset_token.used_at is not None
+    ):
+        raise UnprocessableError("reset_token_invalid")
+    if reset_token.expires_at <= datetime.datetime.now(datetime.UTC):
+        raise UnprocessableError("reset_token_expired")
+    guardian = db.get(RealGuardianAccount, reset_token.account_id)
+    if guardian is None:
+        raise UnprocessableError("reset_token_invalid")
+
+    guardian.password_hash = hash_password(body.new_password)
+    # FR-006: invalidates every other existing session token, same as
+    # change_guardian_password.
+    guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
+    reset_token.used_at = datetime.datetime.now(datetime.UTC)
+    db.commit()
+
+    session_token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
+    set_session_cookie(response, session_token)
     return GuardianAuthOut(guardian_id=guardian.guardian_id)
 
 
