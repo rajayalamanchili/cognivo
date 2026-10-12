@@ -78,6 +78,33 @@ def test_send_email_redacts_recipient_address_echoed_in_provider_error(monkeypat
     assert "[recipient email redacted]" in detail
 
 
+def test_send_email_redaction_is_case_insensitive(monkeypatch):
+    """Review finding: a provider can echo the address back
+    normalized/lowercased, which an exact-match replace would miss."""
+    monkeypatch.setenv("RESEND_API_KEY", "test-key")
+    monkeypatch.setenv("EMAIL_FROM_ADDRESS", "noreply@example.com")
+    response = MagicMock(
+        is_success=False, status_code=422, text="invalid `to` address victim@example.com"
+    )
+    with patch("httpx.post", return_value=response):
+        sent, detail = send_email("Victim@Example.com", "subject", "body")
+    assert sent is False
+    assert "victim@example.com" not in detail.lower()
+    assert "[recipient email redacted]" in detail
+
+
+def test_send_email_redaction_handles_empty_to_email(monkeypatch):
+    """Review finding: `str.replace("", ...)` inserts the placeholder
+    between every character instead of being a no-op."""
+    monkeypatch.setenv("RESEND_API_KEY", "test-key")
+    monkeypatch.setenv("EMAIL_FROM_ADDRESS", "noreply@example.com")
+    response = MagicMock(is_success=False, status_code=422, text="invalid recipient")
+    with patch("httpx.post", return_value=response):
+        sent, detail = send_email("", "subject", "body")
+    assert sent is False
+    assert detail == "HTTP 422: invalid recipient"
+
+
 def test_send_email_failure_detail_is_truncated(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "test-key")
     monkeypatch.setenv("EMAIL_FROM_ADDRESS", "noreply@example.com")

@@ -5,6 +5,7 @@ since a failed send must never block the action that triggered it
 (FR-012)."""
 
 import os
+import re
 
 import httpx
 
@@ -22,8 +23,15 @@ def _redact(detail: str, to_email: str) -> str:
     the account/retention path (Principle VIII), via a raw string this
     function never otherwise inspects. Scrubbed defensively on every
     failure path, not just the HTTP one, since an exception's own
-    message can also happen to contain it."""
-    return detail.replace(to_email, "[recipient email redacted]")
+    message can also happen to contain it.
+
+    Case-insensitive (review finding: providers can echo the address
+    normalized/lowercased) and guarded against an empty `to_email` --
+    an exact-match `str.replace("", ...)` would otherwise insert the
+    placeholder between every character of `detail`."""
+    if not to_email:
+        return detail
+    return re.sub(re.escape(to_email), "[recipient email redacted]", detail, flags=re.IGNORECASE)
 
 
 def send_email(to_email: str, subject: str, body: str) -> tuple[bool, str | None]:
