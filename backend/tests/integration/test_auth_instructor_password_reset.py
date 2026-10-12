@@ -32,8 +32,6 @@ def client(db_session, monkeypatch):
     monkeypatch.setattr(
         "src.services.auth.reset_tokens.secrets.token_urlsafe", lambda n: _RAW_TOKEN
     )
-    # Don't pay forgot-password's real constant-time floor in tests.
-    monkeypatch.setattr("src.api.routes.auth._FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS", 0.0)
     return TestClient(app, base_url="https://testserver")
 
 
@@ -148,11 +146,11 @@ def test_forgot_password_for_demo_account_sends_nothing(client, db_session):
 def test_forgot_password_for_reserved_default_instructor_email_sends_nothing(
     client, db_session, monkeypatch
 ):
-    """PR #115 review (minor, confirmed real): the seeded default
-    instructor (spec 043) is a real, sign-in-able account with a
-    well-known, documented email -- anyone could otherwise hijack it
-    through this same public endpoint, the same way `register_instructor`
-    already blocks squatting on it at signup."""
+    """The seeded default instructor (spec 043) is a real, sign-in-able
+    account with a well-known, documented email -- anyone could
+    otherwise hijack it through this same public endpoint, the same
+    way `register_instructor` already blocks squatting on it at
+    signup."""
     monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", "default-instructor@example.com")
     default_instructor = RealInstructorAccount(
         email="default-instructor@example.com", password_hash="x", is_demo=False
@@ -189,3 +187,32 @@ def test_guardian_token_is_not_accepted_on_instructor_reset_endpoint(client, db_
     )
     assert response.status_code == 422
     assert response.json() == {"detail": "reset_token_invalid"}
+
+
+def test_completing_a_reset_clears_an_existing_login_lockout(client, db_session):
+    """A locked-out account is exactly US1's motivating case -- a
+    completed reset must not leave it still locked out immediately
+    afterward."""
+    email = "lockedout-instructor@example.com"
+    _register(client, email)
+
+    for _ in range(5):  # LOCKOUT_THRESHOLD
+        client.post(
+            "/api/auth/instructor/login", json={"email": email, "password": "wrongpassword"}
+        )
+    locked_attempt = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "wrongpassword"}
+    )
+    assert locked_attempt.status_code == 429
+
+    client.post("/api/auth/instructor/forgot-password", json={"email": email})
+    reset = client.post(
+        "/api/auth/instructor/reset-password",
+        json={"token": _RAW_TOKEN, "new_password": "newpassword123"},
+    )
+    assert reset.status_code == 200, reset.text
+
+    login = client.post(
+        "/api/auth/instructor/login", json={"email": email, "password": "newpassword123"}
+    )
+    assert login.status_code == 200

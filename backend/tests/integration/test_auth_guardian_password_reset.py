@@ -38,8 +38,6 @@ def client(db_session, monkeypatch):
     monkeypatch.setattr(
         "src.services.auth.reset_tokens.secrets.token_urlsafe", lambda n: _RAW_TOKEN
     )
-    # Don't pay forgot-password's real constant-time floor in tests.
-    monkeypatch.setattr("src.api.routes.auth._FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS", 0.0)
     return TestClient(app, base_url="https://testserver")
 
 
@@ -174,3 +172,32 @@ def test_concurrent_forgot_password_requests_do_not_duplicate_valid_tokens(clien
     db_session.expire_all()
     pending = db_session.query(PasswordResetToken).filter(PasswordResetToken.used_at.is_(None))
     assert pending.count() == 1
+
+
+def test_completing_a_reset_clears_an_existing_login_lockout(client, db_session):
+    """A locked-out account is exactly US1's motivating case -- a
+    completed reset must not leave it still locked out immediately
+    afterward."""
+    email = "lockedout@example.com"
+    _register(client, email)
+
+    for _ in range(5):  # LOCKOUT_THRESHOLD
+        client.post(
+            "/api/auth/guardian/login", json={"email": email, "password": "wrongpassword"}
+        )
+    locked_attempt = client.post(
+        "/api/auth/guardian/login", json={"email": email, "password": "wrongpassword"}
+    )
+    assert locked_attempt.status_code == 429
+
+    client.post("/api/auth/guardian/forgot-password", json={"email": email})
+    reset = client.post(
+        "/api/auth/guardian/reset-password",
+        json={"token": _RAW_TOKEN, "new_password": "newpassword123"},
+    )
+    assert reset.status_code == 200, reset.text
+
+    login = client.post(
+        "/api/auth/guardian/login", json={"email": email, "password": "newpassword123"}
+    )
+    assert login.status_code == 200

@@ -21,8 +21,6 @@ def client(db_session, monkeypatch):
 
     monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
     monkeypatch.setenv("FRONTEND_BASE_URL", "https://cognivo.example")
-    # Don't pay forgot-password's real constant-time floor in tests.
-    monkeypatch.setattr("src.api.routes.auth._FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS", 0.0)
     return TestClient(app, base_url="https://testserver")
 
 

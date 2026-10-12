@@ -10,7 +10,6 @@ register as both.
 
 import datetime
 import os
-import time
 import uuid
 from typing import Literal
 
@@ -216,27 +215,20 @@ class ResetPasswordIn(BaseModel):
     new_password: str = Field(min_length=8)
 
 
-# A deferred (post-response) send isn't safe on Vercel's serverless
-# model -- a function instance can be frozen once the response is
-# sent, silently dropping a still-pending background task with no
-# record it ever ran. Closing the forgot-password timing gap (SC-003's
-# no-account-enumeration guarantee) the Vercel-safe way instead: every
-# `forgot-password` call, match or not,
-# is padded up to this floor -- the same "pay a comparable cost on
-# every branch" principle this file's own `_DUMMY_PASSWORD_HASH`
-# already applies to login. This closes the common-case/median gap a
-# realistic timing attack (many samples) would exploit; it does not
-# make the rare slow-network tail (the mailer's own 10s timeout)
-# indistinguishable from a floored no-match response. A durable
-# outbox + cron sweep (mirroring `execute-deletions`' existing
-# pattern) would close that tail too, if ever needed.
-_FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS = 2.0
-
-
-def _pad_to_floor(started_at: float) -> None:
-    remaining = _FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS - (time.monotonic() - started_at)
-    if remaining > 0:
-        time.sleep(remaining)
+# FR-002/SC-003 call for the forgot-password response to carry no
+# account-enumeration signal. A deferred (BackgroundTasks) send isn't
+# safe on Vercel's serverless model (a function can be frozen right
+# after its response is sent, silently dropping a still-pending task).
+# A synchronous constant-time floor was tried and reverted -- it closed
+# the timing gap but blocked a sync worker thread on every call to this
+# unauthenticated endpoint for the floor's full duration, letting a
+# small request rate exhaust the whole process's thread pool (a worse,
+# easier-to-trigger problem than the timing leak it fixed). Pending a
+# deliberate design decision (most likely a durable outbox + cron sweep,
+# mirroring `execute-deletions`' existing pattern), this synchronously
+# calls the mailer like every other trigger point in this feature,
+# accepting the known, narrower timing-oracle gap documented in
+# research.md rather than trading it for an availability one.
 
 
 def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
@@ -310,11 +302,7 @@ def _reset_password_error(
 @router.post("/api/auth/instructor/forgot-password", status_code=204)
 def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
     """Always `204` regardless of outcome (FR-002/SC-003: no account-
-    enumeration signal) -- see contracts/api.md. Padded to
-    `_FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS` on every branch so a
-    real, non-demo, not-rate-limited match (which does real DB/network
-    work) and every other case take comparable wall-clock time."""
-    started_at = time.monotonic()
+    enumeration signal) -- see contracts/api.md."""
     email = _normalize_email(body.email)
     # The seeded default instructor (spec 043) is a real, sign-in-able
     # account with a well-known, documented email -- without this guard
@@ -341,7 +329,6 @@ def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get
             role="instructor",
             raw_token=raw_token,
         )
-    _pad_to_floor(started_at)
 
 
 @router.post("/api/auth/instructor/reset-password", response_model=InstructorAuthOut)
@@ -359,6 +346,11 @@ def reset_password_instructor(
     # FR-006: invalidates every other existing session token, same as
     # change_instructor_password.
     instructor.password_changed_at = datetime.datetime.now(datetime.UTC)
+    # Clears any lockout from failed login attempts -- a completed
+    # reset is this feature's whole point for a locked-out account
+    # (US1), so it must not leave that account still locked out
+    # immediately afterward.
+    record_successful_attempt(instructor)
     db.commit()
 
     session_token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
@@ -430,9 +422,7 @@ def login_guardian(
 @router.post("/api/auth/guardian/forgot-password", status_code=204)
 def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
     """Always `204` regardless of outcome (FR-002/SC-003: no account-
-    enumeration signal) -- mirrors `forgot_password_instructor`,
-    including the constant-time floor."""
-    started_at = time.monotonic()
+    enumeration signal) -- mirrors `forgot_password_instructor`."""
     email = _normalize_email(body.email)
     guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
     if (
@@ -449,7 +439,6 @@ def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_d
             role="guardian",
             raw_token=raw_token,
         )
-    _pad_to_floor(started_at)
 
 
 @router.post("/api/auth/guardian/reset-password", response_model=GuardianAuthOut)
@@ -467,6 +456,11 @@ def reset_password_guardian(
     # FR-006: invalidates every other existing session token, same as
     # change_guardian_password.
     guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
+    # Clears any lockout from failed login attempts -- a completed
+    # reset is this feature's whole point for a locked-out account
+    # (US1), so it must not leave that account still locked out
+    # immediately afterward.
+    record_successful_attempt(guardian)
     db.commit()
 
     session_token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
