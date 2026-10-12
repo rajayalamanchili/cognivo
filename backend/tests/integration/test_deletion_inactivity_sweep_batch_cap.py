@@ -197,6 +197,35 @@ def test_a_failed_notify_attempt_is_retried_on_a_later_run(db_session, monkeypat
     assert _notification_count(db_session, failed_once.instructor_id) == 2
 
 
+def test_a_persistently_failing_send_does_not_starve_a_never_attempted_record(
+    db_session, monkeypatch
+):
+    """Review finding: with only `_notification_already_attempted`
+    (SENT-only) gating the cap, a record that keeps failing to send
+    stays "not yet attempted" forever and re-consumes the entire
+    per-run budget every single run, forever starving any record
+    sorted behind it that has never even had a first try. Fresh
+    (never-attempted) candidates must be prioritized over retries of a
+    prior failure."""
+    monkeypatch.setattr(inactivity, "INACTIVITY_SWEEP_MAX_PER_RUN", 1)
+
+    older = _make_overdue_instructor(db_session, days_inactive=402)
+    inactivity.sweep_inactive_accounts(db_session)  # older's only attempt -- fails (no API key)
+
+    db_session.expire_all()
+    assert _notification_count(db_session, older.instructor_id) == 1
+
+    newer = _make_overdue_instructor(db_session, days_inactive=400)
+    # cap is 1: newer (fresh) must win over older (retry)
+    inactivity.sweep_inactive_accounts(db_session)
+
+    db_session.expire_all()
+    # newer got its first attempt; older's retry was deferred again,
+    # not re-attempted at newer's expense.
+    assert _notification_count(db_session, newer.instructor_id) == 1
+    assert _notification_count(db_session, older.instructor_id) == 1
+
+
 def test_demo_recipient_never_consumes_cap_budget_even_on_repeated_runs(db_session, monkeypatch):
     """Review finding: a demo recipient's own `_notify` short-circuits
     before writing any `NotificationLogEntry` row, so without an

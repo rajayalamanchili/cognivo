@@ -303,16 +303,26 @@ def _send_password_reset_email(
     try:
         reset_link = _reset_link(role, raw_token)
     except RuntimeError as exc:
-        db.add(
-            NotificationLogEntry(
-                notification_type=NotificationType.PASSWORD_RESET,
-                account_type=account_type,
-                account_id=account_id,
-                status=NotificationStatus.FAILED,
-                error_detail=str(exc)[:200],
+        try:
+            db.add(
+                NotificationLogEntry(
+                    notification_type=NotificationType.PASSWORD_RESET,
+                    account_type=account_type,
+                    account_id=account_id,
+                    status=NotificationStatus.FAILED,
+                    error_detail=str(exc)[:200],
+                )
             )
-        )
-        db.commit()
+            db.commit()
+        # A DB error writing this log row must not escape either -- it
+        # would surface as a 500 only on the existing-account path
+        # (`_reset_link` only raises for a real account, since a
+        # no-match/demo/rate-limited request never reaches here), which
+        # is exactly the enumeration signal `_issue_reset_token_or_none`
+        # exists to avoid (same reasoning as `_notify`'s own log-write
+        # guard in notify.py).
+        except Exception:  # noqa: BLE001
+            db.rollback()
         return
     notify_password_reset(
         db,

@@ -57,6 +57,13 @@ WARNING_LEAD_TIME = datetime.timedelta(days=7)
 # one) -- an accepted, narrow imprecision given the message itself is
 # already generic and never names which learner (see
 # `_inactivity_notification_recipient`'s own reasoning).
+#
+# Never-attempted candidates fill the cap before any retry of a prior
+# failure (`_notification_ever_attempted` below) -- without that
+# ordering, a persistently failing send (provider outage, bad address)
+# would re-consume the whole budget every run on the same oldest
+# records, starving everything sorted behind them indefinitely (review
+# finding).
 INACTIVITY_SWEEP_MAX_PER_RUN = int(os.environ.get("INACTIVITY_SWEEP_MAX_PER_RUN", "2"))
 
 
@@ -126,15 +133,46 @@ def _notification_already_attempted(
     )
 
 
+def _notification_ever_attempted(
+    db: Session,
+    account_type: AuthorizedByType,
+    account_id: uuid.UUID,
+    since: datetime.datetime,
+) -> bool:
+    """Any attempt at all (`SENT` or `FAILED`) since `since` -- used
+    only to prioritize notify candidates that have never been tried
+    ahead of ones that have already failed at least once, so a
+    persistently failing send (provider outage, bad address) can't
+    monopolize every run's cap and starve records sorted behind it
+    forever (review finding: with only `_notification_already_attempted`
+    gating, the same oldest-overdue records re-consume the whole budget
+    every single run if they keep failing)."""
+    return (
+        db.query(NotificationLogEntry)
+        .filter(
+            NotificationLogEntry.notification_type
+            == NotificationType.DELETION_REQUEST_CONFIRMATION,
+            NotificationLogEntry.account_type == account_type,
+            NotificationLogEntry.account_id == account_id,
+            NotificationLogEntry.attempted_at >= since,
+        )
+        .first()
+        is not None
+    )
+
+
 def sweep_inactive_accounts(db: Session) -> int:
     """Creates a `DeletionRequest` for every `RetentionRecord` past
     FR-010's 1-year inactivity ceiling that doesn't already have one,
     every run -- not bounded by `INACTIVITY_SWEEP_MAX_PER_RUN`, which
-    only bounds how many *notify* attempts (FR-009) this run makes,
-    oldest-overdue first; a record whose attempt is skipped this run
-    (cap already hit, or an earlier run's attempt never happened) is
-    retried on a later one. Returns the count of `DeletionRequest`
-    rows created this run.
+    only bounds how many *notify* attempts (FR-009) this run makes.
+    Notify candidates that have never been attempted at all go first
+    (oldest-overdue first within that group), then candidates that have
+    already failed at least once (same ordering) fill any remaining
+    budget -- so a persistently-failing send can delay its own retry
+    but can never permanently block a record that hasn't had its first
+    attempt yet. Returns the count of `DeletionRequest` rows created
+    this run.
 
     Commits once per record (spec 045 research.md §5 restructuring,
     /speckit-analyze finding I1) rather than once at the loop's end, so
@@ -156,7 +194,8 @@ def sweep_inactive_accounts(db: Session) -> int:
     )
 
     created_count = 0
-    notify_attempts = 0
+    fresh_candidates = []
+    retry_candidates = []
     for record in overdue:
         target_type = DeletionTargetType(record.account_type.value)
         deletion_request = (
@@ -178,8 +217,6 @@ def sweep_inactive_accounts(db: Session) -> int:
             db.commit()
             created_count += 1
 
-        if notify_attempts >= INACTIVITY_SWEEP_MAX_PER_RUN:
-            continue
         recipient = _inactivity_notification_recipient(db, record)
         if recipient is None:
             continue
@@ -198,10 +235,22 @@ def sweep_inactive_accounts(db: Session) -> int:
             db, account_type, account_id, deletion_request.requested_at
         ):
             continue
+        candidate = (account_type, account_id, email, target_description)
+        if _notification_ever_attempted(
+            db, account_type, account_id, deletion_request.requested_at
+        ):
+            retry_candidates.append(candidate)
+        else:
+            fresh_candidates.append(candidate)
+
+    notify_attempts = 0
+    for account_type, account_id, email, target_description in fresh_candidates + retry_candidates:
+        if notify_attempts >= INACTIVITY_SWEEP_MAX_PER_RUN:
+            break
         notify_attempts += 1
         notify_deletion_request(
             db,
-            is_demo=is_demo,
+            is_demo=False,
             account_type=account_type,
             account_id=account_id,
             email=email,

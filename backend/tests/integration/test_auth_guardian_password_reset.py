@@ -220,3 +220,37 @@ def test_forgot_password_still_204s_when_token_issuance_persistently_fails(
 
     response = client.post("/api/auth/guardian/forgot-password", json={"email": email})
     assert response.status_code == 204
+
+
+def test_forgot_password_still_204s_when_the_failed_link_log_write_itself_fails(
+    client, monkeypatch
+):
+    """Review finding: `_send_password_reset_email`'s `except RuntimeError`
+    branch (a misconfigured `FRONTEND_BASE_URL`) wrote its FAILED
+    `NotificationLogEntry` with an unguarded `db.add`/`db.commit` -- a DB
+    error there would escape as a 500 only on the existing-account path,
+    which is itself a second account-enumeration signal."""
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import Session as OrmSession
+
+    email = "logwrite-failure-guardian@example.com"
+    _register(client, email)
+
+    monkeypatch.delenv("FRONTEND_BASE_URL", raising=False)
+
+    original_commit = OrmSession.commit
+    call_count = {"n": 0}
+
+    def _fail_second_commit(self, *args, **kwargs):
+        call_count["n"] += 1
+        # The 1st commit is `reset_tokens.issue`'s own -- let it
+        # succeed so the failure under test is specifically the
+        # FAILED-log-write commit that follows it.
+        if call_count["n"] >= 2:
+            raise OperationalError("boom", {}, Exception("boom"))
+        return original_commit(self, *args, **kwargs)
+
+    monkeypatch.setattr(OrmSession, "commit", _fail_second_commit)
+
+    response = client.post("/api/auth/guardian/forgot-password", json={"email": email})
+    assert response.status_code == 204
