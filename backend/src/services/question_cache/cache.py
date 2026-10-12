@@ -33,7 +33,7 @@ from src.models.enums import DifficultyBand, QuestionType
 from src.models.question_generation_cache import QuestionGenerationCache
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.cache_common.signature import compute_question_signature
-from src.services.dedup.checker import is_near_duplicate
+from src.services.dedup.checker import embed_stem_or_none, is_near_duplicate
 
 POOL_SIZE = 5
 FRESHNESS_WINDOW_HOURS = 24
@@ -113,7 +113,7 @@ async def get_or_generate_question(
     content_version: str,
     generation_prompt_version: str,
     generate_fn: Callable[[], Awaitable[GeneratedQuestionDraft]],
-    avoid_stems: Sequence[str] = (),
+    avoid_stems: Sequence[tuple[str, list[float] | None]] = (),
 ) -> tuple[GeneratedQuestionDraft, CacheOutcome]:
     """Serves a pool hit (a previously-validated draft not near-duplicate
     of `avoid_stems`) or calls `generate_fn()` and stores its result as a
@@ -145,7 +145,9 @@ async def get_or_generate_question(
             .filter(*filters, QuestionGenerationCache.created_at > fresh_cutoff)
             .all()
         )
-        candidates = [row for row in pool_rows if not is_near_duplicate(row.stem, avoid_stems)]
+        candidates = [
+            row for row in pool_rows if not is_near_duplicate(row.stem_embedding, avoid_stems)
+        ]
     except Exception:  # noqa: BLE001 -- any lookup failure fails open (FR-008)
         storage_failed = True
 
@@ -170,6 +172,7 @@ async def get_or_generate_question(
             generation_prompt_version=generation_prompt_version,
             question_type=QuestionType(draft.question_type),
             stem=draft.stem,
+            stem_embedding=embed_stem_or_none(draft.stem),
             options=draft.options,
             answer_key=answer_key,
             question_signature=compute_question_signature(draft.stem, answer_key),

@@ -165,3 +165,121 @@ used to add its three event types.
 than inventing a new one; keeps `AssessmentEvent` as the single
 pedagogical-decision log (Constitution Principle V) rather than a
 parallel quiz-specific audit table.
+
+## Bug-fix amendment, 2026-10-12: embedding-based near-duplicate check
+
+Scope: implements spec.md's 2026-10-12 Clarifications (FR-008, SC-004)
+and `specs/001-domain-agnostic-core/spec.md`'s matching 2026-10-12
+session -- `is_near_duplicate`/`recent_stems_for_topic`
+(`services/dedup/checker.py`) is shared code, so this is one
+implementation change satisfying both specs' Clarifications, not two.
+
+### 7. Embedding provider/model: reuse `TUTOR_EMBEDDING_MODEL`, own small wrapper, no shared cross-module helper
+
+**Decision**: A new `embed_stem(text: str) -> list[float]` function in
+`services/dedup/checker.py`, calling `litellm.embedding(model=os.environ.get("TUTOR_EMBEDDING_MODEL", "voyage/voyage-3"), input=[text])` --
+byte-for-byte the same call shape `services/misconception/embed.py`'s
+`embed_answer()` already uses, including its 2-attempt retry.
+
+**Rationale**: `misconception/embed.py`'s own docstring states this
+project's established convention explicitly: "this project's existing
+pattern is same-model reuse via `litellm`, not a shared private helper
+across service modules." Three near-identical ~10-line wrappers
+(`passage_search.py`'s `_embed_query`, `misconception/embed.py`'s
+`embed_answer`, this one) is the deliberate choice already made twice
+before, not an oversight to fix now.
+
+**Alternatives considered**: Extracting one shared `embed_text()`
+helper all three call. Rejected -- contradicts the documented
+convention above; would be an unrequested refactor of two already-
+shipped, working modules as a side effect of an unrelated bug fix.
+
+### 8. Storage: new nullable `stem_embedding` column on `GeneratedQuestion`, computed once at persist time
+
+**Decision**: `generated_questions` gains a nullable
+`stem_embedding vector(1024)` column (same `EMBEDDING_DIMENSION` as
+`ContentPassageEmbedding`), populated once in `persist_quiz_question`'s
+shared counterpart (`services/question_cache/cache.py` /
+`persist_quiz_question`, wherever a `GeneratedQuestion` row is first
+written) by calling `embed_stem()` on the final stem. Near-duplicate
+checks compare the new candidate's freshly-computed embedding against
+these already-stored vectors -- no re-embedding of history on every
+dedup attempt.
+
+**Rationale**: Mirrors `ContentPassageEmbedding`'s own
+compute-once-reuse-many pattern (data-model.md, Milestone 9) rather
+than re-embedding up to 5 historical stems on every single dedup
+attempt (up to 5 retries × 5 history items = 25 redundant embedding
+calls per question in the worst case, pure waste since a stem's
+embedding never changes once generated).
+
+**Backfill**: None. Existing rows get a `NULL` `stem_embedding`; a
+`NULL` embedding is simply excluded from the near-duplicate comparison
+set (treated as "no signal," not "definitely distinct" or
+"definitely duplicate"). Acceptable because the dedup lookback window
+is only 5 items (`DEFAULT_LOOKBACK`) -- every pre-migration row ages out
+of every topic's comparison window within 5 generations of that topic,
+without a one-time backfill migration re-embedding the entire existing
+`generated_questions` table.
+
+**Alternatives considered**: Backfill migration embedding every
+existing row. Rejected -- unnecessary one-time cost (one Voyage API
+call per historical row, across every learner/topic/subject) for data
+that ages out of relevance within 5 generations regardless.
+
+### 9. Comparison: plain-Python cosine similarity, not a SQL `ORDER BY ... <=>` query
+
+**Decision**: `is_near_duplicate` computes cosine similarity directly
+in Python (stdlib `math.sqrt`/`sum`, no `numpy`) over the (at most 5)
+embeddings already fetched alongside their stems by
+`recent_stems_for_topic` (now returning `list[tuple[str, list[float] |
+None]]` instead of `list[str]`), rather than pushing the comparison
+into a pgvector `ORDER BY embedding.cosine_distance(:candidate)` SQL
+query.
+
+**Rationale**: `ContentPassageEmbedding`'s `search_passages` uses a SQL
+`cosine_distance` query because it ranks across a whole subject's
+passages (`tutoring_sessions`, the embedding DB holds the comparison
+corpus). Here the corpus is at most 5 rows, already fetched by an
+existing query (`recent_stems_for_topic`) for the stem-text comparison
+this replaces -- adding a second round-trip SQL query to do in the
+database what 5 dot-products do just as correctly in-process is pure
+overhead. `is_near_duplicate` stays a pure function over two already-
+fetched values, same signature shape as before (stems replaced with
+`(stem, embedding)` pairs).
+
+**Alternatives considered**: SQL-side `cosine_distance` ordering/filter.
+Rejected per above -- no benefit at this corpus size (5 rows), and
+changes `is_near_duplicate` from a pure function to one requiring a `db`
+session, a larger diff than necessary for this fix.
+
+### 10. Threshold and fail-open behavior
+
+**Decision**: Cosine-similarity cutoff starts at `0.92`
+(`DEFAULT_SIMILARITY_THRESHOLD`, same name, new value and meaning),
+implementer-chosen per spec.md's 2026-10-12 Clarifications, not derived
+from a calibration study. If embedding the candidate stem fails after
+`embed_stem`'s retries (`EmbeddingUnavailableError`, mirroring
+`misconception/embed.py`'s own error type), the draft is treated as
+**not** a near-duplicate (fails open) rather than blocking generation
+or forcing a retry.
+
+**Rationale**: Matches this codebase's consistent, already-established
+convention for every other cache/embedding call site touching the
+generation path -- `question_cache/cache.py`, `grading_cache/cache.py`,
+`moderation_cache/cache.py`, and `shielding_cache/cache.py` are all
+explicitly documented as "best-effort... never request-blocking." A
+near-duplicate check is a quality safeguard, not a correctness
+invariant the way grading is; a transient Voyage outage should not turn
+into a quiz `ended_early` or a blocked `next-question` call. This also
+reads strictly more permissive than the old `difflib` check (which had
+no failure mode at all, being pure local computation) only in the rare
+case of a genuine embedding-provider outage -- an acceptable, logged
+trade-off, not a silent one (`logger.warning`, same pattern as
+`passage_search.py`'s own cite-less-stream warning).
+
+**Alternatives considered**: Fail closed (treat an embedding failure as
+"assume duplicate," forcing a retry or `ended_early`). Rejected -- would
+make quiz sessions *more* fragile to a transient third-party outage,
+directly working against the reliability problem this whole fix exists
+to solve.

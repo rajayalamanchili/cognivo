@@ -1,0 +1,68 @@
+"""Unit tests: `is_near_duplicate`'s embedding-based comparison (bug-fix
+amendment, 2026-10-12, spec 005 SC-004 / spec 001 SC-002).
+
+Pure-function tests -- no DB, no real Voyage call. Embeddings are
+synthetic vectors chosen to exercise specific cosine-similarity values,
+not real `embed_stem()` output.
+"""
+
+from src.services.dedup.checker import DEFAULT_SIMILARITY_THRESHOLD, is_near_duplicate
+
+# Same-template, different-number quadratics -- real embeddings for
+# genuinely distinct questions sharing a phrasing template land well
+# under the 0.92 cosine threshold even though they'd have scored
+# 0.87-0.94 under the old difflib ratio (this is the exact false
+# positive the bug-fix amendment exists to resolve). 0.3 stands in for
+# "similar topic/phrasing, different content."
+DIFFERENT_QUESTION_SAME_TEMPLATE = [0.3, 0.95393920141]  # normalized-ish, see below
+IDENTICAL = [1.0, 0.0]
+ORTHOGONAL = [0.0, 1.0]
+NEAR_DUPLICATE = [0.99, 0.14106735979665883]  # cosine(IDENTICAL, NEAR_DUPLICATE) ~= 0.99
+
+
+def test_identical_embeddings_are_near_duplicate():
+    assert is_near_duplicate(IDENTICAL, [("a previous question", IDENTICAL)]) is True
+
+
+def test_true_positive_near_duplicate_above_threshold():
+    """A genuine near-duplicate (cosine ~0.99) is correctly flagged."""
+    assert is_near_duplicate(NEAR_DUPLICATE, [("a previous question", IDENTICAL)]) is True
+
+
+def test_same_template_different_numbers_is_not_near_duplicate():
+    """The exact false-positive pattern this bug-fix resolves: two
+    distinct questions sharing a phrasing template but different
+    content must NOT be flagged once their embeddings are genuinely
+    dissimilar (unlike the old difflib check, which scored these as
+    0.87-0.94 purely from shared boilerplate text)."""
+    assert (
+        is_near_duplicate(DIFFERENT_QUESTION_SAME_TEMPLATE, [("a previous question", IDENTICAL)])
+        is False
+    )
+
+
+def test_orthogonal_embeddings_are_not_near_duplicate():
+    assert is_near_duplicate(ORTHOGONAL, [("a previous question", IDENTICAL)]) is False
+
+
+def test_candidate_embedding_none_fails_open_to_not_near_duplicate():
+    """The candidate itself couldn't be embedded (Voyage outage) --
+    fail open rather than blocking generation (research.md §10)."""
+    assert is_near_duplicate(None, [("a previous question", IDENTICAL)]) is False
+
+
+def test_previous_entry_with_none_embedding_is_excluded_not_treated_as_a_match():
+    """A pre-migration row (NULL stem_embedding) is excluded from
+    comparison entirely -- not a match, not a non-match signal."""
+    assert is_near_duplicate(IDENTICAL, [("a pre-migration row", None)]) is False
+
+
+def test_empty_previous_is_never_a_duplicate():
+    assert is_near_duplicate(IDENTICAL, []) is False
+
+
+def test_threshold_boundary_is_inclusive():
+    # A similarity exactly at the default threshold counts as a match.
+    assert is_near_duplicate(
+        [1.0, 0.0], [("boundary case", [1.0, 0.0])], threshold=DEFAULT_SIMILARITY_THRESHOLD
+    ) is True

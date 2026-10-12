@@ -208,6 +208,7 @@ async def generate_and_persist_next_question(
         difficulty=result.selection.difficulty,
         question_type=result.question_type,
         stem=result.draft.stem,
+        stem_embedding=result.stem_embedding,
         options=result.draft.options,
         image_url=result.image_url,
         image_alt_text=result.image_alt_text,

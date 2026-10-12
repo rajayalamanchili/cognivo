@@ -36,6 +36,8 @@ from src.services.cache_common.outcome import CacheOutcome
 from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import (
     DEFAULT_LOOKBACK,
+    DEFAULT_MAX_DEDUP_ATTEMPTS,
+    embed_stem_or_none,
     is_near_duplicate,
     recent_stems_for_topic,
 )
@@ -419,6 +421,7 @@ class NextQuestionResult:
     image_url: str | None = None
     image_alt_text: str | None = None
     cache_outcome: CacheOutcome = field(default_factory=lambda: CacheOutcome(hit=False))
+    stem_embedding: list[float] | None = None
 
 
 async def generate_next_question(
@@ -428,7 +431,7 @@ async def generate_next_question(
     subject_id: str,
     session_service: BaseSessionService,
     dedup_lookback: int = DEFAULT_LOOKBACK,
-    max_dedup_attempts: int = 3,
+    max_dedup_attempts: int = DEFAULT_MAX_DEDUP_ATTEMPTS,
 ) -> NextQuestionResult:
     """Selects the next topic (T046), then generates a question for it,
     retrying generation up to `max_dedup_attempts` times if the draft is
@@ -445,6 +448,11 @@ async def generate_next_question(
         topic_id=selection.topic_id,
         limit=dedup_lookback,
     )
+    # `recent_stems` carries embeddings now (bug-fix amendment,
+    # 2026-10-12) for the dedup check/cache-pool filter below -- the
+    # LLM prompt's "don't generate this" instruction only ever wanted
+    # the stem text.
+    recent_stem_texts = [stem for stem, _embedding in recent_stems]
 
     image_url: str | None = None
     image_alt_text: str | None = None
@@ -454,6 +462,7 @@ async def generate_next_question(
 
     draft: GeneratedQuestionDraft | None = None
     cache_outcome = CacheOutcome(hit=False)
+    candidate_embedding: list[float] | None = None
     for _ in range(max_dedup_attempts):
         draft, cache_outcome = await get_or_generate_question(
             db,
@@ -470,11 +479,12 @@ async def generate_next_question(
                 difficulty_guidance=difficulty_guidance(topic, selection.difficulty),
                 question_type=question_type,
                 session_service=session_service,
-                avoid_stems=recent_stems,
+                avoid_stems=recent_stem_texts,
                 image_alt_text=image_alt_text,
             ),
         )
-        if not is_near_duplicate(draft.stem, recent_stems):
+        candidate_embedding = embed_stem_or_none(draft.stem)
+        if not is_near_duplicate(candidate_embedding, recent_stems):
             break
 
     return NextQuestionResult(
@@ -484,4 +494,5 @@ async def generate_next_question(
         image_url=image_url,
         image_alt_text=image_alt_text,
         cache_outcome=cache_outcome,
+        stem_embedding=candidate_embedding,
     )

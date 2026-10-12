@@ -8,7 +8,11 @@ provisioned database (e.g. a sandbox) while still running for real in
 CI / any environment with one configured.
 """
 
+import hashlib
+import math
 import os
+import random
+from unittest.mock import patch
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -17,6 +21,35 @@ from sqlalchemy.orm import sessionmaker
 from src.models import Base
 from src.models.learner_profile import LearnerProfile
 from src.services.content_artifact.loader import load_content_artifact
+
+EMBEDDING_DIMENSION = 1024
+
+
+def deterministic_embedding(stem: str) -> list[float]:
+    """A reproducible pseudo-random unit vector derived from `stem`'s own
+    text (bug-fix amendment, 2026-10-12) -- no real Voyage call. Identical
+    stems always produce identical embeddings (cosine 1.0, flagged
+    near-duplicate); distinct stems produce effectively orthogonal
+    vectors in 1024 dimensions (cosine ~0, not flagged) -- mirrors how
+    the old difflib-based check treated an intentionally repeated stem
+    vs. a UUID-suffixed-distinct one."""
+    seed = int(hashlib.sha256(stem.encode()).hexdigest(), 16)
+    rng = random.Random(seed)
+    vector = [rng.gauss(0, 1) for _ in range(EMBEDDING_DIMENSION)]
+    norm = math.sqrt(sum(x * x for x in vector))
+    return [x / norm for x in vector]
+
+
+@pytest.fixture(autouse=True)
+def _mock_embeddings():
+    """Bug-fix amendment, 2026-10-12: every question-generation/dedup
+    path now calls `embed_stem` (services/dedup/checker.py) for real
+    unless mocked. Autouse so every existing test that mocks question
+    generation at the `_run_agent_once` LLM boundary (30+ files) gets a
+    deterministic, offline embedding for free, without each needing its
+    own mock -- one patch point instead of one per file."""
+    with patch("src.services.dedup.checker.embed_stem", side_effect=deterministic_embedding):
+        yield
 
 
 @pytest.fixture(scope="session")

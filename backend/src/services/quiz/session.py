@@ -42,7 +42,12 @@ from src.observability.tracing import record_cache_hit_trace
 from src.services.audit_log.writer import record_event
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.content_artifact.image_asset import content_image_url
-from src.services.dedup.checker import is_near_duplicate, recent_stems_for_topic
+from src.services.dedup.checker import (
+    DEFAULT_MAX_DEDUP_ATTEMPTS,
+    embed_stem_or_none,
+    is_near_duplicate,
+    recent_stems_for_topic,
+)
 from src.services.question_cache.cache import get_or_generate_question
 from src.services.quiz.difficulty import (
     current_difficulty_for_topic,
@@ -50,7 +55,6 @@ from src.services.quiz.difficulty import (
     replay_topic_state,
 )
 
-DEFAULT_MAX_DEDUP_ATTEMPTS = 3
 
 # Spec 022 FR-001/Assumptions: a small fixed preset (15/30/45/60
 # minutes), not an arbitrary custom duration -- shared by both
@@ -357,6 +361,7 @@ class QuizQuestionResult:
     image_url: str | None = None
     image_alt_text: str | None = None
     cache_outcome: CacheOutcome = field(default_factory=lambda: CacheOutcome(hit=False))
+    stem_embedding: list[float] | None = None
 
 
 async def generate_quiz_question(
@@ -394,6 +399,11 @@ async def generate_quiz_question(
         topic_id=topic_id,
         limit=quiz.question_count,
     )
+    # `recent_stems` carries embeddings now (bug-fix amendment,
+    # 2026-10-12) for the dedup check/cache-pool filter below -- the
+    # LLM prompt's "don't generate this" instruction only ever wanted
+    # the stem text.
+    recent_stem_texts = [stem for stem, _embedding in recent_stems]
 
     image_url: str | None = None
     image_alt_text: str | None = None
@@ -419,11 +429,12 @@ async def generate_quiz_question(
                 difficulty_guidance=difficulty_guidance(topic, difficulty),
                 question_type=question_type,
                 session_service=session_service,
-                avoid_stems=recent_stems,
+                avoid_stems=recent_stem_texts,
                 image_alt_text=image_alt_text,
             ),
         )
-        if not is_near_duplicate(draft.stem, recent_stems):
+        candidate_embedding = embed_stem_or_none(draft.stem)
+        if not is_near_duplicate(candidate_embedding, recent_stems):
             if cache_outcome.hit:
                 # Spec 015 FR-013 clarification: this path records no
                 # dedicated AssessmentEvent for question generation even
@@ -447,6 +458,7 @@ async def generate_quiz_question(
                 image_url=image_url,
                 image_alt_text=image_alt_text,
                 cache_outcome=cache_outcome,
+                stem_embedding=candidate_embedding,
             )
 
     raise QuizEndedEarlyError(
@@ -479,6 +491,7 @@ def persist_quiz_question(
         difficulty=result.difficulty,
         question_type=result.question_type,
         stem=result.draft.stem,
+        stem_embedding=result.stem_embedding,
         options=result.draft.options,
         image_url=result.image_url,
         image_alt_text=result.image_alt_text,

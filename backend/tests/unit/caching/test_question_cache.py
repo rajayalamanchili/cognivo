@@ -22,6 +22,17 @@ pytestmark = pytest.mark.usefixtures("database_available")
 CONTENT_VERSION = "v1"
 GENERATION_PROMPT_VERSION = "v1"
 DIFFICULTY = DifficultyBand.EASY
+EMBEDDING_DIMENSION = 1024
+
+
+def _embedding(axis: int) -> list[float]:
+    """A 1024-dim one-hot vector -- cosine similarity 1.0 against itself
+    (same `axis`), 0.0 against a different `axis`. Matches
+    `GeneratedQuestion`/`QuestionGenerationCache`'s real embedding
+    column width without needing a real Voyage call in a unit test."""
+    vector = [0.0] * EMBEDDING_DIMENSION
+    vector[axis] = 1.0
+    return vector
 
 
 def _draft(stem: str) -> GeneratedQuestionDraft:
@@ -41,6 +52,7 @@ def _add_pool_row(
     content_version: str = CONTENT_VERSION,
     generation_prompt_version: str = GENERATION_PROMPT_VERSION,
     created_at: datetime.datetime | None = None,
+    stem_embedding: list[float] | None = None,
 ) -> QuestionGenerationCache:
     row = QuestionGenerationCache(
         subject_id="algebra-1",
@@ -50,6 +62,7 @@ def _add_pool_row(
         generation_prompt_version=generation_prompt_version,
         question_type=QuestionType.MULTIPLE_CHOICE,
         stem=stem,
+        stem_embedding=stem_embedding,
         options=["a", "b", "c", "d"],
         answer_key={"correct_index": 0},
         question_signature=f"sig-{uuid.uuid4()}",
@@ -120,14 +133,17 @@ async def test_all_pool_entries_near_duplicate_of_avoid_stems_is_a_miss(
     db_session, algebra_subject
 ):
     _add_pool_row(
-        db_session, topic_id="order-of-operations", stem="Evaluate 2 + 3 * 4 using PEMDAS."
+        db_session,
+        topic_id="order-of-operations",
+        stem="Evaluate 2 + 3 * 4 using PEMDAS.",
+        stem_embedding=_embedding(0),
     )
     db_session.commit()
 
     draft, outcome, generate_calls = await _get_or_generate(
         db_session,
         topic_id="order-of-operations",
-        avoid_stems=["Evaluate 2 + 3 * 4 using PEMDAS."],
+        avoid_stems=[("Evaluate 2 + 3 * 4 using PEMDAS.", _embedding(0))],
         generated_stem="a genuinely new question",
     )
     assert outcome.hit is False
@@ -150,6 +166,7 @@ async def test_eviction_keeps_pool_at_five_newest_entries(db_session, algebra_su
             topic_id="solving-one-step-equations",
             stem=f"stale stem {i}",
             created_at=now - datetime.timedelta(minutes=POOL_SIZE - i),
+            stem_embedding=_embedding(0),
         )
     db_session.commit()
 
@@ -158,7 +175,7 @@ async def test_eviction_keeps_pool_at_five_newest_entries(db_session, algebra_su
     draft, outcome, generate_calls = await _get_or_generate(
         db_session,
         topic_id="solving-one-step-equations",
-        avoid_stems=[f"stale stem {i}" for i in range(POOL_SIZE)],
+        avoid_stems=[(f"stale stem {i}", _embedding(0)) for i in range(POOL_SIZE)],
         generated_stem="the newest stem",
     )
     assert outcome.hit is False

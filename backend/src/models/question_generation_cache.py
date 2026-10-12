@@ -1,12 +1,19 @@
 import datetime
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Enum, ForeignKeyConstraint, Index, Integer, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
 from src.models.enums import DifficultyBand, QuestionType, enum_values
+
+# Same voyage-3/1024-dim model as GeneratedQuestion.stem_embedding --
+# bug-fix amendment, 2026-10-12 (specs/005-adaptive-quiz/research.md §8;
+# this table's own dedup-comparison role found during /speckit-implement,
+# see this amendment's plan.md note).
+EMBEDDING_DIMENSION = 1024
 
 
 class QuestionGenerationCache(Base):
@@ -49,6 +56,15 @@ class QuestionGenerationCache(Base):
         Enum(QuestionType, name="question_type", values_callable=enum_values), nullable=False
     )
     stem: Mapped[str] = mapped_column(Text, nullable=False)
+    stem_embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIMENSION), nullable=True
+    )
+    """Set once at write time from `stem` (bug-fix amendment,
+    2026-10-12) -- powers `is_near_duplicate` when a pool row is checked
+    against a learner's `avoid_stems` in `get_or_generate_question`.
+    `NULL` for every pre-migration row or one that failed to embed;
+    excluded from comparison rather than treated as a match or
+    non-match, same convention as `GeneratedQuestion.stem_embedding`."""
     options: Mapped[list | None] = mapped_column(JSON, nullable=True)
     answer_key: Mapped[dict] = mapped_column(JSON, nullable=False)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)

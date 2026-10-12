@@ -41,6 +41,7 @@ from src.services.auth.dependencies import (
     require_learner_ownership_if_real,
 )
 from src.services.auth.tokens import SessionClaims
+from src.services.dedup.checker import embed_stem_or_none
 from src.services.demo_learner import get_demo_learner
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.mediation.read_aloud import is_read_aloud_eligible
@@ -119,6 +120,7 @@ async def start_placement(
             difficulty=DifficultyBand.EASY,
             question_type=placement_question.question_type,
             stem=placement_question.draft.stem,
+            stem_embedding=embed_stem_or_none(placement_question.draft.stem),
             options=placement_question.draft.options,
             answer_key=draft_to_answer_key(placement_question.draft),
             validation_status=ValidationStatus.VALID,
@@ -637,6 +639,7 @@ async def skip_placement_question(
             difficulty=DifficultyBand.EASY,
             question_type=placement_question.question_type,
             stem=placement_question.draft.stem,
+            stem_embedding=embed_stem_or_none(placement_question.draft.stem),
             options=placement_question.draft.options,
             answer_key=draft_to_answer_key(placement_question.draft),
             validation_status=ValidationStatus.VALID,
