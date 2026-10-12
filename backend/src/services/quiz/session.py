@@ -257,25 +257,30 @@ def end_quiz_for_dedup_exhaustion(db: Session, *, quiz: QuizSession) -> None:
     already ended (SC-005 miss) -- goes through it now, same as the
     other two timed end-reasons.
 
-    Row-locks + re-checks status first, same reasoning as
-    `record_quiz_answer`'s own `_end_timed_session` call: a concurrent
-    manual "end now"/expiry could already have transitioned `quiz` by
-    the time generation raises `QuizEndedEarlyError`, and this must not
-    clobber that with a second, contradictory event."""
+    Row-locks + re-checks status first (both branches -- review
+    finding, PR #113: the untimed branch previously didn't, unlike the
+    timed one), same reasoning as `record_quiz_answer`'s own
+    `_end_timed_session` call: a concurrent manual "end now"/expiry (or,
+    for an untimed quiz, `complete_quiz_if_answered_enough`/
+    `record_quiz_answer`'s own completion check) could already have
+    transitioned `quiz` by the time generation raises
+    `QuizEndedEarlyError`, and this must not clobber that with a
+    second, contradictory status/event."""
+    db.refresh(quiz, with_for_update=True)
+    if quiz.status != QuizSessionStatus.IN_PROGRESS:
+        return
     if quiz.time_limit_seconds is None:
         quiz.status = QuizSessionStatus.ENDED_EARLY
         quiz.completed_at = datetime.datetime.now(datetime.UTC)
         db.flush()
         return
-    db.refresh(quiz, with_for_update=True)
-    if quiz.status == QuizSessionStatus.IN_PROGRESS:
-        _end_timed_session(
-            db,
-            session=quiz,
-            session_type="quiz",
-            status=QuizSessionStatus.ENDED_EARLY,
-            end_reason="dedup_exhausted",
-        )
+    _end_timed_session(
+        db,
+        session=quiz,
+        session_type="quiz",
+        status=QuizSessionStatus.ENDED_EARLY,
+        end_reason="dedup_exhausted",
+    )
 
 
 def next_quiz_topic(topic_ids: Sequence[str], *, questions_generated_so_far: int) -> str:
@@ -527,6 +532,38 @@ def _quiz_answered_count(
     return query.count()
 
 
+def _complete_quiz_if_in_progress(db: Session, *, quiz: QuizSession) -> None:
+    """Shared by `complete_quiz_if_answered_enough` and `record_quiz_
+    answer` (review finding, PR #113: the two had drifted into nearly
+    identical, independently-maintained copies of this same block).
+
+    Row-locks + re-checks status unconditionally, not just for a timed
+    quiz (review finding, PR #113) -- a concurrent duplicate/retried
+    request, a manual "end now", or expiry could already have
+    transitioned the quiz by the time this runs; completing it
+    unconditionally would clobber that with a contradictory status (and,
+    for a timed quiz, a second `TIMED_SESSION_ENDED` event). Matches
+    `check_and_expire_if_needed`'s/`end_session_manually`'s own existing
+    lock-then-recheck convention for every other way a quiz can end."""
+    db.refresh(quiz, with_for_update=True)
+    if quiz.status != QuizSessionStatus.IN_PROGRESS:
+        return
+    if quiz.time_limit_seconds is not None:
+        # Spec 022 FR-007: a timed quiz's completion is audited the
+        # same as its other two end reasons, not just set inline.
+        _end_timed_session(
+            db,
+            session=quiz,
+            session_type="quiz",
+            status=QuizSessionStatus.COMPLETED,
+            end_reason="completed",
+        )
+    else:
+        quiz.status = QuizSessionStatus.COMPLETED
+        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        db.flush()
+
+
 def complete_quiz_if_answered_enough(db: Session, *, quiz: QuizSession) -> bool:
     """Self-heals a quiz left `in_progress` despite already having
     `question_count` answered questions -- guards `get_quiz_next_
@@ -550,20 +587,7 @@ def complete_quiz_if_answered_enough(db: Session, *, quiz: QuizSession) -> bool:
     answered_count = _quiz_answered_count(db, quiz_session_id=quiz.quiz_session_id)
     if answered_count < quiz.question_count:
         return False
-    if quiz.time_limit_seconds is not None:
-        db.refresh(quiz, with_for_update=True)
-        if quiz.status == QuizSessionStatus.IN_PROGRESS:
-            _end_timed_session(
-                db,
-                session=quiz,
-                session_type="quiz",
-                status=QuizSessionStatus.COMPLETED,
-                end_reason="completed",
-            )
-    else:
-        quiz.status = QuizSessionStatus.COMPLETED
-        quiz.completed_at = datetime.datetime.now(datetime.UTC)
-        db.flush()
+    _complete_quiz_if_in_progress(db, quiz=quiz)
     return True
 
 
@@ -609,33 +633,7 @@ def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: boo
         db, quiz_session_id=quiz.quiz_session_id, exclude_question_id=question.question_id
     )
     if answered_count_before + 1 >= quiz.question_count:
-        if quiz.time_limit_seconds is not None:
-            # Spec 022 FR-007: a timed quiz's completion is audited the
-            # same as its other two end reasons, not just set inline.
-            #
-            # Row-locks + re-checks status (PR feedback): this is the
-            # third way `_end_timed_session` can be reached, alongside
-            # `check_and_expire_if_needed`/`end_session_manually`, which
-            # already guard against a concurrent transition the same
-            # way. Without it, a manual "end now"/expiry racing ahead of
-            # this request's own final-answer submission could already
-            # have transitioned the session by the time this branch
-            # runs, and unconditionally completing it here would
-            # clobber that with a second, contradictory
-            # `TIMED_SESSION_ENDED` event.
-            db.refresh(quiz, with_for_update=True)
-            if quiz.status == QuizSessionStatus.IN_PROGRESS:
-                _end_timed_session(
-                    db,
-                    session=quiz,
-                    session_type="quiz",
-                    status=QuizSessionStatus.COMPLETED,
-                    end_reason="completed",
-                )
-        else:
-            quiz.status = QuizSessionStatus.COMPLETED
-            quiz.completed_at = datetime.datetime.now(datetime.UTC)
-            db.flush()
+        _complete_quiz_if_in_progress(db, quiz=quiz)
 
 
 @dataclass(frozen=True)
