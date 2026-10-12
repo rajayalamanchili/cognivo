@@ -286,3 +286,72 @@ def test_start_placement_for_another_guardians_learner_is_forbidden(
     )
     assert start.status_code == 403, start.text
     assert start.json() == {"detail": "not_your_learner"}
+
+
+def test_submit_placement_for_another_guardians_learner_is_forbidden(
+    db_session, algebra_subject, monkeypatch
+):
+    """Review finding, PR #113: start_placement gates a real learner_id
+    (spec 044 FR-025), but submit derived learner_id from the question
+    row with no matching check -- anyone who learned a question_id
+    could submit on behalf of a real learner they don't own."""
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    from src.api.main import app
+
+    client = TestClient(app, base_url="https://testserver")
+    _, owner_learner_id = register_guardian_with_learner(
+        client, guardian_email="placement-submit-owner@example.com", learner_name="Owned"
+    )
+    with _patch_generation():
+        start = client.post(
+            f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+            params={"learner_id": owner_learner_id},
+        )
+    assert start.status_code == 200, start.text
+    question_id = start.json()["questions"][0]["question_id"]
+
+    client.post("/api/auth/logout")
+    register_guardian_with_learner(
+        client, guardian_email="placement-submit-intruder@example.com", learner_name="Other"
+    )
+    login_guardian(client, "placement-submit-intruder@example.com")
+
+    submit = client.post(
+        f"/api/placement/{start.json()['placement_session_id']}/submit",
+        json={"answers": [{"question_id": question_id, "response": _CORRECT_RESPONSE}]},
+    )
+    assert submit.status_code == 403, submit.text
+    assert submit.json() == {"detail": "not_your_learner"}
+
+
+def test_skip_placement_question_for_another_guardians_learner_is_forbidden(
+    db_session, algebra_subject, monkeypatch
+):
+    """Review finding, PR #113: same gap/fix as submit, for skip."""
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    from src.api.main import app
+
+    client = TestClient(app, base_url="https://testserver")
+    _, owner_learner_id = register_guardian_with_learner(
+        client, guardian_email="placement-skip-owner@example.com", learner_name="Owned"
+    )
+    with _patch_generation():
+        start = client.post(
+            f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+            params={"learner_id": owner_learner_id},
+        )
+    assert start.status_code == 200, start.text
+    question_id = start.json()["questions"][0]["question_id"]
+
+    client.post("/api/auth/logout")
+    register_guardian_with_learner(
+        client, guardian_email="placement-skip-intruder@example.com", learner_name="Other"
+    )
+    login_guardian(client, "placement-skip-intruder@example.com")
+
+    skip = client.post(
+        f"/api/placement/{start.json()['placement_session_id']}/skip",
+        json={"question_id": question_id},
+    )
+    assert skip.status_code == 403, skip.text
+    assert skip.json() == {"detail": "not_your_learner"}

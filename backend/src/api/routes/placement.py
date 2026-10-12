@@ -374,6 +374,7 @@ async def submit_placement(
     placement_session_id: uuid.UUID,
     body: PlacementSubmitRequest,
     db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> PlacementSubmitResponse:
     if not body.answers:
         raise UnprocessableError("answers must be a non-empty list")
@@ -395,6 +396,13 @@ async def submit_placement(
     learner_id = questions[0].learner_id
     if any(q.subject_id != subject_id or q.learner_id != learner_id for q in questions):
         raise UnprocessableError("answers span more than one subject/learner")
+    # Review finding, PR #113: start_placement gates a real learner_id
+    # (spec 044 FR-025), but submit/skip derived learner_id from the
+    # question row with no matching check -- anyone who learned a
+    # question_id could submit/skip on behalf of a real learner they
+    # don't own, writing mastery/GradeProgress. Same gate, same helper,
+    # same convention as practice_sessions.py's sibling routes.
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
 
     per_question_results: list[PlacementQuestionResult] = []
     with traced_request():
@@ -545,6 +553,7 @@ async def skip_placement_question(
     placement_session_id: uuid.UUID,
     body: SkipRequest,
     db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> SkipResponse:
     """FR-006/FR-007/FR-008, research.md Decision 4/6 (contracts/api.md).
 
@@ -562,6 +571,8 @@ async def skip_placement_question(
             f"question {body.question_id!r} does not belong to placement session "
             f"{placement_session_id!r}"
         )
+    # Review finding, PR #113: same gap/fix as submit_placement above.
+    require_learner_ownership_if_real(db, learner_id=question.learner_id, claims=claims)
 
     if _already_answered(db, question.question_id):
         raise ConflictError(f"question {question.question_id} has already been answered")
