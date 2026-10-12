@@ -57,6 +57,19 @@ def _make_overdue_instructor(db_session, *, days_inactive: int = 400) -> RealIns
     return instructor
 
 
+def _mock_successful_send(monkeypatch) -> None:
+    """Tests asserting cap/retry *counts* care about SENT vs. not-yet-
+    attempted, not about the real mailer's behavior -- without a real
+    `RESEND_API_KEY` every send is FAILED, and FAILED attempts are
+    retried (by design, see `_notification_already_attempted`), which
+    would make every run re-attempt every record regardless of the
+    cap. Force sends to succeed here so the cap/retry bookkeeping
+    itself is what's under test."""
+    monkeypatch.setattr(
+        "src.services.notifications.notify.send_email", lambda *a, **k: (True, None)
+    )
+
+
 def _notification_count(db_session, account_id: uuid.UUID) -> int:
     return (
         db_session.query(NotificationLogEntry)
@@ -90,6 +103,7 @@ def test_every_overdue_record_is_created_the_same_run_regardless_of_cap(db_sessi
 
 
 def test_notify_attempts_are_capped_and_retried_on_a_later_run(db_session, monkeypatch):
+    _mock_successful_send(monkeypatch)
     monkeypatch.setattr(inactivity, "INACTIVITY_SWEEP_MAX_PER_RUN", 2)
 
     first = _make_overdue_instructor(db_session, days_inactive=402)
@@ -148,6 +162,41 @@ def test_an_already_notified_record_does_not_consume_cap_budget(db_session, monk
     assert _notification_count(db_session, fresh.instructor_id) == 1
 
 
+def test_a_failed_notify_attempt_is_retried_on_a_later_run(db_session, monkeypatch):
+    """Review finding: `_notification_already_attempted` originally
+    matched on `attempted_at` alone, so a `FAILED` row (a transient
+    send failure) looked identical to a `SENT` one and permanently
+    suppressed retry -- contradicting the sweep's own docstring promise
+    that a skipped attempt is "retried on a later one"."""
+    monkeypatch.setattr(inactivity, "INACTIVITY_SWEEP_MAX_PER_RUN", 1)
+
+    failed_once = _make_overdue_instructor(db_session, days_inactive=400)
+    deletion_request = DeletionRequest(
+        target_type=DeletionTargetType.INSTRUCTOR,
+        target_id=failed_once.instructor_id,
+        requested_by="system:inactivity-sweep",
+    )
+    db_session.add(deletion_request)
+    db_session.commit()
+    db_session.add(
+        NotificationLogEntry(
+            notification_type=NotificationType.DELETION_REQUEST_CONFIRMATION,
+            account_type=AuthorizedByType.INSTRUCTOR,
+            account_id=failed_once.instructor_id,
+            status=NotificationStatus.FAILED,
+            error_detail="HTTP 500: provider down",
+        )
+    )
+    db_session.commit()
+
+    inactivity.sweep_inactive_accounts(db_session)
+
+    db_session.expire_all()
+    # The failed attempt doesn't count as "already attempted" -- a
+    # fresh attempt is made and logged on this run.
+    assert _notification_count(db_session, failed_once.instructor_id) == 2
+
+
 def test_demo_recipient_never_consumes_cap_budget_even_on_repeated_runs(db_session, monkeypatch):
     """Review finding: a demo recipient's own `_notify` short-circuits
     before writing any `NotificationLogEntry` row, so without an
@@ -187,6 +236,7 @@ def test_demo_recipient_never_consumes_cap_budget_even_on_repeated_runs(db_sessi
     # Sorts after the demo-owned record (its became_inactive_at is more
     # recent), so it would be starved if the demo recipient ever
     # consumed the single cap slot.
+    _mock_successful_send(monkeypatch)
     real_instructor = _make_overdue_instructor(db_session, days_inactive=400)
 
     for _ in range(3):  # repeated runs -- the demo record must never block real ones

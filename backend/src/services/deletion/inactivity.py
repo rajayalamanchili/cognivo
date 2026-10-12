@@ -14,6 +14,7 @@ from src.models.deletion_request import DeletionRequest
 from src.models.enums import (
     AuthorizedByType,
     DeletionTargetType,
+    NotificationStatus,
     NotificationType,
     RetentionEnrollmentStatus,
 )
@@ -105,7 +106,11 @@ def _notification_already_attempted(
     since: datetime.datetime,
 ) -> bool:
     """Best-effort retry marker -- see `INACTIVITY_SWEEP_MAX_PER_RUN`'s
-    own docstring for why this is approximate, not exact."""
+    own docstring for why this is approximate, not exact. Only a `SENT`
+    row counts as "attempted" (review finding): a `FAILED` row is a
+    transient send failure, and must be retried on a later run rather
+    than permanently suppressed -- the sweep's own docstring promises
+    retry for anything skipped, which a failed send is not."""
     return (
         db.query(NotificationLogEntry)
         .filter(
@@ -114,6 +119,7 @@ def _notification_already_attempted(
             NotificationLogEntry.account_type == account_type,
             NotificationLogEntry.account_id == account_id,
             NotificationLogEntry.attempted_at >= since,
+            NotificationLogEntry.status == NotificationStatus.SENT,
         )
         .first()
         is not None

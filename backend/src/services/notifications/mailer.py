@@ -20,12 +20,16 @@ def send_email(to_email: str, subject: str, body: str) -> tuple[bool, str | None
     `None` on success, else a short, non-secret description (the
     provider's status code + response body, or the caught exception's
     type/message) for `NotificationLogEntry.error_detail`."""
+    api_key = os.environ.get("RESEND_API_KEY", "")
+    from_address = os.environ.get("EMAIL_FROM_ADDRESS", "")
+    if not api_key or not from_address:
+        return False, "RESEND_API_KEY/EMAIL_FROM_ADDRESS not configured"
     try:
         response = httpx.post(
             _RESEND_URL,
-            headers={"Authorization": f"Bearer {os.environ.get('RESEND_API_KEY', '')}"},
+            headers={"Authorization": f"Bearer {api_key}"},
             json={
-                "from": os.environ.get("EMAIL_FROM_ADDRESS", ""),
+                "from": from_address,
                 "to": [to_email],
                 "subject": subject,
                 "text": body,
@@ -36,6 +40,6 @@ def send_email(to_email: str, subject: str, body: str) -> tuple[bool, str | None
             return True, None
         detail = f"HTTP {response.status_code}: {response.text}"
         return False, detail[:_FAILURE_DETAIL_MAX_LENGTH]
-    except httpx.HTTPError as exc:
+    except Exception as exc:  # noqa: BLE001 -- never raises (FR-012)
         detail = f"{type(exc).__name__}: {exc}"
         return False, detail[:_FAILURE_DETAIL_MAX_LENGTH]
