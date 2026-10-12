@@ -11,8 +11,14 @@ import uuid
 from sqlalchemy.orm import Session
 
 from src.models.deletion_request import DeletionRequest
-from src.models.enums import AuthorizedByType, DeletionTargetType, RetentionEnrollmentStatus
+from src.models.enums import (
+    AuthorizedByType,
+    DeletionTargetType,
+    NotificationType,
+    RetentionEnrollmentStatus,
+)
 from src.models.learner_profile import LearnerProfile
+from src.models.notification_log_entry import NotificationLogEntry
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
@@ -27,38 +33,29 @@ WARNING_LEAD_TIME = datetime.timedelta(days=7)
 # timeout, inside a cron invocation capped at vercel.json's 30s
 # maxDuration -- shared with reconcile_inactivity_warnings and
 # execute-deletions' own MAX_DELETIONS_PER_RUN-bounded batch in the
-# same request. An unbounded loop over every overdue record risked
-# exceeding that budget on a large backlog. Capping how many *new*
-# notify attempts one invocation makes (same `MAX_..._PER_RUN` pattern
-# as `execute.py`'s `MAX_DELETIONS_PER_RUN`) keeps the common case
-# safely under budget without needing a schema change; an overdue
-# record past the cap is left fully untouched (no `DeletionRequest`
-# created yet) for the next run to pick up in full, oldest first.
+# same request. This caps how many *notify* attempts one invocation
+# makes (same `MAX_..._PER_RUN` pattern as `execute.py`'s
+# `MAX_DELETIONS_PER_RUN`) -- it does NOT cap `DeletionRequest`
+# creation itself (review finding: an earlier version capped both
+# together, which meant a backlog of N overdue records only got
+# queued for deletion at 2/day, directly delaying FR-010's 1-year
+# retention ceiling -- a data-retention obligation has no business
+# being gated by a mailer's availability). Every overdue record gets
+# its `DeletionRequest` created the same run it's found, every time;
+# only the notify step is bounded and deferred.
 #
-# Residual gap, not closed by this cap: a record whose `DeletionRequest`
-# was already committed in a prior run that then died *during* that
-# same record's own notify call (not just from a large backlog) stays
-# `already_pending` forever with no notification ever recorded --
-# `notification_log_entries` carries no link back to the
-# `DeletionRequest` that triggered it, so there's no cheap way to tell
-# "pending, never notified" apart from "pending, notified, still
-# awaiting completion." A durable outbox keyed on that link would close
-# this properly; not attempted here given how narrow the window is
-# (a kill landing inside one record's own up-to-10s call, not just
-# somewhere in the loop).
-#
-# This also throttles FR-010's own 1-year retention ceiling (a daily
-# cron with the "2" default drains an N-record backlog over N/2 days,
-# not same-day) -- an accepted trade-off, not an oversight: FR-010's
-# own 7-day pre-deletion warning (`reconcile_inactivity_warnings`,
-# unaffected by this cap -- no per-record network call) already means
-# any backlogged record was warned well before this delay could matter,
-# and the env var exists specifically so an operator can raise it if
-# their actual backlog size and Resend's typical latency make a bigger
-# per-run batch safe. A record whose resolved recipient is `None`
-# (unresolvable guardian/instructor -- not possible for real data
-# today) is still created but doesn't count against this cap, since it
-# never reaches the network call this cap exists to bound.
+# A record whose notify attempt is skipped this run (cap already hit)
+# is retried on a later run via `_notification_already_attempted`'s
+# best-effort marker below, not dropped -- `notification_log_entries`
+# carries no link back to the specific `DeletionRequest` that
+# triggered it, so "was *this* request's confirmation ever attempted"
+# is approximated as "was *any* DELETION_REQUEST_CONFIRMATION attempted
+# for this recipient at or after this request's own creation time."
+# This can under-count for a guardian with two learners swept close
+# together (a sibling's notification could suppress a retry for this
+# one) -- an accepted, narrow imprecision given the message itself is
+# already generic and never names which learner (see
+# `_inactivity_notification_recipient`'s own reasoning).
 INACTIVITY_SWEEP_MAX_PER_RUN = int(os.environ.get("INACTIVITY_SWEEP_MAX_PER_RUN", "2"))
 
 
@@ -101,16 +98,37 @@ def _inactivity_notification_recipient(
     )
 
 
+def _notification_already_attempted(
+    db: Session,
+    account_type: AuthorizedByType,
+    account_id: uuid.UUID,
+    since: datetime.datetime,
+) -> bool:
+    """Best-effort retry marker -- see `INACTIVITY_SWEEP_MAX_PER_RUN`'s
+    own docstring for why this is approximate, not exact."""
+    return (
+        db.query(NotificationLogEntry)
+        .filter(
+            NotificationLogEntry.notification_type
+            == NotificationType.DELETION_REQUEST_CONFIRMATION,
+            NotificationLogEntry.account_type == account_type,
+            NotificationLogEntry.account_id == account_id,
+            NotificationLogEntry.attempted_at >= since,
+        )
+        .first()
+        is not None
+    )
+
+
 def sweep_inactive_accounts(db: Session) -> int:
     """Creates a `DeletionRequest` for every `RetentionRecord` past
-    FR-010's 1-year inactivity ceiling that doesn't already have a
-    pending one, sending FR-009's deletion-request confirmation right
-    after each, oldest-overdue first. Stops after
-    `INACTIVITY_SWEEP_MAX_PER_RUN` *new* notify attempts -- not a cap
-    on the query itself, so an already-pending record (cheap to skip)
-    never blocks progress toward records that still need creating.
-    Returns the count created; anything left over is picked up by the
-    next run.
+    FR-010's 1-year inactivity ceiling that doesn't already have one,
+    every run -- not bounded by `INACTIVITY_SWEEP_MAX_PER_RUN`, which
+    only bounds how many *notify* attempts (FR-009) this run makes,
+    oldest-overdue first; a record whose attempt is skipped this run
+    (cap already hit, or an earlier run's attempt never happened) is
+    retried on a later one. Returns the count of `DeletionRequest`
+    rows created this run.
 
     Commits once per record (spec 045 research.md §5 restructuring,
     /speckit-analyze finding I1) rather than once at the loop's end, so
@@ -134,10 +152,8 @@ def sweep_inactive_accounts(db: Session) -> int:
     created_count = 0
     notify_attempts = 0
     for record in overdue:
-        if notify_attempts >= INACTIVITY_SWEEP_MAX_PER_RUN:
-            break
         target_type = DeletionTargetType(record.account_type.value)
-        already_pending = (
+        deletion_request = (
             db.query(DeletionRequest)
             .filter(
                 DeletionRequest.target_type == target_type,
@@ -146,30 +162,35 @@ def sweep_inactive_accounts(db: Session) -> int:
             )
             .first()
         )
-        if already_pending is not None:
-            continue
-        db.add(
-            DeletionRequest(
+        if deletion_request is None:
+            deletion_request = DeletionRequest(
                 target_type=target_type,
                 target_id=record.account_id,
                 requested_by="system:inactivity-sweep",
             )
-        )
-        db.commit()
-        created_count += 1
+            db.add(deletion_request)
+            db.commit()
+            created_count += 1
 
+        if notify_attempts >= INACTIVITY_SWEEP_MAX_PER_RUN:
+            continue
         recipient = _inactivity_notification_recipient(db, record)
-        if recipient is not None:
-            notify_attempts += 1
-            account_type, account_id, email, is_demo, target_description = recipient
-            notify_deletion_request(
-                db,
-                is_demo=is_demo,
-                account_type=account_type,
-                account_id=account_id,
-                email=email,
-                target_description=target_description,
-            )
+        if recipient is None:
+            continue
+        account_type, account_id, email, is_demo, target_description = recipient
+        if _notification_already_attempted(
+            db, account_type, account_id, deletion_request.requested_at
+        ):
+            continue
+        notify_attempts += 1
+        notify_deletion_request(
+            db,
+            is_demo=is_demo,
+            account_type=account_type,
+            account_id=account_id,
+            email=email,
+            target_description=target_description,
+        )
 
     return created_count
 

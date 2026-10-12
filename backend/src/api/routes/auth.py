@@ -387,10 +387,12 @@ def reset_password_instructor(
         raise _reset_password_error(db, body.token, AuthorizedByType.INSTRUCTOR)
     instructor = db.get(RealInstructorAccount, account_id)
     if instructor is None:
-        # The token claim itself already committed (it's already used)
-        # -- nothing else has, so raising here is safe even though the
-        # account it pointed at is somehow gone (not possible for a
-        # real instructor account today).
+        # `claim()` deliberately doesn't commit its own `used_at` write
+        # -- raising here rolls it back along with everything else in
+        # this request, so the token stays valid. Harmless either way
+        # (not possible for a real instructor account today), but
+        # raising is still the right call: there's nothing else to do
+        # with a token that claims to belong to no one.
         raise UnprocessableError("reset_token_invalid")
 
     instructor.password_hash = hash_password(body.new_password)
@@ -503,10 +505,12 @@ def reset_password_guardian(
         raise _reset_password_error(db, body.token, AuthorizedByType.GUARDIAN)
     guardian = db.get(RealGuardianAccount, account_id)
     if guardian is None:
-        # The token claim itself already committed (it's already used)
-        # -- nothing else has, so raising here is safe even though the
-        # account it pointed at is somehow gone (not possible for a
-        # real guardian account today).
+        # `claim()` deliberately doesn't commit its own `used_at` write
+        # -- raising here rolls it back along with everything else in
+        # this request, so the token stays valid. Harmless either way
+        # (not possible for a real guardian account today), but
+        # raising is still the right call: there's nothing else to do
+        # with a token that claims to belong to no one.
         raise UnprocessableError("reset_token_invalid")
 
     guardian.password_hash = hash_password(body.new_password)
