@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ApiError,
@@ -42,11 +42,27 @@ function errorMessage(error: unknown): string {
 
 function ResetPasswordFormInner({ accountType }: { accountType: AccountType }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const token = searchParams.get("token") ?? "";
+  // Captured once at mount, not re-read from `searchParams` later --
+  // the effect below strips `?token=...` from the visible URL right
+  // after this.
+  const [token] = useState(() => searchParams.get("token") ?? "");
   const [newPassword, setNewPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
+
+  useEffect(() => {
+    // The reset token is a single-use credential that arrived in the
+    // URL's query string -- strip it from the visible URL/history once
+    // read, so it isn't left sitting there or leaked via a Referer
+    // header if this page ever links out.
+    if (searchParams.get("token")) {
+      router.replace(pathname);
+    }
+    // Only ever needs to run once, right after the initial token read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();

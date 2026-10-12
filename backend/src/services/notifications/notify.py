@@ -46,12 +46,11 @@ def _notify(
         )
         db.commit()
     except Exception:  # noqa: BLE001 -- logging the attempt must never block the
-        # caller either (FR-012 covers the whole function, not just the send) --
-        # PR #115 review finding: this commit previously sat outside any
-        # try/except, so a DB error here propagated out of register_guardian/
+        # caller either (FR-012 covers the whole function, not just the send):
+        # a DB error here must not propagate out of register_guardian/
         # register_instructor/submit_deletion_request after their own commit
-        # had already succeeded (a 500 for an already-created account), and
-        # aborted the inactivity-sweep loop outright.
+        # has already succeeded (which would surface as a 500 for an
+        # already-created account), or abort the inactivity-sweep loop.
         db.rollback()
 
 

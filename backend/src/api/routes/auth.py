@@ -10,10 +10,11 @@ register as both.
 
 import datetime
 import os
+import time
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Response
+from fastapi import APIRouter, Depends, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
@@ -31,10 +32,13 @@ from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import (
     AuthorizedByType,
     EnrollmentMode,
+    NotificationStatus,
+    NotificationType,
     RetentionAccountType,
     RetentionEnrollmentStatus,
 )
 from src.models.learner_profile import LearnerProfile
+from src.models.notification_log_entry import NotificationLogEntry
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
@@ -212,17 +216,77 @@ class ResetPasswordIn(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+# A deferred (post-response) send isn't safe on Vercel's serverless
+# model -- a function instance can be frozen once the response is
+# sent, silently dropping a still-pending background task with no
+# record it ever ran. Closing the forgot-password timing gap (SC-003's
+# no-account-enumeration guarantee) the Vercel-safe way instead: every
+# `forgot-password` call, match or not,
+# is padded up to this floor -- the same "pay a comparable cost on
+# every branch" principle this file's own `_DUMMY_PASSWORD_HASH`
+# already applies to login. This closes the common-case/median gap a
+# realistic timing attack (many samples) would exploit; it does not
+# make the rare slow-network tail (the mailer's own 10s timeout)
+# indistinguishable from a floored no-match response. A durable
+# outbox + cron sweep (mirroring `execute-deletions`' existing
+# pattern) would close that tail too, if ever needed.
+_FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS = 2.0
+
+
+def _pad_to_floor(started_at: float) -> None:
+    remaining = _FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS - (time.monotonic() - started_at)
+    if remaining > 0:
+        time.sleep(remaining)
+
+
 def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
-    # PR #115 review finding: a silently-empty base URL produces an
-    # unclickable relative link in the actual email, with the attempt
-    # still logged as SENT -- fail loudly instead (this raises inside
-    # the background task below, after the 204 is already on the wire,
-    # so it never turns into a 500 for the caller; it still surfaces in
-    # the server's own error logs).
+    # A silently-empty base URL would produce an unclickable relative
+    # link in the actual email, with the attempt still logged as SENT
+    # -- fail loudly instead. `_send_password_reset_email` below is the
+    # only caller, and it turns this into a FAILED notification row
+    # rather than letting it escape to the HTTP layer.
     base_url = os.environ.get("FRONTEND_BASE_URL")
     if not base_url:
         raise RuntimeError("FRONTEND_BASE_URL is not set -- cannot build a usable reset link")
     return f"{base_url}/{role}/reset-password?token={raw_token}"
+
+
+def _send_password_reset_email(
+    db: Session,
+    *,
+    account_type: AuthorizedByType,
+    account_id: uuid.UUID,
+    email: str,
+    role: Literal["guardian", "instructor"],
+    raw_token: str,
+) -> None:
+    """Builds the reset link and sends the email, synchronously. A
+    misconfigured `FRONTEND_BASE_URL` (`_reset_link`'s own loud
+    failure) is caught here and logged as a FAILED notification
+    instead of either crashing the request or vanishing with no audit
+    row at all (FR-012/FR-013)."""
+    try:
+        reset_link = _reset_link(role, raw_token)
+    except RuntimeError as exc:
+        db.add(
+            NotificationLogEntry(
+                notification_type=NotificationType.PASSWORD_RESET,
+                account_type=account_type,
+                account_id=account_id,
+                status=NotificationStatus.FAILED,
+                error_detail=str(exc)[:200],
+            )
+        )
+        db.commit()
+        return
+    notify_password_reset(
+        db,
+        is_demo=False,
+        account_type=account_type,
+        account_id=account_id,
+        email=email,
+        reset_link=reset_link,
+    )
 
 
 def _reset_password_error(
@@ -230,8 +294,8 @@ def _reset_password_error(
 ) -> UnprocessableError:
     """Called only after `reset_tokens.claim()` has already failed --
     this read is purely informational (which 422 message to return),
-    never the security decision itself (research.md/PR #115 review:
-    `claim()`'s atomic `UPDATE` is the sole arbiter of single-use)."""
+    never the security decision itself (`claim()`'s atomic `UPDATE`
+    is the sole arbiter of single-use, research.md)."""
     existing = reset_tokens.find_by_raw_token(db, raw_token)
     if (
         existing is not None
@@ -244,23 +308,13 @@ def _reset_password_error(
 
 
 @router.post("/api/auth/instructor/forgot-password", status_code=204)
-def forgot_password_instructor(
-    body: ForgotPasswordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
-) -> None:
+def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
     """Always `204` regardless of outcome (FR-002/SC-003: no account-
-    enumeration signal) -- see contracts/api.md.
-
-    The actual send is deferred via `BackgroundTasks` (PR #115 review
-    finding): issuing a token and sending the Resend email are the only
-    parts of this route that take real, variable time (up to the
-    mailer's own 10s timeout) -- running them before the response made
-    the existing-account path measurably slower than the no-match path,
-    a timing side channel defeating SC-003's no-enumeration guarantee.
-    Deferring them means every branch returns the `204` at roughly the
-    same, fast speed; `db` stays open for the background task per
-    FastAPI's documented `yield`-dependency + background-task ordering
-    (the dependency's teardown runs after background tasks finish, not
-    before)."""
+    enumeration signal) -- see contracts/api.md. Padded to
+    `_FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS` on every branch so a
+    real, non-demo, not-rate-limited match (which does real DB/network
+    work) and every other case take comparable wall-clock time."""
+    started_at = time.monotonic()
     email = _normalize_email(body.email)
     # The seeded default instructor (spec 043) is a real, sign-in-able
     # account with a well-known, documented email -- without this guard
@@ -279,15 +333,15 @@ def forgot_password_instructor(
         )
     ):
         raw_token = reset_tokens.issue(db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id)
-        background_tasks.add_task(
-            notify_password_reset,
+        _send_password_reset_email(
             db,
-            is_demo=False,
             account_type=AuthorizedByType.INSTRUCTOR,
             account_id=instructor.instructor_id,
             email=instructor.email,
-            reset_link=_reset_link("instructor", raw_token),
+            role="instructor",
+            raw_token=raw_token,
         )
+    _pad_to_floor(started_at)
 
 
 @router.post("/api/auth/instructor/reset-password", response_model=InstructorAuthOut)
@@ -374,12 +428,11 @@ def login_guardian(
 
 
 @router.post("/api/auth/guardian/forgot-password", status_code=204)
-def forgot_password_guardian(
-    body: ForgotPasswordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
-) -> None:
+def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
     """Always `204` regardless of outcome (FR-002/SC-003: no account-
     enumeration signal) -- mirrors `forgot_password_instructor`,
-    including the deferred send (see that function's docstring)."""
+    including the constant-time floor."""
+    started_at = time.monotonic()
     email = _normalize_email(body.email)
     guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
     if (
@@ -388,15 +441,15 @@ def forgot_password_guardian(
         and not reset_tokens.recently_requested(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
     ):
         raw_token = reset_tokens.issue(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
-        background_tasks.add_task(
-            notify_password_reset,
+        _send_password_reset_email(
             db,
-            is_demo=False,
             account_type=AuthorizedByType.GUARDIAN,
             account_id=guardian.guardian_id,
             email=guardian.email,
-            reset_link=_reset_link("guardian", raw_token),
+            role="guardian",
+            raw_token=raw_token,
         )
+    _pad_to_floor(started_at)
 
 
 @router.post("/api/auth/guardian/reset-password", response_model=GuardianAuthOut)

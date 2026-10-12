@@ -38,6 +38,8 @@ def client(db_session, monkeypatch):
     monkeypatch.setattr(
         "src.services.auth.reset_tokens.secrets.token_urlsafe", lambda n: _RAW_TOKEN
     )
+    # Don't pay forgot-password's real constant-time floor in tests.
+    monkeypatch.setattr("src.api.routes.auth._FORGOT_PASSWORD_RESPONSE_FLOOR_SECONDS", 0.0)
     return TestClient(app, base_url="https://testserver")
 
 
