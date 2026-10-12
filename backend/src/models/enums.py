@@ -97,6 +97,17 @@ class TutoringSessionStatus(enum.StrEnum):
     ENDED = "ended"
 
 
+class NotificationType(enum.StrEnum):
+    REGISTRATION = "registration"
+    PASSWORD_RESET = "password_reset"
+    DELETION_REQUEST_CONFIRMATION = "deletion_request_confirmation"
+
+
+class NotificationStatus(enum.StrEnum):
+    SENT = "sent"
+    FAILED = "failed"
+
+
 class MediationTier(enum.StrEnum):
     """spec 019 FR-004/data-model.md. Never persisted as a database
     column -- derived at read time from `GradeProgress.unlocked_grade`

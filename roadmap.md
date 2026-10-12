@@ -2474,9 +2474,44 @@ explicit user decision).
   authoring-approach choice, not the engine -- confirmed true by this
   pilot.)
 
+- Durable outbox + cron sweep for outbound notification email, rather
+  than the synchronous send `specs/045-account-email-notifications/`
+  ships with. Raised 2026-10-12 during that feature's PR review: a
+  synchronous `forgot-password` send (its own timing varying with the
+  mailer's response, up to its 10s timeout) is a response-time signal
+  that reveals whether an email matches a real account, undercutting
+  that same spec's own SC-003 no-enumeration guarantee -- and the two
+  fixes tried in that PR (deferring the send via FastAPI
+  `BackgroundTasks`, then padding every response to a fixed floor) each
+  traded it for a worse problem (a Vercel serverless function can be
+  frozen right after its response is sent, silently dropping a
+  still-pending background send with no record it ever ran; a
+  synchronous `time.sleep` blocks a worker thread for its full duration
+  on every hit to a public, unauthenticated endpoint, letting a modest
+  request rate exhaust the process's whole thread pool). A durable
+  outbox (most likely `notification_log_entries` itself, with a status
+  a cron sweep can claim and retry) closes this properly without either
+  failure mode -- not attempted in that PR given the scope (a new cron
+  route, `vercel.json` changes, retry/dedup logic) warranted its own
+  decision rather than a reactive fix mid-review. The same restructuring
+  would also properly close a second, related gap found in the same
+  review round: the inactivity sweep's own per-record notify call can
+  block long enough to risk the cron's 30s `maxDuration`, and a run
+  killed mid-loop leaves an already-created `DeletionRequest` permanently
+  unnotified on every later run (`already_pending` skips it); that PR
+  ships a per-run attempt cap (`INACTIVITY_SWEEP_MAX_PER_RUN`) as a
+  narrower, non-schema-changing mitigation, documented in
+  `inactivity.py` as not a full fix for the same reason.
+
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.28.0 -- 2026-10-12, added "Durable outbox + cron sweep
+for outbound notification email" to "Out of current roadmap" during
+`specs/045-account-email-notifications/`'s PR #115 review -- see that
+bullet for the full account of what was tried and why a synchronous
+send is the current (documented, imperfect) state instead.
 
 **Version**: 3.27.0 -- 2026-10-07, added Milestone 25 (Instructor-Facing
 UI Redesign and Default-Instructor Self-Service, `specs/043-instructor-

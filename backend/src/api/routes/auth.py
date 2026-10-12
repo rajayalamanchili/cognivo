@@ -9,6 +9,7 @@ register as both.
 """
 
 import datetime
+import os
 import uuid
 from typing import Literal
 
@@ -30,13 +31,17 @@ from src.models.demo_instructor_profile import DemoInstructorProfile
 from src.models.enums import (
     AuthorizedByType,
     EnrollmentMode,
+    NotificationStatus,
+    NotificationType,
     RetentionAccountType,
     RetentionEnrollmentStatus,
 )
 from src.models.learner_profile import LearnerProfile
+from src.models.notification_log_entry import NotificationLogEntry
 from src.models.real_guardian_account import RealGuardianAccount
 from src.models.real_instructor_account import RealInstructorAccount
 from src.models.retention_record import RetentionRecord
+from src.services.auth import reset_tokens
 from src.services.auth.dependencies import (
     InstructorAccount,
     current_guardian,
@@ -59,6 +64,7 @@ from src.services.auth.tokens import (
     set_session_cookie,
 )
 from src.services.deletion.inactivity import INACTIVITY_RETENTION_PERIOD
+from src.services.notifications.notify import notify_password_reset, notify_registration
 from src.services.roster.default_instructor import get_reserved_default_instructor_email
 
 router = APIRouter()
@@ -155,6 +161,13 @@ def register_instructor(
         db.rollback()
         raise ConflictError("email_taken") from exc
     db.refresh(instructor)
+    notify_registration(
+        db,
+        is_demo=False,
+        account_type=AuthorizedByType.INSTRUCTOR,
+        account_id=instructor.instructor_id,
+        email=instructor.email,
+    )
 
     token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
     set_session_cookie(response, token)
@@ -193,6 +206,221 @@ def login_instructor(
     return InstructorAuthOut(instructor_id=instructor.instructor_id)
 
 
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
+# FR-002/SC-003 call for the forgot-password response to carry no
+# account-enumeration signal. A deferred (BackgroundTasks) send isn't
+# safe on Vercel's serverless model (a function can be frozen right
+# after its response is sent, silently dropping a still-pending task).
+# A synchronous constant-time floor was tried and reverted -- it closed
+# the timing gap but blocked a sync worker thread on every call to this
+# unauthenticated endpoint for the floor's full duration, letting a
+# small request rate exhaust the whole process's thread pool (a worse,
+# easier-to-trigger problem than the timing leak it fixed). Pending a
+# deliberate design decision (most likely a durable outbox + cron sweep,
+# mirroring `execute-deletions`' existing pattern), this synchronously
+# calls the mailer like every other trigger point in this feature,
+# accepting the known, narrower timing-oracle gap documented in
+# research.md rather than trading it for an availability one.
+
+
+def _issue_reset_token_or_none(
+    db: Session, account_type: AuthorizedByType, account_id: uuid.UUID
+) -> str | None:
+    """`reset_tokens.issue` can still re-raise `IntegrityError` after
+    its own single retry (two concurrent requests colliding twice in a
+    row) -- letting that reach the caller as an unhandled 500 would
+    itself be a second account-enumeration signal (a 500 only ever
+    happens on the existing-account path), defeating the same FR-002/
+    SC-003 guarantee the always-204 response exists for. Silently
+    giving up and returning `None` here is consistent with every other
+    "nothing happens this time" case this route already has (unknown
+    email, demo account, rate-limited) -- vanishingly rare, and no
+    worse than a request that got rate-limited instead."""
+    try:
+        return reset_tokens.issue(db, account_type, account_id)
+    except IntegrityError:
+        db.rollback()
+        return None
+
+
+def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
+    # A silently-empty base URL would produce an unclickable relative
+    # link in the actual email, with the attempt still logged as SENT
+    # -- fail loudly instead. `_send_password_reset_email` below is the
+    # only caller, and it turns this into a FAILED notification row
+    # rather than letting it escape to the HTTP layer.
+    base_url = os.environ.get("FRONTEND_BASE_URL")
+    if not base_url:
+        raise RuntimeError("FRONTEND_BASE_URL is not set -- cannot build a usable reset link")
+    # A trailing slash (an easy value to set by mistake, e.g.
+    # "https://cognivo.vercel.app/") would otherwise double up into
+    # "...app//guardian/...".
+    #
+    # The token rides in the URL *fragment* (`#token=...`), not the
+    # query string -- a fragment is never sent in the HTTP request at
+    # all, so it can't appear in Vercel/CDN access logs or a Referer
+    # header the way a query param could, even before the frontend's
+    # own history-stripping runs. The one cost is it's also invisible
+    # to the backend by the same mechanism; that's fine here since the
+    # token only needs to reach the browser, which reads it client-side
+    # and posts it to `reset-password` in a request body, not a URL.
+    return f"{base_url.rstrip('/')}/{role}/reset-password#token={raw_token}"
+
+
+def _send_password_reset_email(
+    db: Session,
+    *,
+    is_demo: bool,
+    account_type: AuthorizedByType,
+    account_id: uuid.UUID,
+    email: str,
+    role: Literal["guardian", "instructor"],
+    raw_token: str,
+) -> None:
+    """Builds the reset link and sends the email, synchronously. A
+    misconfigured `FRONTEND_BASE_URL` (`_reset_link`'s own loud
+    failure) is caught here and logged as a FAILED notification
+    instead of either crashing the request or vanishing with no audit
+    row at all (FR-012/FR-013).
+
+    Takes the real `is_demo` rather than assuming the caller's own
+    guard already covers it -- `notify_password_reset`'s own `_notify`
+    enforces this as the single source of truth for every other
+    notification type (notify.py's docstring); hardcoding `False` here
+    would bypass that for this one FAILED-link-building branch, which
+    writes its own `NotificationLogEntry` row directly rather than
+    going through `_notify` at all."""
+    if is_demo:
+        return
+    try:
+        reset_link = _reset_link(role, raw_token)
+    except RuntimeError as exc:
+        try:
+            db.add(
+                NotificationLogEntry(
+                    notification_type=NotificationType.PASSWORD_RESET,
+                    account_type=account_type,
+                    account_id=account_id,
+                    status=NotificationStatus.FAILED,
+                    error_detail=str(exc)[:200],
+                )
+            )
+            db.commit()
+        # A DB error writing this log row must not escape either -- it
+        # would surface as a 500 only on the existing-account path
+        # (`_reset_link` only raises for a real account, since a
+        # no-match/demo/rate-limited request never reaches here), which
+        # is exactly the enumeration signal `_issue_reset_token_or_none`
+        # exists to avoid (same reasoning as `_notify`'s own log-write
+        # guard in notify.py).
+        except Exception:  # noqa: BLE001
+            db.rollback()
+        return
+    notify_password_reset(
+        db,
+        is_demo=False,
+        account_type=account_type,
+        account_id=account_id,
+        email=email,
+        reset_link=reset_link,
+    )
+
+
+def _reset_password_error(
+    db: Session, raw_token: str, account_type: AuthorizedByType
+) -> UnprocessableError:
+    """Called only after `reset_tokens.claim()` has already failed --
+    this read is purely informational (which 422 message to return),
+    never the security decision itself (`claim()`'s atomic `UPDATE`
+    is the sole arbiter of single-use, research.md)."""
+    existing = reset_tokens.find_by_raw_token(db, raw_token)
+    if (
+        existing is not None
+        and existing.account_type == account_type
+        and existing.used_at is None
+        and existing.expires_at <= datetime.datetime.now(datetime.UTC)
+    ):
+        return UnprocessableError("reset_token_expired")
+    return UnprocessableError("reset_token_invalid")
+
+
+@router.post("/api/auth/instructor/forgot-password", status_code=204)
+def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
+    """Always `204` regardless of outcome (FR-002/SC-003: no account-
+    enumeration signal) -- see contracts/api.md."""
+    email = _normalize_email(body.email)
+    # The seeded default instructor (spec 043) is a real, sign-in-able
+    # account with a well-known, documented email -- without this guard
+    # anyone could hijack it via this same public endpoint the same way
+    # `register_instructor` already blocks squatting on it at signup.
+    reserved_email = get_reserved_default_instructor_email()
+    instructor = (
+        db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
+    )
+    if (
+        instructor is not None
+        and not instructor.is_demo
+        and email != reserved_email
+        and not reset_tokens.recently_requested(
+            db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id
+        )
+    ):
+        raw_token = _issue_reset_token_or_none(
+            db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id
+        )
+        if raw_token is not None:
+            _send_password_reset_email(
+                db,
+                is_demo=instructor.is_demo,
+                account_type=AuthorizedByType.INSTRUCTOR,
+                account_id=instructor.instructor_id,
+                email=instructor.email,
+                role="instructor",
+                raw_token=raw_token,
+            )
+
+
+@router.post("/api/auth/instructor/reset-password", response_model=InstructorAuthOut)
+def reset_password_instructor(
+    body: ResetPasswordIn, response: Response, db: Session = Depends(get_db)
+) -> InstructorAuthOut:
+    account_id = reset_tokens.claim(db, body.token, AuthorizedByType.INSTRUCTOR)
+    if account_id is None:
+        raise _reset_password_error(db, body.token, AuthorizedByType.INSTRUCTOR)
+    instructor = db.get(RealInstructorAccount, account_id)
+    if instructor is None:
+        # `claim()` deliberately doesn't commit its own `used_at` write
+        # -- raising here rolls it back along with everything else in
+        # this request, so the token stays valid. Harmless either way
+        # (not possible for a real instructor account today), but
+        # raising is still the right call: there's nothing else to do
+        # with a token that claims to belong to no one.
+        raise UnprocessableError("reset_token_invalid")
+
+    instructor.password_hash = hash_password(body.new_password)
+    # FR-006: invalidates every other existing session token, same as
+    # change_instructor_password.
+    instructor.password_changed_at = datetime.datetime.now(datetime.UTC)
+    # Clears any lockout from failed login attempts -- a completed
+    # reset is this feature's whole point for a locked-out account
+    # (US1), so it must not leave that account still locked out
+    # immediately afterward.
+    record_successful_attempt(instructor)
+    db.commit()
+
+    session_token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
+    set_session_cookie(response, session_token)
+    return InstructorAuthOut(instructor_id=instructor.instructor_id)
+
+
 @router.post("/api/auth/guardian/register", response_model=GuardianAuthOut, status_code=201)
 def register_guardian(
     body: AuthCredentialsIn, response: Response, db: Session = Depends(get_db)
@@ -212,6 +440,13 @@ def register_guardian(
         db.rollback()
         raise ConflictError("email_taken") from exc
     db.refresh(guardian)
+    notify_registration(
+        db,
+        is_demo=False,
+        account_type=AuthorizedByType.GUARDIAN,
+        account_id=guardian.guardian_id,
+        email=guardian.email,
+    )
 
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
     set_session_cookie(response, token)
@@ -244,6 +479,63 @@ def login_guardian(
     token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
     set_session_cookie(response, token)
     db.commit()
+    return GuardianAuthOut(guardian_id=guardian.guardian_id)
+
+
+@router.post("/api/auth/guardian/forgot-password", status_code=204)
+def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
+    """Always `204` regardless of outcome (FR-002/SC-003: no account-
+    enumeration signal) -- mirrors `forgot_password_instructor`."""
+    email = _normalize_email(body.email)
+    guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
+    if (
+        guardian is not None
+        and not guardian.is_demo
+        and not reset_tokens.recently_requested(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+    ):
+        raw_token = _issue_reset_token_or_none(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+        if raw_token is not None:
+            _send_password_reset_email(
+                db,
+                is_demo=guardian.is_demo,
+                account_type=AuthorizedByType.GUARDIAN,
+                account_id=guardian.guardian_id,
+                email=guardian.email,
+                role="guardian",
+                raw_token=raw_token,
+            )
+
+
+@router.post("/api/auth/guardian/reset-password", response_model=GuardianAuthOut)
+def reset_password_guardian(
+    body: ResetPasswordIn, response: Response, db: Session = Depends(get_db)
+) -> GuardianAuthOut:
+    account_id = reset_tokens.claim(db, body.token, AuthorizedByType.GUARDIAN)
+    if account_id is None:
+        raise _reset_password_error(db, body.token, AuthorizedByType.GUARDIAN)
+    guardian = db.get(RealGuardianAccount, account_id)
+    if guardian is None:
+        # `claim()` deliberately doesn't commit its own `used_at` write
+        # -- raising here rolls it back along with everything else in
+        # this request, so the token stays valid. Harmless either way
+        # (not possible for a real guardian account today), but
+        # raising is still the right call: there's nothing else to do
+        # with a token that claims to belong to no one.
+        raise UnprocessableError("reset_token_invalid")
+
+    guardian.password_hash = hash_password(body.new_password)
+    # FR-006: invalidates every other existing session token, same as
+    # change_guardian_password.
+    guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
+    # Clears any lockout from failed login attempts -- a completed
+    # reset is this feature's whole point for a locked-out account
+    # (US1), so it must not leave that account still locked out
+    # immediately afterward.
+    record_successful_attempt(guardian)
+    db.commit()
+
+    session_token = issue_token(account_type="guardian", account_id=guardian.guardian_id)
+    set_session_cookie(response, session_token)
     return GuardianAuthOut(guardian_id=guardian.guardian_id)
 
 

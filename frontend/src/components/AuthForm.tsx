@@ -100,6 +100,14 @@ export default function AuthForm({ accountType, mode }: AuthFormProps) {
             className="min-h-[52px] rounded-2xl border-2 border-primary/25 px-4 text-[17px] font-normal"
           />
         </label>
+        {mode === "sign-in" && (
+          <Link
+            href={`/${accountType}/forgot-password`}
+            className="self-end text-[14px] font-extrabold text-link"
+          >
+            Forgot password?
+          </Link>
+        )}
         {errorText && (
           <p className="text-sm text-error" data-testid="auth-error">
             {errorText}
