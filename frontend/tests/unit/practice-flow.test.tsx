@@ -68,7 +68,9 @@ beforeEach(() => {
   vi.mocked(api.getPracticeNextQuestion).mockReset();
   vi.mocked(api.endPracticeSession).mockReset();
   vi.mocked(api.getPracticeSessionSummary).mockReset();
-  vi.mocked(api.flagQuestion).mockReset().mockResolvedValue(undefined);
+  vi.mocked(api.flagQuestion)
+    .mockReset()
+    .mockResolvedValue({ question_id: "q1", validation_status: "pending" });
   vi.mocked(api.openTutorSession).mockReset().mockResolvedValue({
     session_id: "tutor-session-1",
     subject_id: "algebra-1",
