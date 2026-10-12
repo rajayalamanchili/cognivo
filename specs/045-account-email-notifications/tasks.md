@@ -127,7 +127,7 @@ request also notifies.
 ### Implementation for User Story 3
 
 - [ ] T024 [US3] Call `notify_deletion_request` from `submit_deletion_request` in `backend/src/api/routes/deletion.py`, after its existing commit -- resolving the recipient to the managing guardian when `target_type == LEARNER` (research.md §5; depends on T008)
-- [ ] T025 [US3] Restructure `sweep_inactive_accounts` in `backend/src/services/deletion/inactivity.py` to commit each `DeletionRequest` individually and call `notify_deletion_request` right after, resolving the recipient from `RetentionRecord.account_type` (`LEARNER` -> managing guardian, `INSTRUCTOR` -> the instructor itself) (research.md §5; depends on T008)
+- [ ] T025 [US3] Restructure `sweep_inactive_accounts` in `backend/src/services/deletion/inactivity.py` to commit each `DeletionRequest` individually and call `notify_deletion_request` right after, resolving the recipient from `RetentionRecord.account_type` (`LEARNER` -> managing guardian, `INSTRUCTOR` -> the instructor itself) (research.md §5; depends on T008). This changes the function's commit granularity from one batched `db.commit()` at the loop's end to one per record -- re-run the existing spec-020 suite (`test_deletion_inactivity_sweep.py`, `test_deletion_inactivity_no_duplicate.py`, `test_deletion_inactivity_threshold.py`) afterward and fix any assumption that depended on the old single-commit-at-end shape (/speckit-analyze finding I1)
 - [ ] T026 [P] [US3] Integration tests for deletion-request confirmation (self guardian/instructor, learner-target notifies the guardian not the learner, duplicate-pending sends none, system/inactivity-generated request also notifies) in `backend/tests/integration/test_notifications_deletion_request.py`
 - [ ] T027 [P] [US3] Integration test confirming zero `notification_log_entries` rows are ever written for a demo guardian/instructor/demo-learner's-guardian across all three trigger points in `backend/tests/integration/test_notifications_demo_guard.py`
 
@@ -140,6 +140,8 @@ request also notifies.
 
 - [ ] T028 [P] Run every `quickstart.md` scenario end to end against a local dev server with a real (or deliberately invalid) `RESEND_API_KEY`
 - [ ] T029 [P] Lint/format pass (`ruff`, `black`) across every new/edited backend file from this feature
+- [ ] T030 [P] Unit test: mock `mailer.send_email` to return `False`/raise for each of `notify_registration`, `notify_password_reset`, `notify_deletion_request`, and assert each still writes exactly one `NotificationLogEntry` row with `status=failed` and never raises (FR-012/FR-013) in `backend/tests/unit/test_notify_failure_handling.py`
+- [ ] T031 [P] Integration test: with `mailer.send_email` mocked to fail, confirm all three trigger-point HTTP actions -- `register_guardian`/`register_instructor`, `forgot-password` (guardian + instructor), and `submit_deletion_request` -- still return their normal success response (SC-006) in `backend/tests/integration/test_notifications_failure_resilience.py` (/speckit-analyze finding E1)
 
 ---
 
@@ -157,7 +159,10 @@ request also notifies.
   (sequence within a shared file, not a cross-story blocking
   dependency).
 - **Polish (Phase 6)**: Depends on whichever stories are in scope for
-  this delivery being complete.
+  this delivery being complete. T031 specifically needs all three
+  stories' wiring done (it asserts the failure-resilience property at
+  every trigger point), so it is the one Polish task that can't start
+  until US1+US2+US3 are all in.
 
 ### User Story Dependencies
 
@@ -183,6 +188,10 @@ request also notifies.
   parallel once T010/T011 land, since each touches a distinct file.
 - US2's T023 and US3's T026/T027 are each parallel with the other
   story's tasks, since they touch disjoint files.
+- T030 (depends only on T008) and T031 (depends on T008 plus every
+  story's wiring -- T010/T011, T021/T022, T024/T025 -- since it exercises
+  all three trigger points) run in parallel with each other once their
+  own dependencies are met.
 
 ---
 
@@ -226,5 +235,5 @@ Task: "Create instructor reset-password page in frontend/src/app/(auth)/instruct
 - US1: 12 tasks (MVP)
 - US2: 3 tasks
 - US3: 4 tasks
-- Polish: 2 tasks
-- **Total: 29 tasks**
+- Polish: 4 tasks
+- **Total: 31 tasks**
