@@ -5,6 +5,7 @@ read by the cron executor's sweep phase (research.md R8).
 """
 
 import datetime
+import os
 import uuid
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,31 @@ from src.services.notifications.notify import notify_deletion_request
 INACTIVITY_RETENTION_PERIOD = datetime.timedelta(days=365)
 # spec 020 FR-011's pre-deletion warning lead time.
 WARNING_LEAD_TIME = datetime.timedelta(days=7)
+
+# Each record's own notify call can block up to the mailer's 10s
+# timeout, inside a cron invocation capped at vercel.json's 30s
+# maxDuration -- shared with reconcile_inactivity_warnings and
+# execute-deletions' own MAX_DELETIONS_PER_RUN-bounded batch in the
+# same request. An unbounded loop over every overdue record risked
+# exceeding that budget on a large backlog. Capping how many *new*
+# notify attempts one invocation makes (same `MAX_..._PER_RUN` pattern
+# as `execute.py`'s `MAX_DELETIONS_PER_RUN`) keeps the common case
+# safely under budget without needing a schema change; an overdue
+# record past the cap is left fully untouched (no `DeletionRequest`
+# created yet) for the next run to pick up in full, oldest first.
+#
+# Residual gap, not closed by this cap: a record whose `DeletionRequest`
+# was already committed in a prior run that then died *during* that
+# same record's own notify call (not just from a large backlog) stays
+# `already_pending` forever with no notification ever recorded --
+# `notification_log_entries` carries no link back to the
+# `DeletionRequest` that triggered it, so there's no cheap way to tell
+# "pending, never notified" apart from "pending, notified, still
+# awaiting completion." A durable outbox keyed on that link would close
+# this properly; not attempted here given how narrow the window is
+# (a kill landing inside one record's own up-to-10s call, not just
+# somewhere in the loop).
+INACTIVITY_SWEEP_MAX_PER_RUN = int(os.environ.get("INACTIVITY_SWEEP_MAX_PER_RUN", "2"))
 
 
 def _inactivity_notification_recipient(
@@ -63,7 +89,12 @@ def sweep_inactive_accounts(db: Session) -> int:
     """Creates a `DeletionRequest` for every `RetentionRecord` past
     FR-010's 1-year inactivity ceiling that doesn't already have a
     pending one, sending FR-009's deletion-request confirmation right
-    after. Returns the count created.
+    after each, oldest-overdue first. Stops after
+    `INACTIVITY_SWEEP_MAX_PER_RUN` *new* notify attempts -- not a cap
+    on the query itself, so an already-pending record (cheap to skip)
+    never blocks progress toward records that still need creating.
+    Returns the count created; anything left over is picked up by the
+    next run.
 
     Commits once per record (spec 045 research.md §5 restructuring,
     /speckit-analyze finding I1) rather than once at the loop's end, so
@@ -80,11 +111,15 @@ def sweep_inactive_accounts(db: Session) -> int:
             RetentionRecord.became_inactive_at.isnot(None),
             RetentionRecord.became_inactive_at <= cutoff,
         )
+        .order_by(RetentionRecord.became_inactive_at)
         .all()
     )
 
     created_count = 0
+    notify_attempts = 0
     for record in overdue:
+        if notify_attempts >= INACTIVITY_SWEEP_MAX_PER_RUN:
+            break
         target_type = DeletionTargetType(record.account_type.value)
         already_pending = (
             db.query(DeletionRequest)
@@ -109,6 +144,7 @@ def sweep_inactive_accounts(db: Session) -> int:
 
         recipient = _inactivity_notification_recipient(db, record)
         if recipient is not None:
+            notify_attempts += 1
             account_type, account_id, email, is_demo, target_description = recipient
             notify_deletion_request(
                 db,
