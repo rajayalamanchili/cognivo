@@ -239,4 +239,21 @@ describe("DashboardSubjectSection mockup-fidelity gaps", () => {
     await screen.findByText("UP NEXT");
     expect(screen.queryByText(/likely coming up/i)).not.toBeInTheDocument();
   });
+
+  // spec 044 FR-020 (US4): carries the subject so tutor-flow.tsx can
+  // skip its own subject-picker on arrival.
+  it('"Ask the AI Tutor first" link carries the subject', async () => {
+    vi.mocked(api.getMasteryState).mockResolvedValue(masteryState());
+    vi.mocked(api.getTopicPriorityPreview).mockResolvedValue(topicPriorityPreview());
+    vi.mocked(api.getActivitySummary).mockResolvedValue(activitySummary());
+
+    render(
+      <DashboardSubjectSection subjectId="algebra-1" displayName="Algebra I" learnerId="learner-1" />,
+    );
+
+    expect(await screen.findByRole("link", { name: /ask the ai tutor first/i })).toHaveAttribute(
+      "href",
+      "/tutor?subject=algebra-1",
+    );
+  });
 });

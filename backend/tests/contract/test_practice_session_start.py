@@ -6,7 +6,12 @@ Requires a reachable `DATABASE_URL` -- see tests/conftest.py.
 
 from fastapi.testclient import TestClient
 
+from src.models.mastery_state import MasteryState
 from src.models.practice_session import PracticeSession
+from tests.integration.quiz_assignment_helpers import (
+    login_guardian,
+    register_guardian_with_learner,
+)
 from tests.integration.quiz_helpers import patch_generation
 
 
@@ -118,10 +123,11 @@ def test_request_schema_has_no_client_elapsed_time_field(
     assert start.json()["expires_at"] != "2099-01-01T00:00:00Z"
 
 
-def test_client_supplied_learner_id_is_ignored(db_session, demo_learner, algebra_subject):
-    """A client-asserted learner_id must never let the caller start a
-    session as someone else -- the server always resolves the demo
-    learner itself, matching quiz.py's start_quiz_route pattern."""
+def test_omitted_learner_id_still_resolves_the_demo_learner(
+    db_session, demo_learner, algebra_subject
+):
+    """Unchanged pre-spec-044 behavior: omitting learner_id entirely
+    keeps today's demo-learner-only path."""
     from src.api.main import app
 
     client = TestClient(app)
@@ -131,7 +137,6 @@ def test_client_supplied_learner_id_is_ignored(db_session, demo_learner, algebra
         start = client.post(
             "/api/practice-sessions",
             json={
-                "learner_id": "00000000-0000-0000-0000-000000000000",
                 "subject_id": algebra_subject.subject_id,
                 "time_limit_seconds": 1800,
             },
@@ -140,3 +145,134 @@ def test_client_supplied_learner_id_is_ignored(db_session, demo_learner, algebra
 
     session = db_session.get(PracticeSession, start.json()["practice_session_id"])
     assert session.learner_id == demo_learner.learner_id
+
+
+def test_nonexistent_learner_id_404s_instead_of_falling_back_to_demo(
+    db_session, demo_learner, algebra_subject
+):
+    """spec 044 FR-008: a supplied learner_id is now honored (gated by
+    ownership), not silently ignored -- a nonexistent id has no
+    placement data, so it 404s rather than silently becoming the demo
+    learner's own session."""
+    from src.api.main import app
+
+    client = TestClient(app)
+
+    start = client.post(
+        "/api/practice-sessions",
+        json={
+            "learner_id": "00000000-0000-0000-0000-000000000000",
+            "subject_id": algebra_subject.subject_id,
+            "time_limit_seconds": 1800,
+        },
+    )
+    assert start.status_code == 404, start.text
+
+
+def test_real_learner_with_mastery_state_can_start_a_session(
+    db_session, algebra_subject, monkeypatch
+):
+    """spec 044 FR-008, US2: the guardian's own real learner can start a
+    timed session directly, same as the demo learner."""
+    from src.api.main import app
+
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    client = TestClient(app, base_url="https://testserver")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="practice-start-owner@example.com", learner_name="Real Learner"
+    )
+    db_session.add(
+        MasteryState(
+            learner_id=learner_id,
+            subject_id=algebra_subject.subject_id,
+            topic_id="integers-and-operations",
+            p_mastery=0.5,
+            update_count=1,
+        )
+    )
+    db_session.commit()
+
+    with patch_generation():
+        start = client.post(
+            "/api/practice-sessions",
+            json={
+                "learner_id": learner_id,
+                "subject_id": algebra_subject.subject_id,
+                "time_limit_seconds": 1800,
+            },
+        )
+    assert start.status_code == 200, start.text
+
+    session = db_session.get(PracticeSession, start.json()["practice_session_id"])
+    assert str(session.learner_id) == learner_id
+
+
+def test_real_learner_with_no_placement_data_can_still_start_a_session(
+    db_session, algebra_subject, monkeypatch
+):
+    """spec 044 FR-008/research.md §1: mirrors get_next_question's exact
+    bypass -- a real learner who has never answered a question yet
+    (zero MasteryState rows) must not 404 on their very first use of
+    this shortcut."""
+    from src.api.main import app
+
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    client = TestClient(app, base_url="https://testserver")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="practice-start-fresh@example.com", learner_name="Fresh Learner"
+    )
+    assert (
+        db_session.query(MasteryState).filter(MasteryState.learner_id == learner_id).first()
+        is None
+    )
+
+    with patch_generation():
+        start = client.post(
+            "/api/practice-sessions",
+            json={
+                "learner_id": learner_id,
+                "subject_id": algebra_subject.subject_id,
+                "time_limit_seconds": 1800,
+            },
+        )
+    assert start.status_code == 200, start.text
+
+
+def test_other_guardians_learner_id_is_forbidden(db_session, algebra_subject, monkeypatch):
+    """spec 044 FR-008: a guardian must not be able to start a timed
+    session for a learner they don't own, by supplying that learner's
+    id directly."""
+    from src.api.main import app
+
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    client = TestClient(app, base_url="https://testserver")
+    _, owner_learner_id = register_guardian_with_learner(
+        client, guardian_email="practice-start-owner-b@example.com", learner_name="Owned"
+    )
+    db_session.add(
+        MasteryState(
+            learner_id=owner_learner_id,
+            subject_id=algebra_subject.subject_id,
+            topic_id="integers-and-operations",
+            p_mastery=0.5,
+            update_count=1,
+        )
+    )
+    db_session.commit()
+    client.post("/api/auth/logout")
+
+    register_guardian_with_learner(
+        client, guardian_email="practice-start-intruder@example.com", learner_name="Other"
+    )
+    login_guardian(client, "practice-start-intruder@example.com")
+
+    start = client.post(
+        "/api/practice-sessions",
+        json={
+            "learner_id": owner_learner_id,
+            "subject_id": algebra_subject.subject_id,
+            "time_limit_seconds": 1800,
+        },
+    )
+    assert start.status_code == 403, start.text
+    assert start.json() == {"detail": "not_your_learner"}

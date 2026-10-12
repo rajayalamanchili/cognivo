@@ -88,3 +88,23 @@ Maps directly to spec.md's three User Stories' Acceptance Scenarios.
     Start a quiz with `topic_ids: ["topic-a", "topic-b"]` and
     `question_count: 4` -> confirm the four questions' `topic_id`
     values alternate `a, b, a, b` in that order.
+
+## Bug-fix amendment, 2026-10-12
+
+**Prerequisites**: `stem_embedding` migration applied; `VOYAGE_API_KEY`
+set (same requirement `specs/012-tutor-agent/quickstart.md` already
+documents).
+
+11. **Same-template, different-number questions are not flagged as
+    near-duplicate** (spec.md FR-008/SC-004 Clarifications, 2026-10-12 --
+    the regression this bug fix addresses)
+    Start a single-topic quiz on a narrow-content topic (e.g.
+    `quadratic-equations-and-functions`) with `question_count: 5` ->
+    answer each question and call `next-question` -> confirm all 5
+    questions generate successfully (`status` never becomes
+    `ended_early` before `question_count` is reached), even though
+    consecutive questions share the same phrasing template differing
+    only in their numeric values. This is the live scenario that
+    originally surfaced the bug: two single-topic 5-question assigned
+    quizzes both exhausted dedup retries and ended early after exactly
+    1 question, pre-fix.

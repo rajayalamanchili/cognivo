@@ -90,7 +90,9 @@ def patch_free_text_generation(
 ):
     """Patches `_run_agent_once` (the same LLM-call boundary
     `quiz_helpers.patch_generation` mocks) to return a valid free-text
-    draft -- a fresh UUID-suffixed stem per call unless `stems` is given."""
+    draft -- a fresh UUID-suffixed stem per call unless `stems` is given.
+    `embed_stem` is mocked separately, session-wide, by `conftest.py`'s
+    autouse `_mock_embeddings` fixture (bug-fix amendment, 2026-10-12)."""
     call_count = {"n": 0}
 
     async def _fake_run_agent_once(agent, session_service):

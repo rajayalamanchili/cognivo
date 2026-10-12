@@ -155,3 +155,12 @@ encountered.
 
 **Side effects**: None -- pure read, not wrapped in `traced_request()`
 (no LLM/ADK call), matching the existing `GET /mastery-state` precedent.
+
+## Bug-fix amendment, 2026-10-12
+
+No contract change. The near-duplicate check's metric switch
+(research.md §7-10) is purely internal to question generation -- no
+request or response field is added, removed, or renamed on any
+endpoint above. `ended_early` remains reachable the same way (dedup
+retries exhausted), just with a different, less false-positive-prone
+trigger condition and a higher retry ceiling (5, was 3).

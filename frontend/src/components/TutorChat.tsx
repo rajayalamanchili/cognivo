@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ComponentPropsWithoutRef } from "react";
+import { useEffect, useRef, useState, type ComponentPropsWithoutRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import {
   ApiError,
@@ -26,6 +26,18 @@ export interface TutorChatProps {
   // sidebar can render "Sources used in this chat" -- this component
   // still owns the fetch (it already owns exchangeId/streaming state).
   onSourcesChange?: (sources: TutorRetrievedPassage[]) => void;
+  // spec 044 FR-021 (US4): substituted into the suggested-prompt pills'
+  // wording when available; falls back to today's generic wording when
+  // absent (FR-022).
+  currentTopicDisplayName?: string;
+  // spec 044 FR-015 (US3): sent automatically, once per distinct value,
+  // through the same submit path a learner's own typed message uses --
+  // the mechanism Practice's inline panel relies on to show a hint with
+  // no typing required. Re-fires on a new value (e.g. advancing to a
+  // new practice question) so a fresh hint goes into this same session
+  // (FR-017), but never resends the same value twice (e.g. re-opening
+  // the panel for the same question).
+  initialMessage?: string;
 }
 
 interface ChatMessage {
@@ -57,11 +69,22 @@ const MAX_LENGTH = 2000;
 // Principle III) rather than the mockup's algebra-specific wording -- these
 // only ever pre-fill the input, so they're a restyle affordance, not new
 // behavior (the existing submit path still owns what happens next).
-const SUGGESTED_PROMPTS = [
-  "Give me a hint, not the answer",
-  "Can you explain that differently?",
-  "Show me a similar example",
-];
+// spec 044 FR-021/FR-022 (US4): worded around the active topic when one is
+// available, falling back to this exact generic wording otherwise.
+function suggestedPrompts(topicDisplayName?: string): string[] {
+  if (!topicDisplayName) {
+    return [
+      "Give me a hint, not the answer",
+      "Can you explain that differently?",
+      "Show me a similar example",
+    ];
+  }
+  return [
+    `Give me a hint about ${topicDisplayName}, not the answer`,
+    `Can you explain ${topicDisplayName} differently?`,
+    `Show me a similar ${topicDisplayName} example`,
+  ];
+}
 
 // No @tailwindcss/typography plugin is installed, and Tailwind's
 // preflight reset strips default heading/list margins -- so markdown
@@ -119,12 +142,25 @@ function stateFromError(error: unknown): ErrorState {
   return "none";
 }
 
-export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps) {
+export default function TutorChat({
+  sessionId,
+  onSourcesChange,
+  currentTopicDisplayName,
+  initialMessage,
+}: TutorChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [errorState, setErrorState] = useState<ErrorState>("none");
   const [sessionSources, setSessionSources] = useState<TutorRetrievedPassage[]>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Keeps the latest bubble (including the "Thinking…" placeholder while
+  // streaming) in view as the panel grows, instead of leaving it below
+  // the fold where it reads as stuck rather than working.
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView?.({ block: "end" });
+  }, [messages]);
 
   const onSourcesChangeRef = useRef(onSourcesChange);
   useEffect(() => {
@@ -164,35 +200,56 @@ export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps
     }
   }
 
+  const sendMessage = useCallback(
+    async (text: string) => {
+      setErrorState("none");
+      setMessages((current) => [
+        ...current,
+        { role: "learner", text },
+        { role: "tutor", text: "" },
+      ]);
+      setStreaming(true);
+      try {
+        await streamTutorMessage(sessionId, text, (event) => {
+          setMessages((current) => {
+            const next = [...current];
+            const last = next[next.length - 1];
+            next[next.length - 1] =
+              "delta" in event
+                ? { ...last, text: last.text + event.delta }
+                : { ...last, exchangeId: event.exchange_id };
+            return next;
+          });
+          if (!("delta" in event)) void loadSources(event.exchange_id);
+        });
+      } catch (error) {
+        setErrorState(stateFromError(error));
+        // The rejected question never got a real answer -- drop the
+        // empty tutor placeholder bubble rather than leaving it blank.
+        setMessages((current) => current.slice(0, -1));
+      } finally {
+        setStreaming(false);
+      }
+    },
+    [sessionId],
+  );
+
+  // spec 044 FR-015/FR-017 (US3): Practice's inline panel passes a hint
+  // request here instead of waiting for the learner to type -- re-fires
+  // on each distinct value (a new question while the panel stays open)
+  // but never resends the same one twice.
+  const sentInitialMessageRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialMessage || streaming || sentInitialMessageRef.current === initialMessage) return;
+    sentInitialMessageRef.current = initialMessage;
+    void sendMessage(initialMessage);
+  }, [initialMessage, streaming, sendMessage]);
+
   async function handleSubmit() {
     const text = question.trim();
     if (!text || streaming) return;
-
-    setErrorState("none");
     setQuestion("");
-    setMessages((current) => [...current, { role: "learner", text }, { role: "tutor", text: "" }]);
-    setStreaming(true);
-    try {
-      await streamTutorMessage(sessionId, text, (event) => {
-        setMessages((current) => {
-          const next = [...current];
-          const last = next[next.length - 1];
-          next[next.length - 1] =
-            "delta" in event
-              ? { ...last, text: last.text + event.delta }
-              : { ...last, exchangeId: event.exchange_id };
-          return next;
-        });
-        if (!("delta" in event)) void loadSources(event.exchange_id);
-      });
-    } catch (error) {
-      setErrorState(stateFromError(error));
-      // The rejected question never got a real answer -- drop the
-      // empty tutor placeholder bubble rather than leaving it blank.
-      setMessages((current) => current.slice(0, -1));
-    } finally {
-      setStreaming(false);
-    }
+    await sendMessage(text);
   }
 
   return (
@@ -223,8 +280,12 @@ export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps
               >
                 {message.role === "tutor" && message.text ? (
                   <ReactMarkdown components={MARKDOWN_COMPONENTS}>{message.text}</ReactMarkdown>
+                ) : message.role === "tutor" &&
+                  streaming &&
+                  index === messages.length - 1 ? (
+                  <LoadingIndicator message="Thinking…" compact />
                 ) : (
-                  message.text || (streaming && index === messages.length - 1 ? "…" : "")
+                  message.text
                 )}
               </div>
               {message.role === "tutor" && message.sources && message.sources.length > 0 && (
@@ -246,6 +307,7 @@ export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </div>
 
       {errorState === "still-answering" && (
@@ -275,7 +337,7 @@ export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps
       )}
 
       <div className="flex flex-wrap gap-2" data-testid="tutor-suggested-prompts">
-        {SUGGESTED_PROMPTS.map((prompt) => (
+        {suggestedPrompts(currentTopicDisplayName).map((prompt) => (
           <button
             key={prompt}
             type="button"
@@ -310,13 +372,16 @@ export default function TutorChat({ sessionId, onSourcesChange }: TutorChatProps
         />
         <button
           type="button"
-          aria-label={streaming ? undefined : "Send"}
+          aria-label={streaming ? "Sending" : "Send"}
           onClick={() => void handleSubmit()}
           disabled={streaming || question.trim() === ""}
           className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"
         >
           {streaming ? (
-            <LoadingIndicator message="Thinking…" compact />
+            <span
+              className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground/40 border-t-primary-foreground"
+              aria-hidden="true"
+            />
           ) : (
             <svg
               width="22"

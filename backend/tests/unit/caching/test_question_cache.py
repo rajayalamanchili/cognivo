@@ -22,6 +22,17 @@ pytestmark = pytest.mark.usefixtures("database_available")
 CONTENT_VERSION = "v1"
 GENERATION_PROMPT_VERSION = "v1"
 DIFFICULTY = DifficultyBand.EASY
+EMBEDDING_DIMENSION = 1024
+
+
+def _embedding(axis: int) -> list[float]:
+    """A 1024-dim one-hot vector -- cosine similarity 1.0 against itself
+    (same `axis`), 0.0 against a different `axis`. Matches
+    `GeneratedQuestion`/`QuestionGenerationCache`'s real embedding
+    column width without needing a real Voyage call in a unit test."""
+    vector = [0.0] * EMBEDDING_DIMENSION
+    vector[axis] = 1.0
+    return vector
 
 
 def _draft(stem: str) -> GeneratedQuestionDraft:
@@ -41,6 +52,7 @@ def _add_pool_row(
     content_version: str = CONTENT_VERSION,
     generation_prompt_version: str = GENERATION_PROMPT_VERSION,
     created_at: datetime.datetime | None = None,
+    stem_embedding: list[float] | None = None,
 ) -> QuestionGenerationCache:
     row = QuestionGenerationCache(
         subject_id="algebra-1",
@@ -50,6 +62,7 @@ def _add_pool_row(
         generation_prompt_version=generation_prompt_version,
         question_type=QuestionType.MULTIPLE_CHOICE,
         stem=stem,
+        stem_embedding=stem_embedding,
         options=["a", "b", "c", "d"],
         answer_key={"correct_index": 0},
         question_signature=f"sig-{uuid.uuid4()}",
@@ -69,7 +82,7 @@ async def _get_or_generate(db_session, *, topic_id, avoid_stems=(), generated_st
         calls["count"] += 1
         return _draft(generated_stem)
 
-    draft, outcome = await get_or_generate_question(
+    draft, outcome, _embedding = await get_or_generate_question(
         db_session,
         subject_id="algebra-1",
         topic_id=topic_id,
@@ -103,7 +116,10 @@ async def test_non_duplicate_pool_entry_is_a_hit_without_calling_generator(
     db_session, algebra_subject
 ):
     row = _add_pool_row(
-        db_session, topic_id="variables-and-expressions", stem="What is x in 2x = 4?"
+        db_session,
+        topic_id="variables-and-expressions",
+        stem="What is x in 2x = 4?",
+        stem_embedding=_embedding(1),
     )
     db_session.commit()
 
@@ -116,18 +132,47 @@ async def test_non_duplicate_pool_entry_is_a_hit_without_calling_generator(
     assert draft.stem == "What is x in 2x = 4?"
 
 
+async def test_pool_entry_with_no_embedding_is_never_served_as_a_hit(
+    db_session, algebra_subject
+):
+    """A row with no `stem_embedding` (a pre-migration row, or one
+    written during a Voyage outage) must not be served from the cache,
+    even when nothing in `avoid_stems` matches it -- `is_near_duplicate`
+    alone can't tell the difference between "checked, not a duplicate"
+    and "never checked at all" (review finding, PR #113)."""
+    _add_pool_row(
+        db_session,
+        topic_id="variables-and-expressions",
+        stem="a pre-migration row with no embedding",
+        stem_embedding=None,
+    )
+    db_session.commit()
+
+    draft, outcome, generate_calls = await _get_or_generate(
+        db_session,
+        topic_id="variables-and-expressions",
+        generated_stem="freshly generated instead",
+    )
+    assert outcome.hit is False
+    assert generate_calls == 1
+    assert draft.stem == "freshly generated instead"
+
+
 async def test_all_pool_entries_near_duplicate_of_avoid_stems_is_a_miss(
     db_session, algebra_subject
 ):
     _add_pool_row(
-        db_session, topic_id="order-of-operations", stem="Evaluate 2 + 3 * 4 using PEMDAS."
+        db_session,
+        topic_id="order-of-operations",
+        stem="Evaluate 2 + 3 * 4 using PEMDAS.",
+        stem_embedding=_embedding(0),
     )
     db_session.commit()
 
     draft, outcome, generate_calls = await _get_or_generate(
         db_session,
         topic_id="order-of-operations",
-        avoid_stems=["Evaluate 2 + 3 * 4 using PEMDAS."],
+        avoid_stems=[("Evaluate 2 + 3 * 4 using PEMDAS.", _embedding(0))],
         generated_stem="a genuinely new question",
     )
     assert outcome.hit is False
@@ -150,6 +195,7 @@ async def test_eviction_keeps_pool_at_five_newest_entries(db_session, algebra_su
             topic_id="solving-one-step-equations",
             stem=f"stale stem {i}",
             created_at=now - datetime.timedelta(minutes=POOL_SIZE - i),
+            stem_embedding=_embedding(0),
         )
     db_session.commit()
 
@@ -158,7 +204,7 @@ async def test_eviction_keeps_pool_at_five_newest_entries(db_session, algebra_su
     draft, outcome, generate_calls = await _get_or_generate(
         db_session,
         topic_id="solving-one-step-equations",
-        avoid_stems=[f"stale stem {i}" for i in range(POOL_SIZE)],
+        avoid_stems=[(f"stale stem {i}", _embedding(0)) for i in range(POOL_SIZE)],
         generated_stem="the newest stem",
     )
     assert outcome.hit is False
@@ -263,6 +309,7 @@ async def test_multi_step_pool_entry_round_trips_its_steps(db_session, algebra_s
         generation_prompt_version=GENERATION_PROMPT_VERSION,
         question_type=QuestionType.MULTI_STEP,
         stem="Solve for x: 3x + 2 = 14",
+        stem_embedding=_embedding(2),
         options=None,
         answer_key={
             "steps": [

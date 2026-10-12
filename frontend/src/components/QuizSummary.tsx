@@ -41,6 +41,13 @@ export default function QuizSummary({
   const beforeAfter = masteryBeforeAfterByTopic(summary.per_question_results);
   const scorePct =
     summary.score.total > 0 ? Math.round((summary.score.correct / summary.score.total) * 100) : null;
+  // The only way a quiz reaches `ended_early` with zero questions ever
+  // generated is the dedup guarantee (FR-008) exhausting its retries on
+  // the very first question -- an untimed session never gets an
+  // `end_reason` audit event (spec 022 FR-009 scopes that to timed
+  // sessions only), so this is inferred from the already-reliable
+  // status + zero-total combination instead of waiting on that.
+  const endedWithNoQuestions = summary.status === "ended_early" && summary.score.total === 0;
 
   return (
     <div className="flex flex-col gap-5" data-testid="quiz-summary">
@@ -57,6 +64,12 @@ export default function QuizSummary({
             elapsedSeconds={summary.elapsed_seconds}
             endReason={summary.end_reason}
           />
+          {endedWithNoQuestions && (
+            <p data-testid="quiz-ended-no-questions" className="text-sm text-muted">
+              We couldn&apos;t build a fresh question for this topic right now. Try again later,
+              or assign a different topic.
+            </p>
+          )}
         </div>
         {scorePct != null && (
           <div

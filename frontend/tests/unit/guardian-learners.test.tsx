@@ -14,6 +14,7 @@ vi.mock("@/services/api", async () => {
     ...actual,
     listLearnerEnrollments: vi.fn(),
     assignQuizToOwnLearner: vi.fn(),
+    getMasteryState: vi.fn(),
   };
 });
 
@@ -21,12 +22,19 @@ describe("GuardianAssignQuiz", () => {
   beforeEach(() => {
     vi.mocked(api.listLearnerEnrollments).mockReset();
     vi.mocked(api.assignQuizToOwnLearner).mockReset();
+    vi.mocked(api.getMasteryState).mockReset().mockResolvedValue({
+      topics: [
+        { topic_id: "integers-and-operations", status: "unknown", p_mastery: null, band: null, last_updated_at: null, effective_p_mastery: null },
+      ],
+      unlocked_grade: null,
+      recently_refreshed_topic_id: null,
+    });
   });
 
   it("renders nothing when the roster is not default-instructor-owned", async () => {
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: false },
+        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
       ],
     });
 
@@ -40,7 +48,7 @@ describe("GuardianAssignQuiz", () => {
     const user = userEvent.setup();
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true },
+        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true, has_starting_grade: false },
       ],
     });
     vi.mocked(api.assignQuizToOwnLearner).mockResolvedValue({
@@ -57,7 +65,7 @@ describe("GuardianAssignQuiz", () => {
 
     const summary = await screen.findByText("Assign a quiz");
     await user.click(summary);
-    await user.type(screen.getByTestId("guardian-assign-topic-ids"), "integers-and-operations");
+    await user.click(await screen.findByRole("button", { name: /integers and operations/i }));
     await user.click(screen.getByRole("button", { name: /assign quiz/i }));
 
     await waitFor(() => expect(api.assignQuizToOwnLearner).toHaveBeenCalledWith(
@@ -72,7 +80,7 @@ describe("GuardianAssignQuiz", () => {
     const user = userEvent.setup();
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true },
+        { roster_id: "roster-1", subject_id: "algebra-1", is_default_instructor_roster: true, has_starting_grade: false },
       ],
     });
     vi.mocked(api.assignQuizToOwnLearner).mockRejectedValue(new Error("not_enrolled"));
@@ -81,7 +89,7 @@ describe("GuardianAssignQuiz", () => {
 
     const summary = await screen.findByText("Assign a quiz");
     await user.click(summary);
-    await user.type(screen.getByTestId("guardian-assign-topic-ids"), "integers-and-operations");
+    await user.click(await screen.findByRole("button", { name: /integers and operations/i }));
     await user.click(screen.getByRole("button", { name: /assign quiz/i }));
 
     expect(await screen.findByTestId("guardian-assign-quiz-error")).toHaveTextContent(

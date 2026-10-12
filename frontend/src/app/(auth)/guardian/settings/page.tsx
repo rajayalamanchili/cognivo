@@ -18,6 +18,7 @@ import {
 } from "@/services/api";
 import LoadingIndicator from "@/components/LoadingIndicator";
 import ToggleSwitch from "@/components/ToggleSwitch";
+import { formatTopicId } from "@/lib/format-topic-id";
 import { avatarClassName } from "@/lib/avatar-color";
 import { notifySessionChanged } from "@/lib/visitor-state";
 
@@ -431,9 +432,11 @@ export default function GuardianSettingsPage() {
                   <span className="flex-grow">
                     <strong className="font-extrabold">{learner.display_name}</strong>
                     <span className="block text-sm text-muted">
-                      {learner.enrollment
-                        ? `Grade ${learner.enrollment.grade ?? "—"} · ${learner.enrollment.subject_id}`
-                        : "Not in a class yet"}
+                      {learner.enrollments.length === 0
+                        ? "Not in a class yet"
+                        : learner.enrollments.length === 1
+                          ? `Grade ${learner.enrollments[0].grade ?? "—"} · ${formatTopicId(learner.enrollments[0].subject_id)}`
+                          : `${learner.enrollments.length} classes · ${learner.enrollments.map((enrollment) => formatTopicId(enrollment.subject_id)).join(", ")}`}
                     </span>
                   </span>
                   <Link href="/guardian/learners" className="text-[15px] font-extrabold text-primary">

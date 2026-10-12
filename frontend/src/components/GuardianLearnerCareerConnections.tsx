@@ -18,10 +18,15 @@ import CareerConnectionsList from "@/components/CareerConnectionsList";
 
 export interface GuardianLearnerCareerConnectionsProps {
   learnerId: string;
+  // spec 044 FR-002 (US1): scope to one subject (the selected card tab)
+  // instead of every enrolled subject combined, once a learner has more
+  // than one enrollment -- undefined keeps today's "every subject" sum.
+  subjectId?: string;
 }
 
 export default function GuardianLearnerCareerConnections({
   learnerId,
+  subjectId,
 }: GuardianLearnerCareerConnectionsProps) {
   const [careerConnections, setCareerConnections] = useState<CareerConnectionEntry[]>([]);
 
@@ -29,9 +34,11 @@ export default function GuardianLearnerCareerConnections({
     let cancelled = false;
     listLearnerEnrollments(learnerId)
       .then(async (result) => {
-        const subjectIds = [...new Set(result.enrollments.map((e) => e.subject_id))];
+        const subjectIds = [...new Set(result.enrollments.map((e) => e.subject_id))].filter(
+          (id) => subjectId === undefined || id === subjectId,
+        );
         const results = await Promise.all(
-          subjectIds.map((subjectId) => getMasteryState(learnerId, subjectId)),
+          subjectIds.map((id) => getMasteryState(learnerId, id)),
         );
         if (!cancelled) {
           setCareerConnections(results.flatMap((state) => state.career_connections ?? []));
@@ -43,7 +50,7 @@ export default function GuardianLearnerCareerConnections({
     return () => {
       cancelled = true;
     };
-  }, [learnerId]);
+  }, [learnerId, subjectId]);
 
   return <CareerConnectionsList careerConnections={careerConnections} />;
 }

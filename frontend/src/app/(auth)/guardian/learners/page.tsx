@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ApiError, createLearner, listMyLearners, type MyLearner } from "@/services/api";
+import { enterRealLearnerSession } from "@/lib/visitor-state";
 import JoinRosterForm from "@/components/JoinRosterForm";
 import ClassDirectoryBrowse from "@/components/ClassDirectoryBrowse";
 import LearnerAssignments from "@/components/LearnerAssignments";
@@ -23,6 +25,7 @@ interface AddedLearner {
 }
 
 export default function GuardianLearnersPage() {
+  const router = useRouter();
   const [displayName, setDisplayName] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -30,6 +33,14 @@ export default function GuardianLearnersPage() {
 
   const [learners, setLearners] = useState<MyLearner[]>([]);
   const [loadingLearners, setLoadingLearners] = useState(true);
+
+  // spec 044 FR-004: re-fetches the guardian's full learner/enrollment
+  // list (the only source that carries `grade`, unlike
+  // `listLearnerEnrollments`) so a card can select a newly-joined tab
+  // without a second, differently-shaped endpoint.
+  function refreshLearners() {
+    return listMyLearners().then((result) => setLearners(result.learners));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +67,7 @@ export default function GuardianLearnersPage() {
         { learner_id: result.learner_id, display_name: displayName },
       ]);
       setDisplayName("");
+      await refreshLearners();
     } catch (error) {
       setErrorText(
         error instanceof ApiError && error.status === 401
@@ -89,7 +101,8 @@ export default function GuardianLearnersPage() {
             key={learner.learner_id}
             learnerId={learner.learner_id}
             displayName={learner.display_name}
-            enrollment={learner.enrollment}
+            enrollments={learner.enrollments}
+            onEnrollmentsChanged={refreshLearners}
           />
         ))}
       </div>
@@ -139,7 +152,13 @@ export default function GuardianLearnersPage() {
                   <GuardianLearnerStandards learnerId={learner.learner_id} />
                   <CareerConnectionsToggle learnerId={learner.learner_id} />
                   <GuardianLearnerCareerConnections learnerId={learner.learner_id} />
-                  <LearnerAssignments learnerId={learner.learner_id} />
+                  <LearnerAssignments
+                    learnerId={learner.learner_id}
+                    onOpenAssignment={(assignmentId) => {
+                      enterRealLearnerSession(learner.learner_id, learner.display_name);
+                      router.push(`/assignment?assignmentId=${assignmentId}`);
+                    }}
+                  />
                 </li>
               ))}
             </ul>

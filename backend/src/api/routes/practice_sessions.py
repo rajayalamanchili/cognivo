@@ -26,6 +26,11 @@ from src.models.enums import AssessmentEventType, QuizSessionStatus
 from src.models.generated_question import GeneratedQuestion
 from src.models.practice_session import PracticeSession
 from src.models.subject import Subject
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
 from src.services.demo_learner import get_demo_learner
 from src.services.quiz.session import (
     SessionAlreadyEndedError,
@@ -80,6 +85,10 @@ def _compute_practice_score(db: Session, *, practice_session_id: uuid.UUID) -> t
 class PracticeStartIn(BaseModel):
     subject_id: str
     time_limit_seconds: int
+    # spec 044 FR-008 (US2): omitted keeps today's demo-learner-only
+    # behavior; a real learner id requires guardian ownership exactly
+    # like get_next_question (research.md §1).
+    learner_id: uuid.UUID | None = None
 
 
 class PracticeStartOut(BaseModel):
@@ -91,23 +100,36 @@ class PracticeStartOut(BaseModel):
 
 @router.post("/api/practice-sessions", response_model=PracticeStartOut)
 async def start_practice_session(
-    body: PracticeStartIn, db: Session = Depends(get_db)
+    body: PracticeStartIn,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> PracticeStartOut:
     # time_limit_seconds's `int` (not `int | None`) type already makes
     # Pydantic reject a missing/null value with a 422 -- only the
     # preset-membership check is left to do here.
     validate_time_limit_seconds(body.time_limit_seconds)
     _get_validated_subject(db, body.subject_id)
-    learner = get_demo_learner(db)
 
-    if not has_placement_data(db, learner_id=learner.learner_id, subject_id=body.subject_id):
+    if body.learner_id is None:
+        learner = get_demo_learner(db)
+        learner_id = learner.learner_id
+    else:
+        learner = require_learner_ownership_if_real(db, learner_id=body.learner_id, claims=claims)
+        learner_id = body.learner_id
+
+    # spec 041 FR-016/spec 044 FR-008: mirrors get_next_question's exact
+    # bypass -- a real learner can never satisfy this gate, so it only
+    # ever applies to the demo learner (research.md §1).
+    if (learner is None or learner.is_demo) and not has_placement_data(
+        db, learner_id=learner_id, subject_id=body.subject_id
+    ):
         raise NotFoundError(
-            f"learner {learner.learner_id} has no placement data for subject "
+            f"learner {learner_id} has no placement data for subject "
             f"{body.subject_id!r} yet -- complete placement first"
         )
 
     practice_session = PracticeSession(
-        learner_id=learner.learner_id,
+        learner_id=learner_id,
         subject_id=body.subject_id,
         time_limit_seconds=body.time_limit_seconds,
         status=QuizSessionStatus.IN_PROGRESS,
@@ -117,7 +139,7 @@ async def start_practice_session(
 
     question, result = await generate_and_persist_next_question(
         db,
-        learner_id=learner.learner_id,
+        learner_id=learner_id,
         subject_id=body.subject_id,
         practice_session_id=practice_session.practice_session_id,
     )
@@ -135,7 +157,7 @@ async def start_practice_session(
             db,
             question=question,
             result=result,
-            learner_id=learner.learner_id,
+            learner_id=learner_id,
             subject_id=body.subject_id,
         ),
     )
@@ -152,9 +174,14 @@ class PracticeNextQuestionOut(BaseModel):
     response_model=PracticeNextQuestionOut,
 )
 async def get_practice_next_question(
-    practice_session_id: uuid.UUID, db: Session = Depends(get_db)
+    practice_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> PracticeNextQuestionOut:
     practice_session = _get_practice_session(db, practice_session_id)
+    require_learner_ownership_if_real(
+        db, learner_id=practice_session.learner_id, claims=claims
+    )
     check_and_expire_if_needed(db, session=practice_session, session_type="practice")
     if practice_session.status != QuizSessionStatus.IN_PROGRESS:
         raise ConflictError(
@@ -209,12 +236,17 @@ class PracticeEndOut(BaseModel):
 
 @router.post("/api/practice-sessions/{practice_session_id}/end", response_model=PracticeEndOut)
 def end_practice_session(
-    practice_session_id: uuid.UUID, db: Session = Depends(get_db)
+    practice_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> PracticeEndOut:
     """Manual early-end (spec 022 FR-010). No "untimed" `404` case --
     every `PracticeSession` row is timed by construction (`SessionNotTimedError`
     can never actually be raised here, unlike the quiz route)."""
     practice_session = _get_practice_session(db, practice_session_id)
+    require_learner_ownership_if_real(
+        db, learner_id=practice_session.learner_id, claims=claims
+    )
     # PR feedback: run the lazy expiry check first so a deadline that
     # already silently passed is recorded as `timer_expired`, not
     # mislabeled `manually_ended_early` just because this click reached
@@ -252,9 +284,14 @@ class PracticeSummaryOut(BaseModel):
 
 @router.get("/api/practice-sessions/{practice_session_id}", response_model=PracticeSummaryOut)
 def get_practice_summary(
-    practice_session_id: uuid.UUID, db: Session = Depends(get_db)
+    practice_session_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> PracticeSummaryOut:
     practice_session = _get_practice_session(db, practice_session_id)
+    require_learner_ownership_if_real(
+        db, learner_id=practice_session.learner_id, claims=claims
+    )
     # Spec 022 FR-003: a timed practice session whose deadline passed with
     # no intervening next-question/answer call must still show as expired
     # here, not just on those other two endpoints.

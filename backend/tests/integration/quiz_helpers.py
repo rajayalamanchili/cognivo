@@ -28,6 +28,9 @@ def draft_json(stem: str, *, correct_index: int = 0) -> str:
 def patch_generation(stems: Sequence[str] | None = None):
     """Patches `_run_agent_once` to return sequential, distinct stems (a
     caller-provided cycle if given, else a fresh UUID-suffixed stem).
+    `embed_stem` is mocked separately, session-wide, by `conftest.py`'s
+    autouse `_mock_embeddings` fixture (bug-fix amendment, 2026-10-12) --
+    no patch needed here for it.
 
     Tests open a separate `with patch_generation():` block per API call
     (once per question generated), each installing a *new* mock with its
