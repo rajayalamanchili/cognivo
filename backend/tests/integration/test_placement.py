@@ -234,6 +234,28 @@ def test_submit_placement_survives_a_concurrent_grade_assignment_race(
     assert len(answered) == len(questions)
 
 
+def test_start_placement_with_nonexistent_learner_id_404s_instead_of_fk_violating(
+    db_session, algebra_subject
+):
+    """Review finding, PR #113: `require_learner_ownership_if_real`
+    no-ops (returns `None`) for a nonexistent learner_id by design --
+    each calling route owns deciding what that means. Without an
+    explicit check, this would fall through to a `GeneratedQuestion`
+    insert with a learner_id matching no row, FK-violating into an
+    uncaught 500 instead of a clean 404. Mirrors
+    test_practice_session_start.py's
+    test_nonexistent_learner_id_404s_instead_of_falling_back_to_demo."""
+    from src.api.main import app
+
+    client = TestClient(app)
+
+    start = client.post(
+        f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+        params={"learner_id": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert start.status_code == 404, start.text
+
+
 def test_start_placement_with_real_learner_id_assigns_questions_to_that_learner(
     db_session, algebra_subject, monkeypatch
 ):

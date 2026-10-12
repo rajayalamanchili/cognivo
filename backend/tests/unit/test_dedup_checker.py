@@ -18,6 +18,13 @@ DIFFERENT_QUESTION_SAME_TEMPLATE = [0.3, 0.95393920141]  # normalized-ish, see b
 IDENTICAL = [1.0, 0.0]
 ORTHOGONAL = [0.0, 1.0]
 NEAR_DUPLICATE = [0.99, 0.14106735979665883]  # cosine(IDENTICAL, NEAR_DUPLICATE) ~= 0.99
+# cosine(IDENTICAL, PARAPHRASE) ~= 0.89 -- the real value
+# `scripts/validate_dedup_threshold.py` measured for a genuine
+# same-meaning paraphrase ("what is -3+5?" vs "what is the sum of -3
+# and 5?") against real `voyage/voyage-3` output (review finding, PR
+# #113: a regression test locking in the documented gap, not just a
+# code comment).
+PARAPHRASE_BELOW_THRESHOLD = [0.89, 0.45596392738895473]
 
 
 def test_identical_embeddings_are_near_duplicate():
@@ -82,6 +89,24 @@ def test_threshold_boundary_is_inclusive():
             threshold=DEFAULT_SIMILARITY_THRESHOLD,
         )
         is True
+    )
+
+
+def test_paraphrase_below_threshold_is_not_caught_known_gap():
+    """Review finding, PR #113: locks in the documented known gap
+    (checker.py's DEFAULT_SIMILARITY_THRESHOLD comment) rather than
+    leaving it as a comment alone -- a genuine same-meaning paraphrase
+    can score below 0.92 and therefore is NOT flagged. Different stem
+    text, so the exact-match fallback doesn't catch it either. If this
+    starts failing because the threshold changed, that's the point:
+    come back and update the comment it mirrors."""
+    assert (
+        is_near_duplicate(
+            "what is the sum of -3 and 5?",
+            PARAPHRASE_BELOW_THRESHOLD,
+            [("what is -3 + 5?", IDENTICAL)],
+        )
+        is False
     )
 
 

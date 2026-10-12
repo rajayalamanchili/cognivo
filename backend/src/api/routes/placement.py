@@ -5,6 +5,7 @@ seeded `LearnerProfile` (spec.md Assumptions: solo-learner flow, no
 auth/session), resolved via `services/demo_learner.get_demo_learner`.
 """
 
+import asyncio
 import datetime
 import uuid
 from typing import Any
@@ -87,7 +88,14 @@ async def start_placement(
     if learner_id is None:
         resolved_learner_id = get_demo_learner(db).learner_id
     else:
-        require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+        learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+        # The helper no-ops (returns None) for a nonexistent learner_id
+        # by design (its own docstring) -- each calling route owns
+        # deciding what that means. Here it must 404, not fall through
+        # to a GeneratedQuestion insert that FK-violates on a learner_id
+        # with no matching row (review finding, PR #113).
+        if learner is None:
+            raise NotFoundError(f"unknown learner_id: {learner_id}")
         resolved_learner_id = learner_id
 
     topics = (
@@ -108,8 +116,18 @@ async def start_placement(
         )
 
     now = datetime.datetime.now(datetime.UTC)
+    # Embedded in parallel, not one `await` per loop iteration (review
+    # finding, PR #113) -- each embed call is independent of the others
+    # and of the DB writes below, so there's no reason to pay N
+    # sequential Voyage round-trips when N concurrent ones do the same
+    # job.
+    stem_embeddings = await asyncio.gather(
+        *(embed_stem_or_none(pq.draft.stem) for pq in placement_questions)
+    )
     response_questions: list[PlacementQuestionOut] = []
-    for placement_question in placement_questions:
+    for placement_question, stem_embedding in zip(
+        placement_questions, stem_embeddings, strict=True
+    ):
         grade = grade_by_topic_id[placement_question.topic_id]
         question = GeneratedQuestion(
             learner_id=resolved_learner_id,
@@ -120,7 +138,7 @@ async def start_placement(
             difficulty=DifficultyBand.EASY,
             question_type=placement_question.question_type,
             stem=placement_question.draft.stem,
-            stem_embedding=await embed_stem_or_none(placement_question.draft.stem),
+            stem_embedding=stem_embedding,
             options=placement_question.draft.options,
             answer_key=draft_to_answer_key(placement_question.draft),
             validation_status=ValidationStatus.VALID,
