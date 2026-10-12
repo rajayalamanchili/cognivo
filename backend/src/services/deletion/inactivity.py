@@ -178,6 +178,16 @@ def sweep_inactive_accounts(db: Session) -> int:
         if recipient is None:
             continue
         account_type, account_id, email, is_demo, target_description = recipient
+        # A demo recipient's own `_notify` short-circuits before writing
+        # any `NotificationLogEntry` row at all, by design -- without
+        # this check, `_notification_already_attempted` can never
+        # become true for it, so it would re-consume a cap slot every
+        # single run forever, starving real recipients sorted behind it
+        # (review finding). Checked and skipped *before* the cap/retry
+        # logic below, not inside `notify_deletion_request` itself,
+        # specifically so it never counts against the budget at all.
+        if is_demo:
+            continue
         if _notification_already_attempted(
             db, account_type, account_id, deletion_request.requested_at
         ):
