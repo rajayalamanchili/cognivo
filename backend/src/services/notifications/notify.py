@@ -30,19 +30,29 @@ def _notify(
     if is_demo:
         return
     try:
-        sent = send_email(email, subject, body)
-    except Exception:  # noqa: BLE001 -- a failed send must never propagate (FR-012)
-        sent = False
-    db.add(
-        NotificationLogEntry(
-            notification_type=notification_type,
-            account_type=account_type,
-            account_id=account_id,
-            status=NotificationStatus.SENT if sent else NotificationStatus.FAILED,
-            error_detail=None if sent else "send_email returned a non-2xx/failed response",
+        sent, failure_detail = send_email(email, subject, body)
+    except Exception as exc:  # noqa: BLE001 -- a failed send must never propagate (FR-012)
+        sent, failure_detail = False, f"{type(exc).__name__}: {exc}"
+
+    try:
+        db.add(
+            NotificationLogEntry(
+                notification_type=notification_type,
+                account_type=account_type,
+                account_id=account_id,
+                status=NotificationStatus.SENT if sent else NotificationStatus.FAILED,
+                error_detail=None if sent else failure_detail,
+            )
         )
-    )
-    db.commit()
+        db.commit()
+    except Exception:  # noqa: BLE001 -- logging the attempt must never block the
+        # caller either (FR-012 covers the whole function, not just the send) --
+        # PR #115 review finding: this commit previously sat outside any
+        # try/except, so a DB error here propagated out of register_guardian/
+        # register_instructor/submit_deletion_request after their own commit
+        # had already succeeded (a 500 for an already-created account), and
+        # aborted the inactivity-sweep loop outright.
+        db.rollback()
 
 
 def notify_registration(

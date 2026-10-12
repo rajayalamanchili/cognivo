@@ -13,7 +13,7 @@ import os
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
@@ -213,27 +213,74 @@ class ResetPasswordIn(BaseModel):
 
 
 def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
-    base_url = os.environ.get("FRONTEND_BASE_URL", "")
+    # PR #115 review finding: a silently-empty base URL produces an
+    # unclickable relative link in the actual email, with the attempt
+    # still logged as SENT -- fail loudly instead (this raises inside
+    # the background task below, after the 204 is already on the wire,
+    # so it never turns into a 500 for the caller; it still surfaces in
+    # the server's own error logs).
+    base_url = os.environ.get("FRONTEND_BASE_URL")
+    if not base_url:
+        raise RuntimeError("FRONTEND_BASE_URL is not set -- cannot build a usable reset link")
     return f"{base_url}/{role}/reset-password?token={raw_token}"
 
 
+def _reset_password_error(
+    db: Session, raw_token: str, account_type: AuthorizedByType
+) -> UnprocessableError:
+    """Called only after `reset_tokens.claim()` has already failed --
+    this read is purely informational (which 422 message to return),
+    never the security decision itself (research.md/PR #115 review:
+    `claim()`'s atomic `UPDATE` is the sole arbiter of single-use)."""
+    existing = reset_tokens.find_by_raw_token(db, raw_token)
+    if (
+        existing is not None
+        and existing.account_type == account_type
+        and existing.used_at is None
+        and existing.expires_at <= datetime.datetime.now(datetime.UTC)
+    ):
+        return UnprocessableError("reset_token_expired")
+    return UnprocessableError("reset_token_invalid")
+
+
 @router.post("/api/auth/instructor/forgot-password", status_code=204)
-def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
+def forgot_password_instructor(
+    body: ForgotPasswordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+) -> None:
     """Always `204` regardless of outcome (FR-002/SC-003: no account-
-    enumeration signal) -- see contracts/api.md."""
+    enumeration signal) -- see contracts/api.md.
+
+    The actual send is deferred via `BackgroundTasks` (PR #115 review
+    finding): issuing a token and sending the Resend email are the only
+    parts of this route that take real, variable time (up to the
+    mailer's own 10s timeout) -- running them before the response made
+    the existing-account path measurably slower than the no-match path,
+    a timing side channel defeating SC-003's no-enumeration guarantee.
+    Deferring them means every branch returns the `204` at roughly the
+    same, fast speed; `db` stays open for the background task per
+    FastAPI's documented `yield`-dependency + background-task ordering
+    (the dependency's teardown runs after background tasks finish, not
+    before)."""
     email = _normalize_email(body.email)
+    # The seeded default instructor (spec 043) is a real, sign-in-able
+    # account with a well-known, documented email -- without this guard
+    # anyone could hijack it via this same public endpoint the same way
+    # `register_instructor` already blocks squatting on it at signup.
+    reserved_email = get_reserved_default_instructor_email()
     instructor = (
         db.query(RealInstructorAccount).filter(RealInstructorAccount.email == email).first()
     )
     if (
         instructor is not None
         and not instructor.is_demo
+        and email != reserved_email
         and not reset_tokens.recently_requested(
             db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id
         )
     ):
         raw_token = reset_tokens.issue(db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id)
-        notify_password_reset(
+        background_tasks.add_task(
+            notify_password_reset,
             db,
             is_demo=False,
             account_type=AuthorizedByType.INSTRUCTOR,
@@ -247,16 +294,10 @@ def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get
 def reset_password_instructor(
     body: ResetPasswordIn, response: Response, db: Session = Depends(get_db)
 ) -> InstructorAuthOut:
-    reset_token = reset_tokens.find_by_raw_token(db, body.token)
-    if (
-        reset_token is None
-        or reset_token.account_type != AuthorizedByType.INSTRUCTOR
-        or reset_token.used_at is not None
-    ):
-        raise UnprocessableError("reset_token_invalid")
-    if reset_token.expires_at <= datetime.datetime.now(datetime.UTC):
-        raise UnprocessableError("reset_token_expired")
-    instructor = db.get(RealInstructorAccount, reset_token.account_id)
+    account_id = reset_tokens.claim(db, body.token, AuthorizedByType.INSTRUCTOR)
+    if account_id is None:
+        raise _reset_password_error(db, body.token, AuthorizedByType.INSTRUCTOR)
+    instructor = db.get(RealInstructorAccount, account_id)
     if instructor is None:
         raise UnprocessableError("reset_token_invalid")
 
@@ -264,7 +305,6 @@ def reset_password_instructor(
     # FR-006: invalidates every other existing session token, same as
     # change_instructor_password.
     instructor.password_changed_at = datetime.datetime.now(datetime.UTC)
-    reset_token.used_at = datetime.datetime.now(datetime.UTC)
     db.commit()
 
     session_token = issue_token(account_type="instructor", account_id=instructor.instructor_id)
@@ -334,9 +374,12 @@ def login_guardian(
 
 
 @router.post("/api/auth/guardian/forgot-password", status_code=204)
-def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_db)) -> None:
+def forgot_password_guardian(
+    body: ForgotPasswordIn, background_tasks: BackgroundTasks, db: Session = Depends(get_db)
+) -> None:
     """Always `204` regardless of outcome (FR-002/SC-003: no account-
-    enumeration signal) -- mirrors `forgot_password_instructor`."""
+    enumeration signal) -- mirrors `forgot_password_instructor`,
+    including the deferred send (see that function's docstring)."""
     email = _normalize_email(body.email)
     guardian = db.query(RealGuardianAccount).filter(RealGuardianAccount.email == email).first()
     if (
@@ -345,7 +388,8 @@ def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_d
         and not reset_tokens.recently_requested(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
     ):
         raw_token = reset_tokens.issue(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
-        notify_password_reset(
+        background_tasks.add_task(
+            notify_password_reset,
             db,
             is_demo=False,
             account_type=AuthorizedByType.GUARDIAN,
@@ -359,16 +403,10 @@ def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_d
 def reset_password_guardian(
     body: ResetPasswordIn, response: Response, db: Session = Depends(get_db)
 ) -> GuardianAuthOut:
-    reset_token = reset_tokens.find_by_raw_token(db, body.token)
-    if (
-        reset_token is None
-        or reset_token.account_type != AuthorizedByType.GUARDIAN
-        or reset_token.used_at is not None
-    ):
-        raise UnprocessableError("reset_token_invalid")
-    if reset_token.expires_at <= datetime.datetime.now(datetime.UTC):
-        raise UnprocessableError("reset_token_expired")
-    guardian = db.get(RealGuardianAccount, reset_token.account_id)
+    account_id = reset_tokens.claim(db, body.token, AuthorizedByType.GUARDIAN)
+    if account_id is None:
+        raise _reset_password_error(db, body.token, AuthorizedByType.GUARDIAN)
+    guardian = db.get(RealGuardianAccount, account_id)
     if guardian is None:
         raise UnprocessableError("reset_token_invalid")
 
@@ -376,7 +414,6 @@ def reset_password_guardian(
     # FR-006: invalidates every other existing session token, same as
     # change_guardian_password.
     guardian.password_changed_at = datetime.datetime.now(datetime.UTC)
-    reset_token.used_at = datetime.datetime.now(datetime.UTC)
     db.commit()
 
     session_token = issue_token(account_type="guardian", account_id=guardian.guardian_id)

@@ -143,6 +143,31 @@ def test_forgot_password_for_demo_account_sends_nothing(client, db_session):
     assert db_session.query(NotificationLogEntry).count() == 0
 
 
+def test_forgot_password_for_reserved_default_instructor_email_sends_nothing(
+    client, db_session, monkeypatch
+):
+    """PR #115 review (minor, confirmed real): the seeded default
+    instructor (spec 043) is a real, sign-in-able account with a
+    well-known, documented email -- anyone could otherwise hijack it
+    through this same public endpoint, the same way `register_instructor`
+    already blocks squatting on it at signup."""
+    monkeypatch.setenv("DEFAULT_INSTRUCTOR_EMAIL", "default-instructor@example.com")
+    default_instructor = RealInstructorAccount(
+        email="default-instructor@example.com", password_hash="x", is_demo=False
+    )
+    db_session.add(default_instructor)
+    db_session.commit()
+
+    response = client.post(
+        "/api/auth/instructor/forgot-password", json={"email": "default-instructor@example.com"}
+    )
+    assert response.status_code == 204
+
+    db_session.expire_all()
+    assert db_session.query(PasswordResetToken).count() == 0
+    assert db_session.query(NotificationLogEntry).count() == 0
+
+
 def test_guardian_token_is_not_accepted_on_instructor_reset_endpoint(client, db_session):
     """A reset token's `account_type` scopes which role's endpoint can
     consume it -- the two tables can share an email, and `token_hash` is

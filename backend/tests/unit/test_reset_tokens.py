@@ -117,3 +117,56 @@ def test_concurrent_issue_retries_once_on_partial_unique_index_violation(db_sess
     raw_token = reset_tokens.issue(db_session, AuthorizedByType.GUARDIAN, guardian.guardian_id)
     assert raw_token
     assert calls["n"] == 2
+
+
+def test_claim_succeeds_once_and_sets_used_at(db_session):
+    guardian = _make_guardian(db_session)
+    raw_token = reset_tokens.issue(db_session, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+
+    account_id = reset_tokens.claim(db_session, raw_token, AuthorizedByType.GUARDIAN)
+    db_session.commit()
+
+    assert account_id == guardian.guardian_id
+    row = reset_tokens.find_by_raw_token(db_session, raw_token)
+    assert row.used_at is not None
+
+
+def test_claim_is_single_use_even_without_an_intervening_read(db_session):
+    """PR #115 review finding: a second `claim()` call against the same
+    raw token must fail even though nothing re-reads/re-checks `used_at`
+    in between -- the atomic `UPDATE ... WHERE used_at IS NULL` itself
+    is what makes this safe under concurrent requests, not a
+    read-then-write check in Python."""
+    guardian = _make_guardian(db_session)
+    raw_token = reset_tokens.issue(db_session, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+
+    first = reset_tokens.claim(db_session, raw_token, AuthorizedByType.GUARDIAN)
+    db_session.commit()
+    second = reset_tokens.claim(db_session, raw_token, AuthorizedByType.GUARDIAN)
+    db_session.commit()
+
+    assert first == guardian.guardian_id
+    assert second is None
+
+
+def test_claim_fails_for_wrong_account_type(db_session):
+    guardian = _make_guardian(db_session)
+    raw_token = reset_tokens.issue(db_session, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+
+    assert reset_tokens.claim(db_session, raw_token, AuthorizedByType.INSTRUCTOR) is None
+    db_session.commit()
+    # The guardian-scoped claim must still be possible afterward -- the
+    # failed wrong-role attempt must not have consumed it.
+    assert reset_tokens.claim(db_session, raw_token, AuthorizedByType.GUARDIAN) == (
+        guardian.guardian_id
+    )
+
+
+def test_claim_fails_for_expired_token(db_session):
+    guardian = _make_guardian(db_session)
+    raw_token = reset_tokens.issue(db_session, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+    row = reset_tokens.find_by_raw_token(db_session, raw_token)
+    row.expires_at = datetime.datetime.now(datetime.UTC) - datetime.timedelta(seconds=1)
+    db_session.commit()
+
+    assert reset_tokens.claim(db_session, raw_token, AuthorizedByType.GUARDIAN) is None

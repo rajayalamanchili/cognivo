@@ -19,7 +19,10 @@ from src.services.notifications.notify import (
 
 def test_notify_registration_logs_failed_on_send_failure(db_session):
     account_id = uuid.uuid4()
-    with patch("src.services.notifications.notify.send_email", return_value=False):
+    with patch(
+        "src.services.notifications.notify.send_email",
+        return_value=(False, "HTTP 422: invalid recipient"),
+    ):
         notify_registration(
             db_session,
             is_demo=False,
@@ -31,7 +34,7 @@ def test_notify_registration_logs_failed_on_send_failure(db_session):
     entry = db_session.query(NotificationLogEntry).one()
     assert entry.notification_type == NotificationType.REGISTRATION
     assert entry.status == NotificationStatus.FAILED
-    assert entry.error_detail is not None
+    assert entry.error_detail == "HTTP 422: invalid recipient"
 
 
 def test_notify_password_reset_logs_failed_on_send_exception(db_session):
@@ -52,11 +55,14 @@ def test_notify_password_reset_logs_failed_on_send_exception(db_session):
     entry = db_session.query(NotificationLogEntry).one()
     assert entry.notification_type == NotificationType.PASSWORD_RESET
     assert entry.status == NotificationStatus.FAILED
+    assert entry.error_detail == "RuntimeError: boom"
 
 
 def test_notify_deletion_request_logs_failed_on_send_failure(db_session):
     account_id = uuid.uuid4()
-    with patch("src.services.notifications.notify.send_email", return_value=False):
+    with patch(
+        "src.services.notifications.notify.send_email", return_value=(False, "HTTP 503: down")
+    ):
         notify_deletion_request(
             db_session,
             is_demo=False,

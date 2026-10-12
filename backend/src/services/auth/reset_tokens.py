@@ -9,6 +9,7 @@ import hashlib
 import secrets
 import uuid
 
+from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -76,12 +77,43 @@ def issue(db: Session, account_type: AuthorizedByType, account_id: uuid.UUID) ->
 
 
 def find_by_raw_token(db: Session, raw_token: str) -> PasswordResetToken | None:
-    """A plain hash lookup, regardless of validity -- callers decide
-    `reset_token_invalid` vs. `reset_token_expired` themselves
-    (contracts/api.md), since "no match" and "already used" collapse
-    to the same invalid response but "expired" doesn't."""
+    """A plain hash lookup, regardless of validity -- used only to
+    classify an already-failed `claim()` as `reset_token_invalid` vs.
+    `reset_token_expired` (contracts/api.md). Never the basis for a
+    security decision on its own -- see `claim()` below."""
     return (
         db.query(PasswordResetToken)
         .filter(PasswordResetToken.token_hash == _hash(raw_token))
         .first()
     )
+
+
+def claim(db: Session, raw_token: str, account_type: AuthorizedByType) -> uuid.UUID | None:
+    """Atomically marks a token used, returning its `account_id`, or
+    `None` if the claim failed for any reason (no match, wrong role,
+    already used, expired). This single conditional `UPDATE` is the
+    sole arbiter of single-use (PR #115 review finding): a prior
+    read-then-write (`find_by_raw_token` + a separate `used_at` set)
+    let two concurrent reset-password requests for the same token both
+    pass the read-time check and both succeed. Postgres's row lock on
+    this `UPDATE` serializes any second concurrent claim attempt behind
+    the first, and its `WHERE used_at IS NULL` re-evaluates against the
+    now-committed row, so only one claim can ever match.
+
+    Deliberately does not commit -- the caller folds this into the same
+    transaction as the password change itself, so a failure setting the
+    new password also rolls back the claim."""
+    now = datetime.datetime.now(datetime.UTC)
+    result = db.execute(
+        update(PasswordResetToken)
+        .where(
+            PasswordResetToken.token_hash == _hash(raw_token),
+            PasswordResetToken.account_type == account_type,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.expires_at > now,
+        )
+        .values(used_at=now)
+        .returning(PasswordResetToken.account_id)
+    )
+    row = result.first()
+    return row[0] if row is not None else None
