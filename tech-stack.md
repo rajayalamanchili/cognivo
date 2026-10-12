@@ -2,7 +2,7 @@
 
 **Project**: Cognivo
 **Status**: Locked for Milestone 1
-**Last amended**: 2026-09-20
+**Last amended**: 2026-10-12
 
 ## Purpose
 
@@ -205,11 +205,26 @@ obvious.
 | Trained model artifact storage | A versioned file checked into the repo per subject (`backend/misconception_models/<subject_id>/<version>/classifier.joblib`), bundled with the deployed function -- no database blob column, no external model-hosting service | `research.md` §8. Mirrors this file's existing Content-schema row (content artifacts are bundled with the deployed function for the same reason). |
 | Misconception taxonomy | Authored per subject inside `subject.yaml` (a new optional `misconceptions` field), never engine code | `research.md` §9. Direct application of Constitution Principle III, same as every other subject-specific field already in that schema. |
 
+## Transactional email (Milestone-adjacent, spec 045)
+
+| Concern | Choice | Rationale |
+|---|---|---|
+| Provider | Resend, called via a direct `httpx.post()` REST call to `https://api.resend.com/emails` -- no `resend` SDK package added | `specs/045-account-email-notifications/research.md` §1. No provider was locked before this feature needed one. A single bearer-token REST call needs nothing beyond `httpx`, already resolved via FastAPI's test-client dependency; SendGrid/Postmark have no existing foothold either, and AWS SES was rejected the same way Supabase's bundled services were (tech-stack.md's Data layer section) -- a new cloud account/IAM surface for a need one REST call already covers. |
+| Call-site pattern | `backend/src/services/notifications/mailer.py`'s `send_email()` never raises -- any exception or non-2xx response is caught and returned as a boolean, logged to `notification_log_entries` (new table) rather than propagated | `research.md` §5, FR-012: a failed send must never block the registration/reset-request/deletion-request action that triggered it. |
+| Demo-account exclusion | Enforced inside the shared `notify_*` functions via a required `is_demo` keyword argument, not left to each of the three call sites' own discipline | `research.md` §5. Constitution Principle VIII's demo-account exclusion is a hard requirement here (FR-011), not a per-caller judgment call. |
+| Outbound call timeout | 10 seconds, explicit on the `httpx.post()` call | `research.md` §7. Bounds worst-case latency well under the backend's existing `maxDuration: 30` (tech-stack.md's Deployment-target section), same reasoning as Milestone 6's Grading Agent timeout lesson. |
+
 ## Explicitly not yet decided (do not pre-select)
 
 - Whether Fluid Compute (for longer execution windows) is needed -- revisit if any agent call's typical latency approaches the default execution limit.
 
-**Version**: 2.6.0 -- Amended 2026-09-27 (documentation-only
+**Version**: 2.7.0 -- Amended 2026-10-12 (spec 045 `/speckit-plan`:
+locked Resend as this project's transactional-email provider, called
+via a direct `httpx` REST call rather than its SDK, with a
+never-raises/always-logged send wrapper and a required `is_demo` guard
+inside the shared notify functions rather than per-call-site discipline;
+see `specs/045-account-email-notifications/research.md` §1/§5/§7);
+2.6.0 -- Amended 2026-09-27 (documentation-only
 correction, no new architectural decision: this file's "Explicitly not
 yet decided" list still carried three items that were actually locked
 milestones ago at their own `/speckit-plan` time, just never removed

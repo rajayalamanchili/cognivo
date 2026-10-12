@@ -13,6 +13,8 @@ from src.models.grading_response_cache import GradingResponseCache
 from src.models.learner_profile import LearnerProfile
 from src.models.mastery_state import MasteryState
 from src.models.moderation_cache import ModerationCache
+from src.models.notification_log_entry import NotificationLogEntry
+from src.models.password_reset_token import PasswordResetToken
 from src.models.practice_session import PracticeSession
 from src.models.prerequisite_edge import PrerequisiteEdge
 from src.models.question_generation_cache import QuestionGenerationCache
@@ -45,6 +47,8 @@ __all__ = [
     "LearnerProfile",
     "MasteryState",
     "ModerationCache",
+    "NotificationLogEntry",
+    "PasswordResetToken",
     "PracticeSession",
     "PrerequisiteEdge",
     "QuestionGenerationCache",

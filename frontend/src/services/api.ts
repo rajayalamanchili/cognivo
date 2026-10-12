@@ -304,11 +304,7 @@ export interface QuizSummaryEntry {
 
 // Spec 022 SC-005: all three null for an untimed quiz.
 export type SessionEndReason =
-  | "completed"
-  | "timer_expired"
-  | "manually_ended_early"
-  | "dedup_exhausted"
-  | null;
+  "completed" | "timer_expired" | "manually_ended_early" | "dedup_exhausted" | null;
 
 // Spec 025 User Story 3: per-question grading detail gathered into the
 // end-of-session summary (Clarifications) -- reuses AnswerResult's
@@ -435,10 +431,9 @@ export function startPlacement(
   learnerId?: string,
 ): Promise<PlacementStartResponse> {
   const query = learnerId ? `?learner_id=${learnerId}` : "";
-  return request<PlacementStartResponse>(
-    `/api/subjects/${subjectId}/placement/start${query}`,
-    { method: "POST" },
-  );
+  return request<PlacementStartResponse>(`/api/subjects/${subjectId}/placement/start${query}`, {
+    method: "POST",
+  });
 }
 
 export function submitPlacement(
@@ -782,6 +777,43 @@ export function logout(): Promise<void> {
   return requestVoid("/api/auth/logout", { method: "POST" });
 }
 
+// Password reset (spec 045 contracts/api.md). Both forgot-password
+// calls always resolve (204, no body) regardless of whether the email
+// matches a real account -- no account-enumeration signal (SC-003).
+export function forgotPasswordGuardian(email: string): Promise<void> {
+  return requestVoid("/api/auth/guardian/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPasswordGuardian(
+  token: string,
+  newPassword: string,
+): Promise<GuardianAuthResponse> {
+  return request<GuardianAuthResponse>("/api/auth/guardian/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
+
+export function forgotPasswordInstructor(email: string): Promise<void> {
+  return requestVoid("/api/auth/instructor/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPasswordInstructor(
+  token: string,
+  newPassword: string,
+): Promise<InstructorAuthResponse> {
+  return request<InstructorAuthResponse>("/api/auth/instructor/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+}
+
 export type SessionAccountType = "guardian" | "instructor" | "demo_instructor";
 
 export interface PendingDeletionWarning {
@@ -1117,9 +1149,7 @@ export interface ListLearnerEnrollmentsResponse {
   enrollments: LearnerEnrollmentEntry[];
 }
 
-export function listLearnerEnrollments(
-  learnerId: string,
-): Promise<ListLearnerEnrollmentsResponse> {
+export function listLearnerEnrollments(learnerId: string): Promise<ListLearnerEnrollmentsResponse> {
   return request<ListLearnerEnrollmentsResponse>(`/api/learners/${learnerId}/enrollments`);
 }
 

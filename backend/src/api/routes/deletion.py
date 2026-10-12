@@ -21,7 +21,7 @@ from src.api.errors import (
 from src.db import get_db
 from src.models.classroom_roster import ClassroomRoster
 from src.models.deletion_request import DeletionRequest
-from src.models.enums import DeletionTargetType
+from src.models.enums import AuthorizedByType, DeletionTargetType
 from src.models.learner_profile import LearnerProfile
 from src.models.quiz_assignment import QuizAssignment
 from src.models.real_guardian_account import RealGuardianAccount
@@ -29,6 +29,7 @@ from src.models.real_instructor_account import RealInstructorAccount
 from src.services.auth.dependencies import current_session_claims
 from src.services.auth.tokens import SessionClaims
 from src.services.deletion.authorization import can_request_deletion
+from src.services.notifications.notify import notify_deletion_request
 
 router = APIRouter()
 
@@ -99,6 +100,51 @@ def _transfer_instructor_rosters(
     )
 
 
+def _deletion_notification_recipient(
+    db: Session, target_type: DeletionTargetType, target
+) -> tuple[AuthorizedByType, uuid.UUID, str, bool, str] | None:
+    """spec 045 research.md §5/US3 Acceptance Scenario 2: a learner has
+    no email of their own, so a LEARNER target's confirmation goes to
+    its managing guardian instead. Returns `(account_type, account_id,
+    email, is_demo, target_description)`, or `None` if no recipient can
+    be resolved (a learner whose guardian_id is somehow unset -- not
+    possible for a real learner today, but not this function's place
+    to raise on)."""
+    if target_type == DeletionTargetType.LEARNER:
+        if target.guardian_id is None:
+            return None
+        guardian = db.get(RealGuardianAccount, target.guardian_id)
+        if guardian is None:
+            return None
+        return (
+            AuthorizedByType.GUARDIAN,
+            guardian.guardian_id,
+            guardian.email,
+            guardian.is_demo,
+            # Deliberately generic, not the learner's own display name
+            # (plausibly a minor's) -- that would put a child's name in
+            # a third-party processor's system (Resend) for no benefit
+            # the guardian needs; they already know which learner they
+            # requested this for.
+            "your learner's data",
+        )
+    if target_type == DeletionTargetType.GUARDIAN:
+        return (
+            AuthorizedByType.GUARDIAN,
+            target.guardian_id,
+            target.email,
+            target.is_demo,
+            "your account",
+        )
+    return (
+        AuthorizedByType.INSTRUCTOR,
+        target.instructor_id,
+        target.email,
+        target.is_demo,
+        "your account",
+    )
+
+
 @router.post("/api/deletion-requests", response_model=SubmitDeletionRequestOut, status_code=201)
 def submit_deletion_request(
     body: SubmitDeletionRequestIn,
@@ -152,6 +198,18 @@ def submit_deletion_request(
         existing_pending = _existing_pending(db, body.target_type, body.target_id)
         raise DeletionAlreadyPendingError(existing_pending.deletion_request_id) from exc
     db.refresh(deletion_request)
+
+    recipient = _deletion_notification_recipient(db, body.target_type, target)
+    if recipient is not None:
+        account_type, account_id, email, is_demo, target_description = recipient
+        notify_deletion_request(
+            db,
+            is_demo=is_demo,
+            account_type=account_type,
+            account_id=account_id,
+            email=email,
+            target_description=target_description,
+        )
 
     return SubmitDeletionRequestOut(
         deletion_request_id=deletion_request.deletion_request_id,
