@@ -61,6 +61,23 @@ def test_send_email_network_error_returns_exception_detail_and_never_raises(monk
     assert "ConnectTimeout" in detail
 
 
+def test_send_email_redacts_recipient_address_echoed_in_provider_error(monkeypatch):
+    """Review finding (PR #116): a provider error body can echo the
+    recipient's address back verbatim (e.g. "invalid `to` address
+    victim@example.com"), writing PII into `notification_log_entries`
+    outside the account/retention path (Principle VIII)."""
+    monkeypatch.setenv("RESEND_API_KEY", "test-key")
+    monkeypatch.setenv("EMAIL_FROM_ADDRESS", "noreply@example.com")
+    response = MagicMock(
+        is_success=False, status_code=422, text="invalid `to` address victim@example.com"
+    )
+    with patch("httpx.post", return_value=response):
+        sent, detail = send_email("victim@example.com", "subject", "body")
+    assert sent is False
+    assert "victim@example.com" not in detail
+    assert "[recipient email redacted]" in detail
+
+
 def test_send_email_failure_detail_is_truncated(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", "test-key")
     monkeypatch.setenv("EMAIL_FROM_ADDRESS", "noreply@example.com")

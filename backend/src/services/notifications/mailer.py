@@ -15,6 +15,17 @@ _TIMEOUT_SECONDS = 10.0
 _FAILURE_DETAIL_MAX_LENGTH = 200
 
 
+def _redact(detail: str, to_email: str) -> str:
+    """A provider error body can echo the recipient address back
+    verbatim (e.g. an "invalid `to` address ..." message) -- that
+    would write PII into `notification_log_entries`, a table outside
+    the account/retention path (Principle VIII), via a raw string this
+    function never otherwise inspects. Scrubbed defensively on every
+    failure path, not just the HTTP one, since an exception's own
+    message can also happen to contain it."""
+    return detail.replace(to_email, "[recipient email redacted]")
+
+
 def send_email(to_email: str, subject: str, body: str) -> tuple[bool, str | None]:
     """Returns `(success, failure_detail)` -- `failure_detail` is
     `None` on success, else a short, non-secret description (the
@@ -38,8 +49,8 @@ def send_email(to_email: str, subject: str, body: str) -> tuple[bool, str | None
         )
         if response.is_success:
             return True, None
-        detail = f"HTTP {response.status_code}: {response.text}"
+        detail = _redact(f"HTTP {response.status_code}: {response.text}", to_email)
         return False, detail[:_FAILURE_DETAIL_MAX_LENGTH]
     except Exception as exc:  # noqa: BLE001 -- never raises (FR-012)
-        detail = f"{type(exc).__name__}: {exc}"
+        detail = _redact(f"{type(exc).__name__}: {exc}", to_email)
         return False, detail[:_FAILURE_DETAIL_MAX_LENGTH]
