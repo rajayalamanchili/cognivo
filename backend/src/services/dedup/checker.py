@@ -64,7 +64,21 @@ async def embed_stem(stem: str) -> list[float]:
     """Embeds one question stem for near-duplicate comparison. Own small
     wrapper, not a shared cross-module helper -- matches this project's
     established convention (`misconception/embed.py`'s docstring):
-    same-model reuse via `litellm`, not a shared private function."""
+    same-model reuse via `litellm`, not a shared private function.
+
+    `GeneratedQuestion.stem_embedding`/`QuestionGenerationCache.
+    stem_embedding` are both `vector(1024)` (migration
+    `aac4988c05db`), matching `voyage/voyage-3`'s output dimension.
+    Pointing `TUTOR_EMBEDDING_MODEL` at a model with a *different*
+    output dimension breaks this at the DB layer, not gracefully: a
+    pgvector dimension mismatch raises on insert for the real,
+    required `GeneratedQuestion` write (`session.py`/`agent.py`/
+    `placement.py`'s persist paths have no fail-open around that
+    insert, unlike `cache.py`'s best-effort pool write). Comparing two
+    *already-stored* mismatched-dimension embeddings fails open to
+    "not similar" (`_cosine_similarity`), but writing a new one of the
+    wrong dimension does not -- changing the model requires a new
+    migration to resize the column first (review finding, PR #113)."""
     model_name = os.environ.get("TUTOR_EMBEDDING_MODEL", "voyage/voyage-3")
     last_error: Exception | None = None
     for attempt in range(MAX_EMBED_ATTEMPTS):
