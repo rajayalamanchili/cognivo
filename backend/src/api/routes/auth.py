@@ -278,6 +278,7 @@ def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
 def _send_password_reset_email(
     db: Session,
     *,
+    is_demo: bool,
     account_type: AuthorizedByType,
     account_id: uuid.UUID,
     email: str,
@@ -288,7 +289,17 @@ def _send_password_reset_email(
     misconfigured `FRONTEND_BASE_URL` (`_reset_link`'s own loud
     failure) is caught here and logged as a FAILED notification
     instead of either crashing the request or vanishing with no audit
-    row at all (FR-012/FR-013)."""
+    row at all (FR-012/FR-013).
+
+    Takes the real `is_demo` rather than assuming the caller's own
+    guard already covers it -- `notify_password_reset`'s own `_notify`
+    enforces this as the single source of truth for every other
+    notification type (notify.py's docstring); hardcoding `False` here
+    would bypass that for this one FAILED-link-building branch, which
+    writes its own `NotificationLogEntry` row directly rather than
+    going through `_notify` at all."""
+    if is_demo:
+        return
     try:
         reset_link = _reset_link(role, raw_token)
     except RuntimeError as exc:
@@ -358,6 +369,7 @@ def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get
         if raw_token is not None:
             _send_password_reset_email(
                 db,
+                is_demo=instructor.is_demo,
                 account_type=AuthorizedByType.INSTRUCTOR,
                 account_id=instructor.instructor_id,
                 email=instructor.email,
@@ -375,6 +387,10 @@ def reset_password_instructor(
         raise _reset_password_error(db, body.token, AuthorizedByType.INSTRUCTOR)
     instructor = db.get(RealInstructorAccount, account_id)
     if instructor is None:
+        # The token claim itself already committed (it's already used)
+        # -- nothing else has, so raising here is safe even though the
+        # account it pointed at is somehow gone (not possible for a
+        # real instructor account today).
         raise UnprocessableError("reset_token_invalid")
 
     instructor.password_hash = hash_password(body.new_password)
@@ -469,6 +485,7 @@ def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_d
         if raw_token is not None:
             _send_password_reset_email(
                 db,
+                is_demo=guardian.is_demo,
                 account_type=AuthorizedByType.GUARDIAN,
                 account_id=guardian.guardian_id,
                 email=guardian.email,
@@ -486,6 +503,10 @@ def reset_password_guardian(
         raise _reset_password_error(db, body.token, AuthorizedByType.GUARDIAN)
     guardian = db.get(RealGuardianAccount, account_id)
     if guardian is None:
+        # The token claim itself already committed (it's already used)
+        # -- nothing else has, so raising here is safe even though the
+        # account it pointed at is somehow gone (not possible for a
+        # real guardian account today).
         raise UnprocessableError("reset_token_invalid")
 
     guardian.password_hash = hash_password(body.new_password)
