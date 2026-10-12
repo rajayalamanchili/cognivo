@@ -428,10 +428,17 @@ export function getDemoLearner(): Promise<DemoLearner> {
   return request<DemoLearner>("/api/demo-learner");
 }
 
-export function startPlacement(subjectId: string): Promise<PlacementStartResponse> {
-  return request<PlacementStartResponse>(`/api/subjects/${subjectId}/placement/start`, {
-    method: "POST",
-  });
+// spec 044 FR-025 (US5): omitted keeps today's demo-learner-only
+// behavior; a real learnerId requires guardian ownership server-side.
+export function startPlacement(
+  subjectId: string,
+  learnerId?: string,
+): Promise<PlacementStartResponse> {
+  const query = learnerId ? `?learner_id=${learnerId}` : "";
+  return request<PlacementStartResponse>(
+    `/api/subjects/${subjectId}/placement/start${query}`,
+    { method: "POST" },
+  );
 }
 
 export function submitPlacement(
@@ -553,15 +560,19 @@ export interface StartPracticeSessionResponse {
   question: NextQuestion;
 }
 
+// spec 044 FR-008 (US2): omitted keeps today's demo-learner-only
+// behavior; a real learnerId requires guardian ownership server-side.
 export function startPracticeSession(
   subjectId: string,
   timeLimitSeconds: number,
+  learnerId?: string,
 ): Promise<StartPracticeSessionResponse> {
   return request<StartPracticeSessionResponse>("/api/practice-sessions", {
     method: "POST",
     body: JSON.stringify({
       subject_id: subjectId,
       time_limit_seconds: timeLimitSeconds,
+      ...(learnerId ? { learner_id: learnerId } : {}),
     }),
   });
 }
@@ -831,8 +842,8 @@ export function createLearner(displayName: string): Promise<CreateLearnerRespons
 }
 
 // spec 041 FR-023: the guardian's full persisted learner set (not just
-// ones added this browser session), each with its current enrollment
-// (if any).
+// ones added this browser session), each with every current enrollment
+// (spec 044 FR-001 -- a learner can be in more than one class at once).
 export interface MyLearnerEnrollment {
   roster_id: string;
   subject_id: string;
@@ -842,7 +853,7 @@ export interface MyLearnerEnrollment {
 export interface MyLearner {
   learner_id: string;
   display_name: string;
-  enrollment: MyLearnerEnrollment | null;
+  enrollments: MyLearnerEnrollment[];
 }
 
 export interface ListMyLearnersResponse {
@@ -1096,6 +1107,10 @@ export interface LearnerEnrollmentEntry {
   // spec 043 FR-017/contracts §5: true only for the seeded default
   // instructor's roster -- gates the guardian's "assign a quiz" action.
   is_default_instructor_roster: boolean;
+  // spec 044 FR-024 (US5): gates the guardian's "Take placement" tile
+  // action -- true once a `GradeProgress` row exists for this learner/
+  // subject (from a prior placement or organic unlocking).
+  has_starting_grade: boolean;
 }
 
 export interface ListLearnerEnrollmentsResponse {
@@ -1337,14 +1352,22 @@ export interface LearnerAssignment {
   cancelled_at: string | null;
   status: AssignmentStatus;
   has_unviewed_activity: boolean;
+  quiz_session_id: string | null;
 }
 
 export interface ListLearnerAssignmentsResponse {
   assignments: LearnerAssignment[];
 }
 
-export function listLearnerAssignments(learnerId: string): Promise<ListLearnerAssignmentsResponse> {
-  return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments`);
+// spec 044 FR-002 (US1): an optional `rosterId` scopes the list to one
+// enrollment's own assignments -- omitted keeps today's "every
+// assignment across every roster" behavior (research.md §3).
+export function listLearnerAssignments(
+  learnerId: string,
+  rosterId?: string,
+): Promise<ListLearnerAssignmentsResponse> {
+  const query = rosterId ? `?roster_id=${rosterId}` : "";
+  return request<ListLearnerAssignmentsResponse>(`/api/learners/${learnerId}/assignments${query}`);
 }
 
 // Identical response shape to `startQuiz` (spec 005) -- reuses

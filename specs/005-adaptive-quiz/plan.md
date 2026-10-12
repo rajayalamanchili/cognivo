@@ -148,3 +148,97 @@ re-checked above still PASS; no new gate failure.
 ## Complexity Tracking
 
 *No Constitution Check violations -- table intentionally omitted.*
+
+## Bug-fix amendment, 2026-10-12: embedding-based near-duplicate check
+
+**Branch**: `044-guardian-learner-shortcuts` (this fix stays on the
+already-checked-out branch rather than its own, per project decision --
+see this plan's own commit/PR for the rationale) | **Spec**:
+[spec.md](./spec.md)'s and
+[../001-domain-agnostic-core/spec.md](../001-domain-agnostic-core/spec.md)'s
+matching 2026-10-12 Clarifications sessions.
+
+**Summary**: Two single-topic, 5-question guardian-assigned quizzes were
+both observed ending `ended_early` after exactly 1 question. Root cause:
+`is_near_duplicate` (`services/dedup/checker.py`) compares raw stem text
+via `difflib.SequenceMatcher`, threshold 0.85 -- two legitimately
+distinct questions sharing a phrasing template but differing only in
+their numbers (e.g. two different factored quadratics) score 0.87-0.94,
+over threshold, so single-topic quizzes (which repeat the same topic
+every question) false-positive into exhausting their retry budget almost
+immediately. Fix: switch the comparison to pgvector embedding
+similarity (research.md §7-10), raise the shared retry cap 3 → 5, and
+close the test-coverage gap that let this ship undetected (neither
+`test_quiz_no_duplicates.py` nor spec 001's SC-002 test exercised
+same-template/different-number stems, only either fully-mocked-distinct
+or byte-identical ones).
+
+**Technical Context delta** (additive to the table above, nothing in it
+is superseded): embedding calls via `litellm` + `TUTOR_EMBEDDING_MODEL`
+(default `voyage/voyage-3`, already a locked dependency since Milestone
+9 -- no new dependency). One new Alembic migration (nullable
+`stem_embedding vector(1024)` column on `generated_questions`, no
+backfill, research.md §8).
+
+**Project Structure delta**:
+
+```text
+backend/
+├── src/
+│   ├── models/
+│   │   └── generated_question.py     # + nullable stem_embedding column
+│   ├── services/
+│   │   ├── dedup/
+│   │   │   └── checker.py             # CHANGED: embed_stem() (NEW), is_near_duplicate
+│   │   │                                 # now compares embeddings not raw text,
+│   │   │                                 # recent_stems_for_topic returns (stem, embedding)
+│   │   │                                 # pairs, DEFAULT_SIMILARITY_THRESHOLD -> 0.92
+│   │   │                                 # (cosine, was 0.85 difflib-ratio),
+│   │   │                                 # DEFAULT_MAX_DEDUP_ATTEMPTS (NEW, =5) --
+│   │   │                                 # the one shared constant both call sites below
+│   │   │                                 # now import instead of their own literal "3"
+│   │   ├── quiz/session.py            # CHANGED: generate_quiz_question imports
+│   │   │                                 # DEFAULT_MAX_DEDUP_ATTEMPTS from dedup/checker.py
+│   │   │                                 # instead of defining its own copy;
+│   │   │                                 # persist_quiz_question (or wherever
+│   │   │                                 # GeneratedQuestion is first written) now also
+│   │   │                                 # calls embed_stem() and sets stem_embedding
+│   │   └── question_cache/cache.py    # unchanged -- avoid_stems plumbing is untouched,
+│   │                                     # only how avoid_stems get compared changes
+│   └── agents/sequencing/agent.py     # CHANGED: generate_next_question's
+│                                         # max_dedup_attempts default now imports the
+│                                         # same shared constant (was its own literal "3")
+└── alembic/versions/
+    └── <new>_generated_question_stem_embedding.py   # NEW migration
+
+backend/tests/
+├── unit/dedup/test_checker.py                        # NEW or extended: true-negative
+│                                                         # (same template/different numbers)
+│                                                         # and true-positive near-duplicate
+│                                                         # cases against the embedding check
+├── integration/test_quiz_no_duplicates.py             # EXTENDED: same-template/
+│                                                         # different-number case (SC-004)
+└── integration/test_next_question_no_duplicates.py    # NEW or extended: same case for
+                                                           # Milestone 1's path (spec 001 SC-002)
+```
+
+No frontend changes -- this is entirely internal to question
+generation; `ended_early` is still surfaced to the frontend exactly as
+before (contracts/api.md's Bug-fix amendment note: no contract change).
+
+**Constitution re-check for this amendment**:
+
+| Principle | Check | Status |
+|---|---|---|
+| I. Personalization is a model, not a guess | The near-duplicate check was never part of the mastery model (that's Sequencing's BKT, untouched) -- this changes a generation-quality safeguard's comparison metric, not a personalization decision. | N/A |
+| II. Generated content graded against a rubric | Unaffected -- the Assessment-Generation Agent's answer-key generation is untouched; this only gates whether a draft gets *shown*, not how it's graded. | PASS |
+| III. One engine, many subjects | `embed_stem`/the new column are subject-agnostic, parameterized the same way `ContentPassageEmbedding` already is -- no subject-id conditional introduced. | PASS |
+| IV. Agent boundaries reflect real responsibility | No new agent; `embed_stem` is a small function in an existing service module, same shape as `misconception/embed.py`'s precedent (research.md §7). | PASS |
+| V. Logged and explainable | An embedding-failure fail-open (research.md §10) is logged via `logger.warning`, same as every other best-effort cache/embedding call site -- "why was this question shown" stays traceable to either a real below-threshold embedding comparison or a logged fail-open, never silent. | PASS |
+| VI. A2A justified by concrete need | No new agent or A2A boundary introduced -- `embed_stem` calls the existing `litellm`/Voyage integration in-process, the same way `misconception/embed.py` already does. | N/A |
+| VII. Spec before code | This amendment followed `/speckit-clarify` (both specs, 2026-10-12) -> `/speckit-plan` (this amendment) -> `/speckit-tasks` -> `/speckit-analyze` in order, same discipline as the original Milestone 5 plan above. | PASS |
+| VIII. No real learner data | `stem_embedding` is derived from the question stem text only (LLM-generated content), never learner PII -- no change to this principle's scope. | PASS |
+| IX. Deployable and demoable | One additive nullable-column migration, no backfill required at deploy time; `VOYAGE_API_KEY` is already a required env var since Milestone 9 -- no new deployment-time requirement. | PASS |
+| X. Staged release discipline | This fix lands via the already-checked-out `044-guardian-learner-shortcuts` branch's eventual PR into `staging`, per the project decision recorded above -- not a new branch. | PASS (process) |
+
+No violations requiring Complexity Tracking.

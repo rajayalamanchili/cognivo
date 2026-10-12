@@ -26,7 +26,7 @@ describe("GuardianLearnerStandards", () => {
   it("fetches enrollments then renders each subject's standards coverage", async () => {
     vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
       enrollments: [
-        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false },
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
       ],
     });
     vi.mocked(api.getMasteryState).mockResolvedValue({
@@ -69,5 +69,25 @@ describe("GuardianLearnerStandards", () => {
 
     await waitFor(() => expect(api.listLearnerEnrollments).toHaveBeenCalled());
     expect(screen.queryByTestId("standards-coverage")).not.toBeInTheDocument();
+  });
+
+  it("spec 044 FR-002: scopes to one subject when subjectId is provided, instead of every enrolled subject combined", async () => {
+    vi.mocked(api.listLearnerEnrollments).mockResolvedValue({
+      enrollments: [
+        { roster_id: "r1", subject_id: "algebra-1", is_default_instructor_roster: false, has_starting_grade: false },
+        { roster_id: "r2", subject_id: "biology", is_default_instructor_roster: false, has_starting_grade: false },
+      ],
+    });
+    vi.mocked(api.getMasteryState).mockResolvedValue({
+      topics: [],
+      unlocked_grade: null,
+      recently_refreshed_topic_id: null,
+      standards: [],
+    });
+
+    render(<GuardianLearnerStandards learnerId="learner-4" subjectId="biology" />);
+
+    await waitFor(() => expect(api.getMasteryState).toHaveBeenCalledWith("learner-4", "biology"));
+    expect(api.getMasteryState).not.toHaveBeenCalledWith("learner-4", "algebra-1");
   });
 });

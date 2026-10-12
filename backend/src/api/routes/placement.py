@@ -5,6 +5,7 @@ seeded `LearnerProfile` (spec.md Assumptions: solo-learner flow, no
 auth/session), resolved via `services/demo_learner.get_demo_learner`.
 """
 
+import asyncio
 import datetime
 import uuid
 from typing import Any
@@ -36,6 +37,12 @@ from src.models.topic import Topic
 from src.observability.session import get_database_session_service
 from src.observability.tracing import traced_request
 from src.services.audit_log.writer import record_event
+from src.services.auth.dependencies import (
+    optional_session_claims,
+    require_learner_ownership_if_real,
+)
+from src.services.auth.tokens import SessionClaims
+from src.services.dedup.checker import embed_stem_or_none
 from src.services.demo_learner import get_demo_learner
 from src.services.mastery.grading import grade_answer, validate_response_shape
 from src.services.mediation.read_aloud import is_read_aloud_eligible
@@ -68,9 +75,28 @@ def _get_validated_subject(db: Session, subject_id: str) -> Subject:
 
 
 @router.post("/api/subjects/{subject_id}/placement/start", response_model=PlacementStartResponse)
-async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> PlacementStartResponse:
+async def start_placement(
+    subject_id: str,
+    learner_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
+) -> PlacementStartResponse:
     _get_validated_subject(db, subject_id)
-    learner = get_demo_learner(db)
+    # spec 044 FR-025 (US5): omitted keeps today's demo-learner-only
+    # behavior; a real learner_id requires guardian ownership, identical
+    # gating to start_practice_session (research.md §2).
+    if learner_id is None:
+        resolved_learner_id = get_demo_learner(db).learner_id
+    else:
+        learner = require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
+        # The helper no-ops (returns None) for a nonexistent learner_id
+        # by design (its own docstring) -- each calling route owns
+        # deciding what that means. Here it must 404, not fall through
+        # to a GeneratedQuestion insert that FK-violates on a learner_id
+        # with no matching row (review finding, PR #113).
+        if learner is None:
+            raise NotFoundError(f"unknown learner_id: {learner_id}")
+        resolved_learner_id = learner_id
 
     topics = (
         db.query(Topic).filter(Topic.subject_id == subject_id).order_by(Topic.order_index).all()
@@ -84,17 +110,27 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
 
     placement_session_id = uuid.uuid4()
 
-    with traced_request(learner_id=learner.learner_id, session_id=placement_session_id):
+    with traced_request(learner_id=resolved_learner_id, session_id=placement_session_id):
         placement_questions = await generate_placement_questions(
             placement_topics, session_service=get_database_session_service()
         )
 
     now = datetime.datetime.now(datetime.UTC)
+    # Embedded in parallel, not one `await` per loop iteration (review
+    # finding, PR #113) -- each embed call is independent of the others
+    # and of the DB writes below, so there's no reason to pay N
+    # sequential Voyage round-trips when N concurrent ones do the same
+    # job.
+    stem_embeddings = await asyncio.gather(
+        *(embed_stem_or_none(pq.draft.stem) for pq in placement_questions)
+    )
     response_questions: list[PlacementQuestionOut] = []
-    for placement_question in placement_questions:
+    for placement_question, stem_embedding in zip(
+        placement_questions, stem_embeddings, strict=True
+    ):
         grade = grade_by_topic_id[placement_question.topic_id]
         question = GeneratedQuestion(
-            learner_id=learner.learner_id,
+            learner_id=resolved_learner_id,
             subject_id=subject_id,
             topic_id=placement_question.topic_id,
             grade=grade,
@@ -102,6 +138,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
             difficulty=DifficultyBand.EASY,
             question_type=placement_question.question_type,
             stem=placement_question.draft.stem,
+            stem_embedding=stem_embedding,
             options=placement_question.draft.options,
             answer_key=draft_to_answer_key(placement_question.draft),
             validation_status=ValidationStatus.VALID,
@@ -113,7 +150,7 @@ async def start_placement(subject_id: str, db: Session = Depends(get_db)) -> Pla
 
         record_event(
             db,
-            learner_id=learner.learner_id,
+            learner_id=resolved_learner_id,
             event_type=AssessmentEventType.PLACEMENT_QUESTION_SHOWN,
             subject_id=subject_id,
             topic_id=placement_question.topic_id,
@@ -355,6 +392,7 @@ async def submit_placement(
     placement_session_id: uuid.UUID,
     body: PlacementSubmitRequest,
     db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> PlacementSubmitResponse:
     if not body.answers:
         raise UnprocessableError("answers must be a non-empty list")
@@ -376,6 +414,13 @@ async def submit_placement(
     learner_id = questions[0].learner_id
     if any(q.subject_id != subject_id or q.learner_id != learner_id for q in questions):
         raise UnprocessableError("answers span more than one subject/learner")
+    # Review finding, PR #113: start_placement gates a real learner_id
+    # (spec 044 FR-025), but submit/skip derived learner_id from the
+    # question row with no matching check -- anyone who learned a
+    # question_id could submit/skip on behalf of a real learner they
+    # don't own, writing mastery/GradeProgress. Same gate, same helper,
+    # same convention as practice_sessions.py's sibling routes.
+    require_learner_ownership_if_real(db, learner_id=learner_id, claims=claims)
 
     per_question_results: list[PlacementQuestionResult] = []
     with traced_request():
@@ -526,6 +571,7 @@ async def skip_placement_question(
     placement_session_id: uuid.UUID,
     body: SkipRequest,
     db: Session = Depends(get_db),
+    claims: SessionClaims | None = Depends(optional_session_claims),
 ) -> SkipResponse:
     """FR-006/FR-007/FR-008, research.md Decision 4/6 (contracts/api.md).
 
@@ -543,6 +589,8 @@ async def skip_placement_question(
             f"question {body.question_id!r} does not belong to placement session "
             f"{placement_session_id!r}"
         )
+    # Review finding, PR #113: same gap/fix as submit_placement above.
+    require_learner_ownership_if_real(db, learner_id=question.learner_id, claims=claims)
 
     if _already_answered(db, question.question_id):
         raise ConflictError(f"question {question.question_id} has already been answered")
@@ -620,6 +668,7 @@ async def skip_placement_question(
             difficulty=DifficultyBand.EASY,
             question_type=placement_question.question_type,
             stem=placement_question.draft.stem,
+            stem_embedding=await embed_stem_or_none(placement_question.draft.stem),
             options=placement_question.draft.options,
             answer_key=draft_to_answer_key(placement_question.draft),
             validation_status=ValidationStatus.VALID,

@@ -29,9 +29,23 @@ terminal -- no transition back to `in_progress`.
 |---|---|---|
 | `quiz_session_id` | UUID, nullable, FK -> `quiz_sessions.quiz_session_id` | NULL for a non-quiz question (placement, regular practice) -- unchanged for every existing row and every non-quiz code path. Set at generation time for a quiz question, never after. |
 
-No other `GeneratedQuestion` field changes. `difficulty` continues to
-be set at generation time from the computed in-quiz band (research.md
-§1), exactly as it already is for non-quiz questions.
+No other `GeneratedQuestion` field changes from the original Milestone
+5 design. `difficulty` continues to be set at generation time from the
+computed in-quiz band (research.md §1), exactly as it already is for
+non-quiz questions.
+
+### Bug-fix amendment, 2026-10-12: `stem_embedding` column
+
+| Field | Type | Notes |
+|---|---|---|
+| `stem_embedding` | `vector(1024)`, nullable | Set once at generation time (research.md §8) from the final stem text, same `voyage-3`/1024-dim model as `ContentPassageEmbedding`. `NULL` for every row generated before this migration -- not backfilled (research.md §8); a `NULL` embedding is excluded from near-duplicate comparison, not treated as either a match or a non-match. Shared with `specs/001-domain-agnostic-core`'s own (non-quiz) `GeneratedQuestion` rows -- one column, one migration, both specs' FR-008 Clarifications satisfied together (research.md, Bug-fix amendment preamble). |
+
+No index on this column: `is_near_duplicate`'s comparison set is always
+the (at most 5) rows `recent_stems_for_topic` already fetches via its
+existing `learner_id`+`subject_id`+`topic_id` filter, never a
+similarity search across the whole table (research.md §9) -- an HNSW
+index (`ContentPassageEmbedding`'s pattern) would be pure overhead
+here.
 
 ## Changed entity: `AssessmentEventType` (enum)
 

@@ -96,6 +96,45 @@ def test_quiz_still_in_progress_below_question_count(db_session, demo_learner, a
     assert quiz_row.completed_at is None
 
 
+def test_next_question_self_heals_a_fully_answered_quiz_stuck_in_progress(
+    db_session, demo_learner, algebra_subject
+):
+    """Regression: a `next-question` call that lands while the quiz is
+    already answered to `question_count` but still reads `in_progress`
+    (a duplicate/retried request racing the completing answer's own
+    status flip) must report `completed` -- not attempt to generate an
+    extra question and risk a dedup-exhaustion `ended_early` mislabel
+    for what was actually a normal completion."""
+    from src.api.main import app
+
+    client = TestClient(app)
+    with patch_generation():
+        start = client.post(
+            "/api/quizzes", json={"topic_ids": [_ENTRY_TOPIC], "question_count": 1}
+        )
+    quiz = start.json()
+    answer = client.post(
+        f"/api/questions/{quiz['question']['question_id']}/answer", json={"response": 0}
+    )
+    assert answer.status_code == 200, answer.text
+
+    quiz_row = db_session.get(QuizSession, uuid.UUID(quiz["quiz_session_id"]))
+    db_session.refresh(quiz_row)
+    assert quiz_row.status == QuizSessionStatus.COMPLETED
+
+    # Simulate the race: status hasn't (yet) reflected the completion a
+    # concurrent/duplicate next-question read would see.
+    quiz_row.status = QuizSessionStatus.IN_PROGRESS
+    db_session.commit()
+
+    next_question = client.get(f"/api/quizzes/{quiz['quiz_session_id']}/next-question")
+    assert next_question.status_code == 200, next_question.text
+    assert next_question.json()["status"] == "completed"
+
+    db_session.refresh(quiz_row)
+    assert quiz_row.status == QuizSessionStatus.COMPLETED
+
+
 def test_non_quiz_answer_unaffected(db_session, demo_learner, algebra_subject):
     """A non-quiz question's answer response is byte-for-byte unchanged
     (research.md §4's "contract unmodified" claim)."""

@@ -1,15 +1,28 @@
 // Unit test: Nav's per-visitor-type menu (anonymous/demo-learner/
-// guardian/instructor buckets), the Personalization Evidence link
-// (SC-005, no login required -- inline for every bucket except
-// demo-learner, where it's tucked behind the avatar/name menu along
-// with Exit Demo/Sign In), and the "signed in as" identity readout for
-// real guardian/instructor sessions.
+// guardian/instructor buckets) and the "signed in as" identity readout
+// for real guardian/instructor sessions. The Personalization Evidence
+// link (spec 006 SC-005) is temporarily hidden from nav everywhere, at
+// the user's request -- see Nav.tsx's comment for how to re-add it.
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Nav from "@/components/Nav";
+import LeaveGuardDialog from "@/components/LeaveGuardDialog";
 import * as api from "@/services/api";
 import { enterRealLearnerSession, onSessionChanged } from "@/lib/visitor-state";
+import { clearGuard, setGuard } from "@/lib/leave-guard";
+
+// spec 044 FR-028 (US6): `LeaveGuardDialog` is mounted once near the app
+// root (`app/layout.tsx`), not inside Nav itself -- rendered alongside
+// it here to match that composition for the leave-guard tests below.
+function renderNav() {
+  return render(
+    <>
+      <Nav />
+      <LeaveGuardDialog />
+    </>,
+  );
+}
 
 const push = vi.fn();
 
@@ -43,6 +56,7 @@ describe("Nav", () => {
     });
     window.localStorage.removeItem(DEMO_LEARNER_MODE_KEY);
     window.localStorage.removeItem(REAL_LEARNER_SESSION_KEY);
+    clearGuard();
   });
 
   it.each([
@@ -58,7 +72,7 @@ describe("Nav", () => {
     await waitFor(() => expect(logo).toHaveAttribute("href", expectedHref));
   });
 
-  it("shows only Try Demo, Sign In, and Personalization Evidence when logged out", async () => {
+  it("shows only Try Demo and Sign In when logged out", async () => {
     vi.mocked(api.getWhoAmI).mockResolvedValue({
       account_type: null,
       identifier: null,
@@ -69,7 +83,7 @@ describe("Nav", () => {
     await waitFor(() => expect(api.getWhoAmI).toHaveBeenCalled());
     expect(await screen.findByText("Try Demo")).toBeInTheDocument();
     expect(screen.getByText("Sign In")).toBeInTheDocument();
-    expect(screen.getByText("Personalization Evidence")).toBeInTheDocument();
+    expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
 
     expect(screen.queryByText("My Learners")).not.toBeInTheDocument();
     expect(screen.queryByText("Rosters")).not.toBeInTheDocument();
@@ -92,14 +106,15 @@ describe("Nav", () => {
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.queryByText("Try Demo")).not.toBeInTheDocument();
 
-    // Exit Demo/Personalization Evidence/Sign In are tucked behind the
-    // avatar/name menu now, not shown inline (user feedback).
+    // Exit Demo/Sign In are tucked behind the avatar/name menu now, not
+    // shown inline (user feedback). Personalization Evidence is hidden
+    // from nav entirely for now (not just tucked away) -- see Nav.tsx.
     expect(screen.queryByText("Exit Demo")).not.toBeInTheDocument();
     expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Demo Learner (demo)"));
     expect(screen.getByText("Exit Demo")).toBeInTheDocument();
-    expect(screen.getByText("Personalization Evidence")).toBeInTheDocument();
+    expect(screen.queryByText("Personalization Evidence")).not.toBeInTheDocument();
   });
 
   it("shows an avatar and the demo learner's real name in the demo-learner bucket, with Sign In behind that same menu (027-learner-ui-redesign gap-closing pass)", async () => {
@@ -289,5 +304,61 @@ describe("Nav", () => {
 
     await waitFor(() => expect(api.logout).toHaveBeenCalled());
     expect(window.localStorage.getItem(REAL_LEARNER_SESSION_KEY)).toBeNull();
+  });
+
+  it("spec 044 FR-028/FR-030 (US6): a nav link click shows the leave-guard confirmation when a guard is active, and proceeds only on confirm", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    renderNav();
+    await screen.findByText("Dashboard");
+
+    setGuard("careful");
+    fireEvent.click(screen.getByText("Dashboard"));
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByTestId("leave-guard-dialog")).toHaveTextContent("careful");
+
+    fireEvent.click(screen.getByText("Stay here"));
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("leave-guard-dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Dashboard"));
+    fireEvent.click(screen.getByText("Leave"));
+    expect(push).toHaveBeenCalledWith("/dashboard");
+  });
+
+  it("spec 044 FR-028/FR-030 (US6): a nav link click navigates immediately with no guard active", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    renderNav();
+
+    fireEvent.click(await screen.findByText("Dashboard"));
+    expect(push).toHaveBeenCalledWith("/dashboard");
+    expect(screen.queryByTestId("leave-guard-dialog")).not.toBeInTheDocument();
+  });
+
+  it("spec 044 FR-028 (US6): Exit learner view and End session both show the confirmation when a guard is active", async () => {
+    vi.mocked(api.getWhoAmI).mockResolvedValue({
+      account_type: "guardian",
+      identifier: "parent@example.com",
+      pending_deletion_warnings: [],
+    });
+    enterRealLearnerSession("learner-1", "Eli");
+    renderNav();
+    await screen.findByText("Exit learner view");
+
+    setGuard("careful");
+    fireEvent.click(screen.getByText("End session, back to my learners"));
+    expect(push).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Leave"));
+    expect(push).toHaveBeenCalledWith("/guardian/learners");
   });
 });

@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PlacementFlow from "@/app/placement/placement-flow";
 import * as api from "@/services/api";
+import { clearGuard, isGuardActive } from "@/lib/leave-guard";
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams("subject=algebra-1"),
@@ -320,5 +321,67 @@ describe("PlacementFlow skip button", () => {
       expect(screen.queryByText(/Solve the system of equations\./)).not.toBeInTheDocument(),
     );
     expect(screen.getByText(/What is -3 \+ 7\?/)).toBeInTheDocument();
+  });
+});
+
+describe("PlacementFlow leave-guard (spec 044 FR-028/FR-032/FR-033, US6)", () => {
+  beforeEach(() => {
+    vi.mocked(api.startPlacement).mockReset();
+    vi.mocked(api.skipPlacementQuestion).mockReset();
+    vi.mocked(api.submitPlacement).mockReset();
+    clearGuard();
+  });
+
+  it("sets the leave guard once questions are shown, with at least one (but not all) answered", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion, higherGradeQuestion],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+    expect(isGuardActive()).toBe(true);
+
+    await userEvent.click(screen.getByRole("radio", { name: "4" }));
+    expect(isGuardActive()).toBe(true);
+  });
+
+  it("clears the leave guard once submit_placement succeeds", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion],
+    });
+    vi.mocked(api.submitPlacement).mockResolvedValue({
+      mastery_state: [],
+      per_question_results: [],
+    });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/What is -3 \+ 7\?/);
+    expect(isGuardActive()).toBe(true);
+
+    await userEvent.click(screen.getByRole("radio", { name: "4" }));
+    await userEvent.click(screen.getByText("Finish placement"));
+
+    await waitFor(() => expect(isGuardActive()).toBe(false));
+  });
+
+  it("skipping a question never triggers the guard check -- it stays active, no confirmation needed", async () => {
+    vi.mocked(api.startPlacement).mockResolvedValue({
+      placement_session_id: "session-1",
+      questions: [gradedQuestion, higherGradeQuestion],
+    });
+    vi.mocked(api.skipPlacementQuestion).mockResolvedValue({ replacement_question: null });
+
+    render(<PlacementFlow />);
+    await screen.findByText(/Solve the system of equations\./);
+    expect(isGuardActive()).toBe(true);
+
+    await userEvent.click(screen.getByRole("button", { name: /too hard\? skip/i }));
+
+    await waitFor(() =>
+      expect(screen.queryByText(/Solve the system of equations\./)).not.toBeInTheDocument(),
+    );
+    expect(isGuardActive()).toBe(true);
   });
 });

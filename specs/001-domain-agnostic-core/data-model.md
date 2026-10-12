@@ -142,6 +142,7 @@ A single dynamically generated structured question.
 | `flagged_reason` | text, nullable | |
 | `generated_at` | timestamp | |
 | `shown_at` | timestamp, nullable | Null until actually displayed; only `valid` questions may have this set. |
+| `stem_embedding` | `vector(1024)`, nullable | Bug-fix amendment, 2026-10-12 (Clarifications) -- set once at generation time from `stem`, same `voyage-3`/1024-dim model as `ContentPassageEmbedding`. Powers FR-008's near-duplicate check (embedding cosine similarity, not raw text). `NULL` for every pre-migration row, not backfilled; excluded from comparison rather than treated as a match or non-match. Full rationale/migration: `specs/005-adaptive-quiz/research.md` §7-10, `specs/005-adaptive-quiz/data-model.md`'s matching amendment (one shared column/migration for both specs' `GeneratedQuestion` rows). |
 
 **Validation** (FR-007, before `shown_at` may be set): `answer_key`'s
 referenced option MUST be present in `options` for `multiple_choice`

@@ -40,6 +40,7 @@ from src.services.quiz.session import (
     SessionAlreadyEndedError,
     SessionNotTimedError,
     check_and_expire_if_needed,
+    complete_quiz_if_answered_enough,
     compute_quiz_summary,
     compute_timed_session_timing,
     end_quiz_for_dedup_exhaustion,
@@ -216,6 +217,16 @@ async def get_quiz_next_question(
             f"quiz {quiz_session_id} is already {quiz.status.value} -- "
             "call GET /api/quizzes/{quiz_session_id} for the summary"
         )
+
+    # Self-heals a quiz already answered to `question_count` but still
+    # reading `in_progress` (e.g. a duplicate/retried next-question call
+    # racing the same answer's own completion write) -- without this,
+    # generation below proceeds against an already-exhausted topic and
+    # very likely dedup-fails into a confusing `ended_early` for what
+    # was actually a normal completion (session.py's own docstring).
+    if complete_quiz_if_answered_enough(db, quiz=quiz):
+        db.commit()
+        return QuizNextQuestionOut(status=quiz.status.value)
 
     try:
         with traced_request(learner_id=quiz.learner_id, session_id=quiz.quiz_session_id):

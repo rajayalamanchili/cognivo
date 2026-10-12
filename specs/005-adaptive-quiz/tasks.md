@@ -204,3 +204,80 @@ quiz feature is in a coherent, independently testable state.
 - Stop at any checkpoint to validate a story independently before continuing.
 - `/speckit-analyze` MUST run before `/speckit-implement` per CLAUDE.md/Constitution Development Workflow -- do not skip it once this task list is approved.
 - `/speckit-analyze` ran 2026-08-18 and found 2 coverage gaps (both now closed by T013 and T032's extension) plus 1 stale-status inconsistency (fixed in spec.md directly) -- no CRITICAL findings.
+
+---
+
+## Phase 7: Bug-fix amendment, 2026-10-12 -- Embedding-based near-duplicate check
+
+**Scope**: Implements `specs/005-adaptive-quiz/spec.md`'s and
+`specs/001-domain-agnostic-core/spec.md`'s matching 2026-10-12
+Clarifications sessions and `specs/005-adaptive-quiz/plan.md`'s
+matching amendment (research.md §7-10, data-model.md's
+`stem_embedding` column). Root cause: `is_near_duplicate`'s raw-text
+`difflib` comparison false-positives on two distinct questions sharing
+a phrasing template but differing only in their numbers, causing
+single-topic assigned quizzes to exhaust dedup retries and end early
+after 1 question. No `[Story]` label -- this is shared `services/dedup/`
+code reused by every question-generation path (practice, placement,
+quiz), not specific to one of spec.md's three user stories.
+
+**Independent Test**: Run quickstart.md's new scenario 11 -- a
+single-topic, 5-question quiz on a narrow-content topic (e.g.
+`quadratic-equations-and-functions`) completes all 5 questions without
+`ended_early`, even though consecutive questions share a phrasing
+template differing only in numbers.
+
+- [X] T036 [P] Migration: add nullable `stem_embedding vector(1024)` column to `generated_questions` in `backend/alembic/versions/<new>_generated_question_stem_embedding.py` (data-model.md's amendment; no backfill)
+- [X] T037 Add `embed_stem()` and `EmbeddingUnavailableError` to `backend/src/services/dedup/checker.py` (mirrors `backend/src/services/misconception/embed.py`'s `embed_answer()`/error shape, `litellm` + `TUTOR_EMBEDDING_MODEL`, 2-attempt retry); add `DEFAULT_MAX_DEDUP_ATTEMPTS = 5` and change `DEFAULT_SIMILARITY_THRESHOLD` to `0.92` (cosine, was 0.85 difflib-ratio)
+- [X] T038 Rewrite `recent_stems_for_topic` in `backend/src/services/dedup/checker.py` to return `list[tuple[str, list[float] | None]]` (stem, embedding pairs) instead of `list[str]` (depends on T037)
+- [X] T039 Rewrite `is_near_duplicate` in `backend/src/services/dedup/checker.py` to compute cosine similarity (stdlib `math`, no `numpy`) over embeddings instead of `difflib.SequenceMatcher` over raw text; fail-open (treat as not-near-duplicate) on `EmbeddingUnavailableError` or a `None` embedding, with a `logger.warning` (depends on T038)
+- [X] T040 [P] Add `stem_embedding` mapped column to `backend/src/models/generated_question.py` (nullable `Vector(1024)`, mirrors `backend/src/models/content_passage_embedding.py`'s `embedding` column, no index)
+- [X] T041 Update `is_near_duplicate`/`recent_stems_for_topic` call sites for the new tuple-returning signature in `backend/src/services/quiz/session.py` and `backend/src/agents/sequencing/agent.py` (depends on T039)
+- [X] T042 [P] Set `stem_embedding = embed_stem(draft.stem)` at persist time in `backend/src/services/quiz/session.py`'s `persist_quiz_question` (depends on T037, T040)
+- [X] T043 [P] Set `stem_embedding = embed_stem(result.draft.stem)` at persist time in `backend/src/api/routes/questions.py`'s inline `GeneratedQuestion` construction (depends on T037, T040)
+- [X] T044 [P] Set `stem_embedding = embed_stem(...)` at persist time in `backend/src/api/routes/placement.py`'s two `GeneratedQuestion` construction sites (initial batch question + skip-replacement question) -- without this, placement-originated stems stay permanently `NULL` and permanently excluded from every future dedup comparison, narrowing FR-008's "last 5 generated questions" coverage versus the old behavior (depends on T037, T040)
+- [X] T045 Replace `backend/src/services/quiz/session.py`'s own `DEFAULT_MAX_DEDUP_ATTEMPTS = 3` with an import of the shared constant from `backend/src/services/dedup/checker.py` (depends on T037)
+- [X] T046 Replace `backend/src/agents/sequencing/agent.py`'s own hardcoded `max_dedup_attempts: int = 3` default with the shared constant from `backend/src/services/dedup/checker.py` (depends on T037)
+- [X] T047 [P] Unit tests in `backend/tests/unit/dedup/test_checker.py` (new or extended): a true-negative case (two stems sharing a phrasing template, differing only in numbers, judged NOT near-duplicate) and a true-positive case (genuine near-duplicate correctly flagged), both under the embedding-based check (depends on T039)
+- [X] T048 Extend `backend/tests/integration/test_quiz_no_duplicates.py` with the same-template/different-number case (spec 005 SC-004, Clarifications 2026-10-12) (depends on T039, T042)
+- [X] T049 Add/extend a Milestone 1 practice-path integration test with the same same-template/different-number case (spec 001 SC-002, Clarifications 2026-10-12) (depends on T039, T043)
+- [X] T050 Regression test reproducing the original live bug: a single-topic, 5-question quiz on a narrow topic (e.g. factored quadratics) completes all 5 questions without `ended_early` (depends on T048)
+- [X] T051 Fallback-path test for spec 001's retry-exhaustion Edge Case (`/speckit-analyze` finding E1, 2026-10-12): confirm `generate_next_question` still returns the last draft generated, without raising, when all 5 embedding-based dedup attempts remain near-duplicate (e.g. a topic whose entire recent history embeds near-identically) -- covers the "falls back to serving the last draft" behavior under the *new* check, not just the old difflib one (depends on T039, T041)
+
+**Checkpoint**: Single-topic assigned quizzes no longer false-positive into `ended_early`; practice/placement get the same fix as a side effect of the shared `services/dedup/` change.
+
+### Polish for this amendment
+
+- [ ] T052 Run the full backend test suite (`uv run pytest -q`) and quickstart.md's scenario 11 live against the running dev servers (migration applied, `VOYAGE_API_KEY` set)
+
+### Dependencies for this amendment
+
+- T036 (migration) has no dependency, can start immediately, parallel with T037.
+- T037 before T038 before T039 (same file, sequential: core dedup primitives, then the tuple-returning lookup, then the comparison that consumes it).
+- T040 (model column) parallel with T037-T039 (different file).
+- T041 depends on T039. T042-T044 depend on T036 (the migration actually applied -- writing to `stem_embedding` before the column exists in the DB fails at runtime, not at code-review time), T037 (for `embed_stem`), and T040 (for the model attribute existing) -- the three persist-site edits are mutually parallel (different files).
+- T045-T046 depend on T037 (the shared constant must exist first); mutually parallel (different files) and parallel with T042-T044.
+- T047 depends on T039 only (pure function, no DB). T048-T049 depend on T039 and their respective persist-site task (T042/T043) since the test needs real embeddings being written to compare against. T050 depends on T048. T051 depends on T039 and T041 (pure function + updated call-site signature, no DB).
+- T052 depends on everything above.
+
+### Parallel example: Bug-fix amendment
+
+```bash
+# After T036, T037, and T040 land, these four are mutually parallel (different files):
+Task: "Set stem_embedding at persist time in backend/src/services/quiz/session.py"
+Task: "Set stem_embedding at persist time in backend/src/api/routes/questions.py"
+Task: "Set stem_embedding at persist time in backend/src/api/routes/placement.py (both sites)"
+Task: "Replace quiz/session.py's own DEFAULT_MAX_DEDUP_ATTEMPTS with the shared import"
+```
+
+### Implementation strategy for this amendment
+
+1. T036 + T037-T039 (shared dedup core + migration) -- the actual bug fix,
+   independently verifiable via T047's unit tests alone before touching
+   any call site.
+2. T040-T046 (model column, four persist sites, two constant imports) --
+   wires the fix into every question-generation path.
+3. T048-T051 -- proves the original live bug no longer reproduces, and
+   that the pre-existing retry-exhaustion fallback (spec 001 Edge Cases)
+   still behaves correctly under the new check.
+4. T052 -- full regression pass.

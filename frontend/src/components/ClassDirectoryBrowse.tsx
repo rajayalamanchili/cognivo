@@ -15,11 +15,19 @@ export interface ClassDirectoryBrowseProps {
   // spec 041 v041 mockup: the empty state's "I have a class code" link
   // switches the surrounding tab switcher to the code-entry tab.
   onNeedCode?: () => void;
+  // spec 044 FR-004: lets the parent card learn a join actually
+  // enrolled the learner (not a pending request), so it can select the
+  // new tab -- fired only for "enrolled", never "pending".
+  onJoined?: () => void;
 }
 
 type JoinPhase = "idle" | "enrolled" | "pending";
 
-export default function ClassDirectoryBrowse({ learnerId, onNeedCode }: ClassDirectoryBrowseProps) {
+export default function ClassDirectoryBrowse({
+  learnerId,
+  onNeedCode,
+  onJoined,
+}: ClassDirectoryBrowseProps) {
   const [entries, setEntries] = useState<RosterDirectoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [joiningRosterId, setJoiningRosterId] = useState<string | null>(null);
@@ -47,6 +55,7 @@ export default function ClassDirectoryBrowse({ learnerId, onNeedCode }: ClassDir
     try {
       const result = await joinRoster(learnerId, entry.join_code);
       setJoinPhase((previous) => ({ ...previous, [entry.roster_id]: result.status }));
+      if (result.status === "enrolled") onJoined?.();
     } catch (error) {
       setJoinError((previous) => ({
         ...previous,

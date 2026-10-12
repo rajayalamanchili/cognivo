@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import CognivoMark from "@/components/CognivoMark";
@@ -20,6 +20,7 @@ import {
   onSessionChanged,
   type RealLearnerSession,
 } from "@/lib/visitor-state";
+import { confirmNavigation } from "@/lib/leave-guard";
 
 // The nav's menu depends on who's actually visiting -- a server-verified
 // session type (`getWhoAmI`) for guardian/instructor/demo_instructor, or
@@ -44,13 +45,11 @@ const DEMO_LEARNER_LINKS: NavLink[] = [
   { href: "/tutor", label: "Tutor" },
 ];
 
-// SC-005 (spec 003/007): always reachable, no login/demo mode required
-// -- a public evidence/trust page, not a role-gated menu item, so it
-// stays outside the bucket logic below entirely.
-const PERSONALIZATION_EVIDENCE_LINK: NavLink = {
-  href: "/personalization-eval",
-  label: "Personalization Evidence",
-};
+// Personalization Evidence (spec 006, SC-005) is deliberately hidden
+// from nav for now, at the user's request -- the page itself still
+// exists and is reachable by direct URL, just not linked. Re-add a
+// `PERSONALIZATION_EVIDENCE_LINK` NavLink and its two render sites
+// (see git history) once it's enabled again.
 
 const GUARDIAN_LINKS: NavLink[] = [
   { href: "/guardian/learners", label: "My Learners" },
@@ -232,17 +231,32 @@ export default function Nav() {
     router.push("/");
   }
 
+  // spec 044 FR-028 (US6): every in-app navigation site checks the
+  // leave-guard first (research.md §5) -- a no-op wrapper when no guard
+  // is active (confirmNavigation runs `proceed` immediately).
   function handleExitDemo() {
-    exitDemoLearnerMode();
-    router.push("/");
+    confirmNavigation(() => {
+      exitDemoLearnerMode();
+      router.push("/");
+    });
   }
 
   // FR-022: ends the guardian's "acting for this learner" session and
   // returns to the learner-picker, without touching the guardian's own
   // (still-valid) sign-in session.
   function handleExitLearnerView() {
-    exitRealLearnerSession();
-    router.push("/guardian/learners");
+    confirmNavigation(() => {
+      exitRealLearnerSession();
+      router.push("/guardian/learners");
+    });
+  }
+
+  // spec 044 FR-028 (US6): shared by every nav-menu `<Link>` below --
+  // `<Link>` navigates on click by default, so a guarded click prevents
+  // that and routes through the same `confirmNavigation` check instead.
+  function handleNavLinkClick(event: ReactMouseEvent, href: string) {
+    event.preventDefault();
+    confirmNavigation(() => router.push(href));
   }
 
   // Treated as "anonymous" while `accountType` is still resolving --
@@ -306,16 +320,16 @@ export default function Nav() {
               Try Demo
             </Link>
           )}
-          {!isDemoLearnerBucket && (
-            <Link href={PERSONALIZATION_EVIDENCE_LINK.href} className="text-muted">
-              {PERSONALIZATION_EVIDENCE_LINK.label}
-            </Link>
-          )}
           <div className={isDemoLearnerBucket ? "flex flex-grow items-center gap-1" : "contents"}>
             {links.map((link) => {
               if (bucket !== "demo-learner" && bucket !== "guardian") {
                 return (
-                  <Link key={link.href} href={link.href} className="text-muted">
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={(event) => handleNavLinkClick(event, link.href)}
+                    className="text-muted"
+                  >
                     {link.label}
                   </Link>
                 );
@@ -325,6 +339,7 @@ export default function Nav() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  onClick={(event) => handleNavLinkClick(event, link.href)}
                   aria-current={active ? "page" : undefined}
                   className={pillNavLinkClassName(active)}
                 >
@@ -357,14 +372,6 @@ export default function Nav() {
                   role="menu"
                   className="absolute right-0 top-full z-10 mt-2 flex w-56 flex-col gap-1 rounded-[16px] border border-border bg-surface p-2 text-sm shadow-lg"
                 >
-                  <Link
-                    role="menuitem"
-                    href={PERSONALIZATION_EVIDENCE_LINK.href}
-                    onClick={() => setMenuOpen(false)}
-                    className="rounded-[10px] px-3 py-2 text-muted"
-                  >
-                    {PERSONALIZATION_EVIDENCE_LINK.label}
-                  </Link>
                   <Link
                     role="menuitem"
                     href="/settings"

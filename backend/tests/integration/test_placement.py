@@ -16,7 +16,12 @@ from sqlalchemy.orm import Session
 
 from src.models.assessment_event import AssessmentEvent
 from src.models.enums import AssessmentEventType
+from src.models.generated_question import GeneratedQuestion
 from src.models.grade_progress import GradeProgress
+from tests.integration.quiz_assignment_helpers import (
+    login_guardian,
+    register_guardian_with_learner,
+)
 
 _FIXED_MC_DRAFT_JSON = (
     '{"question_type": "multiple_choice", "stem": "mock question", '
@@ -227,3 +232,148 @@ def test_submit_placement_survives_a_concurrent_grade_assignment_race(
         .all()
     )
     assert len(answered) == len(questions)
+
+
+def test_start_placement_with_nonexistent_learner_id_404s_instead_of_fk_violating(
+    db_session, algebra_subject
+):
+    """Review finding, PR #113: `require_learner_ownership_if_real`
+    no-ops (returns `None`) for a nonexistent learner_id by design --
+    each calling route owns deciding what that means. Without an
+    explicit check, this would fall through to a `GeneratedQuestion`
+    insert with a learner_id matching no row, FK-violating into an
+    uncaught 500 instead of a clean 404. Mirrors
+    test_practice_session_start.py's
+    test_nonexistent_learner_id_404s_instead_of_falling_back_to_demo."""
+    from src.api.main import app
+
+    client = TestClient(app)
+
+    start = client.post(
+        f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+        params={"learner_id": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert start.status_code == 404, start.text
+
+
+def test_start_placement_with_real_learner_id_assigns_questions_to_that_learner(
+    db_session, algebra_subject, monkeypatch
+):
+    """spec 044 FR-025, US5: a guardian's own real learner can start
+    placement directly, same gating pattern as start_practice_session
+    (research.md §2)."""
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    from src.api.main import app
+
+    client = TestClient(app, base_url="https://testserver")
+    _, learner_id = register_guardian_with_learner(
+        client, guardian_email="placement-start-owner@example.com", learner_name="Real Learner"
+    )
+
+    with _patch_generation():
+        start = client.post(
+            f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+            params={"learner_id": learner_id},
+        )
+    assert start.status_code == 200, start.text
+
+    questions = start.json()["questions"]
+    assert questions
+    for question in questions:
+        row = db_session.get(GeneratedQuestion, question["question_id"])
+        assert str(row.learner_id) == learner_id
+
+
+def test_start_placement_for_another_guardians_learner_is_forbidden(
+    db_session, algebra_subject, monkeypatch
+):
+    """spec 044 FR-025: ownership-gated exactly like start_practice_session."""
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    from src.api.main import app
+
+    client = TestClient(app, base_url="https://testserver")
+    _, owner_learner_id = register_guardian_with_learner(
+        client, guardian_email="placement-start-owner-b@example.com", learner_name="Owned"
+    )
+    client.post("/api/auth/logout")
+
+    register_guardian_with_learner(
+        client, guardian_email="placement-start-intruder@example.com", learner_name="Other"
+    )
+    login_guardian(client, "placement-start-intruder@example.com")
+
+    start = client.post(
+        f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+        params={"learner_id": owner_learner_id},
+    )
+    assert start.status_code == 403, start.text
+    assert start.json() == {"detail": "not_your_learner"}
+
+
+def test_submit_placement_for_another_guardians_learner_is_forbidden(
+    db_session, algebra_subject, monkeypatch
+):
+    """Review finding, PR #113: start_placement gates a real learner_id
+    (spec 044 FR-025), but submit derived learner_id from the question
+    row with no matching check -- anyone who learned a question_id
+    could submit on behalf of a real learner they don't own."""
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    from src.api.main import app
+
+    client = TestClient(app, base_url="https://testserver")
+    _, owner_learner_id = register_guardian_with_learner(
+        client, guardian_email="placement-submit-owner@example.com", learner_name="Owned"
+    )
+    with _patch_generation():
+        start = client.post(
+            f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+            params={"learner_id": owner_learner_id},
+        )
+    assert start.status_code == 200, start.text
+    question_id = start.json()["questions"][0]["question_id"]
+
+    client.post("/api/auth/logout")
+    register_guardian_with_learner(
+        client, guardian_email="placement-submit-intruder@example.com", learner_name="Other"
+    )
+    login_guardian(client, "placement-submit-intruder@example.com")
+
+    submit = client.post(
+        f"/api/placement/{start.json()['placement_session_id']}/submit",
+        json={"answers": [{"question_id": question_id, "response": _CORRECT_RESPONSE}]},
+    )
+    assert submit.status_code == 403, submit.text
+    assert submit.json() == {"detail": "not_your_learner"}
+
+
+def test_skip_placement_question_for_another_guardians_learner_is_forbidden(
+    db_session, algebra_subject, monkeypatch
+):
+    """Review finding, PR #113: same gap/fix as submit, for skip."""
+    monkeypatch.setenv("JWT_SECRET", "test-only-jwt-secret-do-not-use-in-production")
+    from src.api.main import app
+
+    client = TestClient(app, base_url="https://testserver")
+    _, owner_learner_id = register_guardian_with_learner(
+        client, guardian_email="placement-skip-owner@example.com", learner_name="Owned"
+    )
+    with _patch_generation():
+        start = client.post(
+            f"/api/subjects/{algebra_subject.subject_id}/placement/start",
+            params={"learner_id": owner_learner_id},
+        )
+    assert start.status_code == 200, start.text
+    question_id = start.json()["questions"][0]["question_id"]
+
+    client.post("/api/auth/logout")
+    register_guardian_with_learner(
+        client, guardian_email="placement-skip-intruder@example.com", learner_name="Other"
+    )
+    login_guardian(client, "placement-skip-intruder@example.com")
+
+    skip = client.post(
+        f"/api/placement/{start.json()['placement_session_id']}/skip",
+        json={"question_id": question_id},
+    )
+    assert skip.status_code == 403, skip.text
+    assert skip.json() == {"detail": "not_your_learner"}

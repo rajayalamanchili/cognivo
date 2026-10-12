@@ -60,6 +60,12 @@ mastery model as the foundational engine for Cognivo"
   key by the Assessment-Generation Agent -- not a single global
   constant.
 
+### Session 2026-10-12
+
+- Q: FR-008's near-duplicate check (`difflib.SequenceMatcher` text ratio, threshold 0.85) was found to false-positive on two legitimately distinct questions that share a phrasing template and differ only in their numeric values (e.g. two different factored quadratics), confirmed live via `specs/005-adaptive-quiz`'s single-topic quiz flow exhausting retries after 1-2 questions. Since this check is one shared function (`is_near_duplicate`/`recent_stems_for_topic`) used by both this milestone's `generate_next_question` and the quiz path, should the fix apply here too? → A: Yes -- switch to pgvector embedding similarity (live since Milestone 9) in the one shared function, same decision already recorded in `specs/005-adaptive-quiz/spec.md`'s 2026-10-12 session. This reverses this spec's own original "no embeddings for this, premature infrastructure" research-phase call (research.md §3) now that the infrastructure is no longer premature. The exact cosine-similarity cutoff is implementer-chosen at plan/implement time (e.g. 0.92 starting point), not spec-mandated, mirroring how 0.85 was originally handled.
+- Q: This milestone's own practice-path generator (`generate_next_question`) has its own independent dedup retry cap, also hardcoded to 3 but as a separate literal from the quiz path's constant (`specs/005-adaptive-quiz`'s session just raised its own copy to 5). Should this be raised to match and unified into one shared constant? → A: Yes -- raise to 5 and share one named constant between both call sites, keeping the "one shared dedup function" invariant consistent all the way down rather than two independently-tunable magic numbers that can silently drift apart.
+- Q: SC-002 only verifies "no two generated questions are text-identical" across 5 consecutive requests -- it doesn't test near-duplication at all, even though FR-008 requires avoiding near-duplicates, not just exact matches, so SC-002 would pass even if the near-duplicate check never ran. Should SC-002 be strengthened to also cover the same-template/different-number case? → A: Yes -- add a true-negative case (same template, different numbers, must NOT be flagged) and a true near-duplicate case (must be flagged), closing the pre-existing gap between what FR-008 requires and what SC-002 actually verifies.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Take a placement assessment and get a real starting mastery estimate (Priority: P1)
@@ -197,7 +203,19 @@ question generation both work correctly for it.
   topic/difficulty are near-duplicates of each other, even though not
   text-identical? (The generation step must check for and avoid
   semantic near-duplication within the learner's last 5 questions for
-  that topic, not only exact text matches.)
+  that topic, not only exact text matches, via embedding similarity, not
+  a raw-text comparison -- a raw-text check conflates "same phrasing
+  template, different numbers" with a genuine duplicate, Clarifications
+  2026-10-12.)
+- What happens if a fresh, distinct question genuinely cannot be
+  generated for a topic after 5 retries (FR-008)? (Unlike the quiz
+  path's `ended_early` state, this milestone's single-question flow has
+  no equivalent "give up visibly" state to move to -- it falls back to
+  serving the last draft generated, even if still flagged as a
+  near-duplicate, since every `next-question` request must return a
+  question. This was always the implemented behavior; it had no
+  corresponding Edge Case entry here until now, Clarifications
+  2026-10-12.)
 - What happens if the Assessment-Generation Agent produces a
   structured question whose options don't actually match its own answer
   key (e.g. the "correct" option isn't among the listed choices)? (Must
@@ -265,6 +283,19 @@ question generation both work correctly for it.
   the listed choices) before the question is shown to a learner.
 - **FR-008**: The system MUST avoid generating near-duplicate questions
   within the last 5 generated questions for the same learner and topic.
+  The near-duplication check MUST compare candidate question stems via
+  semantic embedding similarity (pgvector), not raw text similarity -- a
+  text-level check false-positives on two legitimately distinct
+  questions that share a phrasing template and differ only in their
+  numeric values (Clarifications, 2026-10-12). This embedding applies
+  uniformly to every `GeneratedQuestion` row regardless of originating
+  flow (practice, placement, or quiz) -- a row left without one would be
+  silently excluded from every future comparison, narrowing this
+  requirement's "last 5" coverage versus the pre-fix behavior
+  (`/speckit-analyze` finding U1, 2026-10-12). Generation retries up to
+  5 times (raised from an unexamined 3, sharing one named constant with
+  the quiz path's own retry cap, Clarifications 2026-10-12) before
+  falling back to serving the last draft generated (Edge Cases).
 - **FR-009**: Grading of structured answers in this milestone MUST be a
   deterministic comparison against the generated answer key -- no LLM
   judgment call is involved (free-text grading is out of scope, see
@@ -333,7 +364,13 @@ question generation both work correctly for it.
 - **SC-002**: Across five consecutive question-generation requests for
   the same topic and difficulty, no two generated questions are
   text-identical, and 100% remain correctly scoped to the requested topic
-  (verified against the content artifact's topic definition).
+  (verified against the content artifact's topic definition). The test
+  suite MUST also include a true-negative case (two distinct stems
+  sharing a phrasing template but differing only in their numeric
+  values, correctly judged not-near-duplicate) and a true near-duplicate
+  case (correctly flagged) under the embedding-based FR-008 check --
+  text-identity alone does not exercise near-duplication at all
+  (Clarifications, 2026-10-12).
 - **SC-003**: 100% of generated questions pass internal-consistency
   validation (the marked-correct option is among the listed choices)
   before ever being shown to a learner -- verified by an automated check,

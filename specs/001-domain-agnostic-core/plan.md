@@ -166,3 +166,13 @@ No new violations introduced by the Phase 1 design. Specifically:
   VI unchanged from the initial Constitution Check).
 
 Gate: **PASS**.
+
+## Bug-fix amendment, 2026-10-12
+
+FR-008's near-duplicate check and `GeneratedQuestion.stem_embedding`
+(data-model.md's matching amendment) are planned and implemented as
+part of `specs/005-adaptive-quiz/plan.md`'s 2026-10-12 amendment -- one
+shared `services/dedup/checker.py` change and one migration satisfy
+both specs' matching Clarifications sessions, not two separate
+implementations. See that plan for Technical Context, Project
+Structure, and the Constitution re-check.

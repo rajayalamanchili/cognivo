@@ -1,12 +1,17 @@
 import datetime
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Enum, ForeignKey, ForeignKeyConstraint, Integer, Text, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
 from src.models.enums import DifficultyBand, QuestionType, ValidationStatus, enum_values
+
+# Same voyage-3/1024-dim model as ContentPassageEmbedding -- bug-fix
+# amendment, 2026-10-12 (specs/005-adaptive-quiz/research.md §8).
+EMBEDDING_DIMENSION = 1024
 
 
 class GeneratedQuestion(Base):
@@ -37,6 +42,13 @@ class GeneratedQuestion(Base):
         Enum(QuestionType, name="question_type", values_callable=enum_values), nullable=False
     )
     stem: Mapped[str] = mapped_column(Text, nullable=False)
+    stem_embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(EMBEDDING_DIMENSION), nullable=True
+    )
+    """Set once at generation time from `stem` (bug-fix amendment,
+    2026-10-12, FR-008). `NULL` for every pre-migration row -- not
+    backfilled, excluded from near-duplicate comparison rather than
+    treated as a match or non-match (research.md §8)."""
     options: Mapped[list | None] = mapped_column(JSON, nullable=True)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     image_alt_text: Mapped[str | None] = mapped_column(Text, nullable=True)

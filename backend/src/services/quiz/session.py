@@ -42,15 +42,17 @@ from src.observability.tracing import record_cache_hit_trace
 from src.services.audit_log.writer import record_event
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.content_artifact.image_asset import content_image_url
-from src.services.dedup.checker import is_near_duplicate, recent_stems_for_topic
+from src.services.dedup.checker import (
+    DEFAULT_MAX_DEDUP_ATTEMPTS,
+    is_near_duplicate,
+    recent_stems_for_topic,
+)
 from src.services.question_cache.cache import get_or_generate_question
 from src.services.quiz.difficulty import (
     current_difficulty_for_topic,
     next_difficulty,
     replay_topic_state,
 )
-
-DEFAULT_MAX_DEDUP_ATTEMPTS = 3
 
 # Spec 022 FR-001/Assumptions: a small fixed preset (15/30/45/60
 # minutes), not an arbitrary custom duration -- shared by both
@@ -255,25 +257,30 @@ def end_quiz_for_dedup_exhaustion(db: Session, *, quiz: QuizSession) -> None:
     already ended (SC-005 miss) -- goes through it now, same as the
     other two timed end-reasons.
 
-    Row-locks + re-checks status first, same reasoning as
-    `record_quiz_answer`'s own `_end_timed_session` call: a concurrent
-    manual "end now"/expiry could already have transitioned `quiz` by
-    the time generation raises `QuizEndedEarlyError`, and this must not
-    clobber that with a second, contradictory event."""
+    Row-locks + re-checks status first (both branches -- review
+    finding, PR #113: the untimed branch previously didn't, unlike the
+    timed one), same reasoning as `record_quiz_answer`'s own
+    `_end_timed_session` call: a concurrent manual "end now"/expiry (or,
+    for an untimed quiz, `complete_quiz_if_answered_enough`/
+    `record_quiz_answer`'s own completion check) could already have
+    transitioned `quiz` by the time generation raises
+    `QuizEndedEarlyError`, and this must not clobber that with a
+    second, contradictory status/event."""
+    db.refresh(quiz, with_for_update=True)
+    if quiz.status != QuizSessionStatus.IN_PROGRESS:
+        return
     if quiz.time_limit_seconds is None:
         quiz.status = QuizSessionStatus.ENDED_EARLY
         quiz.completed_at = datetime.datetime.now(datetime.UTC)
         db.flush()
         return
-    db.refresh(quiz, with_for_update=True)
-    if quiz.status == QuizSessionStatus.IN_PROGRESS:
-        _end_timed_session(
-            db,
-            session=quiz,
-            session_type="quiz",
-            status=QuizSessionStatus.ENDED_EARLY,
-            end_reason="dedup_exhausted",
-        )
+    _end_timed_session(
+        db,
+        session=quiz,
+        session_type="quiz",
+        status=QuizSessionStatus.ENDED_EARLY,
+        end_reason="dedup_exhausted",
+    )
 
 
 def next_quiz_topic(topic_ids: Sequence[str], *, questions_generated_so_far: int) -> str:
@@ -357,6 +364,7 @@ class QuizQuestionResult:
     image_url: str | None = None
     image_alt_text: str | None = None
     cache_outcome: CacheOutcome = field(default_factory=lambda: CacheOutcome(hit=False))
+    stem_embedding: list[float] | None = None
 
 
 async def generate_quiz_question(
@@ -394,6 +402,11 @@ async def generate_quiz_question(
         topic_id=topic_id,
         limit=quiz.question_count,
     )
+    # `recent_stems` carries embeddings now (bug-fix amendment,
+    # 2026-10-12) for the dedup check/cache-pool filter below -- the
+    # LLM prompt's "don't generate this" instruction only ever wanted
+    # the stem text.
+    recent_stem_texts = [stem for stem, _embedding in recent_stems]
 
     image_url: str | None = None
     image_alt_text: str | None = None
@@ -404,7 +417,7 @@ async def generate_quiz_question(
     content_version = db.get(Subject, quiz.subject_id).content_version
 
     for _ in range(max_dedup_attempts):
-        draft, cache_outcome = await get_or_generate_question(
+        draft, cache_outcome, candidate_embedding = await get_or_generate_question(
             db,
             subject_id=quiz.subject_id,
             topic_id=topic_id,
@@ -419,11 +432,16 @@ async def generate_quiz_question(
                 difficulty_guidance=difficulty_guidance(topic, difficulty),
                 question_type=question_type,
                 session_service=session_service,
-                avoid_stems=recent_stems,
+                avoid_stems=recent_stem_texts,
                 image_alt_text=image_alt_text,
             ),
         )
-        if not is_near_duplicate(draft.stem, recent_stems):
+        # `candidate_embedding` comes from `get_or_generate_question`
+        # itself now (the pool row's stored embedding on a hit, the
+        # one just computed for the fresh write on a miss) -- no
+        # second Voyage call for a stem that was just embedded there
+        # (review finding, PR #113).
+        if not is_near_duplicate(draft.stem, candidate_embedding, recent_stems):
             if cache_outcome.hit:
                 # Spec 015 FR-013 clarification: this path records no
                 # dedicated AssessmentEvent for question generation even
@@ -447,6 +465,7 @@ async def generate_quiz_question(
                 image_url=image_url,
                 image_alt_text=image_alt_text,
                 cache_outcome=cache_outcome,
+                stem_embedding=candidate_embedding,
             )
 
     raise QuizEndedEarlyError(
@@ -479,6 +498,7 @@ def persist_quiz_question(
         difficulty=result.difficulty,
         question_type=result.question_type,
         stem=result.draft.stem,
+        stem_embedding=result.stem_embedding,
         options=result.draft.options,
         image_url=result.image_url,
         image_alt_text=result.image_alt_text,
@@ -491,6 +511,84 @@ def persist_quiz_question(
     db.add(question)
     db.flush()
     return question
+
+
+def _quiz_answered_count(
+    db: Session,
+    *,
+    quiz_session_id: uuid.UUID,
+    exclude_question_id: uuid.UUID | None = None,
+) -> int:
+    query = (
+        db.query(AssessmentEvent)
+        .join(GeneratedQuestion, GeneratedQuestion.question_id == AssessmentEvent.question_id)
+        .filter(
+            GeneratedQuestion.quiz_session_id == quiz_session_id,
+            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
+        )
+    )
+    if exclude_question_id is not None:
+        query = query.filter(GeneratedQuestion.question_id != exclude_question_id)
+    return query.count()
+
+
+def _complete_quiz_if_in_progress(db: Session, *, quiz: QuizSession) -> None:
+    """Shared by `complete_quiz_if_answered_enough` and `record_quiz_
+    answer` (review finding, PR #113: the two had drifted into nearly
+    identical, independently-maintained copies of this same block).
+
+    Row-locks + re-checks status unconditionally, not just for a timed
+    quiz (review finding, PR #113) -- a concurrent duplicate/retried
+    request, a manual "end now", or expiry could already have
+    transitioned the quiz by the time this runs; completing it
+    unconditionally would clobber that with a contradictory status (and,
+    for a timed quiz, a second `TIMED_SESSION_ENDED` event). Matches
+    `check_and_expire_if_needed`'s/`end_session_manually`'s own existing
+    lock-then-recheck convention for every other way a quiz can end."""
+    db.refresh(quiz, with_for_update=True)
+    if quiz.status != QuizSessionStatus.IN_PROGRESS:
+        return
+    if quiz.time_limit_seconds is not None:
+        # Spec 022 FR-007: a timed quiz's completion is audited the
+        # same as its other two end reasons, not just set inline.
+        _end_timed_session(
+            db,
+            session=quiz,
+            session_type="quiz",
+            status=QuizSessionStatus.COMPLETED,
+            end_reason="completed",
+        )
+    else:
+        quiz.status = QuizSessionStatus.COMPLETED
+        quiz.completed_at = datetime.datetime.now(datetime.UTC)
+        db.flush()
+
+
+def complete_quiz_if_answered_enough(db: Session, *, quiz: QuizSession) -> bool:
+    """Self-heals a quiz left `in_progress` despite already having
+    `question_count` answered questions -- guards `get_quiz_next_
+    question` (quiz.py) against generating a doomed extra question past
+    the quiz's intended length. `generate_quiz_question` has no
+    `question_count` awareness of its own (it round-robins topics
+    unconditionally); normally that's harmless because `record_quiz_
+    answer`'s own completion check below flips `status` to `completed`
+    in the same request as the final answer, so the very next `next-
+    question` call sees `status != in_progress` and never reaches
+    generation at all (quiz.py's existing check). But if `next-question`
+    is ever called again while that flip hasn't landed (a duplicate/
+    retried request), generation proceeds against a topic whose dedup
+    pool is now this entire quiz's history for it -- far more likely to
+    exhaust `DEFAULT_MAX_DEDUP_ATTEMPTS` and get mislabeled
+    `ended_early` for what was actually a normal completion. Returns
+    `True` (and flips `status`) only when it found the quiz already
+    answered-complete and still `in_progress`; a no-op otherwise."""
+    if quiz.status != QuizSessionStatus.IN_PROGRESS:
+        return False
+    answered_count = _quiz_answered_count(db, quiz_session_id=quiz.quiz_session_id)
+    if answered_count < quiz.question_count:
+        return False
+    _complete_quiz_if_in_progress(db, quiz=quiz)
+    return True
 
 
 def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: bool) -> None:
@@ -531,44 +629,11 @@ def record_quiz_answer(db: Session, *, question: GeneratedQuestion, correct: boo
         },
     )
 
-    answered_count_before = (
-        db.query(AssessmentEvent)
-        .join(GeneratedQuestion, GeneratedQuestion.question_id == AssessmentEvent.question_id)
-        .filter(
-            GeneratedQuestion.quiz_session_id == quiz.quiz_session_id,
-            AssessmentEvent.event_type == AssessmentEventType.ANSWER_SUBMITTED,
-            GeneratedQuestion.question_id != question.question_id,
-        )
-        .count()
+    answered_count_before = _quiz_answered_count(
+        db, quiz_session_id=quiz.quiz_session_id, exclude_question_id=question.question_id
     )
     if answered_count_before + 1 >= quiz.question_count:
-        if quiz.time_limit_seconds is not None:
-            # Spec 022 FR-007: a timed quiz's completion is audited the
-            # same as its other two end reasons, not just set inline.
-            #
-            # Row-locks + re-checks status (PR feedback): this is the
-            # third way `_end_timed_session` can be reached, alongside
-            # `check_and_expire_if_needed`/`end_session_manually`, which
-            # already guard against a concurrent transition the same
-            # way. Without it, a manual "end now"/expiry racing ahead of
-            # this request's own final-answer submission could already
-            # have transitioned the session by the time this branch
-            # runs, and unconditionally completing it here would
-            # clobber that with a second, contradictory
-            # `TIMED_SESSION_ENDED` event.
-            db.refresh(quiz, with_for_update=True)
-            if quiz.status == QuizSessionStatus.IN_PROGRESS:
-                _end_timed_session(
-                    db,
-                    session=quiz,
-                    session_type="quiz",
-                    status=QuizSessionStatus.COMPLETED,
-                    end_reason="completed",
-                )
-        else:
-            quiz.status = QuizSessionStatus.COMPLETED
-            quiz.completed_at = datetime.datetime.now(datetime.UTC)
-            db.flush()
+        _complete_quiz_if_in_progress(db, quiz=quiz)
 
 
 @dataclass(frozen=True)

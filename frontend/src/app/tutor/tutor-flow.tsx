@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   endTutorSession,
   getDemoLearner,
@@ -24,6 +25,13 @@ import { formatTopicId } from "@/lib/format-topic-id";
 type Phase = "loading" | "picking" | "opening" | "chatting" | "error";
 
 export default function TutorFlow() {
+  const searchParams = useSearchParams();
+  // spec 044 FR-020 (US4): only Dashboard's own subject-scoped link
+  // carries this today (Nav.tsx's plain "Tutor" entries carry no
+  // subject, per FR-019/FR-023) -- its presence alone means "skip the
+  // picker," no separate autostart flag needed.
+  const urlSubjectId = searchParams.get("subject");
+
   const [phase, setPhase] = useState<Phase>("loading");
   const [learnerId, setLearnerId] = useState<string | null>(null);
   const [subjects, setSubjects] = useState<SubjectSummary[]>([]);
@@ -33,21 +41,42 @@ export default function TutorFlow() {
   const [topicPreview, setTopicPreview] = useState<TopicPriorityPreview | null>(null);
   const [sessionSources, setSessionSources] = useState<TutorRetrievedPassage[]>([]);
 
+  const openSession = useCallback(async (currentLearnerId: string, subjectId: string) => {
+    setPhase("opening");
+    try {
+      const session = await openTutorSession(currentLearnerId, subjectId);
+      setSessionId(session.session_id);
+      setPhase("chatting");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setPhase("error");
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
+    let resolvedLearnerId: string | null = null;
     // spec 041 FR-016: a guardian's real-learner session resolves
     // `learnerId` here instead of the demo learner.
     const realSession = getRealLearnerSession();
     (realSession ? Promise.resolve({ learner_id: realSession.learnerId }) : getDemoLearner())
       .then((learner) => {
         if (cancelled) return undefined;
+        resolvedLearnerId = learner.learner_id;
         setLearnerId(learner.learner_id);
         return getSubjects();
       })
       .then((subjectsResponse) => {
         if (cancelled || !subjectsResponse) return;
         setSubjects(subjectsResponse.subjects);
-        setSelectedSubjectId(subjectsResponse.subjects[0]?.subject_id ?? null);
+        const subjectId = urlSubjectId ?? subjectsResponse.subjects[0]?.subject_id ?? null;
+        setSelectedSubjectId(subjectId);
+        // spec 044 FR-020 (US4): skip the picker entirely when arriving
+        // with a subject already chosen.
+        if (urlSubjectId && subjectId && resolvedLearnerId) {
+          void openSession(resolvedLearnerId, subjectId);
+          return;
+        }
         setPhase("picking");
       })
       .catch((error: unknown) => {
@@ -58,19 +87,11 @@ export default function TutorFlow() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [urlSubjectId, openSession]);
 
   async function handleStart() {
     if (!learnerId || !selectedSubjectId) return;
-    setPhase("opening");
-    try {
-      const session = await openTutorSession(learnerId, selectedSubjectId);
-      setSessionId(session.session_id);
-      setPhase("chatting");
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : String(error));
-      setPhase("error");
-    }
+    await openSession(learnerId, selectedSubjectId);
   }
 
   // 027-learner-ui-redesign, gap-closing pass: backs the mockup's "New
@@ -161,7 +182,12 @@ export default function TutorFlow() {
             </button>
           </div>
           <div className="flex-grow p-7">
-            <TutorChat key={sessionId} sessionId={sessionId} onSourcesChange={setSessionSources} />
+            <TutorChat
+              key={sessionId}
+              sessionId={sessionId}
+              onSourcesChange={setSessionSources}
+              currentTopicDisplayName={topicPreview?.next_topic.display_name}
+            />
           </div>
         </section>
 
@@ -234,7 +260,10 @@ export default function TutorFlow() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8" data-testid="tutor-start-form">
+    <div
+      className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-8"
+      data-testid="tutor-start-form"
+    >
       <h1 className="font-heading text-[32px] font-bold text-heading">Ask the Tutor</h1>
       {subjects.length > 1 && (
         <label className="flex flex-col gap-1">

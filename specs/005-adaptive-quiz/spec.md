@@ -25,6 +25,12 @@ completion"
 - Q: For a quiz spanning multiple topics, should questions cycle through the chosen topics in round-robin order rather than finishing all of one topic's questions before moving to the next? → A: Round-robin -- cycle through the chosen topics in the order selected, one question per topic per cycle, so every topic's per-topic streak stays live throughout the quiz rather than only mattering within an uninterrupted block.
 - Q: If the near-duplication check keeps failing after a bounded number of retries for a topic, should the quiz end early in a defined "ended early" state rather than ever serving a near-duplicate question? → A: Yes -- the quiz session moves to a new `ended_early` status once retries are exhausted for a topic; questions already answered before that point still count normally toward mastery state (FR-006), keeping SC-004's zero-near-duplicate guarantee absolute rather than falling back to Milestone 1's best-effort behavior.
 
+### Session 2026-10-12
+
+- Q: How should the near-duplicate check be changed so two questions sharing the same phrasing template but with different numbers (e.g. "(x - 3)(x + 7) = 0" vs "(x - 2)(x + 5) = 0") stop being flagged as duplicates, while still catching real duplicates? → A: Switch to pgvector embedding similarity -- compare candidate question stems via semantic embedding similarity (the pgvector infrastructure live since Milestone 9's Tutor Agent) instead of raw text similarity. A text-level check (difflib ratio) was confirmed to false-positive on two legitimately distinct questions that share a phrasing template and differ only in their numbers, which is the common case for consecutive same-topic, same-difficulty generations and disproportionately starves single-topic quizzes (every assignment-driven quiz) of fresh questions. This reverses Milestone 1's original "no embeddings for this, premature infrastructure" research-phase decision (spec 001-domain-agnostic-core, research.md §3) now that the infrastructure is no longer premature -- it has been live in production since Milestone 9.
+- Q: Should the bounded retry count before a quiz gives up and moves to `ended_early` (`max_dedup_attempts`, carried over unexamined from Milestone 1 at 3) change now that the comparison itself is moving to embeddings? → A: Raise it, from 3 to 5 -- extra defense-in-depth headroom for topics with a genuinely narrow problem space, on top of (not instead of) the embedding-similarity fix.
+- Q: Should SC-004's automated zero-near-duplicate test be required to cover the specific false-positive pattern that caused this bug (same phrasing template, different numbers), not just fully-distinct mocked stems? → A: Yes -- the existing test suite only exercises guaranteed-distinct UUID-suffixed mock stems and structurally cannot catch this class of regression; add explicit coverage asserting same-template/different-number stems are correctly judged not-near-duplicate under the embedding-based check.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Take a quiz that gets harder or easier as you go (Priority: P1)
@@ -242,10 +248,24 @@ error.
   per-topic-configurable).
 - **FR-008**: Questions within a single quiz session MUST guarantee zero
   near-duplication, at least as strict as Milestone 1's cross-session
-  near-duplication rule (FR-008). If a fresh, distinct question cannot be
-  generated for a topic after a bounded number of retries, the quiz MUST
-  move to a defined `ended_early` state rather than ever serving a
-  near-duplicate question (Clarifications, 2026-08-18).
+  near-duplication rule (FR-008). The near-duplication check MUST compare
+  candidate question stems via semantic embedding similarity (pgvector),
+  not raw text similarity -- a text-level check false-positives on two
+  legitimately distinct questions that share a phrasing template and
+  differ only in their numeric values, which disproportionately starves
+  single-topic quizzes of fresh questions (Clarifications, 2026-10-12).
+  This embedding applies uniformly to every `GeneratedQuestion` row
+  regardless of originating flow (practice, placement, or quiz) --
+  since FR-008's lookback window counts a learner+topic's last 5
+  generated questions regardless of which flow produced them, a row
+  left without an embedding would be silently excluded from every
+  future comparison, narrowing coverage versus the pre-fix behavior
+  (`/speckit-analyze` finding U1, 2026-10-12).
+  If a fresh, distinct question cannot be generated for a topic after 5
+  retries (raised from Milestone 1's unexamined default of 3,
+  Clarifications, 2026-10-12), the quiz MUST move to a defined
+  `ended_early` state rather than ever serving a near-duplicate question
+  (Clarifications, 2026-08-18).
 - **FR-009**: Every in-quiz difficulty-adjustment decision MUST be
   logged and traced per Constitution Principle V, the same standard as
   any other agent decision on this platform. The logged record MUST
@@ -295,7 +315,15 @@ error.
 - **SC-004**: Zero near-duplicate questions occur within any single quiz
   session across the test suite, verified by an automated check using
   the same similarity criteria as Milestone 1's cross-session
-  near-duplication check (FR-008, checklist review 2026-08-18).
+  near-duplication check (FR-008, checklist review 2026-08-18). The test
+  suite MUST include a case using same-phrasing-template,
+  different-number stems (not only fully-distinct mocked stems),
+  asserting the embedding-based check correctly judges them
+  not-near-duplicate -- the specific false-positive pattern that
+  previously caused single-topic quizzes to exhaust retries and end
+  early after 1-2 questions (Clarifications, 2026-10-12).
+- Q: The dedup function being fixed (`is_near_duplicate`/`recent_stems_for_topic`) is shared code also used outside quizzes, by ordinary practice/placement question generation (Milestone 1, spec 001's own FR-008). Should the embedding-similarity switch apply there too, or only to the quiz code path? → A: Apply to both, same shared function -- spec 001-domain-agnostic-core's research.md deliberately reuses one dedup function everywhere ("zero new dedup code"); forking a quiz-only copy would create two divergent near-duplicate definitions on the platform. Practice/placement get the same false-positive fix as a side effect of keeping that one-function invariant. Follow-up: specs/001-domain-agnostic-core/spec.md's own FR-008 needs a matching clarification recording this metric change -- out of scope for this session (scoped to spec 005 only), flagged for a separate `/speckit-clarify` pass (completed same-day in spec 001's own 2026-10-12 session).
+- Q: What cosine-similarity cutoff should the new pgvector-based near-duplicate check use to flag two question stems as duplicates? → A: Pick an initial value during planning/implementation (e.g. 0.92), not spec-mandated -- same posture Milestone 1 originally took with difflib's 0.85 ("trivially tunable later"), but this time paired with SC-004's new same-template/different-number test case so a miscalibrated value fails a test instead of surfacing live again.
 - **SC-005**: An abandoned quiz session, deliberately stopped partway in
   a test, is confirmed to have already updated mastery state for every
   question answered before the stop.
@@ -329,6 +357,12 @@ error.
   subject/topic they choose themselves; instructor-assigned quizzes
   would be a natural extension of the instructor-classroom milestone if
   wanted later, not built here.
+- The near-duplication check (FR-008) is shared code with Milestone 1's
+  own cross-session rule, not a quiz-specific fork of it -- the
+  embedding-similarity fix (Clarifications, 2026-10-12) changes that one
+  shared function, so ordinary (non-quiz) practice/placement question
+  generation gets the same fix as a side effect, consistent with
+  Milestone 1's original "reuse, don't duplicate" dedup design.
 - This milestone depends on Milestone 1 (Assessment-Generation Agent,
   content-artifact difficulty bands) only. It does not require the
   Recommendation Agent, the personalization-evaluation harness,
