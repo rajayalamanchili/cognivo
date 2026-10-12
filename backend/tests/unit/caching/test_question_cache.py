@@ -82,7 +82,7 @@ async def _get_or_generate(db_session, *, topic_id, avoid_stems=(), generated_st
         calls["count"] += 1
         return _draft(generated_stem)
 
-    draft, outcome = await get_or_generate_question(
+    draft, outcome, _embedding = await get_or_generate_question(
         db_session,
         subject_id="algebra-1",
         topic_id=topic_id,
@@ -116,7 +116,10 @@ async def test_non_duplicate_pool_entry_is_a_hit_without_calling_generator(
     db_session, algebra_subject
 ):
     row = _add_pool_row(
-        db_session, topic_id="variables-and-expressions", stem="What is x in 2x = 4?"
+        db_session,
+        topic_id="variables-and-expressions",
+        stem="What is x in 2x = 4?",
+        stem_embedding=_embedding(1),
     )
     db_session.commit()
 
@@ -127,6 +130,32 @@ async def test_non_duplicate_pool_entry_is_a_hit_without_calling_generator(
     assert outcome.cache_entry_id == row.cache_entry_id
     assert generate_calls == 0
     assert draft.stem == "What is x in 2x = 4?"
+
+
+async def test_pool_entry_with_no_embedding_is_never_served_as_a_hit(
+    db_session, algebra_subject
+):
+    """A row with no `stem_embedding` (a pre-migration row, or one
+    written during a Voyage outage) must not be served from the cache,
+    even when nothing in `avoid_stems` matches it -- `is_near_duplicate`
+    alone can't tell the difference between "checked, not a duplicate"
+    and "never checked at all" (review finding, PR #113)."""
+    _add_pool_row(
+        db_session,
+        topic_id="variables-and-expressions",
+        stem="a pre-migration row with no embedding",
+        stem_embedding=None,
+    )
+    db_session.commit()
+
+    draft, outcome, generate_calls = await _get_or_generate(
+        db_session,
+        topic_id="variables-and-expressions",
+        generated_stem="freshly generated instead",
+    )
+    assert outcome.hit is False
+    assert generate_calls == 1
+    assert draft.stem == "freshly generated instead"
 
 
 async def test_all_pool_entries_near_duplicate_of_avoid_stems_is_a_miss(
@@ -280,6 +309,7 @@ async def test_multi_step_pool_entry_round_trips_its_steps(db_session, algebra_s
         generation_prompt_version=GENERATION_PROMPT_VERSION,
         question_type=QuestionType.MULTI_STEP,
         stem="Solve for x: 3x + 2 = 14",
+        stem_embedding=_embedding(2),
         options=None,
         answer_key={
             "steps": [

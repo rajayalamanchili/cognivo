@@ -44,7 +44,6 @@ from src.services.cache_common.outcome import CacheOutcome
 from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import (
     DEFAULT_MAX_DEDUP_ATTEMPTS,
-    embed_stem_or_none,
     is_near_duplicate,
     recent_stems_for_topic,
 )
@@ -54,7 +53,6 @@ from src.services.quiz.difficulty import (
     next_difficulty,
     replay_topic_state,
 )
-
 
 # Spec 022 FR-001/Assumptions: a small fixed preset (15/30/45/60
 # minutes), not an arbitrary custom duration -- shared by both
@@ -414,7 +412,7 @@ async def generate_quiz_question(
     content_version = db.get(Subject, quiz.subject_id).content_version
 
     for _ in range(max_dedup_attempts):
-        draft, cache_outcome = await get_or_generate_question(
+        draft, cache_outcome, candidate_embedding = await get_or_generate_question(
             db,
             subject_id=quiz.subject_id,
             topic_id=topic_id,
@@ -433,7 +431,11 @@ async def generate_quiz_question(
                 image_alt_text=image_alt_text,
             ),
         )
-        candidate_embedding = embed_stem_or_none(draft.stem)
+        # `candidate_embedding` comes from `get_or_generate_question`
+        # itself now (the pool row's stored embedding on a hit, the
+        # one just computed for the fresh write on a miss) -- no
+        # second Voyage call for a stem that was just embedded there
+        # (review finding, PR #113).
         if not is_near_duplicate(candidate_embedding, recent_stems):
             if cache_outcome.hit:
                 # Spec 015 FR-013 clarification: this path records no

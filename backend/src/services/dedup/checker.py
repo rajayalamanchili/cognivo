@@ -10,10 +10,10 @@ different factored quadratics), disproportionately starving
 single-topic quizzes of fresh questions.
 """
 
+import asyncio
 import logging
 import math
 import os
-import time
 import uuid
 from collections.abc import Sequence
 
@@ -26,16 +26,31 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LOOKBACK = 5
 # Cosine similarity, not a difflib text ratio (was 0.85) -- same name,
-# new value and meaning. Implementer-chosen starting point per
-# Clarifications 2026-10-12, not derived from a calibration study,
-# backstopped by this module's own true-negative/true-positive tests.
+# new value and meaning. `scripts/validate_dedup_threshold.py` checked
+# this against real `voyage/voyage-3` embeddings (review finding, PR
+# #113): same-template/different-number pairs (the exact false positive
+# this amendment targets, e.g. "factor x^2+5x+6" vs "factor x^2+7x+12")
+# scored 0.50-0.67, well clear of 0.92 in both directions -- the fix
+# works as intended. One real ceiling found by that same run, not fixed
+# here: a same-meaning paraphrase ("what is -3+5?" vs "what is the sum
+# of -3 and 5?") scored 0.89, just under threshold, so a paraphrased
+# repeat of a recent question can still slip through as "fresh." Lower
+# the threshold if that matters more than the false-positive risk a
+# lower value reopens.
 DEFAULT_SIMILARITY_THRESHOLD = 0.92
 # Raised from 3 (Clarifications, 2026-10-12) -- shared by every caller
 # instead of each defining its own independent literal.
 DEFAULT_MAX_DEDUP_ATTEMPTS = 5
 
+# Async + a short backoff, not a blocking `time.sleep(2)` (review finding,
+# PR #113) -- this call sits on the request path, inside a loop that can
+# run up to `DEFAULT_MAX_DEDUP_ATTEMPTS` times per question. Same
+# MAX_ATTEMPTS/backoff shape as `services/retrieval/passage_search.py`'s
+# `_embed_query`: one retry only, since a sustained rate limit needs the
+# caller to pace requests, not a longer wait here (T038 finding,
+# roadmap.md).
 MAX_EMBED_ATTEMPTS = 2
-EMBED_RETRY_DELAY_SECONDS = 2
+EMBED_RETRY_DELAY_SECONDS = 0.2
 
 
 class EmbeddingUnavailableError(Exception):
@@ -45,7 +60,7 @@ class EmbeddingUnavailableError(Exception):
     `services/misconception/embed.py`'s error of the same name."""
 
 
-def embed_stem(stem: str) -> list[float]:
+async def embed_stem(stem: str) -> list[float]:
     """Embeds one question stem for near-duplicate comparison. Own small
     wrapper, not a shared cross-module helper -- matches this project's
     established convention (`misconception/embed.py`'s docstring):
@@ -54,16 +69,16 @@ def embed_stem(stem: str) -> list[float]:
     last_error: Exception | None = None
     for attempt in range(MAX_EMBED_ATTEMPTS):
         try:
-            response = litellm.embedding(model=model_name, input=[stem])
+            response = await litellm.aembedding(model=model_name, input=[stem])
             return response.data[0]["embedding"]
         except Exception as exc:  # noqa: BLE001 -- any provider failure retries, then surfaces
             last_error = exc
             if attempt < MAX_EMBED_ATTEMPTS - 1:
-                time.sleep(EMBED_RETRY_DELAY_SECONDS)
+                await asyncio.sleep(EMBED_RETRY_DELAY_SECONDS)
     raise EmbeddingUnavailableError() from last_error
 
 
-def embed_stem_or_none(stem: str) -> list[float] | None:
+async def embed_stem_or_none(stem: str) -> list[float] | None:
     """`embed_stem`, failing open to `None` (logged) instead of raising --
     the shape every dedup-check and persist-time call site wants
     (research.md §10): a near-duplicate check is a quality safeguard,
@@ -72,7 +87,7 @@ def embed_stem_or_none(stem: str) -> list[float] | None:
     from comparison by `is_near_duplicate`, never treated as a match or
     non-match."""
     try:
-        return embed_stem(stem)
+        return await embed_stem(stem)
     except EmbeddingUnavailableError:
         logger.warning("dedup: embedding unavailable, failing open for stem dedup/storage")
         return None

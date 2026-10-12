@@ -114,11 +114,16 @@ async def get_or_generate_question(
     generation_prompt_version: str,
     generate_fn: Callable[[], Awaitable[GeneratedQuestionDraft]],
     avoid_stems: Sequence[tuple[str, list[float] | None]] = (),
-) -> tuple[GeneratedQuestionDraft, CacheOutcome]:
+) -> tuple[GeneratedQuestionDraft, CacheOutcome, list[float] | None]:
     """Serves a pool hit (a previously-validated draft not near-duplicate
     of `avoid_stems`) or calls `generate_fn()` and stores its result as a
     new pool entry, evicting the oldest once the pool would exceed
     `POOL_SIZE` for this exact key (FR-012).
+
+    The third return value is the draft's own stem embedding -- the
+    row's already-stored one on a hit, the one just computed for the
+    fresh write on a miss -- so callers never re-embed a stem that was
+    already embedded here (review finding, PR #113).
 
     Fails open (FR-008): any exception during the lookup is treated as a
     miss (`reason="storage_failure"`), never raised -- `generate_fn()`
@@ -145,8 +150,20 @@ async def get_or_generate_question(
             .filter(*filters, QuestionGenerationCache.created_at > fresh_cutoff)
             .all()
         )
+        # A row with no embedding (pre-migration, or written during a
+        # Voyage outage) is excluded outright rather than treated as
+        # "not a duplicate" -- `is_near_duplicate(None, ...)` already
+        # returns False for it, which previously let it bypass the dedup
+        # check entirely instead of just being unable to run it (review
+        # finding, PR #113: this is exactly the outage window where a
+        # silent bypass matters most). Such a row is simply never served
+        # as a hit; a miss falls through to fresh generation, which has
+        # its own fail-open dedup check.
         candidates = [
-            row for row in pool_rows if not is_near_duplicate(row.stem_embedding, avoid_stems)
+            row
+            for row in pool_rows
+            if not is_near_duplicate(row.stem_embedding, avoid_stems)
+            and row.stem_embedding is not None
         ]
     except Exception:  # noqa: BLE001 -- any lookup failure fails open (FR-008)
         storage_failed = True
@@ -156,11 +173,16 @@ async def get_or_generate_question(
         row.hit_count += 1
         row.last_served_at = datetime.datetime.now(datetime.UTC)
         db.flush()
-        return _draft_from_cache_row(row), CacheOutcome(hit=True, cache_entry_id=row.cache_entry_id)
+        return (
+            _draft_from_cache_row(row),
+            CacheOutcome(hit=True, cache_entry_id=row.cache_entry_id),
+            row.stem_embedding,
+        )
 
     miss_reason = "storage_failure" if storage_failed else "no_matching_entry"
 
     draft = await generate_fn()
+    stem_embedding = await embed_stem_or_none(draft.stem)
 
     try:
         answer_key = draft_to_answer_key(draft)
@@ -172,7 +194,7 @@ async def get_or_generate_question(
             generation_prompt_version=generation_prompt_version,
             question_type=QuestionType(draft.question_type),
             stem=draft.stem,
-            stem_embedding=embed_stem_or_none(draft.stem),
+            stem_embedding=stem_embedding,
             options=draft.options,
             answer_key=answer_key,
             question_signature=compute_question_signature(draft.stem, answer_key),
@@ -183,4 +205,4 @@ async def get_or_generate_question(
     except Exception:  # noqa: BLE001 -- best-effort write, never blocks the request (FR-008)
         pass
 
-    return draft, CacheOutcome(hit=False, reason=miss_reason)
+    return draft, CacheOutcome(hit=False, reason=miss_reason), stem_embedding

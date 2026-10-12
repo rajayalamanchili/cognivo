@@ -37,7 +37,6 @@ from src.services.content_artifact.image_asset import content_image_url
 from src.services.dedup.checker import (
     DEFAULT_LOOKBACK,
     DEFAULT_MAX_DEDUP_ATTEMPTS,
-    embed_stem_or_none,
     is_near_duplicate,
     recent_stems_for_topic,
 )
@@ -464,7 +463,7 @@ async def generate_next_question(
     cache_outcome = CacheOutcome(hit=False)
     candidate_embedding: list[float] | None = None
     for _ in range(max_dedup_attempts):
-        draft, cache_outcome = await get_or_generate_question(
+        draft, cache_outcome, candidate_embedding = await get_or_generate_question(
             db,
             subject_id=subject_id,
             topic_id=selection.topic_id,
@@ -483,7 +482,9 @@ async def generate_next_question(
                 image_alt_text=image_alt_text,
             ),
         )
-        candidate_embedding = embed_stem_or_none(draft.stem)
+        # Embedding comes from `get_or_generate_question` itself now --
+        # no second Voyage call for a stem just embedded there (review
+        # finding, PR #113).
         if not is_near_duplicate(candidate_embedding, recent_stems):
             break
 
