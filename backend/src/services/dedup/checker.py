@@ -52,12 +52,20 @@ DEFAULT_MAX_DEDUP_ATTEMPTS = 5
 MAX_EMBED_ATTEMPTS = 2
 EMBED_RETRY_DELAY_SECONDS = 0.2
 
+# Matches `GeneratedQuestion.EMBEDDING_DIMENSION`/`QuestionGenerationCache.
+# EMBEDDING_DIMENSION` (migration `aac4988c05db`'s `vector(1024)`
+# columns), each independently defined there rather than shared, per
+# this module's own `misconception/embed.py`-style convention.
+STEM_EMBEDDING_DIMENSION = 1024
+
 
 class EmbeddingUnavailableError(Exception):
-    """Every attempt to embed the given stem failed (e.g. a transient
-    network error, or a Voyage rate-limit/billing rejection) -- mirrors
-    `services/retrieval/passage_search.py`'s and
-    `services/misconception/embed.py`'s error of the same name."""
+    """Every attempt to embed the given stem failed -- a transient
+    network error, a Voyage rate-limit/billing rejection, or (review
+    finding, PR #113) a response whose dimension doesn't match
+    `STEM_EMBEDDING_DIMENSION`. Mirrors `services/retrieval/
+    passage_search.py`'s and `services/misconception/embed.py`'s error
+    of the same name."""
 
 
 async def embed_stem(stem: str) -> list[float]:
@@ -66,25 +74,25 @@ async def embed_stem(stem: str) -> list[float]:
     established convention (`misconception/embed.py`'s docstring):
     same-model reuse via `litellm`, not a shared private function.
 
-    `GeneratedQuestion.stem_embedding`/`QuestionGenerationCache.
-    stem_embedding` are both `vector(1024)` (migration
-    `aac4988c05db`), matching `voyage/voyage-3`'s output dimension.
-    Pointing `TUTOR_EMBEDDING_MODEL` at a model with a *different*
-    output dimension breaks this at the DB layer, not gracefully: a
-    pgvector dimension mismatch raises on insert for the real,
-    required `GeneratedQuestion` write (`session.py`/`agent.py`/
-    `placement.py`'s persist paths have no fail-open around that
-    insert, unlike `cache.py`'s best-effort pool write). Comparing two
-    *already-stored* mismatched-dimension embeddings fails open to
-    "not similar" (`_cosine_similarity`), but writing a new one of the
-    wrong dimension does not -- changing the model requires a new
-    migration to resize the column first (review finding, PR #113)."""
+    `TUTOR_EMBEDDING_MODEL` is shared with the Tutor retrieval path
+    (`passage_search.py`), so a validated dimension mismatch here (e.g.
+    someone retunes that var to a model with a different output size)
+    raises the same way a provider outage does, rather than returning a
+    vector that would later fail the real, required `GeneratedQuestion`
+    insert (`vector(1024)`, no fail-open there unlike `cache.py`'s
+    best-effort pool write) -- review finding, PR #113."""
     model_name = os.environ.get("TUTOR_EMBEDDING_MODEL", "voyage/voyage-3")
     last_error: Exception | None = None
     for attempt in range(MAX_EMBED_ATTEMPTS):
         try:
             response = await litellm.aembedding(model=model_name, input=[stem])
-            return response.data[0]["embedding"]
+            embedding = response.data[0]["embedding"]
+            if len(embedding) != STEM_EMBEDDING_DIMENSION:
+                raise EmbeddingUnavailableError(
+                    f"{model_name} returned a {len(embedding)}-dim embedding, "
+                    f"expected {STEM_EMBEDDING_DIMENSION}"
+                )
+            return embedding
         except Exception as exc:  # noqa: BLE001 -- any provider failure retries, then surfaces
             last_error = exc
             if attempt < MAX_EMBED_ATTEMPTS - 1:

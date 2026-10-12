@@ -179,3 +179,26 @@ def test_unenroll_by_unrelated_guardian_returns_403(client, algebra_subject):
     delete = client.delete(f"/api/rosters/{roster_id}/enrollments/{learner_id}")
     assert delete.status_code == 403
     assert delete.json() == {"detail": "not_learner_guardian"}
+
+
+def test_unenroll_learner_never_enrolled_in_that_roster_is_a_clean_no_op(
+    client, db_session, algebra_subject
+):
+    """Review finding, PR #113: the guardian path checks learner
+    ownership but not whether an `Enrollment` row actually exists for
+    this `(roster_id, learner_id)` pair -- `unenroll()`'s bulk
+    `.delete()` matching zero rows is already a no-op (FR-007a), not an
+    error, so the route must still 204 cleanly rather than 404/500."""
+    _register_instructor(client, "teacher5@example.com")
+    roster_id, _join_code = _create_open_roster(client, algebra_subject)
+
+    client.post("/api/auth/logout")
+    _, learner_id = _register_guardian_with_learner(client, "parent5@example.com")
+    # Deliberately never joined -- no Enrollment row for this roster.
+
+    delete = client.delete(f"/api/rosters/{roster_id}/enrollments/{learner_id}")
+    assert delete.status_code == 204, delete.text
+
+    learner = db_session.get(LearnerProfile, uuid.UUID(learner_id))
+    assert learner is not None
+    assert learner.display_name == "Jamie"

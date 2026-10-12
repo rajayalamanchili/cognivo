@@ -18,6 +18,7 @@ would just be a stale copy of already-deterministic data.
 """
 
 import datetime
+import logging
 import random
 from collections.abc import Awaitable, Callable, Sequence
 
@@ -34,6 +35,8 @@ from src.models.question_generation_cache import QuestionGenerationCache
 from src.services.cache_common.outcome import CacheOutcome
 from src.services.cache_common.signature import compute_question_signature
 from src.services.dedup.checker import embed_stem_or_none, is_near_duplicate
+
+logger = logging.getLogger(__name__)
 
 POOL_SIZE = 5
 FRESHNESS_WINDOW_HOURS = 24
@@ -185,24 +188,32 @@ async def get_or_generate_question(
     stem_embedding = await embed_stem_or_none(draft.stem)
 
     try:
-        answer_key = draft_to_answer_key(draft)
-        new_row = QuestionGenerationCache(
-            subject_id=subject_id,
-            topic_id=topic_id,
-            difficulty=difficulty,
-            content_version=content_version,
-            generation_prompt_version=generation_prompt_version,
-            question_type=QuestionType(draft.question_type),
-            stem=draft.stem,
-            stem_embedding=stem_embedding,
-            options=draft.options,
-            answer_key=answer_key,
-            question_signature=compute_question_signature(draft.stem, answer_key),
-        )
-        db.add(new_row)
-        db.flush()
-        _evict_oldest_beyond_pool_size(db, filters)
-    except Exception:  # noqa: BLE001 -- best-effort write, never blocks the request (FR-008)
-        pass
+        # A SAVEPOINT (`begin_nested`), not a bare try/flush -- if this
+        # write fails (e.g. a pgvector error on `stem_embedding`), a
+        # plain `except: pass` would leave the session itself in a
+        # failed/needs-rollback state, silently breaking the caller's
+        # own subsequent, required `GeneratedQuestion` insert in the
+        # same transaction. Rolling back to the savepoint undoes only
+        # this best-effort write (review finding, PR #113).
+        with db.begin_nested():
+            answer_key = draft_to_answer_key(draft)
+            new_row = QuestionGenerationCache(
+                subject_id=subject_id,
+                topic_id=topic_id,
+                difficulty=difficulty,
+                content_version=content_version,
+                generation_prompt_version=generation_prompt_version,
+                question_type=QuestionType(draft.question_type),
+                stem=draft.stem,
+                stem_embedding=stem_embedding,
+                options=draft.options,
+                answer_key=answer_key,
+                question_signature=compute_question_signature(draft.stem, answer_key),
+            )
+            db.add(new_row)
+            db.flush()
+            _evict_oldest_beyond_pool_size(db, filters)
+    except Exception as exc:  # noqa: BLE001 -- best-effort write, never blocks the request (FR-008)
+        logger.warning("question cache write failed, continuing without caching: %s", exc)
 
     return draft, CacheOutcome(hit=False, reason=miss_reason), stem_embedding
