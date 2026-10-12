@@ -195,3 +195,29 @@ LLM call.
 **Alternatives considered**: None -- the spec's Assumptions already ruled
 out an LLM-generated prompt set ("this does not require a new Tutor Agent
 capability or LLM call to generate prompts").
+
+## 8. Removing a subject (Story 7, amendment 2026-10-12)
+
+**Decision**: Reuse `DELETE /api/rosters/{roster_id}/enrollments/{learner_id}`
+(`api/routes/rosters.py:540`, `services/roster/enrollment.py`'s
+`unenroll()`) and the frontend's existing `unenrollLearner(rosterId,
+learnerId)` (`services/api.ts:1178`) verbatim. Both already exist from an
+earlier spec (cited internally as "FR-007a") and already do exactly what
+FR-034-FR-037 need: delete only the `Enrollment` row, leave every other
+table untouched, and permit reaching zero enrollments. The guardian-caller
+branch of `delete_enrollment_route`'s ownership check (`claims.
+account_type` not `instructor`/`demo_instructor` -> `learner.guardian_id
+== claims.account_id`) already matches FR-034's gating need exactly.
+
+**Rationale**: Zero duplication of an already-correct, already-tested
+capability. The only actual gap was the frontend: `unenrollLearner` is
+called from the instructor-side roster-management flow
+(`rosters-flow.tsx:341`) but nothing on the guardian side
+(`GuardianLearnerCard.tsx`) ever calls it.
+
+**Alternatives considered**: A new guardian-specific endpoint (e.g. `DELETE
+/api/learners/{learner_id}/enrollments/{roster_id}`) was considered for a
+guardian-scoped URL shape symmetric with `GET /api/learners/mine`, but
+rejected -- it would duplicate `unenroll()`'s exact logic and ownership
+semantics behind a second route for no behavioral difference, the kind of
+decorative split this codebase's own conventions avoid.

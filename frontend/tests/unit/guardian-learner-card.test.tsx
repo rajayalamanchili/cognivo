@@ -7,7 +7,7 @@
 // switching/chrome logic, not re-testing each child's already-tested
 // internals.
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuardianLearnerCard from "@/components/GuardianLearnerCard";
 import * as api from "@/services/api";
@@ -25,6 +25,7 @@ vi.mock("@/services/api", async () => {
     getActivitySummary: vi.fn(),
     getTopicPriorityPreview: vi.fn(),
     listLearnerEnrollments: vi.fn(),
+    unenrollLearner: vi.fn(),
   };
 });
 
@@ -244,5 +245,99 @@ describe("GuardianLearnerCard", () => {
     expect(screen.getByRole("button", { name: /start practice/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /start practice/i }));
     expect(push).toHaveBeenCalledWith("/practice?subject=algebra-1&autostart=1");
+  });
+
+  it("spec 044 FR-034/FR-035 (US7): Remove shows a confirmation; canceling leaves every tab unchanged; confirming calls unenrollLearner and removes only that tab", async () => {
+    vi.mocked(api.unenrollLearner).mockResolvedValue(undefined);
+    const onEnrollmentsChanged = vi.fn();
+
+    const { rerender } = render(
+      <GuardianLearnerCard
+        learnerId="learner-1"
+        displayName="Eli"
+        enrollments={[
+          { roster_id: "r1", subject_id: "algebra-1", grade: 7 },
+          { roster_id: "r2", subject_id: "biology", grade: null },
+          { roster_id: "r3", subject_id: "chemistry", grade: null },
+        ]}
+        onEnrollmentsChanged={onEnrollmentsChanged}
+      />,
+    );
+    await screen.findByTestId("stub-standards");
+
+    fireEvent.click(screen.getByRole("button", { name: /remove/i }));
+    const dialog = screen.getByTestId("remove-subject-dialog");
+    expect(dialog).toHaveTextContent(/Remove Eli from Algebra 1/i);
+
+    // Canceling leaves the card untouched.
+    fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
+    expect(screen.queryByTestId("remove-subject-dialog")).not.toBeInTheDocument();
+    expect(api.unenrollLearner).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: /algebra 1/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /biology/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /chemistry/i })).toBeInTheDocument();
+
+    // Confirming calls the existing unenrollLearner client function.
+    fireEvent.click(screen.getByRole("button", { name: /remove/i }));
+    const confirmDialog = screen.getByTestId("remove-subject-dialog");
+    fireEvent.click(within(confirmDialog).getByRole("button", { name: /remove/i }));
+
+    await waitFor(() => expect(api.unenrollLearner).toHaveBeenCalledWith("r1", "learner-1"));
+    expect(onEnrollmentsChanged).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByTestId("remove-subject-dialog")).not.toBeInTheDocument(),
+    );
+
+    // Parent re-fetches `GET /api/learners/mine` and passes the shrunk
+    // list down -- every other enrollment's tab is still present.
+    rerender(
+      <GuardianLearnerCard
+        learnerId="learner-1"
+        displayName="Eli"
+        enrollments={[
+          { roster_id: "r2", subject_id: "biology", grade: null },
+          { roster_id: "r3", subject_id: "chemistry", grade: null },
+        ]}
+        onEnrollmentsChanged={onEnrollmentsChanged}
+      />,
+    );
+    expect(screen.queryByRole("tab", { name: /algebra 1/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /biology/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /chemistry/i })).toBeInTheDocument();
+  });
+
+  it("spec 044 FR-037 (US7): removing a learner's last remaining subject reverts the card to the zero-enrollment state", async () => {
+    vi.mocked(api.unenrollLearner).mockResolvedValue(undefined);
+    const onEnrollmentsChanged = vi.fn();
+
+    const { rerender } = render(
+      <GuardianLearnerCard
+        learnerId="learner-1"
+        displayName="Eli"
+        enrollments={[{ roster_id: "r1", subject_id: "algebra-1", grade: 7 }]}
+        onEnrollmentsChanged={onEnrollmentsChanged}
+      />,
+    );
+    await screen.findByTestId("stub-standards");
+
+    fireEvent.click(screen.getByRole("button", { name: /remove/i }));
+    const dialog = screen.getByTestId("remove-subject-dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /remove/i }));
+
+    await waitFor(() => expect(api.unenrollLearner).toHaveBeenCalledWith("r1", "learner-1"));
+    expect(onEnrollmentsChanged).toHaveBeenCalled();
+
+    rerender(
+      <GuardianLearnerCard
+        learnerId="learner-1"
+        displayName="Eli"
+        enrollments={[]}
+        onEnrollmentsChanged={onEnrollmentsChanged}
+      />,
+    );
+
+    expect(screen.getByText("Not in a class yet")).toBeInTheDocument();
+    expect(screen.getByText("Join a class")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
   });
 });

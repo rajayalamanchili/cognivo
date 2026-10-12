@@ -195,10 +195,68 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 
 ---
 
+## Phase 9: User Story 7 - Removing a subject (Priority: P3, amendment 2026-10-12)
+
+**Goal**: A "Remove" action on each subject tab, confirmation-gated, that
+deletes the learner's `Enrollment` row for that roster via the
+already-existing backend endpoint and API client function (plan.md's
+amendment / research.md §8) -- zero new backend code.
+
+**Independent Test**: quickstart.md's "Story 7 -- Removing a subject"
+section.
+
+### Tests for User Story 7
+
+- [X] T056 [P] [US7] Test "Remove" action per subject tab: clicking it
+  shows a confirmation dialog; canceling leaves the card and all tabs
+  unchanged; confirming calls `unenrollLearner(rosterId, learnerId)` and
+  removes that tab while every other tab remains, in
+  `frontend/tests/unit/guardian-learner-card.test.tsx` (implementation
+  note: the file named here, `guardian-learners.test.tsx`, doesn't test
+  this component at all -- `guardian-learner-card.test.tsx` is the real
+  file, corrected during implementation).
+- [X] T057 [P] [US7] Test removing a learner's last remaining subject
+  reverts the card to the existing zero-enrollment "Not in a class yet"
+  state (FR-037), same file.
+- [X] T058 [P] [US7] Extend `backend/tests/integration/
+  test_roster_unenrollment.py` with a new
+  `test_unenroll_keeps_mastery_and_grade_progress_intact` test that seeds
+  a `MasteryState` row and a `GradeProgress` row for the learner/subject
+  before calling `DELETE /api/rosters/{roster_id}/enrollments/
+  {learner_id}`, then asserts both rows still exist afterward -- FR-036
+  names these two tables explicitly but the existing coverage only
+  re-checked `LearnerProfile` survival (`/speckit-analyze` finding F3).
+
+### Implementation for User Story 7
+
+- [X] T059 [US7] Add a "Remove" action to each subject tab in
+  `GuardianLearnerCard.tsx` (near "Add a subject"), opening a small
+  inline confirmation dialog -- not `LeaveGuardDialog.tsx` (Story 6's
+  dialog is keyed to unsaved-question state, a different concern per
+  plan.md's amendment) -- with copy per FR-035: "Remove {learner} from
+  {subject}? They'll need to rejoin to see it again." Also extended the
+  existing enrollments-changed effect (`GuardianLearnerCard.tsx`) to
+  reopen the join section when the array shrinks to zero (FR-037),
+  matching the zero-enrollment state's own initial-mount default --
+  needed once a real shrink-to-zero path existed to trigger it.
+- [X] T060 [US7] Wire the dialog's confirm action to call the existing
+  `unenrollLearner(rosterId, learnerId)` (`frontend/src/services/
+  api.ts:1178`, already used by `app/instructor/rosters/
+  rosters-flow.tsx:341`), then refetch/update the card's `enrollments`
+  list the same way T011's existing data flow already updates it after a
+  successful "Add a subject" join (FR-034, FR-036).
+
+**Checkpoint**: quickstart.md Story 7. All seven user stories
+independently functional.
+
+---
+
 ## Final Phase: Polish & Cross-Cutting Concerns
 
 - [X] T054 [P] Run the full existing `pytest` + `Vitest` suites; fix any regression surfaced by the `enrollments` shape change (T003/T005) or the two real-learner-gating additions (T021, T040).
 - [X] T055 Walk through quickstart.md's "Regression check" section manually: a single-enrollment learner's card, the demo learner's own Practice/Placement/Tutor flows, and assigned-quiz questions all behave exactly as before this feature.
+- [~] T061 [P] Re-run the full `pytest` + `Vitest` suites after Story 7 lands (T056-T060). Done: full `npx vitest run` (48 files, 314 tests, all pass) and targeted `pytest` on `test_roster_unenrollment.py` + `test_quiz_assignment_unenrollment.py` + `test_my_learners.py` (all pass). **Deferred**: the full, unfiltered backend `pytest -q` run was declined by explicit user instruction ("full backend test later") -- per [[feedback_full_suite_at_end_only]], this now requires a fresh ask even at this final-Polish point. Run it when the user asks.
+- [X] T062 Walk through quickstart.md's new "Story 7" section end-to-end. User decided (2026-10-12) the automated coverage is sufficient in lieu of a live dev-server walkthrough: T056/T057's Vitest tests already exercise every step (remove+cancel, remove+confirm removes only that tab, remove-to-zero reverts to the zero-enrollment state) against a mocked `unenrollLearner`; the rejoin-keeps-progress step is covered server-side by T058's new backend test, since the frontend has no code path that could lose that data (FR-036's no-cascade guarantee).
 
 ---
 
@@ -214,6 +272,7 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 - **User Story 4 (Phase 6)**: T036 (passing `currentTopicDisplayName` into Practice's inline panel) depends on User Story 3's T028 existing; otherwise independent.
 - **User Story 5 (Phase 7)**: Depends on User Story 1 (same tile dependency as US2) -- otherwise independent.
 - **User Story 6 (Phase 8)**: Independent of every other story -- guards Practice/Placement's existing phases, not any new UI this feature adds.
+- **User Story 7 (Phase 9, amendment 2026-10-12)**: Depends on User Story 1 (same `GuardianLearnerCard.tsx` subject-tab structure as US2/US5) -- otherwise independent; touches zero backend files.
 - **Polish (Final Phase)**: Depends on every story you choose to ship.
 
 ### Parallel Opportunities
@@ -222,6 +281,7 @@ Web application: `backend/src/`, `backend/tests/`, `frontend/src/`, `frontend/te
 - T004/T005/T006 (Foundational) in parallel once T003 lands.
 - Within each story's Tests subsection, all `[P]` tasks in parallel.
 - User Stories 3 and 6 can be built in parallel with 1/2/5 by a second developer -- neither touches `GuardianLearnerCard.tsx` or the tile structure.
+- T056/T057/T058 (US7 tests) in parallel.
 
 ---
 
@@ -259,10 +319,11 @@ Task: "Update listLearnerAssignments in frontend/src/services/api.ts"
 5. User Story 4 -> validate -> demo (contextual prompts).
 6. User Story 5 -> validate -> demo (real placement).
 7. User Story 6 -> validate -> demo (leave-guard warning) -- can be built in parallel with any other story.
+8. User Story 7 (amendment 2026-10-12) -> validate -> demo (remove a subject) -- same `GuardianLearnerCard.tsx` track as 1/2/5.
 
 ### Parallel Team Strategy
 
 1. Team completes Setup + Foundational together.
-2. Developer A: User Story 1, then 2, then 5 (same `GuardianLearnerCard.tsx` file -- keep sequential to avoid merge conflicts on one component).
+2. Developer A: User Story 1, then 2, then 5, then 7 (same `GuardianLearnerCard.tsx` file -- keep sequential to avoid merge conflicts on one component).
 3. Developer B: User Story 3, then 4 (Tutor-side files, independent of A's track).
 4. Developer C: User Story 6 (entirely separate files -- `leave-guard.ts`, `LeaveGuardDialog.tsx`, plus small hooks into A's and B's files once those land).

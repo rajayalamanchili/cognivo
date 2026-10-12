@@ -138,6 +138,13 @@ having submitted the current question(s).
 - Q: Story 2's "Start practice" shortcut needs a real `learner_id` to reach the timed practice-session endpoints, which turned out to be demo-learner-only today -- should this feature extend real-learner support to them (the same pattern Story 5 uses for placement), since FR-009 can't work without it? → A: Yes. Extend `start_practice_session`/`get_practice_next_question`/`end_practice_session`/`get_practice_session_summary` to accept and act on a real `learner_id`, gated with `require_learner_ownership_if_real` the same way other real-learner endpoints already are.
 - Q: Since browsers ignore custom `beforeunload` text for an actual tab-close/URL-bar/back-button navigation (only their own generic wording ever shows), should the "you'll get new questions" warning cover only in-app navigation, or also attempt a native browser-level prompt for true browser navigation? → A: In-app only. Intercept in-app navigation (Nav links, Practice's own "End session" link, etc.) while a question is unanswered and show a real custom confirmation; no native `beforeunload` handler is added for actual browser-level navigation.
 
+### Session 2026-10-12
+
+- Q: Should this spec add a way for a guardian or learner to remove (unenroll from) a class/subject the learner already joined, or is that explicitly out of scope for this feature? → A: Add it now, guardian-initiated, symmetric with FR-003's "Add a subject" — a "Remove" action next to each subject tab that deletes that one `Enrollment` row.
+- Q: When a guardian removes a subject/class, should the learner's existing progress for it (mastery state, generated questions, practice-session history) be deleted along with the `Enrollment` row, or kept? → A: Keep all progress data; only the `Enrollment` row (the join itself) is deleted — re-joining later restores full history, since `MasteryState`/`GeneratedQuestion`/`GradeProgress` are already keyed by `(learner_id, subject_id)`, not the enrollment.
+- Q: Should removing a subject require a confirmation step before it happens, or take effect immediately? → A: Require a confirmation dialog ("Remove {learner} from {subject}? They'll need to rejoin to see it again."), matching Story 6's existing warn-before-destructive-action convention in this same spec.
+- Q: Can a guardian remove a learner's last remaining subject, taking them down to zero enrollments, or must at least one subject always remain? → A: Allowed — removing the last subject reverts the card to FR-006's existing zero-enrollment state; no new "can't remove your last one" restriction is added.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - A guardian sees and manages every class a learner is in, not just one (Priority: P1)
@@ -420,6 +427,51 @@ warning appears -- there's nothing to lose.
 
 ---
 
+### User Story 7 - A guardian removes a learner from a class they no longer want (Priority: P3)
+
+From a learner's card, a guardian clicks a "Remove" action on an
+enrolled-subject tab, confirms a dialog warning that the learner will need
+to rejoin to see that class again, and the tab disappears -- every other
+enrollment on the card stays exactly as it was, and the subject's
+underlying mastery/question/progress history is left untouched in case the
+learner rejoins later.
+
+**Why this priority**: A necessary undo path for Story 1's open-ended
+"Add a subject" (there was previously no way back at all), but it's a
+safety-net/cleanup action rather than a correctness fix, so it's ranked
+with this feature's other P3 polish items.
+
+**Independent Test**: As a guardian with a learner enrolled in two or more
+classes, click "Remove" on one subject's tab, confirm the dialog, and
+verify that tab disappears while the others remain unchanged; rejoin the
+same subject via "Add a subject" and confirm the learner's prior mastery
+state for it is still present, not reset. Separately, remove a learner's
+only remaining subject and confirm the card reverts to today's "Not in a
+class yet" state.
+
+**Acceptance Scenarios**:
+
+1. **Given** a learner's card showing two or more subject tabs, **When**
+   the guardian clicks "Remove" on one tab and confirms the dialog,
+   **Then** that tab disappears and every other tab remains, unchanged.
+2. **Given** the confirmation dialog is open, **When** the guardian
+   cancels instead of confirming, **Then** no enrollment is removed and
+   the card is unchanged.
+3. **Given** a removed subject's `Enrollment` row, **When** the removal
+   completes, **Then** the learner's `MasteryState`, `GeneratedQuestion`,
+   `GradeProgress`, and other subject-scoped progress rows for that
+   subject are left untouched in the database.
+4. **Given** a learner who rejoins a subject they were previously removed
+   from, **When** they next practice or view that subject, **Then** their
+   prior mastery/progress for it is still present, exactly as if they had
+   never left.
+5. **Given** a learner's card showing exactly one remaining subject,
+   **When** the guardian removes it and confirms, **Then** the card
+   reverts to FR-006's existing zero-enrollment "Not in a class yet"
+   state.
+
+---
+
 ### Edge Cases
 
 - A learner with zero enrollments has no subject tile at all, so Story 2's
@@ -487,6 +539,20 @@ warning appears -- there's nothing to lose.
   with no "don't ask again" suppression (not requested, and would let a
   learner silence a real loss-of-progress warning permanently by
   accident).
+- Removing an enrollment affects only that one learner's membership in
+  that one roster -- it does not delete or modify the `ClassroomRoster`
+  itself, nor any other learner's enrollment in it.
+- Removing a subject does not delete any assigned quiz or its progress
+  for that learner (FR-036's data-retention guarantee covers
+  assigned-quiz state the same as mastery/question history). For a quiz
+  the learner had not yet started, the existing `not_enrolled` start-time
+  check (`services/quiz_assignment/assignment.py`'s `_check_start_
+  eligibility`, already covered by `tests/integration/
+  test_quiz_assignment_unenrollment.py`) actively blocks starting it with
+  a 403 until the learner rejoins that roster -- not merely hides it from
+  view. A quiz the learner had already started (claimed a
+  `quiz_session_id`) is unaffected either way, since that check only runs
+  at start time.
 
 ## Requirements *(mandatory)*
 
@@ -646,6 +712,23 @@ warning appears -- there's nothing to lose.
   question"/"Practice again", Placement's skip) MUST NOT trigger this
   warning -- it guards navigation to a different page only.
 
+**Removing a subject (User Story 7)**
+
+- **FR-034**: Each enrolled-subject tab on a learner's card MUST offer a
+  "Remove" action that deletes that specific `Enrollment` row for the
+  learner, symmetric with FR-003's "Add a subject".
+- **FR-035**: Clicking "Remove" MUST show a confirmation dialog stating
+  that the learner will need to rejoin to see that class again before the
+  removal proceeds; confirming MUST delete the enrollment, canceling MUST
+  leave the card unchanged.
+- **FR-036**: Removing an enrollment MUST NOT delete or modify the
+  learner's `MasteryState`, `GeneratedQuestion`, `GradeProgress`, or any
+  other subject-scoped progress data -- only the `Enrollment` row itself
+  is removed.
+- **FR-037**: Removing a learner's last remaining enrollment MUST be
+  allowed and MUST leave the card in the same zero-enrollment state
+  FR-006 already defines.
+
 ### Key Entities
 
 No new entities. This feature reuses, and changes only the surfaced shape
@@ -654,7 +737,9 @@ of, existing ones:
 - **Enrollment** (`backend/src/models/enrollment.py`): already supports a
   learner holding more than one at once (`UniqueConstraint("learner_id",
   "roster_id")`); FR-001 stops collapsing a learner's enrollments down to
-  one before they reach the frontend.
+  one before they reach the frontend. FR-034/FR-035 add the reverse path --
+  deleting a single `Enrollment` row -- with no change to the model
+  itself.
 - **ClassroomRoster**: unchanged; each enrollment's roster is what a
   learner-card tab (FR-002) and "Start practice" (FR-007) are scoped to.
 - **PracticeSession** (`backend/src/models/practice_session.py`): unchanged
@@ -710,6 +795,10 @@ of, existing ones:
 - **SC-008**: No learner ever loses an in-progress, unsubmitted Practice
   question or Placement answer set to in-app navigation without first
   being told it's about to happen and given the choice to stay.
+- **SC-009**: A guardian can remove a learner from an unwanted class in
+  one confirmed action, with every other class and all of that subject's
+  underlying progress data left exactly as it was, and can rejoin it
+  later with that same progress intact.
 
 ## Assumptions
 
@@ -821,3 +910,12 @@ of, existing ones:
   second native browser dialog -- "in-app only" (Clarifications) means
   this feature adds no `window.confirm`/`beforeunload` call at all, only a
   route-change interception within the app's own navigation.
+- Removal (FR-034-FR-037) is guardian-initiated only, matching this
+  spec's existing guardian-card-action model (Story 1's "Add a subject",
+  Story 2's "Start practice", Story 5's "Take placement") -- this feature
+  does not add a learner-facing self-service removal control anywhere.
+- FR-036's data-retention guarantee means removal is implemented as a
+  single-row delete scoped to the `Enrollment` table only -- no cascade
+  delete, soft-delete flag, or archival table is introduced for
+  `MasteryState`/`GeneratedQuestion`/`GradeProgress`/`AssignedQuiz` rows,
+  since none of them reference the `Enrollment` row being removed.

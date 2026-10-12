@@ -94,3 +94,7 @@ only behavior). `AssignmentForLearnerOut`'s response shape is unchanged.
   response, not a new join or route.
 - Mastery/sequencing/grading endpoints -- untouched by every story in
   this feature.
+- `DELETE /api/rosters/{roster_id}/enrollments/{learner_id}` (Story 7,
+  amendment 2026-10-12) -- already supports exactly what FR-034-FR-037
+  need (guardian-caller ownership branch included); only its frontend
+  caller is new (research.md §8). No request/response shape change.

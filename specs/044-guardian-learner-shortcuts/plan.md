@@ -203,3 +203,85 @@ and `LeaveGuardDialog.tsx` (Story 6's small, self-contained addition).
 > **Fill ONLY if Constitution Check has violations that must be justified**
 
 No violations -- table not needed.
+
+## Amendment, 2026-10-12: Story 7 (remove a subject)
+
+**Branch note**: stays on `044-guardian-learner-shortcuts` -- Story 7 was
+added to this same spec via a follow-up `/speckit-clarify` round, not a
+new feature branch.
+
+**Summary**: `/speckit-clarify` found that Stories 1-6 only ever add an
+enrollment, never remove one -- investigation turned up that the backend
+side of this gap is **already fully built**, from an earlier spec (the
+`Enrollment` model's own docstring and `services/roster/enrollment.py`'s
+`unenroll()` already cite "FR-007a"): `DELETE
+/api/rosters/{roster_id}/enrollments/{learner_id}`
+(`api/routes/rosters.py:540`) already deletes only the `Enrollment` row
+(matching this spec's FR-036 exactly), already allows going to zero
+enrollments (FR-037 -- no guard against it), and its ownership check
+already branches for a guardian caller (`claims.account_type` not
+`instructor`/`demo_instructor` -> verify `learner.guardian_id ==
+claims.account_id`, exactly FR-034's gating need). The frontend API
+client already wraps it too: `frontend/src/services/api.ts`'s
+`unenrollLearner(rosterId, learnerId)` -- already called from the
+*instructor*-side roster-management flow
+(`app/instructor/rosters/rosters-flow.tsx:341`), just never from the
+*guardian*-side learner card. **Story 7 is therefore almost entirely
+frontend-only**: zero new backend route, zero new migration, zero new
+API client function -- a "Remove" action on `GuardianLearnerCard.tsx`'s
+existing subject tabs, plus a confirmation dialog (FR-035), calling
+`unenrollLearner` exactly as the instructor flow already does. The one
+backend change is a test-only addition (`/speckit-analyze` finding F3):
+the existing `delete_enrollment_route` coverage never asserted FR-036's
+named tables (`MasteryState`/`GradeProgress`) survive removal, only that
+`LearnerProfile` does -- one new assertion closes that gap, with no
+production code change.
+
+**Technical Context delta**: No change to Language/Primary Dependencies/
+Storage/Testing/Target Platform/Project Type. **Scale/Scope delta**: 1
+frontend file changed (`GuardianLearnerCard.tsx`), reusing the existing
+confirmation-dialog pattern Story 6's `LeaveGuardDialog.tsx` already
+established in this same feature (a second, simpler modal instance --
+not a shared component, since Story 6's dialog is keyed to unsaved
+question state and this one is keyed to a specific `(rosterId,
+learnerId)` pair with different copy). Zero backend files changed, zero
+new/changed migrations, zero new API client exports.
+
+**Project Structure delta**:
+
+```text
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── GuardianLearnerCard.tsx   # + "Remove" action per subject tab (FR-034),
+│   │   │                              #   opens a confirmation dialog (FR-035) before
+│   │   │                              #   calling the already-existing unenrollLearner()
+│   │   │                              #   (api.ts:1178) -- same roster_id/learner_id pair
+│   │   │                              #   each tab already carries today
+│   └── (no new files -- the confirmation dialog is a small inline modal in
+│        GuardianLearnerCard.tsx itself, not a new shared component; Story
+│        6's LeaveGuardDialog.tsx is not reused since it's keyed to a
+│        different kind of state)
+└── tests/
+    └── unit/
+        └── guardian-learner-card.test.tsx  # + "Remove" action: confirm dialog copy,
+                                          #   cancel leaves card unchanged, confirm calls
+                                          #   unenrollLearner and removes the tab, removing
+                                          #   the last tab reverts to zero-enrollment state
+
+backend/
+└── tests/
+    └── integration/test_roster_unenrollment.py  # FR-037 (zero-enrollment
+        allowed) is already true of unenroll()'s existing behavior, no
+        change needed there; FR-036's named-table coverage gap
+        (`/speckit-analyze` finding F3) gets one new assertion extending
+        test_guardian_unenrolls_own_learner -- seed a MasteryState +
+        GradeProgress row before removal, assert both survive it
+```
+
+**Constitution re-check**: No new row needed -- this amendment reuses an
+already-shipped, already-constitution-checked backend endpoint verbatim.
+Same PASS/N/A disposition as the original table above applies unchanged
+(no mastery/grading/agent/A2A code touched; still `require_learner_
+ownership_if_real`-equivalent gating already in place; still zero new
+migration).

@@ -90,3 +90,16 @@
   been reconciled back into `contracts/api-changes.md` (which explicitly
   listed `rosters.py` as unchanged) or `plan.md`'s Project Structure.
   All now fixed and cross-checked; all checklist items still pass.
+- 2026-10-12 clarification session (4 questions): added Story 7 (remove a
+  subject/class, FR-034-FR-037, SC-009) -- a gap found post-implementation
+  when asked "how can a learner remove a subject they already added,"
+  since Stories 1-6 only ever added enrollments, never removed one.
+  Guardian-initiated, confirmation-gated, deletes only the `Enrollment`
+  row (progress data untouched, re-joinable later), allowed down to zero
+  enrollments per FR-006's existing state. This story is new relative to
+  this spec's existing `plan.md`/`tasks.md`/`data-model.md`, which predate
+  it -- those artifacts need a follow-up `/speckit-plan`+`/speckit-tasks`
+  pass (or a manual amendment, per this spec's own precedent for its
+  2026-10-12 bug-fix-amendment sibling spec) before `/speckit-implement`
+  touches Story 7. All checklist items still pass; no new ambiguity
+  introduced.

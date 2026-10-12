@@ -7,6 +7,7 @@ import {
   getMasteryState,
   getTopicPriorityPreview,
   listLearnerEnrollments,
+  unenrollLearner,
   type MyLearnerEnrollment,
 } from "@/services/api";
 import { enterRealLearnerSession } from "@/lib/visitor-state";
@@ -39,6 +40,10 @@ import { formatTopicId } from "@/lib/format-topic-id";
 // independently here (not shared code with `lib/pacing.ts` or the
 // backend's `MediationTier`, same precedent those already establish --
 // each stays separately product-tunable).
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 function gradeBandTier(grade: number): { label: string; note: string } {
   if (grade <= 2) {
     return { label: "Sit together", note: "Start the quiz here and work through it together." };
@@ -105,6 +110,13 @@ export default function GuardianLearnerCard({
   const [hasStartingGradeByRosterId, setHasStartingGradeByRosterId] = useState<
     Record<string, boolean>
   >({});
+  // spec 044 FR-034/FR-035 (US7): confirmation-gated removal of the
+  // selected tab's enrollment -- `unenrollLearner` already exists
+  // (api.ts), already used by the instructor-side roster flow; this is
+  // its first guardian-side caller.
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +149,11 @@ export default function GuardianLearnerCard({
         setAddOpen(false);
       } else {
         setSelected((current) => Math.min(current, Math.max(currentIds.length - 1, 0)));
+        // spec 044 FR-037 (US7): removing the last enrollment reverts to
+        // the same zero-enrollment state a learner who never joined
+        // anything starts in -- including the join section already
+        // being open (this component's own initial-mount default).
+        if (currentIds.length === 0) setAddOpen(true);
       }
     }
     previousRosterIdsRef.current = new Set(currentIds);
@@ -179,6 +196,28 @@ export default function GuardianLearnerCard({
   function handleJoined() {
     setAddOpen(false);
     onEnrollmentsChanged?.();
+  }
+
+  // spec 044 FR-034/FR-036/FR-037 (US7): deletes only the `Enrollment`
+  // row (`DELETE /api/rosters/{roster_id}/enrollments/{learner_id}`,
+  // already in production use on the instructor side) -- every other
+  // table (MasteryState, GeneratedQuestion, GradeProgress) is untouched,
+  // and removing the learner's last enrollment is allowed, reverting the
+  // card to FR-006's zero-enrollment state once `onEnrollmentsChanged`
+  // re-fetches.
+  async function handleRemoveSubject() {
+    if (!selectedEnrollment) return;
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      await unenrollLearner(selectedEnrollment.roster_id, learnerId);
+      setRemoveConfirmOpen(false);
+      onEnrollmentsChanged?.();
+    } catch (error) {
+      setRemoveError(errorText(error));
+    } finally {
+      setRemoving(false);
+    }
   }
 
   useEffect(() => {
@@ -412,6 +451,16 @@ export default function GuardianLearnerCard({
                     Take placement
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRemoveError(null);
+                    setRemoveConfirmOpen(true);
+                  }}
+                  className="flex min-h-11 w-fit items-center gap-2 rounded-full border-2 border-border px-4.5 font-extrabold text-error"
+                >
+                  Remove
+                </button>
               </div>
 
               <LearnerAssignments
@@ -456,6 +505,41 @@ export default function GuardianLearnerCard({
             </>
           )}
         </>
+      )}
+
+      {removeConfirmOpen && selectedEnrollment && (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          data-testid="remove-subject-dialog"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        >
+          <div className="flex max-w-sm flex-col gap-4 rounded-card border border-border bg-surface p-6">
+            <p className="text-[15px] font-bold text-heading">
+              Remove {displayName} from {formatTopicId(selectedEnrollment.subject_id)}? They&apos;ll
+              need to rejoin to see it again.
+            </p>
+            {removeError && <p className="text-sm text-error">{removeError}</p>}
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setRemoveConfirmOpen(false)}
+                disabled={removing}
+                className="min-h-11 rounded-full border-2 border-border px-4.5 font-extrabold text-heading disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveSubject}
+                disabled={removing}
+                className="min-h-11 rounded-full bg-error px-4.5 font-extrabold text-white disabled:opacity-40"
+              >
+                {removing ? "Removing…" : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </article>
   );

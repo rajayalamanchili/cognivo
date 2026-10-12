@@ -101,6 +101,21 @@ apply** -- this feature has zero schema change.
    confirm neither ever shows the warning; they're progressing within the
    same page, not navigating away.
 
+## Story 7 -- Removing a subject (amendment 2026-10-12)
+
+1. As a guardian with a learner enrolled in two or more classes, click
+   "Remove" on one subject's tab.
+2. Confirm a dialog appears warning that the learner will need to rejoin
+   to see that class again; cancel it -- confirm the tab and card are
+   unchanged.
+3. Click "Remove" again and confirm -- confirm that tab disappears and
+   every other tab remains.
+4. Re-join the same subject via "Add a subject" and confirm the
+   learner's prior mastery/progress for it (e.g. their Dashboard mastery
+   card, or practice performance) is still present, not reset (FR-036).
+5. Remove a learner's only remaining subject and confirm -- confirm the
+   card reverts to today's "Not in a class yet" state (FR-037).
+
 ## Regression check
 
 Run the full existing Vitest + pytest suites -- expect 100% pass. Spot-

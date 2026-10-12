@@ -42,6 +42,16 @@ derivable from the existing `ClassroomRoster.requires_approval` +
 `Enrollment`'s own approval state the same way today's single-enrollment
 card already computes it -- no new field.
 
+**Change for Story 7 (amendment 2026-10-12)**: none to this entity's
+shape. Deleting an `Enrollment` row is already *is* unenrollment, per the
+model's own docstring -- `MasteryState`/`GeneratedQuestion`/
+`GradeProgress`/`QuizAssignment` all key on `(learner_id, subject_id)` or
+`(learner_id, roster_id)` independently of the `Enrollment` row itself,
+so none of them reference it and none are touched by its deletion
+(FR-036). The existing `DELETE /api/rosters/{roster_id}/enrollments/
+{learner_id}` route and `unenroll()` service function are reused verbatim
+(research.md §8) -- FR-034-FR-037 need zero data-model change.
+
 ## PracticeSession
 
 `backend/src/models/practice_session.py`
