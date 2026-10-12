@@ -182,9 +182,7 @@ def test_completing_a_reset_clears_an_existing_login_lockout(client, db_session)
     _register(client, email)
 
     for _ in range(5):  # LOCKOUT_THRESHOLD
-        client.post(
-            "/api/auth/guardian/login", json={"email": email, "password": "wrongpassword"}
-        )
+        client.post("/api/auth/guardian/login", json={"email": email, "password": "wrongpassword"})
     locked_attempt = client.post(
         "/api/auth/guardian/login", json={"email": email, "password": "wrongpassword"}
     )
@@ -201,3 +199,24 @@ def test_completing_a_reset_clears_an_existing_login_lockout(client, db_session)
         "/api/auth/guardian/login", json={"email": email, "password": "newpassword123"}
     )
     assert login.status_code == 200
+
+
+def test_forgot_password_still_204s_when_token_issuance_persistently_fails(
+    client, db_session, monkeypatch
+):
+    """A persistent `IntegrityError` from `reset_tokens.issue` (both its
+    own retry exhausted) must not leak as a 500 -- that would itself be
+    a second account-enumeration signal, since it only happens on the
+    existing-account path."""
+    from sqlalchemy.exc import IntegrityError
+
+    email = "integrity-error-guardian@example.com"
+    _register(client, email)
+
+    def _always_fails(*args, **kwargs):
+        raise IntegrityError("duplicate", {}, Exception("duplicate"))
+
+    monkeypatch.setattr("src.services.auth.reset_tokens.issue", _always_fails)
+
+    response = client.post("/api/auth/guardian/forgot-password", json={"email": email})
+    assert response.status_code == 204

@@ -231,6 +231,26 @@ class ResetPasswordIn(BaseModel):
 # research.md rather than trading it for an availability one.
 
 
+def _issue_reset_token_or_none(
+    db: Session, account_type: AuthorizedByType, account_id: uuid.UUID
+) -> str | None:
+    """`reset_tokens.issue` can still re-raise `IntegrityError` after
+    its own single retry (two concurrent requests colliding twice in a
+    row) -- letting that reach the caller as an unhandled 500 would
+    itself be a second account-enumeration signal (a 500 only ever
+    happens on the existing-account path), defeating the same FR-002/
+    SC-003 guarantee the always-204 response exists for. Silently
+    giving up and returning `None` here is consistent with every other
+    "nothing happens this time" case this route already has (unknown
+    email, demo account, rate-limited) -- vanishingly rare, and no
+    worse than a request that got rate-limited instead."""
+    try:
+        return reset_tokens.issue(db, account_type, account_id)
+    except IntegrityError:
+        db.rollback()
+        return None
+
+
 def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
     # A silently-empty base URL would produce an unclickable relative
     # link in the actual email, with the attempt still logged as SENT
@@ -243,7 +263,16 @@ def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
     # A trailing slash (an easy value to set by mistake, e.g.
     # "https://cognivo.vercel.app/") would otherwise double up into
     # "...app//guardian/...".
-    return f"{base_url.rstrip('/')}/{role}/reset-password?token={raw_token}"
+    #
+    # The token rides in the URL *fragment* (`#token=...`), not the
+    # query string -- a fragment is never sent in the HTTP request at
+    # all, so it can't appear in Vercel/CDN access logs or a Referer
+    # header the way a query param could, even before the frontend's
+    # own history-stripping runs. The one cost is it's also invisible
+    # to the backend by the same mechanism; that's fine here since the
+    # token only needs to reach the browser, which reads it client-side
+    # and posts it to `reset-password` in a request body, not a URL.
+    return f"{base_url.rstrip('/')}/{role}/reset-password#token={raw_token}"
 
 
 def _send_password_reset_email(
@@ -323,15 +352,18 @@ def forgot_password_instructor(body: ForgotPasswordIn, db: Session = Depends(get
             db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id
         )
     ):
-        raw_token = reset_tokens.issue(db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id)
-        _send_password_reset_email(
-            db,
-            account_type=AuthorizedByType.INSTRUCTOR,
-            account_id=instructor.instructor_id,
-            email=instructor.email,
-            role="instructor",
-            raw_token=raw_token,
+        raw_token = _issue_reset_token_or_none(
+            db, AuthorizedByType.INSTRUCTOR, instructor.instructor_id
         )
+        if raw_token is not None:
+            _send_password_reset_email(
+                db,
+                account_type=AuthorizedByType.INSTRUCTOR,
+                account_id=instructor.instructor_id,
+                email=instructor.email,
+                role="instructor",
+                raw_token=raw_token,
+            )
 
 
 @router.post("/api/auth/instructor/reset-password", response_model=InstructorAuthOut)
@@ -433,15 +465,16 @@ def forgot_password_guardian(body: ForgotPasswordIn, db: Session = Depends(get_d
         and not guardian.is_demo
         and not reset_tokens.recently_requested(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
     ):
-        raw_token = reset_tokens.issue(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
-        _send_password_reset_email(
-            db,
-            account_type=AuthorizedByType.GUARDIAN,
-            account_id=guardian.guardian_id,
-            email=guardian.email,
-            role="guardian",
-            raw_token=raw_token,
-        )
+        raw_token = _issue_reset_token_or_none(db, AuthorizedByType.GUARDIAN, guardian.guardian_id)
+        if raw_token is not None:
+            _send_password_reset_email(
+                db,
+                account_type=AuthorizedByType.GUARDIAN,
+                account_id=guardian.guardian_id,
+                email=guardian.email,
+                role="guardian",
+                raw_token=raw_token,
+            )
 
 
 @router.post("/api/auth/guardian/reset-password", response_model=GuardianAuthOut)

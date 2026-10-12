@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState, type FormEvent } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ApiError,
@@ -43,24 +43,29 @@ function errorMessage(error: unknown): string {
 function ResetPasswordFormInner({ accountType }: { accountType: AccountType }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  // Captured once at mount, not re-read from `searchParams` later --
-  // the effect below strips `?token=...` from the visible URL right
-  // after this.
-  const [token] = useState(() => searchParams.get("token") ?? "");
+  // The token rides in the URL *fragment* (`#token=...`, see auth.py's
+  // `_reset_link`), read once via this lazy initializer -- guarded for
+  // SSR, where `window` doesn't exist yet. A fragment is never sent in
+  // the HTTP request at all, so it can't leak via server/CDN access
+  // logs or a Referer header the way a query param could.
+  const [token] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const match = /^#token=(.+)$/.exec(window.location.hash);
+    return match ? decodeURIComponent(match[1]) : "";
+  });
   const [newPassword, setNewPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
 
   useEffect(() => {
-    // The reset token is a single-use credential that arrived in the
-    // URL's query string -- strip it from the visible URL/history once
-    // read, so it isn't left sitting there or leaked via a Referer
-    // header if this page ever links out.
-    if (searchParams.get("token")) {
+    // Still a single-use credential that shouldn't linger in the
+    // browser's own address bar/history once read, even though it
+    // never reached the server -- strip it the same way a query param
+    // would be.
+    if (window.location.hash) {
       router.replace(pathname);
     }
-    // Only ever needs to run once, right after the initial token read.
+    // Only ever needs to run once, right after mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
