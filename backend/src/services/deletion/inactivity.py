@@ -46,6 +46,19 @@ WARNING_LEAD_TIME = datetime.timedelta(days=7)
 # this properly; not attempted here given how narrow the window is
 # (a kill landing inside one record's own up-to-10s call, not just
 # somewhere in the loop).
+#
+# This also throttles FR-010's own 1-year retention ceiling (a daily
+# cron with the "2" default drains an N-record backlog over N/2 days,
+# not same-day) -- an accepted trade-off, not an oversight: FR-010's
+# own 7-day pre-deletion warning (`reconcile_inactivity_warnings`,
+# unaffected by this cap -- no per-record network call) already means
+# any backlogged record was warned well before this delay could matter,
+# and the env var exists specifically so an operator can raise it if
+# their actual backlog size and Resend's typical latency make a bigger
+# per-run batch safe. A record whose resolved recipient is `None`
+# (unresolvable guardian/instructor -- not possible for real data
+# today) is still created but doesn't count against this cap, since it
+# never reaches the network call this cap exists to bound.
 INACTIVITY_SWEEP_MAX_PER_RUN = int(os.environ.get("INACTIVITY_SWEEP_MAX_PER_RUN", "2"))
 
 
@@ -71,7 +84,10 @@ def _inactivity_notification_recipient(
             guardian.guardian_id,
             guardian.email,
             guardian.is_demo,
-            f"{learner.display_name}'s data",
+            # Deliberately generic, not the learner's own display name
+            # (plausibly a minor's) -- see deletion.py's identical
+            # recipient-resolution helper for the full reasoning.
+            "your learner's data",
         )
     instructor = db.get(RealInstructorAccount, record.account_id)
     if instructor is None:

@@ -240,7 +240,10 @@ def _reset_link(role: Literal["guardian", "instructor"], raw_token: str) -> str:
     base_url = os.environ.get("FRONTEND_BASE_URL")
     if not base_url:
         raise RuntimeError("FRONTEND_BASE_URL is not set -- cannot build a usable reset link")
-    return f"{base_url}/{role}/reset-password?token={raw_token}"
+    # A trailing slash (an easy value to set by mistake, e.g.
+    # "https://cognivo.vercel.app/") would otherwise double up into
+    # "...app//guardian/...".
+    return f"{base_url.rstrip('/')}/{role}/reset-password?token={raw_token}"
 
 
 def _send_password_reset_email(

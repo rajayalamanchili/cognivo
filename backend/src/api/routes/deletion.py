@@ -121,7 +121,12 @@ def _deletion_notification_recipient(
             guardian.guardian_id,
             guardian.email,
             guardian.is_demo,
-            f"{target.display_name}'s data",
+            # Deliberately generic, not the learner's own display name
+            # (plausibly a minor's) -- that would put a child's name in
+            # a third-party processor's system (Resend) for no benefit
+            # the guardian needs; they already know which learner they
+            # requested this for.
+            "your learner's data",
         )
     if target_type == DeletionTargetType.GUARDIAN:
         return (
