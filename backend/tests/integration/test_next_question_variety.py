@@ -174,7 +174,7 @@ def test_same_template_different_numbers_not_near_duplicate_in_practice(
     assert len(rows) == len(_SAME_TEMPLATE_DIFFERENT_NUMBER_STEMS), (
         f"expected every question to land on {_TARGET_TOPIC_ID!r}, got {rows}"
     )
-    for i, (_stem, embedding) in enumerate(rows):
+    for i, (stem, embedding) in enumerate(rows):
         assert not is_near_duplicate(
-            embedding, rows[:i]
+            stem, embedding, rows[:i]
         ), f"stem #{i} is a near-duplicate: {rows[i][0]!r}"

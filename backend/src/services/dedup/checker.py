@@ -94,6 +94,12 @@ async def embed_stem_or_none(stem: str) -> list[float] | None:
 
 
 def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
+    # A dimension mismatch (e.g. `TUTOR_EMBEDDING_MODEL` changed between
+    # when `a` and `b` were each written) can't be compared at all --
+    # fails open to "not similar" rather than letting `zip(strict=True)`
+    # raise `ValueError` on the request path (review finding, PR #113).
+    if len(a) != len(b):
+        return 0.0
     dot = sum(x * y for x, y in zip(a, b, strict=True))
     norm_a = math.sqrt(sum(x * x for x in a))
     norm_b = math.sqrt(sum(y * y for y in b))
@@ -103,18 +109,29 @@ def _cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
 
 
 def is_near_duplicate(
+    candidate_stem: str,
     candidate_embedding: list[float] | None,
     previous: Sequence[tuple[str, list[float] | None]],
     *,
     threshold: float = DEFAULT_SIMILARITY_THRESHOLD,
 ) -> bool:
-    """True if `candidate_embedding` is cosine-similar enough (ratio >=
-    `threshold`) to any embedding in `previous`. Fails open (`False`) if
-    `candidate_embedding` is `None` (the candidate itself couldn't be
-    embedded) -- any `previous` entry with a `None` embedding (a
-    pre-migration row, or one that failed to embed at write time) is
-    simply excluded from comparison, not treated as a match or
-    non-match."""
+    """True if `candidate_stem` exactly matches (case/whitespace-
+    insensitive) any stem in `previous`, OR `candidate_embedding` is
+    cosine-similar enough (ratio >= `threshold`) to any embedding in
+    `previous`.
+
+    The exact-match check runs regardless of embedding availability --
+    review finding, PR #113: without it, a text-identical repeat (the
+    one case the old difflib-ratio check always caught) would silently
+    pass whenever `candidate_embedding` is `None` (a Voyage outage).
+    The embedding check still fails open (`False`) if
+    `candidate_embedding` is `None` -- any `previous` entry with a
+    `None` embedding (a pre-migration row, or one that failed to embed
+    at write time) is simply excluded from comparison, not treated as
+    a match or non-match."""
+    normalized_candidate = candidate_stem.strip().casefold()
+    if any(normalized_candidate == stem.strip().casefold() for stem, _ in previous):
+        return True
     if candidate_embedding is None:
         return False
     return any(

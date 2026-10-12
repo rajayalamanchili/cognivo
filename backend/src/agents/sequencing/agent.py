@@ -485,7 +485,7 @@ async def generate_next_question(
         # Embedding comes from `get_or_generate_question` itself now --
         # no second Voyage call for a stem just embedded there (review
         # finding, PR #113).
-        if not is_near_duplicate(candidate_embedding, recent_stems):
+        if not is_near_duplicate(draft.stem, candidate_embedding, recent_stems):
             break
 
     return NextQuestionResult(

@@ -74,9 +74,9 @@ def test_zero_near_duplicates_across_a_quiz_longer_than_the_default_lookback(
     ]
     assert len(rows) == question_count
 
-    for i, (_stem, embedding) in enumerate(rows):
+    for i, (stem, embedding) in enumerate(rows):
         assert not is_near_duplicate(
-            embedding, rows[:i]
+            stem, embedding, rows[:i]
         ), f"stem #{i} is a near-duplicate: {rows[i][0]!r}"
 
 

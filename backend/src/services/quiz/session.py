@@ -436,7 +436,7 @@ async def generate_quiz_question(
         # one just computed for the fresh write on a miss) -- no
         # second Voyage call for a stem that was just embedded there
         # (review finding, PR #113).
-        if not is_near_duplicate(candidate_embedding, recent_stems):
+        if not is_near_duplicate(draft.stem, candidate_embedding, recent_stems):
             if cache_outcome.hit:
                 # Spec 015 FR-013 clarification: this path records no
                 # dedicated AssessmentEvent for question generation even

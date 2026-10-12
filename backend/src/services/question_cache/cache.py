@@ -162,7 +162,7 @@ async def get_or_generate_question(
         candidates = [
             row
             for row in pool_rows
-            if not is_near_duplicate(row.stem_embedding, avoid_stems)
+            if not is_near_duplicate(row.stem, row.stem_embedding, avoid_stems)
             and row.stem_embedding is not None
         ]
     except Exception:  # noqa: BLE001 -- any lookup failure fails open (FR-008)

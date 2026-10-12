@@ -21,12 +21,18 @@ NEAR_DUPLICATE = [0.99, 0.14106735979665883]  # cosine(IDENTICAL, NEAR_DUPLICATE
 
 
 def test_identical_embeddings_are_near_duplicate():
-    assert is_near_duplicate(IDENTICAL, [("a previous question", IDENTICAL)]) is True
+    assert (
+        is_near_duplicate("a new question", IDENTICAL, [("a previous question", IDENTICAL)])
+        is True
+    )
 
 
 def test_true_positive_near_duplicate_above_threshold():
     """A genuine near-duplicate (cosine ~0.99) is correctly flagged."""
-    assert is_near_duplicate(NEAR_DUPLICATE, [("a previous question", IDENTICAL)]) is True
+    assert (
+        is_near_duplicate("a new question", NEAR_DUPLICATE, [("a previous question", IDENTICAL)])
+        is True
+    )
 
 
 def test_same_template_different_numbers_is_not_near_duplicate():
@@ -36,33 +42,71 @@ def test_same_template_different_numbers_is_not_near_duplicate():
     dissimilar (unlike the old difflib check, which scored these as
     0.87-0.94 purely from shared boilerplate text)."""
     assert (
-        is_near_duplicate(DIFFERENT_QUESTION_SAME_TEMPLATE, [("a previous question", IDENTICAL)])
+        is_near_duplicate(
+            "a new question", DIFFERENT_QUESTION_SAME_TEMPLATE, [("a previous question", IDENTICAL)]
+        )
         is False
     )
 
 
 def test_orthogonal_embeddings_are_not_near_duplicate():
-    assert is_near_duplicate(ORTHOGONAL, [("a previous question", IDENTICAL)]) is False
+    assert (
+        is_near_duplicate("a new question", ORTHOGONAL, [("a previous question", IDENTICAL)])
+        is False
+    )
 
 
 def test_candidate_embedding_none_fails_open_to_not_near_duplicate():
     """The candidate itself couldn't be embedded (Voyage outage) --
     fail open rather than blocking generation (research.md §10)."""
-    assert is_near_duplicate(None, [("a previous question", IDENTICAL)]) is False
+    assert is_near_duplicate("a new question", None, [("a previous question", IDENTICAL)]) is False
 
 
 def test_previous_entry_with_none_embedding_is_excluded_not_treated_as_a_match():
     """A pre-migration row (NULL stem_embedding) is excluded from
     comparison entirely -- not a match, not a non-match signal."""
-    assert is_near_duplicate(IDENTICAL, [("a pre-migration row", None)]) is False
+    assert is_near_duplicate("a new question", IDENTICAL, [("a pre-migration row", None)]) is False
 
 
 def test_empty_previous_is_never_a_duplicate():
-    assert is_near_duplicate(IDENTICAL, []) is False
+    assert is_near_duplicate("a new question", IDENTICAL, []) is False
 
 
 def test_threshold_boundary_is_inclusive():
     # A similarity exactly at the default threshold counts as a match.
-    assert is_near_duplicate(
-        [1.0, 0.0], [("boundary case", [1.0, 0.0])], threshold=DEFAULT_SIMILARITY_THRESHOLD
-    ) is True
+    assert (
+        is_near_duplicate(
+            "a new question",
+            [1.0, 0.0],
+            [("boundary case", [1.0, 0.0])],
+            threshold=DEFAULT_SIMILARITY_THRESHOLD,
+        )
+        is True
+    )
+
+
+def test_exact_text_match_is_a_duplicate_even_with_no_embedding():
+    """Review finding, PR #113: a text-identical repeat must be caught
+    even during a Voyage outage (`candidate_embedding=None`), the one
+    guarantee the old difflib-ratio check always provided and the new
+    embedding-only check would otherwise drop."""
+    assert (
+        is_near_duplicate("What is -3 + 5?", None, [("What is -3 + 5?", None)]) is True
+    )
+
+
+def test_exact_text_match_is_case_and_whitespace_insensitive():
+    assert (
+        is_near_duplicate("  What IS -3 + 5?  ", None, [("what is -3 + 5?", None)]) is True
+    )
+
+
+def test_mismatched_embedding_dimensions_fail_open_instead_of_raising():
+    """Review finding, PR #113: a dimension mismatch (e.g. a stale
+    embedding from before `TUTOR_EMBEDDING_MODEL` changed) must not
+    crash the request via `zip(strict=True)` -- it's simply not a
+    comparable pair, so it fails open to "not similar"."""
+    assert (
+        is_near_duplicate("a new question", [1.0, 0.0, 0.0], [("a previous question", [1.0, 0.0])])
+        is False
+    )
