@@ -142,3 +142,32 @@ cd ../frontend && npm test
 **Expected**: all suites pass with zero existing test file edited -- the
 only new files are the six content artifacts and whatever new
 fixtures/tests this feature's own tasks add against them.
+
+## Live Validation Results (2026-10-12, T009/T016)
+
+Run against a real, freshly migrated (`alembic stamp base` + `upgrade
+head` -- the documented recovery for this sandbox's known
+stamped-past-migrations flake, hit again here, same as Milestones
+11/24/040) and seeded dev database.
+
+- Setup: all ten subjects loaded (`validated_at` set on each),
+  `check_no_subject_conditionals.py` clean across all ten `subject_id`s.
+- Scenario 1 (SC-001/SC-002): all six new subjects show exactly 8
+  topics each; zero incomplete (`skill_definition`/`career_connection`);
+  zero missing a `standards_tags` row -- all three SQL checks returned
+  the expected 8-row/empty results.
+- The full new integration-test suite (T001, T011-T014; 20 tests)
+  passed against this same live database, exercising Scenarios 2 and 3
+  for real (placement/practice/mastery-update for all six subjects
+  including both elementary-grade mediation-tier assertions, the
+  `chemistry` quiz-assignment round trip, and FR-009 grade validation
+  across all six subjects' `grade_bands`, including the first exercise
+  at the low end of the range).
+- One sandbox-specific note, matching Milestone 040's own documented
+  behavior exactly: running the `backend` pytest suite against this
+  same dev database drops and recreates its schema via
+  `tests/conftest.py`'s session-scoped fixture, so the live-loaded
+  content above did not survive that run -- re-migrated and re-seeded
+  via the same Setup commands immediately after, to leave the dev
+  database in a loaded state. Not a defect in this feature; recorded so
+  a future run in this sandbox isn't surprised by it.
