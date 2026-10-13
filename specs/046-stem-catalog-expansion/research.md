@@ -89,6 +89,19 @@ grade 1-5 range in one artifact each, rather than one artifact per
 grade, matching how Algebra I already spans three grades (6-8) in a
 single subject.
 
+Pre-Algebra, Geometry, Chemistry, and Earth Science each author at
+least one `free_text` and one `multi_step` topic, matching Milestone
+040's exercise convention (FR-007/FR-008 need a real free-text-capable
+topic to exercise against). Elementary Math and Elementary Science
+deliberately author **zero** `free_text`/`multi_step` topics -- every
+topic is multiple-choice/numeric. This is not an oversight: spec.md's
+own Edge Cases section names exactly this scenario ("a new subject has
+no free-text-capable topics at all"), and making it real for at least
+one pair of subjects (rather than leaving it a hypothetical this
+feature never actually produces) is a deliberate choice, confirmed by
+`/speckit-analyze` finding the two had drifted out of sync in an
+earlier draft.
+
 **Alternatives considered**: A thin 4-5 topic slice per subject
 (rejected -- would undercut SC-002/SC-003's completeness claim, same
 reasoning Milestone 040 gave); splitting each elementary subject into

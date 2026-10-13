@@ -152,11 +152,12 @@ to.
   grade-11 roster against Elementary Math)? Roster creation is rejected,
   reusing Milestone 040's existing FR-009 validation unchanged.
 - What happens when a new subject has no free-text-capable topics at
-  all (e.g. every Elementary Math topic is multiple-choice/numeric)?
-  Process-level grading (Milestone 16), notation (Milestone 21), and the
-  misconception classifier (Milestone 11) must simply have nothing to
-  do for that subject, not error -- matching Milestone 040's existing
-  guarantee.
+  all (e.g. every Elementary Math topic is multiple-choice/numeric,
+  which is a deliberate authoring choice for this feature, not merely a
+  hypothetical -- see Assumptions)? Process-level grading (Milestone
+  16), notation (Milestone 21), and the misconception classifier
+  (Milestone 11) must simply have nothing to do for that subject, not
+  error -- matching Milestone 040's existing guarantee.
 - What happens to the misconception classifier and semantic/guardrail
   caches (Milestones 11, 13, 24) for a brand-new subject with zero
   accumulated `AssessmentEvent` history? They degrade gracefully
@@ -243,13 +244,15 @@ to.
   extended by Milestones 15/038/039/040) -- this feature adds six more
   instances, not a new shape. Each new instance declares its own
   `subject_id`, `display_name`, `content_version`, `grade_bands`, and an
-  ordered list of `Topic` entries. Proposed grade bands (a reasonable
-  default per subject, confirmed during authoring, not a hard
-  requirement of this spec): Elementary Math `[1-5]`, Elementary Science
-  `[1-5]`, Pre-Algebra `[6, 7]`, Geometry `[9, 10]`, Chemistry `[9, 10]`,
-  Earth Science `[6]` -- each independently selectable and validated
-  only against its own declared band (Milestone 040's FR-009), never
-  compared against another subject's band.
+  ordered list of `Topic` entries. Grade bands: Elementary Math `[1-5]`
+  and Elementary Science `[1-5]` are a **hard requirement** (FR-010, not
+  a negotiable default -- locked for Milestone 19 mediation-tier
+  compatibility). Pre-Algebra `[6, 7]`, Geometry `[9, 10]`, Chemistry
+  `[9, 10]`, and Earth Science `[6]` are proposed defaults, confirmed
+  during authoring, not locked by this spec. Every subject's band is
+  independently selectable and validated only against its own declared
+  band (Milestone 040's FR-009), never compared against another
+  subject's band.
 - **Topic**: An existing entity -- each new subject's topics carry the
   same fields today's ten-subject (after this feature) catalog's topics
   do: `topic_id`, `display_name`, `grade`, `prerequisites`,
@@ -262,7 +265,10 @@ to.
 
 - **SC-001**: The subject catalog grows from today's 4 subjects to 10,
   each independently selectable by a learner and spanning a documented
-  grade range from grade 1 through grade 12.
+  grade range from grade 1 through grade 11 -- the actual highest grade
+  any subject in the catalog declares (Physics' `grade_bands: [9, 10,
+  11]`); no subject in this feature or the existing catalog reaches
+  grade 12.
 - **SC-002**: 100% of topics in every new subject carry a complete
   skill definition, difficulty calibration, standards tag, and career
   connection at load time -- zero topics ship incomplete, matching the
@@ -270,15 +276,18 @@ to.
 - **SC-003**: A learner's placement-through-mastery-update flow in any
   new subject, including the two elementary (grades 1-5) subjects, is
   behaviorally indistinguishable from the same flow in an existing
-  subject -- verified by the existing acceptance-scenario suites running
-  against each new subject with zero subject-specific test scaffolding.
+  subject -- verified by the existing acceptance-scenario logic running
+  against each new subject with zero new or subject-specific engine/
+  validation code (new per-subject test fixtures and dedicated test
+  files are expected and do not count against this).
 - **SC-004**: An instructor can assign and review results for any new
   subject with zero new UI affordance beyond selecting it from the
   existing subject picker.
 - **SC-005**: The full regression suite for every prior milestone and
-  shipped feature passes with zero existing test file edited, confirming
-  the six new subjects required no engine change -- only new
-  content-artifact data.
+  shipped feature passes with zero existing test file edited beyond
+  additive new-fixture insertions (e.g. `conftest.py` gaining new
+  per-subject fixtures), confirming the six new subjects required no
+  engine change -- only new content-artifact data and new test files.
 
 ## Assumptions
 
@@ -294,12 +303,22 @@ to.
   no precedent anywhere in this codebase and are out of scope for this
   spec. If broader catalog coverage is wanted, that is new scope
   warranting its own `/speckit-clarify` pass, not a default assumed here.
-- Per-subject grade bands (Key Entities) are proposed defaults based on
-  typical US/Canada course sequencing, following the same
-  "real-world-accurate bands, independent of this project's own
-  unconventional Algebra I banding" precedent Milestone 040 set. They
-  are confirmed during content authoring (FR-004's human-review step),
-  not locked by this spec.
+- Pre-Algebra, Geometry, Chemistry, and Earth Science's grade bands
+  (Key Entities) are proposed defaults based on typical US/Canada
+  course sequencing, following the same "real-world-accurate bands,
+  independent of this project's own unconventional Algebra I banding"
+  precedent Milestone 040 set. They are confirmed during content
+  authoring (FR-004's human-review step), not locked by this spec.
+  Elementary Math and Elementary Science's `[1-5]` bands are the one
+  exception -- locked by FR-010, not a default (Key Entities).
+- Elementary Math and Elementary Science are deliberately authored with
+  zero free-text-capable or multi-step topics, exercising the
+  zero-free-text Edge Case for real rather than leaving it a purely
+  hypothetical case this feature never actually produces. The other
+  four new subjects (Pre-Algebra, Geometry, Chemistry, Earth Science)
+  each carry at least one free-text and one multi-step topic (FR-002's
+  completeness bar), matching the exercise convention Milestone 040
+  used for Algebra II/Physics.
 - `check_no_subject_conditionals.py`'s existing CI scan remains the
   enforcement mechanism keeping this expansion honest; this feature adds
   no new automated check of its own.
