@@ -1,0 +1,232 @@
+# Chemistry content artifact (spec 046, User Story 3).
+subject_id: chemistry
+display_name: Chemistry
+content_version: "1.0.0"
+grade_bands: [9, 10]
+topics:
+  - topic_id: matter-and-measurement
+    display_name: Matter and Measurement
+    grade: 9
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Classify matter by state and composition, and perform unit
+        conversions using significant figures.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Classify a substance as an element, compound, or mixture."
+      medium: "Convert a measurement between metric units, e.g. grams to kilograms."
+      hard: "Convert a measurement across unit systems while preserving correct significant figures."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-1
+        title: >-
+          Use the periodic table as a model to predict the relative
+          properties of elements based on the patterns of electrons in
+          the outermost energy level of atoms.
+    career_connection:
+      career: Quality Control Technician
+      description: >-
+        Quality control technicians measure raw materials precisely and
+        track significant figures to certify a product batch meets
+        specification.
+
+  - topic_id: atomic-structure
+    display_name: Atomic Structure
+    grade: 9
+    prerequisites: [matter-and-measurement]
+    skill_definition:
+      summary: >-
+        Describe the structure of an atom (protons, neutrons, electrons)
+        and calculate atomic mass and isotope abundance.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Determine the number of protons, neutrons, and electrons given an atomic number and mass number."
+      medium: "Calculate the average atomic mass given isotope masses and abundances."
+      hard: "Determine an unknown isotope's abundance given the element's average atomic mass."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-8
+        title: >-
+          Develop models to illustrate the changes in the composition of
+          the nucleus of the atom and the energy released during the
+          processes of fission, fusion, and radioactive decay.
+    career_connection:
+      career: Nuclear Medicine Technologist
+      description: >-
+        Nuclear medicine technologists work with radioactive isotopes
+        daily, relying on an accurate understanding of atomic structure
+        and decay.
+
+  - topic_id: the-periodic-table
+    display_name: The Periodic Table
+    grade: 9
+    prerequisites: [atomic-structure]
+    skill_definition:
+      summary: >-
+        Use the periodic table to predict element properties and trends
+        such as atomic radius, electronegativity, and ionization energy.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify whether an element is a metal, nonmetal, or metalloid from its position."
+      medium: "Compare the electronegativity of two elements in the same period."
+      hard: "Predict the relative ionization energy of three elements across a period and a group."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-1
+        title: >-
+          Use the periodic table as a model to predict the relative
+          properties of elements based on the patterns of electrons in
+          the outermost energy level of atoms.
+    career_connection:
+      career: Materials Scientist
+      description: >-
+        Materials scientists use periodic trends to select elements with
+        the right reactivity and conductivity properties for a new
+        alloy.
+
+  - topic_id: chemical-bonding
+    display_name: Chemical Bonding
+    # grade 9, same grade as its prerequisite: grade_entry_topics()
+    # (agents/diagnostic/agent.py) treats a topic as placement-eligible
+    # whenever every prerequisite is in a *strictly lower* grade -- a
+    # same-grade prerequisite is what keeps a topic out of placement.
+    # Deliberate here since preferred_question_types leads with
+    # multi_step.
+    grade: 9
+    prerequisites: [the-periodic-table]
+    process_level_grading: true
+    skill_definition:
+      summary: >-
+        Distinguish ionic, covalent, and metallic bonds, and draw Lewis
+        dot structures for simple molecules.
+      preferred_question_types: [multi_step, multiple_choice]
+    difficulty_calibration:
+      easy: "Classify a bond as ionic or covalent given two element types."
+      medium: "Draw a Lewis structure for a simple molecule, e.g. CO2."
+      hard: "Determine molecular geometry from a Lewis structure using VSEPR theory, a two-step reasoning chain."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-2
+        title: >-
+          Construct and revise an explanation for the outcome of a
+          simple chemical reaction based on the outermost electron
+          states of atoms, trends in the periodic table, and knowledge
+          of the patterns of chemical properties.
+    career_connection:
+      career: Pharmaceutical Chemist
+      description: >-
+        Pharmaceutical chemists design drug molecules by reasoning about
+        bond types and molecular geometry to predict how a compound will
+        interact with a biological target.
+
+  - topic_id: chemical-reactions-and-equations
+    display_name: Chemical Reactions and Equations
+    grade: 10
+    prerequisites: [chemical-bonding]
+    skill_definition:
+      summary: >-
+        Balance chemical equations and classify reactions as synthesis,
+        decomposition, single replacement, double replacement, or
+        combustion.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Balance a simple synthesis reaction."
+      medium: "Balance a decomposition or single-replacement reaction with larger coefficients."
+      hard: "Balance a combustion reaction involving a hydrocarbon."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-7
+        title: >-
+          Use mathematical representations to support the claim that
+          atoms, and therefore mass, are conserved during a chemical
+          reaction.
+    career_connection:
+      career: Environmental Chemist
+      description: >-
+        Environmental chemists balance combustion and decomposition
+        equations to model pollutant breakdown and emissions.
+
+  - topic_id: stoichiometry
+    display_name: Stoichiometry
+    grade: 10
+    prerequisites: [chemical-reactions-and-equations]
+    skill_definition:
+      summary: >-
+        Use mole ratios from a balanced equation to calculate the
+        quantity of a reactant or product in a chemical reaction.
+      preferred_question_types: [free_text]
+    difficulty_calibration:
+      easy: "Convert grams to moles given a molar mass."
+      medium: "Find the moles of product given moles of a limiting reactant."
+      hard: "Solve a limiting-reactant problem given starting masses of two reactants."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-7
+        title: >-
+          Use mathematical representations to support the claim that
+          atoms, and therefore mass, are conserved during a chemical
+          reaction.
+    career_connection:
+      career: Chemical Engineer
+      description: >-
+        Chemical engineers use stoichiometry to scale a lab reaction up
+        to industrial production, calculating exactly how much raw
+        material a plant needs to order.
+
+  - topic_id: gas-laws
+    display_name: Gas Laws
+    # grade 9, same grade as its prerequisite -- same grade_entry_topics()
+    # rationale as chemical-bonding above; deliberate since
+    # preferred_question_types leads with numeric.
+    grade: 9
+    prerequisites: [matter-and-measurement]
+    skill_definition:
+      summary: >-
+        Apply Boyle's law, Charles's law, and the ideal gas law to
+        relate pressure, volume, temperature, and moles of a gas.
+      preferred_question_types: [numeric, multiple_choice]
+    difficulty_calibration:
+      easy: "Solve a Boyle's-law problem given initial and final pressure/volume."
+      medium: "Solve a Charles's-law problem requiring a temperature conversion to Kelvin first."
+      hard: "Solve for an unknown quantity using the ideal gas law (PV = nRT)."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-3
+        title: >-
+          Plan and conduct an investigation to gather evidence to
+          compare the structure of substances at the bulk scale to
+          infer the strength of electrical forces between particles.
+    career_connection:
+      career: HVAC Technician
+      description: >-
+        HVAC technicians apply gas laws to predict how refrigerant
+        pressure and volume change with temperature inside a cooling
+        system.
+
+  - topic_id: acids-and-bases
+    display_name: Acids and Bases
+    grade: 10
+    prerequisites: [chemical-reactions-and-equations]
+    skill_definition:
+      summary: >-
+        Classify substances as acids or bases, calculate pH, and
+        identify neutralization reactions.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify whether a substance is acidic or basic given its pH."
+      medium: "Calculate pH given the hydrogen ion concentration."
+      hard: "Balance and identify the products of a neutralization reaction."
+    standards:
+      - framework: NGSS
+        code: HS-PS1-2
+        title: >-
+          Construct and revise an explanation for the outcome of a
+          simple chemical reaction based on the outermost electron
+          states of atoms, trends in the periodic table, and knowledge
+          of the patterns of chemical properties.
+    career_connection:
+      career: Winemaker
+      description: >-
+        Winemakers monitor and adjust the acidity (pH) of a batch
+        throughout fermentation to control flavor and stability.

@@ -1,0 +1,231 @@
+# Pre-Algebra content artifact (spec 046, User Story 3).
+#
+# Topic order below IS the authored order Topic.order_index is assigned
+# from at load time (services/content_artifact/loader.py) -- topics are
+# listed in the order a learner would naturally progress through them,
+# prerequisites before dependents (matching algebra-1's own convention).
+subject_id: pre-algebra
+display_name: Pre-Algebra
+content_version: "1.0.0"
+grade_bands: [6, 7]
+topics:
+  - topic_id: ratios-and-proportional-relationships
+    display_name: Ratios and Proportional Relationships
+    grade: 6
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Understand and use ratio language, unit rates, and
+        proportional relationships to solve real-world problems.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "A simple ratio comparison, e.g. 3 red marbles to 5 blue marbles."
+      medium: "A unit-rate problem, e.g. cost per item given a bulk price."
+      hard: "A multi-quantity proportional scaling problem, e.g. scaling a recipe for a different number of servings."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.6.RP.A.1
+        title: >-
+          Understand the concept of a ratio and use ratio language to
+          describe a ratio relationship between two quantities.
+    career_connection:
+      career: Chef
+      description: >-
+        Chefs scale recipes up or down constantly, using the exact same
+        ratio reasoning to keep ingredient proportions correct at any
+        batch size.
+
+  - topic_id: percentages-and-applications
+    display_name: Percentages and Applications
+    grade: 6
+    prerequisites: [ratios-and-proportional-relationships]
+    skill_definition:
+      summary: >-
+        Convert between fractions, decimals, and percentages, and solve
+        percentage problems involving discounts, tax, and tips.
+      preferred_question_types: [numeric, multiple_choice]
+    difficulty_calibration:
+      easy: "Find 10% or 50% of a whole number."
+      medium: "Find an arbitrary percentage of a quantity, e.g. 23% of 150."
+      hard: "A multi-step discount-then-tax problem on a purchase price."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.6.RP.A.3C
+        title: >-
+          Find a percent of a quantity as a rate per 100; solve problems
+          involving finding the whole, given a part and the percent.
+    career_connection:
+      career: Retail Manager
+      description: >-
+        Retail managers calculate discounts and sales tax on every
+        transaction, and set markup percentages to price inventory
+        profitably.
+
+  - topic_id: rational-numbers-and-operations
+    display_name: Rational Numbers and Operations
+    grade: 6
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Add, subtract, multiply, and divide positive and negative
+        fractions and decimals.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Add two fractions with a common denominator."
+      medium: "Multiply or divide two negative decimals."
+      hard: "A multi-operation expression mixing negative fractions and decimals."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.6.NS.C.5
+        title: >-
+          Understand that positive and negative numbers are used
+          together to describe quantities having opposite directions or
+          values.
+    career_connection:
+      career: Civil Engineer
+      description: >-
+        Civil engineers work with signed rational measurements (e.g.
+        elevation above/below a reference grade) constantly when
+        surveying a site.
+
+  - topic_id: expressions-and-one-step-equations
+    display_name: Expressions and One-Step Equations
+    # grade 6, same grade as its prerequisite: grade_entry_topics()
+    # (agents/diagnostic/agent.py) treats a topic as placement-eligible
+    # whenever every prerequisite is in a *strictly lower* grade -- a
+    # same-grade prerequisite is what keeps a topic out of placement
+    # (algebra-2's rational-expressions-and-equations precedent).
+    # Deliberate here since preferred_question_types leads with
+    # multi_step.
+    grade: 6
+    prerequisites: [rational-numbers-and-operations]
+    process_level_grading: true
+    skill_definition:
+      summary: >-
+        Write and evaluate algebraic expressions, and solve one-step
+        equations using inverse operations.
+      preferred_question_types: [multi_step, numeric]
+    difficulty_calibration:
+      easy: "Solve a one-step addition or subtraction equation, e.g. x + 4 = 9."
+      medium: "Solve a one-step multiplication or division equation involving a negative, e.g. -3x = 12."
+      hard: "Solve a one-step equation involving a fraction coefficient."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.EE.B.4A
+        title: >-
+          Solve word problems leading to equations of the form px + q =
+          r and p(x + q) = r, where p, q, and r are specific rational
+          numbers.
+    career_connection:
+      career: Pharmacy Technician
+      description: >-
+        Pharmacy technicians solve one-step dosage equations to scale a
+        prescribed amount to a patient's specific weight or concentration.
+
+  - topic_id: exponents-and-scientific-notation
+    display_name: Exponents and Scientific Notation
+    grade: 7
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Evaluate expressions with whole-number exponents, and convert
+        numbers between standard and scientific notation.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Evaluate a simple power, e.g. 3^4."
+      medium: "Convert a large standard-form number to scientific notation."
+      hard: "Multiply two numbers in scientific notation, adjusting the result to proper form."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.8.EE.A.1
+        title: >-
+          Know and apply the properties of integer exponents to generate
+          equivalent numerical expressions.
+    career_connection:
+      career: Astronomer
+      description: >-
+        Astronomers use scientific notation to express vast distances
+        (e.g. light-years) and tiny quantities without writing out long
+        strings of zeros.
+
+  - topic_id: geometry-area-and-volume
+    display_name: "Geometry: Area and Volume"
+    grade: 7
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Calculate the area of two-dimensional shapes and the volume of
+        rectangular prisms.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Find the area of a rectangle given its length and width."
+      medium: "Find the area of a triangle or parallelogram."
+      hard: "Find the volume of a rectangular prism with fractional side lengths."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.G.B.6
+        title: >-
+          Solve real-world and mathematical problems involving area,
+          volume, and surface area of two- and three-dimensional
+          objects.
+    career_connection:
+      career: Interior Designer
+      description: >-
+        Interior designers calculate floor area and room volume to plan
+        furniture layouts and estimate material quantities like flooring
+        or paint.
+
+  - topic_id: statistics-and-probability-intro
+    display_name: Introduction to Statistics and Probability
+    grade: 7
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Compute measures of center and variability for a data set, and
+        calculate simple theoretical probabilities.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Find the mean of a small data set."
+      medium: "Find the median and range of a data set with an odd number of values."
+      hard: "Calculate the probability of a compound event, e.g. rolling two dice."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.SP.C.5
+        title: >-
+          Understand that the probability of a chance event is a number
+          between 0 and 1 that expresses the likelihood of the event
+          occurring.
+    career_connection:
+      career: Market Research Analyst
+      description: >-
+        Market research analysts summarize survey data using measures
+        of center and variability to describe customer trends.
+
+  - topic_id: introduction-to-linear-equations
+    display_name: Introduction to Linear Equations
+    # grade 6, same grade as its prerequisite -- same grade_entry_topics()
+    # rationale as expressions-and-one-step-equations above; deliberate
+    # since preferred_question_types is free_text only.
+    grade: 6
+    prerequisites: [expressions-and-one-step-equations]
+    skill_definition:
+      summary: >-
+        Solve two-step linear equations and graph simple linear
+        relationships on a coordinate plane.
+      preferred_question_types: [free_text]
+    difficulty_calibration:
+      easy: "Solve a two-step equation, e.g. 2x + 3 = 11."
+      medium: "Solve a two-step equation with a negative coefficient, e.g. -2x + 5 = -3."
+      hard: "Solve a two-step equation requiring distribution first, e.g. 3(x + 2) = 15."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.7.EE.B.4A
+        title: >-
+          Solve word problems leading to equations of the form px + q =
+          r and p(x + q) = r, where p, q, and r are specific rational
+          numbers.
+    career_connection:
+      career: Electrician
+      description: >-
+        Electricians solve linear equations relating voltage, current,
+        and resistance (Ohm's law) when sizing circuits.

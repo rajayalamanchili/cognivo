@@ -2472,7 +2472,15 @@ explicit user decision).
   `grade_bands`/per-topic `grade` mechanism already supported any grade
   range. The real cost was always content-authoring volume and the
   authoring-approach choice, not the engine -- confirmed true by this
-  pilot.)
+  pilot.) **Fully closed** (`specs/046-stem-catalog-expansion/`,
+  2026-10-12): the remaining six subjects named above (Pre-Algebra,
+  Geometry, Chemistry, Earth Science, Elementary Math, Elementary
+  Science) are now authored, bringing the catalog to ten subjects and
+  confirming the pilot's "zero engine change" claim held even at this
+  larger scale -- unlike the pilot, this follow-up needed no new
+  engine/schema work at all, reusing Milestone 040's FR-009 roster-grade
+  mechanism unchanged down to grades 1-5 (Elementary Math/Science, the
+  first subjects below grade 6 in this catalog's history).
 
 - Durable outbox + cron sweep for outbound notification email, rather
   than the synchronous send `specs/045-account-email-notifications/`
@@ -2506,6 +2514,27 @@ explicit user decision).
 Keeping this section explicit documents what was considered and
 deliberately deferred, rather than leaving it ambiguous whether it was
 forgotten.
+
+**Version**: 3.29.0 -- 2026-10-12, closed "Full K-12 STEM content
+catalog" for good (`specs/046-stem-catalog-expansion/`): the six
+subjects Milestone 040 named and deferred (Pre-Algebra, Geometry,
+Chemistry, Earth Science, Elementary Math, Elementary Science) are now
+authored, bringing the loaded catalog to ten subjects. Unlike Milestone
+040's pilot, this follow-up needed zero engine/schema changes --
+confirmed during `/speckit-plan` by reading the actual code
+(`GradeBand`'s existing `grade BETWEEN 1 AND 12` constraint, Milestone
+19's `determine_mediation_tier`) before any task was written, not
+discovered mid-implementation. One real authoring-time finding, fixed
+during `/speckit-implement`: several non-multiple-choice-first topics
+(e.g. Chemistry's `chemical-bonding`, Geometry's
+`circles-arcs-and-angles`) had only cross-grade prerequisites, which
+`grade_entry_topics()` (`agents/diagnostic/agent.py`) treats as
+placement-eligible regardless of declared type ordering -- not just
+zero-prerequisite topics, as initially assumed. Fixed by aligning each
+affected topic's own grade to match its prerequisite's grade (the same
+same-grade-prerequisite pattern Milestone 040's Algebra II topics
+already used for this exact reason), verified against a real database
+via the full new integration-test suite (20/20 passing).
 
 **Version**: 3.28.0 -- 2026-10-12, added "Durable outbox + cron sweep
 for outbound notification email" to "Out of current roadmap" during

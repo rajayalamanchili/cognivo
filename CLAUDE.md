@@ -135,10 +135,16 @@ between what's a local ADK sub-agent vs. a remote A2A service.
   the "zero engine change" claim before the remaining six subjects are
   attempted separately; see that spec's Clarifications for FR-009's one
   real correction (roster-grade validation, found only during
-  `/speckit-implement`), the sole exception to "zero engine change"; and
-  the **Guardian & Public-Facing UI Redesign**
+  `/speckit-implement`), the sole exception to "zero engine change"; the
+  **Guardian & Public-Facing UI Redesign**
   (`specs/041-guardian-public-ui-redesign/spec.md`, merged to `staging`
-  via PR #109 and promoted to `main` via PR #110, both 2026-10-07).
+  via PR #109 and promoted to `main` via PR #110, both 2026-10-07); and
+  the **STEM Catalog Expansion** (`specs/046-stem-catalog-expansion/
+  spec.md`, 2026-10-12) -- the follow-up Milestone 040 anticipated,
+  authoring the remaining six subjects (Pre-Algebra, Geometry,
+  Chemistry, Earth Science, Elementary Math, Elementary Science) and
+  bringing the loaded catalog to ten subjects, with zero engine changes
+  this time (unlike the pilot's one real FR-009 correction).
 - Two subjects' content artifacts are required in Milestone 1 itself
   (not deferred to a later milestone) specifically to prove the
   domain-agnostic claim early -- see that spec's Assumptions for the
