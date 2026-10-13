@@ -171,3 +171,9 @@ stamped-past-migrations flake, hit again here, same as Milestones
   via the same Setup commands immediately after, to leave the dev
   database in a loaded state. Not a defect in this feature; recorded so
   a future run in this sandbox isn't surprised by it.
+- Full regression (T015, run separately on explicit request): `backend`
+  1056/1056 (30m39s), `grading-agent` 32/32, `tutor-agent` 41/41,
+  `frontend` 314/314 (48 test files) -- zero existing test file edited
+  beyond the additive `conftest.py` fixtures (T010), confirming SC-005.
+  Re-migrated and re-seeded the dev database a second time afterward,
+  for the same schema-teardown reason noted above.

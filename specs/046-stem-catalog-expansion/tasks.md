@@ -104,7 +104,7 @@ No production code changes -- FR-009's mechanism (`ClassroomRoster.grade`, `_che
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T015 [P] Run the full regression suite (`backend` pytest, `grading-agent` pytest, `tutor-agent` pytest, `frontend` npm test); confirm all pass and zero existing test file was edited beyond the additive `conftest.py` fixtures (T010), only new files added (SC-005).
+- [X] T015 [P] Run the full regression suite (`backend` pytest, `grading-agent` pytest, `tutor-agent` pytest, `frontend` npm test); confirm all pass and zero existing test file was edited beyond the additive `conftest.py` fixtures (T010), only new files added (SC-005).
 - [X] T016 Run `quickstart.md`'s scenarios end to end against a real, freshly migrated and loaded dev database (SC-001, SC-002, SC-003, SC-004), including T009's live content load if not already run.
 - [X] T017 [P] Update `roadmap.md`'s "Out of current roadmap" section: strike through the "Full K-12 STEM content catalog" bullet for good, noting this feature as the follow-up that closed the remaining six subjects (Pre-Algebra, Geometry, Chemistry, Earth Science, Elementary Math, Elementary Science) named in Milestone 040's own deferral -- matching the strike-through promotion pattern already used for Milestones 14, 16, 17, 20, 21, 22, and Milestone 040 itself. Also add this feature to `CLAUDE.md`'s "Useful context for any session" section, in the same "shipped outside the milestone sequence" bullet style as Standards Alignment/STEM-Career Connections/the Milestone 040 pilot, noting the catalog now totals ten subjects and that it required zero engine changes.
 
