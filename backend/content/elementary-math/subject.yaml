@@ -1,0 +1,216 @@
+# Elementary Math content artifact (spec 046, User Story 3).
+#
+# Every topic below is deliberately multiple_choice/numeric only -- no
+# free_text or multi_step topic is authored for this subject (spec.md
+# Edge Cases/Assumptions). This makes the "subject with no free-text-
+# capable topics" case real rather than hypothetical, matching
+# research.md Decision 1.
+subject_id: elementary-math
+display_name: Elementary Math
+content_version: "1.0.0"
+grade_bands: [1, 2, 3, 4, 5]
+topics:
+  - topic_id: counting-and-number-sense
+    display_name: Counting and Number Sense
+    grade: 1
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Count, read, and write whole numbers, and compare two numbers
+        using greater than, less than, or equal to.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Count a small group of objects, up to 10."
+      medium: "Compare two two-digit numbers using greater-than/less-than."
+      hard: "Order a set of four two-digit numbers from least to greatest."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.1.NBT.B.3
+        title: >-
+          Compare two two-digit numbers based on meanings of the tens
+          and ones digits, recording the results of comparisons.
+    career_connection:
+      career: Cashier
+      description: >-
+        Cashiers count money and compare amounts constantly, making sure
+        a customer receives the correct change.
+
+  - topic_id: addition-and-subtraction-within-20
+    display_name: Addition and Subtraction Within 20
+    grade: 1
+    prerequisites: [counting-and-number-sense]
+    skill_definition:
+      summary: >-
+        Add and subtract whole numbers within 20 using strategies such
+        as counting on and making ten.
+      preferred_question_types: [numeric, multiple_choice]
+    difficulty_calibration:
+      easy: "Add two single-digit numbers, e.g. 4 + 3."
+      medium: "Add or subtract within 20 crossing a ten, e.g. 8 + 6."
+      hard: "Solve a simple word problem requiring addition and subtraction within 20."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.1.OA.A.1
+        title: >-
+          Use addition and subtraction within 20 to solve word problems
+          involving situations of adding to, taking from, putting
+          together, taking apart, and comparing.
+    career_connection:
+      career: Baker
+      description: >-
+        Bakers add and subtract small quantities of ingredients or
+        baked goods throughout the day when filling orders.
+
+  - topic_id: place-value-and-multi-digit-addition
+    display_name: Place Value and Multi-Digit Addition
+    grade: 2
+    prerequisites: [addition-and-subtraction-within-20]
+    skill_definition:
+      summary: >-
+        Understand place value for hundreds, tens, and ones, and add
+        two- and three-digit numbers using regrouping.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify the value of a digit in a two-digit number."
+      medium: "Add two two-digit numbers without regrouping."
+      hard: "Add two three-digit numbers requiring regrouping in more than one place."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.2.NBT.B.7
+        title: >-
+          Add and subtract within 1000, using concrete models or
+          drawings and strategies based on place value.
+    career_connection:
+      career: Mail Carrier
+      description: >-
+        Mail carriers use place value to read and sort addresses and
+        ZIP codes accurately along a delivery route.
+
+  - topic_id: multiplication-and-division-basics
+    display_name: Multiplication and Division Basics
+    grade: 3
+    prerequisites: [place-value-and-multi-digit-addition]
+    skill_definition:
+      summary: >-
+        Understand multiplication as repeated addition and division as
+        sharing equally, and fluently multiply and divide within 100.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Multiply two single-digit numbers, e.g. 3 x 4."
+      medium: "Divide a two-digit number by a single-digit number with no remainder."
+      hard: "Solve a word problem requiring multiplication or division within 100."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.3.OA.A.1
+        title: >-
+          Interpret products of whole numbers, e.g., interpret 5 x 7 as
+          the total number of objects in 5 groups of 7 objects each.
+    career_connection:
+      career: Party Planner
+      description: >-
+        Party planners multiply and divide quantities constantly, like
+        figuring out how many pizza slices each guest gets if a pizza is
+        cut into 8 pieces.
+
+  - topic_id: fractions-as-numbers
+    display_name: Fractions as Numbers
+    grade: 3
+    prerequisites: [multiplication-and-division-basics]
+    skill_definition:
+      summary: >-
+        Understand a fraction as a number on the number line and
+        compare fractions with the same numerator or denominator.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify the fraction represented by a shaded shape."
+      medium: "Compare two fractions with the same denominator."
+      hard: "Compare two fractions with different numerators and denominators using a benchmark like 1/2."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.3.NF.A.1
+        title: >-
+          Understand a fraction 1/b as the quantity formed by 1 part
+          when a whole is partitioned into b equal parts.
+    career_connection:
+      career: Carpenter
+      description: >-
+        Carpenters read fractional measurements on a tape measure, like
+        3/4 of an inch, when cutting materials to size.
+
+  - topic_id: multi-digit-multiplication-and-division
+    display_name: Multi-Digit Multiplication and Division
+    grade: 4
+    prerequisites: [multiplication-and-division-basics]
+    skill_definition:
+      summary: >-
+        Multiply multi-digit whole numbers and divide with remainders
+        using the standard algorithm or an area model.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Multiply a two-digit number by a one-digit number."
+      medium: "Multiply a two-digit number by a two-digit number."
+      hard: "Divide a three-digit number by a one-digit number, interpreting the remainder."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.4.NBT.B.5
+        title: >-
+          Multiply a whole number of up to four digits by a one-digit
+          whole number, and multiply two two-digit numbers, using
+          strategies based on place value.
+    career_connection:
+      career: Event Caterer
+      description: >-
+        Event caterers multiply multi-digit quantities, like scaling a
+        recipe that serves 12 up to serve 150 guests.
+
+  - topic_id: decimals-and-fraction-operations
+    display_name: Decimals and Fraction Operations
+    grade: 5
+    prerequisites: [fractions-as-numbers]
+    skill_definition:
+      summary: >-
+        Add and subtract fractions with unlike denominators, and read,
+        write, and compare decimals to the thousandths.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Compare two decimals to the hundredths place."
+      medium: "Add two fractions with unlike denominators, e.g. 1/3 + 1/4."
+      hard: "Subtract a fraction from a mixed number with unlike denominators."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.5.NF.A.1
+        title: >-
+          Add and subtract fractions with unlike denominators by
+          replacing given fractions with equivalent fractions.
+    career_connection:
+      career: Pharmacist
+      description: >-
+        Pharmacists work with decimal dosages constantly, calculating
+        precise medication amounts to the hundredth of a gram.
+
+  - topic_id: measurement-and-data
+    display_name: Measurement and Data
+    grade: 5
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Convert measurement units within a system and represent and
+        interpret data on line plots.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Convert a measurement between related units, e.g. feet to inches."
+      medium: "Read a value from a line plot of measurement data."
+      hard: "Find the difference between the largest and smallest value shown on a line plot."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.5.MD.A.1
+        title: >-
+          Convert among different-sized standard measurement units
+          within a given measurement system, and use these conversions
+          in solving multi-step, real world problems.
+    career_connection:
+      career: Construction Worker
+      description: >-
+        Construction workers convert between measurement units (feet,
+        inches) constantly when reading blueprints and cutting
+        materials.

@@ -1,0 +1,221 @@
+# Geometry content artifact (spec 046, User Story 3).
+subject_id: geometry
+display_name: Geometry
+content_version: "1.0.0"
+grade_bands: [9, 10]
+topics:
+  - topic_id: points-lines-and-planes
+    display_name: Points, Lines, and Planes
+    grade: 9
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Identify and name basic geometric figures (points, lines,
+        segments, rays, planes) and their relationships.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify whether two lines are parallel, intersecting, or skew from a diagram."
+      medium: "Name a segment or ray given two labeled points."
+      hard: "Determine the number of planes defined by a set of non-collinear points."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-CO.A.1
+        title: >-
+          Know precise definitions of angle, circle, perpendicular line,
+          parallel line, and line segment, based on the undefined
+          notions of point, line, distance along a line, and distance
+          around a circular arc.
+    career_connection:
+      career: Architect
+      description: >-
+        Architects reason about points, lines, and planes constantly
+        when drafting blueprints -- every wall is a plane and every edge
+        is a line segment with precise endpoints.
+
+  - topic_id: angle-relationships
+    display_name: Angle Relationships
+    grade: 9
+    prerequisites: [points-lines-and-planes]
+    process_level_grading: true
+    skill_definition:
+      summary: >-
+        Identify and calculate complementary, supplementary, vertical,
+        and corresponding angle pairs formed by intersecting and
+        parallel lines.
+      preferred_question_types: [multi_step, numeric]
+    difficulty_calibration:
+      easy: "Find the complement or supplement of a given angle."
+      medium: "Find a missing angle using vertical angles."
+      hard: "Find a missing angle using corresponding/alternate angles formed by a transversal, requiring two steps."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-CO.C.9
+        title: >-
+          Prove theorems about lines and angles, including vertical
+          angles and angles formed when parallel lines are cut by a
+          transversal.
+    career_connection:
+      career: Surveyor
+      description: >-
+        Surveyors measure and verify angle relationships between
+        property lines to establish accurate legal boundaries.
+
+  - topic_id: triangle-congruence
+    display_name: Triangle Congruence
+    grade: 9
+    prerequisites: [angle-relationships]
+    skill_definition:
+      summary: >-
+        Determine whether two triangles are congruent using SSS, SAS,
+        ASA, and AAS criteria.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify which congruence criterion applies given a diagram's marked sides/angles."
+      medium: "Determine if two triangles with given side lengths are congruent."
+      hard: "Determine congruence from a diagram requiring an auxiliary deduction (e.g. shared side)."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-CO.B.7
+        title: >-
+          Use the definition of congruence in terms of rigid motions to
+          show that two triangles are congruent if and only if
+          corresponding pairs of sides and corresponding pairs of angles
+          are congruent.
+    career_connection:
+      career: Structural Engineer
+      description: >-
+        Structural engineers rely on triangle congruence to guarantee
+        that prefabricated truss components are interchangeable and
+        structurally identical.
+
+  - topic_id: triangle-similarity
+    display_name: Triangle Similarity
+    grade: 9
+    prerequisites: [triangle-congruence]
+    skill_definition:
+      summary: >-
+        Determine whether two triangles are similar and use similarity
+        ratios to find missing side lengths.
+      preferred_question_types: [numeric, multiple_choice]
+    difficulty_calibration:
+      easy: "Find a missing side length given two similar triangles and one known ratio."
+      medium: "Determine if two triangles are similar using AA similarity."
+      hard: "Solve an indirect-measurement problem using similar triangles (e.g. shadow heights)."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-SRT.B.5
+        title: >-
+          Use congruence and similarity criteria for triangles to solve
+          problems and to prove relationships in geometric figures.
+    career_connection:
+      career: Photographer
+      description: >-
+        Photographers use similar-triangle ratios to reason about how
+        image size on a sensor scales with subject distance and lens
+        focal length.
+
+  - topic_id: the-pythagorean-theorem
+    display_name: The Pythagorean Theorem
+    grade: 9
+    prerequisites: [triangle-similarity]
+    skill_definition:
+      summary: >-
+        Apply the Pythagorean theorem to find missing side lengths in
+        right triangles and to solve real-world distance problems.
+      preferred_question_types: [numeric, multiple_choice]
+    difficulty_calibration:
+      easy: "Find the hypotenuse given two legs of a right triangle."
+      medium: "Find a missing leg given the hypotenuse and one leg."
+      hard: "Find the straight-line distance between two points using the distance formula."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-SRT.C.8
+        title: >-
+          Use the Pythagorean Theorem to find missing side lengths in
+          right triangles in real-world and mathematical problems.
+    career_connection:
+      career: Carpenter
+      description: >-
+        Carpenters use the Pythagorean theorem (the "3-4-5 rule") to
+        verify that a corner is square before framing a wall.
+
+  - topic_id: quadrilaterals-and-polygons
+    display_name: Quadrilaterals and Polygons
+    grade: 10
+    prerequisites: [angle-relationships]
+    skill_definition:
+      summary: >-
+        Classify quadrilaterals by their properties and calculate
+        interior angle sums of polygons.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Classify a quadrilateral given its marked side/angle properties."
+      medium: "Find the sum of interior angles of a hexagon."
+      hard: "Find a missing angle in an irregular polygon given the other angles."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-CO.C.11
+        title: >-
+          Prove theorems about parallelograms; use properties of special
+          quadrilaterals in a proof.
+    career_connection:
+      career: Urban Planner
+      description: >-
+        Urban planners classify and tile lots using quadrilateral
+        properties when subdividing a block into buildable parcels.
+
+  - topic_id: circles-arcs-and-angles
+    display_name: Circles, Arcs, and Angles
+    # grade 9, same grade as its prerequisite: grade_entry_topics()
+    # (agents/diagnostic/agent.py) treats a topic as placement-eligible
+    # whenever every prerequisite is in a *strictly lower* grade -- a
+    # same-grade prerequisite is what keeps a topic out of placement.
+    # Deliberate here since preferred_question_types leads with numeric.
+    grade: 9
+    prerequisites: [angle-relationships]
+    skill_definition:
+      summary: >-
+        Calculate arc length, central angles, and inscribed angles for
+        circles.
+      preferred_question_types: [numeric, multiple_choice]
+    difficulty_calibration:
+      easy: "Find the measure of a central angle given its arc."
+      medium: "Find an inscribed angle given its intercepted arc."
+      hard: "Find arc length given a radius and central angle in radians."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-C.A.2
+        title: >-
+          Identify and describe relationships among inscribed angles,
+          radii, and chords.
+    career_connection:
+      career: Mechanical Engineer
+      description: >-
+        Mechanical engineers calculate arc lengths and angles when
+        designing gears and rotating components.
+
+  - topic_id: area-and-volume-of-solids
+    display_name: Area and Volume of Solids
+    grade: 10
+    prerequisites: [quadrilaterals-and-polygons]
+    skill_definition:
+      summary: >-
+        Calculate the surface area and volume of prisms, cylinders,
+        cones, and spheres.
+      preferred_question_types: [free_text]
+    difficulty_calibration:
+      easy: "Find the volume of a rectangular prism."
+      medium: "Find the volume of a cylinder given radius and height."
+      hard: "Find the surface area of a composite solid made of two combined shapes."
+    standards:
+      - framework: Common Core Math
+        code: CCSS.MATH.CONTENT.HSG-GMD.A.3
+        title: >-
+          Use volume formulas for cylinders, pyramids, cones, and
+          spheres to solve problems.
+    career_connection:
+      career: Packaging Engineer
+      description: >-
+        Packaging engineers calculate the volume and surface area of
+        container designs to minimize material cost while meeting
+        capacity requirements.
