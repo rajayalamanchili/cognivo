@@ -1,0 +1,218 @@
+# Earth Science content artifact (spec 046, User Story 3).
+subject_id: earth-science
+display_name: Earth Science
+content_version: "1.0.0"
+grade_bands: [6]
+topics:
+  - topic_id: earths-layers-and-plate-tectonics
+    display_name: Earth's Layers and Plate Tectonics
+    grade: 6
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Identify Earth's internal layers and explain how plate tectonic
+        motion causes earthquakes, volcanoes, and mountain formation.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify Earth's layers in order from surface to center."
+      medium: "Identify the type of plate boundary (convergent, divergent, transform) from a diagram."
+      hard: "Predict the geologic feature produced by a specific plate interaction."
+    standards:
+      - framework: NGSS
+        code: MS-ESS2-1
+        title: >-
+          Develop a model to describe the cycling of Earth's materials
+          and the flow of energy that drives this process.
+    career_connection:
+      career: Seismologist
+      description: >-
+        Seismologists study plate boundaries and Earth's internal
+        structure to forecast earthquake risk in a region.
+
+  - topic_id: rocks-and-the-rock-cycle
+    display_name: Rocks and the Rock Cycle
+    grade: 6
+    prerequisites: [earths-layers-and-plate-tectonics]
+    process_level_grading: true
+    skill_definition:
+      summary: >-
+        Classify rocks as igneous, sedimentary, or metamorphic, and
+        trace a rock's path through the rock cycle.
+      preferred_question_types: [multi_step, multiple_choice]
+    difficulty_calibration:
+      easy: "Classify a rock sample as igneous, sedimentary, or metamorphic from its description."
+      medium: "Identify the process (cooling, compaction, heat/pressure) that forms a given rock type."
+      hard: "Trace a multi-step rock-cycle path, e.g. igneous rock to sediment to sedimentary rock."
+    standards:
+      - framework: NGSS
+        code: MS-ESS2-1
+        title: >-
+          Develop a model to describe the cycling of Earth's materials
+          and the flow of energy that drives this process.
+    career_connection:
+      career: Geologist
+      description: >-
+        Geologists classify rock samples in the field and trace their
+        rock-cycle history to understand a region's geologic past.
+
+  - topic_id: weathering-erosion-and-deposition
+    display_name: Weathering, Erosion, and Deposition
+    grade: 6
+    prerequisites: [rocks-and-the-rock-cycle]
+    skill_definition:
+      summary: >-
+        Distinguish weathering, erosion, and deposition, and identify
+        the landforms each process creates.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Distinguish weathering from erosion given a description."
+      medium: "Identify a landform created by a specific erosional process, e.g. a river delta."
+      hard: "Predict how a change in water flow rate would affect deposition at a given location."
+    standards:
+      - framework: NGSS
+        code: MS-ESS2-2
+        title: >-
+          Construct an explanation based on evidence for how geoscience
+          processes have changed Earth's surface at varying time and
+          spatial scales.
+    career_connection:
+      career: Soil Conservationist
+      description: >-
+        Soil conservationists design erosion-control measures based on
+        how weathering and water flow move soil across a landscape.
+
+  - topic_id: earths-atmosphere-and-weather
+    display_name: Earth's Atmosphere and Weather
+    grade: 6
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Describe the layers of the atmosphere and explain how air
+        pressure, temperature, and humidity interact to produce weather.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify the atmospheric layer in which weather occurs."
+      medium: "Predict weather change given a rising or falling barometric pressure trend."
+      hard: "Explain how a front's temperature/humidity profile produces a specific precipitation type."
+    standards:
+      - framework: NGSS
+        code: MS-ESS2-5
+        title: >-
+          Collect data to provide evidence for how the motions and
+          complex interactions of air masses results in changes in
+          weather conditions.
+    career_connection:
+      career: Meteorologist
+      description: >-
+        Meteorologists track air pressure, temperature, and humidity
+        data to forecast tomorrow's weather.
+
+  - topic_id: climate-patterns
+    display_name: Climate Patterns
+    grade: 6
+    prerequisites: [earths-atmosphere-and-weather]
+    skill_definition:
+      summary: >-
+        Distinguish weather from climate, and explain how latitude,
+        elevation, and ocean currents shape regional climate patterns.
+      preferred_question_types: [free_text]
+    difficulty_calibration:
+      easy: "Distinguish weather from climate given a short scenario."
+      medium: "Explain how latitude affects a region's average temperature."
+      hard: "Explain how an ocean current (e.g. the Gulf Stream) affects the climate of a coastal region."
+    standards:
+      - framework: NGSS
+        code: MS-ESS2-6
+        title: >-
+          Develop and use a model to describe how unequal heating and
+          rotation of the Earth cause patterns of atmospheric and
+          oceanic circulation that determine regional climates.
+    career_connection:
+      career: Climatologist
+      description: >-
+        Climatologists analyze long-term latitude, elevation, and ocean-
+        current data to explain and predict regional climate patterns.
+
+  - topic_id: the-water-cycle
+    display_name: The Water Cycle
+    grade: 6
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Describe the processes of the water cycle (evaporation,
+        condensation, precipitation, runoff) and how water moves between
+        Earth's reservoirs.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Name the water-cycle process described by a short scenario."
+      medium: "Order a sequence of water-cycle processes correctly."
+      hard: "Explain how a change in temperature affects the rate of a specific water-cycle process."
+    standards:
+      - framework: NGSS
+        code: MS-ESS2-4
+        title: >-
+          Develop a model to describe the cycling of water through
+          Earth's systems driven by energy from the sun and the force of
+          gravity.
+    career_connection:
+      career: Hydrologist
+      description: >-
+        Hydrologists model the water cycle to predict water availability
+        and flood risk in a watershed.
+
+  - topic_id: earths-place-in-the-solar-system
+    display_name: Earth's Place in the Solar System
+    grade: 6
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Describe the relative positions and motions of Earth, the Moon,
+        and the Sun, and explain how they cause day/night, seasons, and
+        the lunar phases.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify what Earth motion (rotation or revolution) causes a given phenomenon."
+      medium: "Identify the Moon phase given the relative positions of Earth, Moon, and Sun."
+      hard: "Explain why seasons are caused by axial tilt rather than distance from the Sun."
+    standards:
+      - framework: NGSS
+        code: MS-ESS1-1
+        title: >-
+          Develop and use a model of the Earth-sun-moon system to
+          describe the cyclic patterns of lunar phases, eclipses of the
+          sun and moon, and seasons.
+    career_connection:
+      career: Planetarium Educator
+      description: >-
+        Planetarium educators explain the Earth-Moon-Sun system to the
+        public, using models to show why we see seasons and lunar
+        phases.
+
+  - topic_id: natural-resources-and-human-impact
+    display_name: Natural Resources and Human Impact
+    grade: 6
+    prerequisites: [weathering-erosion-and-deposition]
+    skill_definition:
+      summary: >-
+        Classify natural resources as renewable or nonrenewable, and
+        evaluate how human activity affects Earth's land, water, and air
+        resources.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Classify a resource as renewable or nonrenewable."
+      medium: "Identify a human activity that accelerates a specific form of erosion or pollution."
+      hard: "Evaluate a proposed land-use change for its likely effect on a local resource."
+    standards:
+      - framework: NGSS
+        code: MS-ESS3-1
+        title: >-
+          Construct a scientific explanation based on evidence for how
+          the uneven distributions of Earth's mineral, energy, and
+          groundwater resources are the result of past and current
+          geoscience processes.
+    career_connection:
+      career: Environmental Scientist
+      description: >-
+        Environmental scientists assess how human land use affects
+        natural resource availability and recommend conservation
+        measures.

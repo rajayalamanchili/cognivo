@@ -1,0 +1,217 @@
+# Elementary Science content artifact (spec 046, User Story 3).
+#
+# Every topic below is deliberately multiple_choice/numeric only -- no
+# free_text or multi_step topic is authored for this subject (spec.md
+# Edge Cases/Assumptions), the same deliberate choice as
+# elementary-math.
+subject_id: elementary-science
+display_name: Elementary Science
+content_version: "1.0.0"
+grade_bands: [1, 2, 3, 4, 5]
+topics:
+  - topic_id: observing-the-natural-world
+    display_name: Observing the Natural World
+    grade: 1
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Use senses and simple tools to observe, describe, and compare
+        objects and living things.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify an object's observable property, e.g. color or shape."
+      medium: "Compare two objects using a shared observable property."
+      hard: "Group a set of objects by a shared property and explain the grouping."
+    standards:
+      - framework: NGSS
+        code: 1-PS4-1
+        title: >-
+          Plan and conduct investigations to determine the effect of
+          placing objects made with different materials in the path of
+          a beam of light.
+    career_connection:
+      career: Park Ranger
+      description: >-
+        Park rangers observe and record details about plants, animals,
+        and weather conditions as part of their daily field work.
+
+  - topic_id: plant-and-animal-life-cycles
+    display_name: Plant and Animal Life Cycles
+    grade: 1
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Describe the stages of common plant and animal life cycles and
+        identify what living things need to survive.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify what a plant needs to grow."
+      medium: "Order the stages of a butterfly's life cycle."
+      hard: "Compare the life cycle of two different animals, e.g. a frog and a bird."
+    standards:
+      - framework: NGSS
+        code: 1-LS1-1
+        title: >-
+          Use materials to design a solution to a human problem by
+          mimicking how plants and/or animals use their external parts
+          to help them survive, grow, and meet their needs.
+    career_connection:
+      career: Veterinarian
+      description: >-
+        Veterinarians understand animal life cycles to provide the
+        right care at each stage of a pet's development.
+
+  - topic_id: weather-and-seasons
+    display_name: Weather and Seasons
+    grade: 2
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Observe and describe daily weather conditions and how they
+        change with the seasons.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify the weather condition shown in a picture, e.g. sunny or rainy."
+      medium: "Match a type of clothing to an appropriate season."
+      hard: "Explain how a seasonal change affects a specific outdoor activity."
+    standards:
+      - framework: NGSS
+        code: 2-ESS2-1
+        title: >-
+          Compare multiple solutions designed to slow or prevent wind or
+          water from changing the shape of the land.
+    career_connection:
+      career: Farmer
+      description: >-
+        Farmers track daily weather and seasonal patterns to decide when
+        to plant and harvest crops.
+
+  - topic_id: states-of-matter
+    display_name: States of Matter
+    grade: 2
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Identify matter as a solid, liquid, or gas, and describe how
+        heating or cooling can change matter from one state to another.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Classify an everyday object as a solid, liquid, or gas."
+      medium: "Identify the state change that occurs when ice melts."
+      hard: "Predict what happens to a liquid's state if its temperature keeps dropping."
+    standards:
+      - framework: NGSS
+        code: 2-PS1-1
+        title: >-
+          Plan and conduct an investigation to describe and classify
+          different kinds of materials by their observable properties.
+    career_connection:
+      career: Ice Cream Maker
+      description: >-
+        Ice cream makers control temperature carefully to turn a liquid
+        mixture into a solid frozen treat.
+
+  - topic_id: forces-and-motion-basics
+    display_name: Forces and Motion Basics
+    grade: 3
+    prerequisites: [states-of-matter]
+    skill_definition:
+      summary: >-
+        Describe how pushes and pulls (forces) change the speed or
+        direction of an object's motion.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify whether an action is a push or a pull."
+      medium: "Predict the effect of a stronger push on a ball's speed."
+      hard: "Explain why a moving object changes direction when a force acts on it from the side."
+    standards:
+      - framework: NGSS
+        code: 3-PS2-1
+        title: >-
+          Plan and conduct an investigation to provide evidence of the
+          effects of balanced and unbalanced forces on the motion of an
+          object.
+    career_connection:
+      career: Toy Designer
+      description: >-
+        Toy designers test how pushes and pulls affect a toy's motion,
+        like how hard a wind-up car needs to be wound to roll a certain
+        distance.
+
+  - topic_id: ecosystems-and-habitats
+    display_name: Ecosystems and Habitats
+    grade: 3
+    prerequisites: [plant-and-animal-life-cycles]
+    skill_definition:
+      summary: >-
+        Describe how organisms depend on their habitat and interact with
+        other living things in an ecosystem.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify an animal's habitat from a description."
+      medium: "Identify what would happen to an organism if a resource in its habitat disappeared."
+      hard: "Trace a simple food chain through three organisms in an ecosystem."
+    standards:
+      - framework: NGSS
+        code: 3-LS2-1
+        title: >-
+          Construct an argument that some animals form groups that help
+          members survive.
+    career_connection:
+      career: Wildlife Biologist
+      description: >-
+        Wildlife biologists study how animals depend on their habitat
+        and interact within an ecosystem to protect vulnerable species.
+
+  - topic_id: earth-moon-and-sun
+    display_name: Earth, Moon, and Sun
+    grade: 4
+    prerequisites: []
+    skill_definition:
+      summary: >-
+        Describe the patterns of Earth's rotation and the Moon's
+        appearance that cause day/night and the changing Moon phases.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify what causes day and night."
+      medium: "Identify a Moon phase from a picture."
+      hard: "Order the Moon phases across a full lunar cycle."
+    standards:
+      - framework: NGSS
+        code: 4-ESS1-1
+        title: >-
+          Identify evidence from patterns in rock formations and fossils
+          in rock layers to support an explanation for changes in a
+          landscape over time.
+    career_connection:
+      career: Astronaut
+      description: >-
+        Astronauts experience Earth's day/night cycle very differently
+        in orbit, and rely on understanding Earth-Moon-Sun patterns to
+        plan missions.
+
+  - topic_id: energy-and-simple-machines
+    display_name: Energy and Simple Machines
+    grade: 5
+    prerequisites: [forces-and-motion-basics]
+    skill_definition:
+      summary: >-
+        Identify forms of energy and describe how simple machines (levers,
+        pulleys, ramps) make work easier.
+      preferred_question_types: [multiple_choice, numeric]
+    difficulty_calibration:
+      easy: "Identify a form of energy shown in a scenario, e.g. light or sound."
+      medium: "Identify the simple machine used in a described tool, e.g. a seesaw as a lever."
+      hard: "Explain how a ramp reduces the force needed to move an object to a given height."
+    standards:
+      - framework: NGSS
+        code: 5-PS3-1
+        title: >-
+          Use models to describe that energy in animals' food (used for
+          body repair, growth, motion, and to maintain body warmth) was
+          once energy from the sun.
+    career_connection:
+      career: Mechanical Engineer
+      description: >-
+        Mechanical engineers use simple machines like levers and pulleys
+        as building blocks when designing larger mechanical systems.

@@ -128,3 +128,33 @@ def algebra_2_subject(db_session):
 @pytest.fixture()
 def physics_subject(db_session):
     return load_content_artifact(db_session, "content/physics/subject.yaml")
+
+
+@pytest.fixture()
+def pre_algebra_subject(db_session):
+    return load_content_artifact(db_session, "content/pre-algebra/subject.yaml")
+
+
+@pytest.fixture()
+def geometry_subject(db_session):
+    return load_content_artifact(db_session, "content/geometry/subject.yaml")
+
+
+@pytest.fixture()
+def chemistry_subject(db_session):
+    return load_content_artifact(db_session, "content/chemistry/subject.yaml")
+
+
+@pytest.fixture()
+def earth_science_subject(db_session):
+    return load_content_artifact(db_session, "content/earth-science/subject.yaml")
+
+
+@pytest.fixture()
+def elementary_math_subject(db_session):
+    return load_content_artifact(db_session, "content/elementary-math/subject.yaml")
+
+
+@pytest.fixture()
+def elementary_science_subject(db_session):
+    return load_content_artifact(db_session, "content/elementary-science/subject.yaml")
